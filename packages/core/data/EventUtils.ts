@@ -1,0 +1,48 @@
+import type { Entity as EntityType } from '@monorise/base';
+import type { publishEvent as publishEventType } from '#/helpers/event';
+import { EVENT } from '#/shared/types/event';
+import type { Entity } from './Entity';
+// accept as config
+// import { EntityConfig } from '#/shared/configs/monorise';
+
+type PublishEventProps<T extends EntityType> = {
+  entity: Entity<T>;
+  mutualPayload: Record<string, any>;
+};
+
+export class EventUtils {
+  constructor(private publishEvent: typeof publishEventType) {}
+
+  // Always when create entity, this must be called following, to make sure mutual data processor will be called
+  publishCreateMutualsEvent = async <T extends EntityType>({
+    entity,
+    mutualPayload,
+  }: PublishEventProps<T>) => {
+    const publishEventPromises = [];
+    for (const [fieldKey, config] of Object.entries(
+      EntityConfig[entity.entityType].mutual?.mutualFields || {},
+    )) {
+      const toMutualIds = config.toMutualIds;
+      const mutualPayloadByFieldKey = mutualPayload[fieldKey];
+      if (!mutualPayloadByFieldKey) continue;
+
+      publishEventPromises.push(
+        this.publishEvent({
+          event: EVENT.CORE_SERVICE.ENTITY_MUTUAL_TO_CREATE,
+          payload: {
+            byEntityType: entity.entityType,
+            byEntityId: entity.entityId,
+            entityType: config.entityType,
+            field: fieldKey,
+            mutualIds: toMutualIds
+              ? toMutualIds(mutualPayloadByFieldKey)
+              : mutualPayloadByFieldKey,
+            customContext: toMutualIds ? mutualPayloadByFieldKey : {},
+            publishedAt: entity.updatedAt || new Date().toISOString(),
+          },
+        }),
+      );
+    }
+    await Promise.allSettled(publishEventPromises);
+  };
+}

@@ -1,0 +1,88 @@
+### Mutual
+
+@byEntityType=learner
+@byEntityId=01J5R3ZS09J1GHP3DKSRC6D601
+@entityType=course
+@entityId=01J5R4032JRV4ABQE42GVGW96C
+
+### Create mutual: Associate entity x with entity y
+
+POST {{BASE_URL}}/core/mutual/{{byEntityType}}/{{byEntityId}}/{{entityType}}/{{entityId}}
+content-type: application/json
+x-api-key: {{X_API_KEY}}
+
+{
+    "scope": ["member"]
+}
+
+### Reverse associate, same as associate (should failed if already associated)
+
+POST {{BASE_URL}}/core/mutual/{{entityType}}/{{entityId}}/{{byEntityType}}/{{byEntityId}}
+content-type: application/json
+x-api-key: {{X_API_KEY}}
+
+{
+    "scope": ["member"]
+}
+
+### List associated accounts (flexible)
+
+GET {{BASE_URL}}/core/mutual/{{byEntityType}}/{{byEntityId}}/{{entityType}}
+content-type: application/json
+x-api-key: {{X_API_KEY}}
+
+### List associated via chain query
+
+GET {{BASE_URL}}/core/mutual/{{byEntityType}}/{{byEntityId}}/{{entityType}}?chainEntityQuery=organization
+content-type: application/json
+x-api-key: {{X_API_KEY}}
+
+### Reverse list associated accounts (list from the other perspective)
+
+GET {{BASE_URL}}/core/mutual/{{entityType}}/{{entityId}}/{{byEntityType}}
+content-type: application/json
+x-api-key: {{X_API_KEY}}
+
+### Get account by entityId
+
+GET {{BASE_URL}}/core/mutual/{{byEntityType}}/{{byEntityId}}/{{entityType}}/{{entityId}}
+content-type: application/json
+x-api-key: {{X_API_KEY}}
+
+### Reverse get account by entityId (should get the same thing but reversed ID)
+
+GET {{BASE_URL}}/core/mutual/{{entityType}}/{{entityId}}/{{byEntityType}}/{{byEntityId}}
+content-type: application/json
+x-api-key: {{X_API_KEY}}
+
+### Update associate
+
+PATCH {{BASE_URL}}/core/mutual/{{byEntityType}}/{{byEntityId}}/{{entityType}}/{{entityId}}
+content-type: application/json
+x-api-key: {{X_API_KEY}}
+
+{
+    "scope": ["superadmin"]
+}
+
+### Reverse update associate
+
+PATCH {{BASE_URL}}/core/mutual/{{entityType}}/{{entityId}}/{{byEntityType}}/{{byEntityId}}
+content-type: application/json
+x-api-key: {{X_API_KEY}}
+
+{
+    "scope": ["hello"]
+}
+
+### Delete associate
+
+DELETE {{BASE_URL}}/core/mutual/{{byEntityType}}/{{byEntityId}}/{{entityType}}/{{entityId}}
+content-type: application/json
+x-api-key: {{X_API_KEY}}
+
+### Reverse delete associate
+
+DELETE {{BASE_URL}}/core/mutual/{{entityType}}/{{entityId}}/{{byEntityType}}/{{byEntityId}}
+content-type: application/json
+x-api-key: {{X_API_KEY}}

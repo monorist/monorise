@@ -1,0 +1,32 @@
+{
+  "name": "@monorise/core",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "monorise": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.758.0",
+    "@aws-sdk/client-eventbridge": "^3.758.0",
+    "@aws-sdk/util-dynamodb": "^3.758.0",
+    "@monorise/base": "^1.0.3",
+    "express": "^4.21.2",
+    "http-status": "^2.1.0",
+    "nanoid": "^5.1.3",
+    "ulid": "^2.3.0"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.147",
+    "@types/express": "^5.0.0",
+    "sst": "2.41.5"
+  }
+}

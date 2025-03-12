@@ -1,0 +1,12 @@
+import {
+  ENTITY_REPLICATION_INDEX,
+  MUTUAL_REPLICATION_INDEX,
+} from '../constants/table';
+
+const CORE_TABLE = process.env.CORE_TABLE || '';
+
+export {
+  CORE_TABLE,
+  ENTITY_REPLICATION_INDEX,
+  MUTUAL_REPLICATION_INDEX,
+};
