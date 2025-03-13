@@ -10,12 +10,13 @@ import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import type { EntitySchemaMap, Entity as EntityType } from '@monorise/base';
 import { ulid } from 'ulid';
 import { StandardError } from '#/errors/standard-error';
+import {
+  EmailAuthEnabledEntities,
+  EntityConfig,
+} from '#/lambda-layer/monorise';
 import type { ProjectionExpressionValues } from './ProjectionExpression';
 import { Item } from './abstract/Item.base';
 import { Repository } from './abstract/Repository.base';
-// accept as config
-// import { EmailAuthEnabledEntities } from '#/shared/configs/monorise';
-// import { EntityConfig } from '#/shared/configs/monorise';
 
 export class Entity<T extends EntityType> extends Item {
   public fullId: string;
@@ -348,7 +349,7 @@ export class EntityRepository extends Repository {
   async upsertEntity<T extends EntityType>(
     entityType: T,
     entityId: string,
-    payload: EntitySchemaMap[T],
+    payload: Partial<EntitySchemaMap[T]>,
   ): Promise<Entity<T>> {
     const toUpdateExpressions = this.toUpdate({
       entityType,

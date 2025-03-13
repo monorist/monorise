@@ -2,9 +2,8 @@ import type { Entity as EntityType } from '@monorise/base';
 import type { Entity } from '#/data/Entity';
 import type { EventUtils } from '#/data/EventUtils';
 import type { publishEvent as publishEventType } from '#/helpers/event';
+import { EntityConfig } from '#/lambda-layer/monorise';
 import { EVENT } from '#/shared/types/event';
-// accept as config
-// import { EntityConfig } from '#/shared/configs/monorise';
 
 export const afterCreateEntityHook = async <T extends EntityType>({
   entity,
