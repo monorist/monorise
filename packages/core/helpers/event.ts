@@ -3,7 +3,7 @@ import {
   PutEventsCommand,
 } from '@aws-sdk/client-eventbridge';
 import { EventBus } from 'sst/node/event-bus';
-import { EVENT, type EventDetail } from '../types/event';
+import { EVENT, type EventDetail } from '#/shared/types/event';
 
 const eventBridge = new EventBridgeClient();
 

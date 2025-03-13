@@ -1,9 +1,8 @@
 import type { Entity as EntityType } from '@monorise/base';
 import type { publishEvent as publishEventType } from '#/helpers/event';
+import { EntityConfig } from '#/lambda-layer/monorise';
 import { EVENT } from '#/shared/types/event';
 import type { Entity } from './Entity';
-// accept as config
-// import { EntityConfig } from '#/shared/configs/monorise';
 
 type PublishEventProps<T extends EntityType> = {
   entity: Entity<T>;
@@ -28,7 +27,7 @@ export class EventUtils {
 
       publishEventPromises.push(
         this.publishEvent({
-          event: EVENT.CORE_SERVICE.ENTITY_MUTUAL_TO_CREATE,
+          event: EVENT.CORE.ENTITY_MUTUAL_TO_CREATE,
           payload: {
             byEntityType: entity.entityType,
             byEntityId: entity.entityId,

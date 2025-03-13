@@ -6,6 +6,7 @@ import { handler as createEntityProcessor } from './processors/create-entity-pro
 import { handler as mutualProcessor } from './processors/mutual-processor';
 import { handler as prejoinProcessor } from './processors/prejoin-processor';
 import { handler as tagProcessor } from './processors/tag-processor';
+import { DependencyContainer } from './services/DependencyContainer';
 
 export {
   setupCommonRoutes,
@@ -16,4 +17,5 @@ export {
   mutualProcessor,
   prejoinProcessor,
   tagProcessor,
+  DependencyContainer,
 };
