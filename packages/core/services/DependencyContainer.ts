@@ -1,5 +1,4 @@
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
-import { Table } from 'sst/node/table';
 import { CORE_TABLE } from '#/configs/service.config';
 import { getDependencies } from '#/helpers/dependencies';
 import type { publishEvent as publishEventType } from '#/helpers/event';
@@ -31,10 +30,10 @@ export class DependencyContainer {
   private _publishEvent: typeof publishEventType | null;
   private _tableName: string;
 
-  constructor() {
+  constructor(tableName: string) {
     this._instanceCache = new Map();
     this._publishEvent = null;
-    this._tableName = '';
+    this._tableName = tableName;
   }
 
   createCachedInstance<T extends new (...args: any[]) => any>(
@@ -55,7 +54,7 @@ export class DependencyContainer {
   get coreTable(): string {
     if (this._tableName) return this._tableName;
 
-    this._tableName = CORE_TABLE || Table['core-table'].tableName;
+    this._tableName = CORE_TABLE;
     return this._tableName;
   }
 
