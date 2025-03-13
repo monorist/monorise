@@ -2,7 +2,7 @@ import type { Entity } from '@monorise/base';
 import type { SQSBatchItemFailure, SQSEvent } from 'aws-lambda';
 import { StandardError } from '#/errors/standard-error';
 import { parseSQSBusEvent } from '#/helpers/event';
-import { DependencyContainer } from '#/services/DependencyContainer';
+import { container } from '#/lambda-layer/container';
 
 type EventDetailBody = {
   entityType: Entity;
@@ -14,8 +14,6 @@ type EventDetailBody = {
     mutualId?: string;
   };
 };
-
-const container = new DependencyContainer();
 
 export const handler = async (ev: SQSEvent) => {
   const { entityService } = container;

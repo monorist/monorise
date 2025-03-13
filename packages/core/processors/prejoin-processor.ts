@@ -4,9 +4,9 @@ import type { MutualRepository } from '#/data/Mutual';
 import { PROJECTION_EXPRESSION } from '#/data/ProjectionExpression';
 import { parseSQSBusEvent } from '#/helpers/event';
 import type { publishEvent as publishEventType } from '#/helpers/event';
+import { container } from '#/lambda-layer/container';
 import { AllowedEntityTypes, EntityConfig } from '#/lambda-layer/monorise';
 import type { EventDetailBody as MutualProcessorEventDetailBody } from '#/processors/mutual-processor';
-import { DependencyContainer } from '#/services/DependencyContainer';
 import { EVENT } from '#/shared/types/event';
 import type { Prejoins } from '#/types/entity.type';
 
@@ -16,8 +16,6 @@ export type EventDetailBody = {
   entityType: Entity;
   publishedAt: string;
 };
-
-const container = new DependencyContainer();
 
 async function processPrejoins({
   mutualRepository,
