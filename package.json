@@ -12,6 +12,9 @@
     "changeset": "npx @changesets/cli",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
+  "files": [
+    "dist"
+  ],
   "workspaces": [
     "packages/*"
   ],
