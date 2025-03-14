@@ -5,6 +5,7 @@ import { PROJECTION_EXPRESSION } from './data/ProjectionExpression';
 import { handler as createEntityProcessor } from './processors/create-entity-processor';
 import { handler as mutualProcessor } from './processors/mutual-processor';
 import { handler as prejoinProcessor } from './processors/prejoin-processor';
+import { handler as replicationProcessor } from './processors/replication-processor';
 import { handler as tagProcessor } from './processors/tag-processor';
 import { DependencyContainer } from './services/DependencyContainer';
 
@@ -16,6 +17,7 @@ export {
   createEntityProcessor,
   mutualProcessor,
   prejoinProcessor,
+  replicationProcessor,
   tagProcessor,
   DependencyContainer,
 };

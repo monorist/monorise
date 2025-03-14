@@ -9,7 +9,7 @@ import {
   EntityConfig,
 } from '#/lambda-layer/monorise';
 import type { EventDetailBody as MutualProcessorEventDetailBody } from '#/processors/mutual-processor';
-import { EVENT } from '#/shared/types/event';
+import { EVENT } from '#/types/event';
 import { afterCreateEntityHook } from './entity-service-lifecycle';
 
 export class EntityService {

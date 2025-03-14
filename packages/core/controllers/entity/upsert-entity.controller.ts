@@ -6,7 +6,7 @@ import type { EntityRepository } from '#/data/Entity';
 import { StandardError } from '#/errors/standard-error';
 import type { publishEvent as publishEventType } from '#/helpers/event';
 import { EntityConfig } from '#/lambda-layer/monorise';
-import { EVENT } from '#/shared/types/event';
+import { EVENT } from '#/types/event';
 
 export class UpsertEntityController {
   constructor(

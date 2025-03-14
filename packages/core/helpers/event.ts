@@ -2,8 +2,8 @@ import {
   EventBridgeClient,
   PutEventsCommand,
 } from '@aws-sdk/client-eventbridge';
-import { EventBus } from 'sst/node/event-bus';
-import { EVENT, type EventDetail } from '#/shared/types/event';
+import { CORE_EVENT_BUS } from '#/configs/service.config';
+import { EVENT, type EventDetail } from '#/types/event';
 
 const eventBridge = new EventBridgeClient();
 
@@ -40,7 +40,7 @@ export async function publishEvent<T extends Record<string, any>>({
       {
         ...event,
         Detail: JSON.stringify(payload),
-        EventBusName: EventBus['infra-event-bus'].eventBusName,
+        EventBusName: CORE_EVENT_BUS,
       },
     ],
   };

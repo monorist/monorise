@@ -2,8 +2,8 @@ import type { CreatedEntity, Entity as EntityType } from '@monorise/base';
 import type { SQSBatchItemFailure, SQSEvent } from 'aws-lambda';
 import type { Entity } from '#/data/Entity';
 import { parseSQSBusEvent } from '#/helpers/event';
-import { container } from '#/lambda-layer/container';
 import { EntityConfig } from '#/lambda-layer/monorise';
+import { DependencyContainer } from '#/services/DependencyContainer';
 import type { Tag } from '#/types/entity.type';
 
 export type EventDetailBody = {
@@ -11,6 +11,8 @@ export type EventDetailBody = {
   entityId: string;
   data: Record<string, any>;
 };
+
+const container = new DependencyContainer();
 
 function compareTags(
   existingTags: Tag[],

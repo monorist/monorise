@@ -34,8 +34,7 @@
     "paths": {
       "#/shared/*": ["../../shared/*"],
       "#/*": ["./*"],
-      "#/lambda-layer/monorise": ["/opt/nodejs/monorise", "./mock/monorise"],
-      "#/lambda-layer/container": ["/opt/nodejs/container", "./mock/container"]
+      "#/lambda-layer/monorise": ["/opt/nodejs/monorise", "./mock/monorise"]
     },
     // "rootDirs": [],                                   /* Allow multiple folders to be treated as one when resolving modules. */
     // "typeRoots": [],                                  /* Specify multiple folders that act like './node_modules/@types'. */

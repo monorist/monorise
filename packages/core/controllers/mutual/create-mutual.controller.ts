@@ -5,7 +5,7 @@ import { ZodError } from 'zod';
 import { StandardError } from '#/errors/standard-error';
 import type { publishEvent as publishEventType } from '#/helpers/event';
 import type { MutualService } from '#/services/mutual.service';
-// import { EVENT, type EventDetail } from '#/shared/types/event';
+// import { EVENT, type EventDetail } from '#/types/event';
 // import { Entity } from '#/lambda-layer/monorise';
 
 export class CreateMutualController {

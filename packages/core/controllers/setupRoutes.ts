@@ -1,14 +1,13 @@
-import { Router } from 'express';
-import type { DependencyContainer } from '#/services/DependencyContainer';
+import type { Router } from 'express';
+import { DependencyContainer } from '#/services/DependencyContainer';
 import { entityTypeCheck } from '../middlewares/entity-type-check';
 import { mutualTypeCheck } from '../middlewares/mutual-type-check';
 
-const router = Router();
-
-const setupCommonRoutes = (container: DependencyContainer): void => {
+const setupCommonRoutes = (router: Router): void => {
   /*
    * Mutual endpoint
    */
+  const container = new DependencyContainer();
 
   router.use('/mutual/:byEntityType/:byEntityId/:entityType', mutualTypeCheck);
   router.get(
