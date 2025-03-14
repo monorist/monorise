@@ -8,7 +8,7 @@
     "lib": "lib"
   },
   "scripts": {
-    "build": "tsc"
+    "build": "tsc -b"
   },
   "keywords": [],
   "author": "",
