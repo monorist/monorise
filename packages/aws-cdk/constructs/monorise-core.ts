@@ -12,6 +12,7 @@ interface MonoriseCoreProps {
   tableName: string;
   alarmHandler?: Lambda;
   coreTable?: SingleTable;
+  stage: string;
 }
 
 export class MonoriseCore extends Construct {
@@ -28,7 +29,7 @@ export class MonoriseCore extends Construct {
       props.coreTable ||
       new SingleTable(scope, props.tableName, {
         funcProps: {
-          functionName: `${scope.node.tryGetContext('stage')}-${props.appName}-core-replicator`,
+          functionName: `${props.stage}-${props.appName}-core-replicator`,
         },
         tableProps: {
           timeToLiveAttribute: 'expiresAt',
@@ -42,7 +43,7 @@ export class MonoriseCore extends Construct {
 
     const createEntityProcessor = new QFunction(scope, 'create-entity', {
       functionProps: {
-        functionName: `${scope.node.tryGetContext('stage')}-${props.appName}-create-entity-processor`,
+        functionName: `${props.stage}-${props.appName}-create-entity-processor`,
         runtime: Runtime.NODEJS_20_X,
         code: Code.fromAsset('node_modules/@monorise/core/dist/processors'),
         handler: 'create-entity-processor.handler',
@@ -55,7 +56,7 @@ export class MonoriseCore extends Construct {
 
     const mutualProcessor = new QFunction(scope, 'mutual', {
       functionProps: {
-        functionName: `${scope.node.tryGetContext('stage')}-${props.appName}-core-mutual-processor`,
+        functionName: `${props.stage}-${props.appName}-core-mutual-processor`,
         runtime: Runtime.NODEJS_20_X,
         code: Code.fromAsset('node_modules/@monorise/core/dist/processors'),
         handler: 'mutual-processor.handler',
@@ -68,7 +69,7 @@ export class MonoriseCore extends Construct {
 
     const prejoinProcessor = new QFunction(scope, 'prejoin', {
       functionProps: {
-        functionName: `${scope.node.tryGetContext('stage')}-${props.appName}-core-prejoin-processor`,
+        functionName: `${props.stage}-${props.appName}-core-prejoin-processor`,
         runtime: Runtime.NODEJS_20_X,
         code: Code.fromAsset('node_modules/@monorise/core/dist/processors'),
         handler: 'prejoin-processor.handler',
@@ -81,7 +82,7 @@ export class MonoriseCore extends Construct {
 
     const tagProcessor = new QFunction(scope, 'tag', {
       functionProps: {
-        functionName: `${scope.node.tryGetContext('stage')}-${props.appName}-core-tag`,
+        functionName: `${props.stage}-${props.appName}-core-tag`,
         runtime: Runtime.NODEJS_20_X,
         code: Code.fromAsset('node_modules/@monorise/core/dist/processors'),
         handler: 'tag-processor.handler',
