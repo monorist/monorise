@@ -7,7 +7,7 @@ import { Entity, type EntityRepository } from '#/data/Entity';
 import type { EventUtils } from '#/data/EventUtils';
 import { Mutual, type MutualRepository } from '#/data/Mutual';
 import type { publishEvent as publishEventType } from '#/helpers/event';
-import { EVENT } from '#/shared/types/event';
+import { EVENT } from '#/types/event';
 import { afterCreateEntityHook } from './entity-service-lifecycle';
 
 export class MutualService {

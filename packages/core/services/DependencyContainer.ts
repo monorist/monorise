@@ -30,10 +30,10 @@ export class DependencyContainer {
   private _publishEvent: typeof publishEventType | null;
   private _tableName: string;
 
-  constructor(tableName: string) {
+  constructor() {
     this._instanceCache = new Map();
     this._publishEvent = null;
-    this._tableName = tableName;
+    this._tableName = CORE_TABLE;
   }
 
   createCachedInstance<T extends new (...args: any[]) => any>(

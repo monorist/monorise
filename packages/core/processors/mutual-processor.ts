@@ -4,9 +4,9 @@ import type { SQSBatchItemFailure, SQSEvent } from 'aws-lambda';
 import { Mutual } from '#/data/Mutual';
 import { StandardError } from '#/errors/standard-error';
 import { parseSQSBusEvent } from '#/helpers/event';
-import { container } from '#/lambda-layer/container';
 import { EntityConfig } from '#/lambda-layer/monorise';
-import { EVENT } from '#/shared/types/event';
+import { DependencyContainer } from '#/services/DependencyContainer';
+import { EVENT } from '#/types/event';
 
 export type EventDetailBody = {
   mutualIds: string[];
@@ -17,6 +17,8 @@ export type EventDetailBody = {
   publishedAt: string;
   customContext?: Record<string, unknown>;
 };
+
+const container = new DependencyContainer();
 
 const processEntities = async (
   entityIds: string[],
