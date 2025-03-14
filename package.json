@@ -4,14 +4,17 @@
   "description": "",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "packageManager": "npm@10.9.2",
   "scripts": {
-    "build": "tsc",
+    "build": "turbo run build",
     "release": "npm run build && npx @changesets/cli publish",
     "version": "npx @changesets/cli version",
     "changeset": "npx @changesets/cli",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "workspaces": ["packages/*"],
+  "workspaces": [
+    "packages/*"
+  ],
   "keywords": [],
   "author": "monorise",
   "license": "ISC",
@@ -19,6 +22,12 @@
     "@biomejs/biome": "^1.9.4",
     "@tsconfig/node20": "^20.1.4",
     "@types/node": "^22.13.9",
+    "turbo": "^2.4.4",
     "typescript": "^5.1.6"
+  },
+  "exports": {
+    "./base": "./dist/base/index.js",
+    "./react": "./dist/react/index.js",
+    "./cli": "./dist/cli/index.js"
   }
 }
