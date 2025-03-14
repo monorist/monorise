@@ -1,6 +1,6 @@
 {
   "name": "@monorise/aws-cdk",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "",
   "type": "module",
   "main": "dist/index.js",
@@ -12,7 +12,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@monorise/core": "file:../core"
+    "@monorise/core": "^1.0.0"
   },
   "peerDependencies": {
     "aws-cdk-lib": "2.132.1",
