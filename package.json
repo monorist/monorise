@@ -1,10 +1,14 @@
 {
-  "name": "monorise",
-  "version": "1.0.0",
+  "name": "@monorise",
+  "version": "0.0.0",
   "description": "",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
+    "build": "tsc",
+    "release": "npm run build && npx @changesets/cli publish",
+    "version": "npx @changesets/cli version",
+    "changeset": "npx @changesets/cli",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "workspaces": ["packages/*"],
