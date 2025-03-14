@@ -3,7 +3,7 @@ import { DependencyContainer } from '#/services/DependencyContainer';
 import { entityTypeCheck } from '../middlewares/entity-type-check';
 import { mutualTypeCheck } from '../middlewares/mutual-type-check';
 
-const setupCommonRoutes = (router: Router): void => {
+const setupCommonRoutes = (router: Router) => {
   /*
    * Mutual endpoint
    */
