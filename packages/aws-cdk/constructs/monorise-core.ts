@@ -24,7 +24,9 @@ export class MonoriseCore extends Construct {
     super(scope, id);
 
     this.id = id;
-    this.eventBus = new EventBus(this, 'monorise-event-bus');
+    this.eventBus = new EventBus(this, 'monorise-event-bus', {
+      eventBusName: `${props.stage}-${props.appName}-monorise-event-bus`,
+    });
     this.coreTable =
       props.coreTable ||
       new SingleTable(scope, props.tableName, {
