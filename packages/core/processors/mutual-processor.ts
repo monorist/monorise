@@ -1,12 +1,12 @@
 import { TransactionCanceledException } from '@aws-sdk/client-dynamodb';
 import type { Entity } from '@monorise/base';
 import type { SQSBatchItemFailure, SQSEvent } from 'aws-lambda';
-import { Mutual } from '#/data/Mutual';
-import { StandardError } from '#/errors/standard-error';
-import { parseSQSBusEvent } from '#/helpers/event';
 import { EntityConfig } from '#/lambda-layer/monorise';
-import { DependencyContainer } from '#/services/DependencyContainer';
-import { EVENT } from '#/types/event';
+import { Mutual } from '../data/Mutual';
+import { StandardError } from '../errors/standard-error';
+import { parseSQSBusEvent } from '../helpers/event';
+import { DependencyContainer } from '../services/DependencyContainer';
+import { EVENT } from '../types/event';
 
 export type EventDetailBody = {
   mutualIds: string[];

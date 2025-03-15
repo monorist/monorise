@@ -1,14 +1,14 @@
 import type { Entity } from '@monorise/base';
 import type { SQSBatchItemFailure, SQSEvent } from 'aws-lambda';
-import type { MutualRepository } from '#/data/Mutual';
-import { PROJECTION_EXPRESSION } from '#/data/ProjectionExpression';
-import { parseSQSBusEvent } from '#/helpers/event';
-import type { publishEvent as publishEventType } from '#/helpers/event';
 import { AllowedEntityTypes, EntityConfig } from '#/lambda-layer/monorise';
-import type { EventDetailBody as MutualProcessorEventDetailBody } from '#/processors/mutual-processor';
-import { DependencyContainer } from '#/services/DependencyContainer';
-import type { Prejoins } from '#/types/entity.type';
-import { EVENT } from '#/types/event';
+import type { MutualRepository } from '../data/Mutual';
+import { PROJECTION_EXPRESSION } from '../data/ProjectionExpression';
+import { parseSQSBusEvent } from '../helpers/event';
+import type { publishEvent as publishEventType } from '../helpers/event';
+import type { EventDetailBody as MutualProcessorEventDetailBody } from '../processors/mutual-processor';
+import { DependencyContainer } from '../services/DependencyContainer';
+import type { Prejoins } from '../types/entity.type';
+import { EVENT } from '../types/event';
 
 export type EventDetailBody = {
   byEntityType: Entity;

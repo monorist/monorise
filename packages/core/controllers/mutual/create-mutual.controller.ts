@@ -2,10 +2,10 @@ import type { Entity as EntityType } from '@monorise/base';
 import type { Request, Response } from 'express';
 import httpStatus from 'http-status';
 import { ZodError } from 'zod';
-import { StandardError } from '#/errors/standard-error';
-import type { publishEvent as publishEventType } from '#/helpers/event';
-import type { MutualService } from '#/services/mutual.service';
-// import { EVENT, type EventDetail } from '#/types/event';
+import { StandardError } from '../../errors/standard-error';
+import type { publishEvent as publishEventType } from '../../helpers/event';
+import type { MutualService } from '../../services/mutual.service';
+// import { EVENT, type EventDetail } from '../../types/event';
 // import { Entity } from '#/lambda-layer/monorise';
 
 export class CreateMutualController {

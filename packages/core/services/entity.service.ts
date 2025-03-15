@@ -1,15 +1,15 @@
 import type { Entity, EntitySchemaMap } from '@monorise/base';
 import { z } from 'zod';
-import type { EntityRepository } from '#/data/Entity';
-import type { EventUtils } from '#/data/EventUtils';
-import { StandardError } from '#/errors/standard-error';
-import type { publishEvent as publishEventType } from '#/helpers/event';
 import {
   EmailAuthEnabledEntities,
   EntityConfig,
 } from '#/lambda-layer/monorise';
-import type { EventDetailBody as MutualProcessorEventDetailBody } from '#/processors/mutual-processor';
-import { EVENT } from '#/types/event';
+import type { EntityRepository } from '../data/Entity';
+import type { EventUtils } from '../data/EventUtils';
+import { StandardError } from '../errors/standard-error';
+import type { publishEvent as publishEventType } from '../helpers/event';
+import type { EventDetailBody as MutualProcessorEventDetailBody } from '../processors/mutual-processor';
+import { EVENT } from '../types/event';
 import { afterCreateEntityHook } from './entity-service-lifecycle';
 
 export class EntityService {

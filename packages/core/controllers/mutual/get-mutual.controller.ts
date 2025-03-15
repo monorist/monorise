@@ -1,7 +1,7 @@
 import type { Entity } from '@monorise/base';
 import type { Request, Response } from 'express';
 import httpStatus from 'http-status';
-import type { MutualRepository } from '#/data/Mutual';
+import type { MutualRepository } from '../../data/Mutual';
 
 export class GetMutualController {
   constructor(private associateRepository: MutualRepository) {}

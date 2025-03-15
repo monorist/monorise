@@ -2,8 +2,8 @@ import type { Entity } from '@monorise/base';
 import type { Request, Response } from 'express';
 import httpStatus from 'http-status';
 import { ZodError } from 'zod';
-import { StandardError } from '#/errors/standard-error';
-import type { EntityService } from '#/services/entity.service';
+import { StandardError } from '../../errors/standard-error';
+import type { EntityService } from '../../services/entity.service';
 
 export class UpdateEntityController {
   constructor(private entityService: EntityService) {}

@@ -1,29 +1,29 @@
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
-import { CORE_TABLE } from '#/configs/service.config';
-import { getDependencies } from '#/helpers/dependencies';
-import type { publishEvent as publishEventType } from '#/helpers/event';
+import { CORE_TABLE } from '../configs/service.config';
+import { getDependencies } from '../helpers/dependencies';
+import type { publishEvent as publishEventType } from '../helpers/event';
 
-import { DbUtils } from '#/data/DbUtils';
-import { EntityRepository } from '#/data/Entity';
-import { EventUtils } from '#/data/EventUtils';
-import { MutualRepository } from '#/data/Mutual';
-import { TagRepository } from '#/data/Tag';
+import { DbUtils } from '../data/DbUtils';
+import { EntityRepository } from '../data/Entity';
+import { EventUtils } from '../data/EventUtils';
+import { MutualRepository } from '../data/Mutual';
+import { TagRepository } from '../data/Tag';
 
-import { CreateEntityController } from '#/controllers/entity/create-entity.controller';
-import { DeleteEntityController } from '#/controllers/entity/delete-entity.controller';
-import { GetEntityController } from '#/controllers/entity/get-entity.controller';
-import { ListEntitiesController } from '#/controllers/entity/list-entities.controller';
-import { UpdateEntityController } from '#/controllers/entity/update-entity.controller';
-import { UpsertEntityController } from '#/controllers/entity/upsert-entity.controller';
-import { CreateMutualController } from '#/controllers/mutual/create-mutual.controller';
-import { DeleteMutualController } from '#/controllers/mutual/delete-mutual.controller';
-import { GetMutualController } from '#/controllers/mutual/get-mutual.controller';
-import { ListEntitiesByEntityController } from '#/controllers/mutual/list-entities-by-entity.controller';
-import { UpdateMutualController } from '#/controllers/mutual/update-mutual.controller';
+import { CreateEntityController } from '../controllers/entity/create-entity.controller';
+import { DeleteEntityController } from '../controllers/entity/delete-entity.controller';
+import { GetEntityController } from '../controllers/entity/get-entity.controller';
+import { ListEntitiesController } from '../controllers/entity/list-entities.controller';
+import { UpdateEntityController } from '../controllers/entity/update-entity.controller';
+import { UpsertEntityController } from '../controllers/entity/upsert-entity.controller';
+import { CreateMutualController } from '../controllers/mutual/create-mutual.controller';
+import { DeleteMutualController } from '../controllers/mutual/delete-mutual.controller';
+import { GetMutualController } from '../controllers/mutual/get-mutual.controller';
+import { ListEntitiesByEntityController } from '../controllers/mutual/list-entities-by-entity.controller';
+import { UpdateMutualController } from '../controllers/mutual/update-mutual.controller';
 import { EntityService } from './entity.service';
 import { MutualService } from './mutual.service';
 
-import { ListTagsController } from '#/controllers/tag/list-tags.controller';
+import { ListTagsController } from '../controllers/tag/list-tags.controller';
 
 export class DependencyContainer {
   private _instanceCache: Map<string, any>;

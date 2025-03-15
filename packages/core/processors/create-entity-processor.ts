@@ -1,8 +1,8 @@
 import type { Entity } from '@monorise/base';
 import type { SQSBatchItemFailure, SQSEvent } from 'aws-lambda';
-import { StandardError } from '#/errors/standard-error';
-import { parseSQSBusEvent } from '#/helpers/event';
-import { DependencyContainer } from '#/services/DependencyContainer';
+import { StandardError } from '../errors/standard-error';
+import { parseSQSBusEvent } from '../helpers/event';
+import { DependencyContainer } from '../services/DependencyContainer';
 
 const container = new DependencyContainer();
 

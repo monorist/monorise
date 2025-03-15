@@ -1,10 +1,10 @@
 import type { CreatedEntity, Entity as EntityType } from '@monorise/base';
 import type { SQSBatchItemFailure, SQSEvent } from 'aws-lambda';
-import type { Entity } from '#/data/Entity';
-import { parseSQSBusEvent } from '#/helpers/event';
 import { EntityConfig } from '#/lambda-layer/monorise';
-import { DependencyContainer } from '#/services/DependencyContainer';
-import type { Tag } from '#/types/entity.type';
+import type { Entity } from '../data/Entity';
+import { parseSQSBusEvent } from '../helpers/event';
+import { DependencyContainer } from '../services/DependencyContainer';
+import type { Tag } from '../types/entity.type';
 
 export type EventDetailBody = {
   entityType: EntityType;
