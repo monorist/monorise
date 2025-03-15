@@ -5,7 +5,7 @@ import type {
 } from '@aws-sdk/client-dynamodb';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import type { EntitySchemaMap, Entity as EntityType } from '@monorise/base';
-import { StandardError } from '#/errors/standard-error';
+import { StandardError } from '../errors/standard-error';
 import { Entity } from './Entity';
 import type { ProjectionExpressionValues } from './ProjectionExpression';
 import { Repository } from './abstract/Repository.base';

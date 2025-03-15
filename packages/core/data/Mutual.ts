@@ -9,9 +9,9 @@ import {
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import type { Entity, EntitySchemaMap } from '@monorise/base';
 import { ulid } from 'ulid';
-import type { DbUtils } from '#/data/DbUtils';
-import { StandardError } from '#/errors/standard-error';
-import { sleep } from '#/helpers/sleep';
+import type { DbUtils } from '../data/DbUtils';
+import { StandardError } from '../errors/standard-error';
+import { sleep } from '../helpers/sleep';
 import {
   PROJECTION_EXPRESSION,
   type ProjectionExpressionValues,

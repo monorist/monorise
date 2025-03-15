@@ -1,7 +1,7 @@
 import type { Entity } from '@monorise/base';
 import type { Request, Response } from 'express';
 import httpStatus from 'http-status';
-import type { EntityRepository } from '#/data/Entity';
+import type { EntityRepository } from '../../data/Entity';
 
 export class GetEntityController {
   constructor(private entityRepository: EntityRepository) {}

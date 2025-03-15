@@ -2,12 +2,12 @@ import type { AttributeValue } from '@aws-sdk/client-dynamodb';
 import type { EntitySchemaMap, Entity as EntityType } from '@monorise/base';
 import { ulid } from 'ulid';
 import { z } from 'zod';
-import type { DbUtils } from '#/data/DbUtils';
-import { Entity, type EntityRepository } from '#/data/Entity';
-import type { EventUtils } from '#/data/EventUtils';
-import { Mutual, type MutualRepository } from '#/data/Mutual';
-import type { publishEvent as publishEventType } from '#/helpers/event';
-import { EVENT } from '#/types/event';
+import type { DbUtils } from '../data/DbUtils';
+import { Entity, type EntityRepository } from '../data/Entity';
+import type { EventUtils } from '../data/EventUtils';
+import { Mutual, type MutualRepository } from '../data/Mutual';
+import type { publishEvent as publishEventType } from '../helpers/event';
+import { EVENT } from '../types/event';
 import { afterCreateEntityHook } from './entity-service-lifecycle';
 
 export class MutualService {

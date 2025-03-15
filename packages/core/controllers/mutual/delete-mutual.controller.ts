@@ -1,8 +1,8 @@
 import type { Entity } from '@monorise/base';
 import type { Request, Response } from 'express';
 import httpStatus from 'http-status';
-import { StandardError } from '#/errors/standard-error';
-import type { MutualService } from '#/services/mutual.service';
+import { StandardError } from '../../errors/standard-error';
+import type { MutualService } from '../../services/mutual.service';
 
 export class DeleteMutualController {
   constructor(private mutualService: MutualService) {}

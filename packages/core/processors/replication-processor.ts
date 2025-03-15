@@ -7,9 +7,9 @@ import type { DynamoDBBatchItemFailure } from 'aws-lambda';
 import {
   ENTITY_REPLICATION_INDEX,
   MUTUAL_REPLICATION_INDEX,
-} from '#/configs/service.config';
-import { StandardError } from '#/errors/standard-error';
-import { DependencyContainer } from '#/services/DependencyContainer';
+} from '../configs/service.config';
+import { StandardError } from '../errors/standard-error';
+import { DependencyContainer } from '../services/DependencyContainer';
 
 const container = new DependencyContainer();
 const TableName = process.env.DDB_TABLE;

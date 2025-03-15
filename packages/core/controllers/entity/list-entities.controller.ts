@@ -1,9 +1,9 @@
 import type { Entity } from '@monorise/base';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
-import type { EntityRepository } from '#/data/Entity';
-import { fromLastKeyQuery } from '#/helpers/fromLastKeyQuery';
-import { toLastKeyResponse } from '#/helpers/toLastKeyResponse';
+import type { EntityRepository } from '../../data/Entity';
+import { fromLastKeyQuery } from '../../helpers/fromLastKeyQuery';
+import { toLastKeyResponse } from '../../helpers/toLastKeyResponse';
 
 const querySchema = z.object({
   limit: z.string().optional(),

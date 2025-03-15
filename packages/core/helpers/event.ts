@@ -2,8 +2,8 @@ import {
   EventBridgeClient,
   PutEventsCommand,
 } from '@aws-sdk/client-eventbridge';
-import { CORE_EVENT_BUS } from '#/configs/service.config';
-import { EVENT, type EventDetail } from '#/types/event';
+import { CORE_EVENT_BUS } from '../configs/service.config';
+import { EVENT, type EventDetail } from '../types/event';
 
 const eventBridge = new EventBridgeClient();
 

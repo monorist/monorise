@@ -1,7 +1,7 @@
 import type { Entity as EntityType } from '@monorise/base';
 // import type { z } from 'zod';
-// import type { Entity } from '#/data/Entity';
-import type { Mutual } from '#/data/Mutual';
+// import type { Entity } from '../data/Entity';
+import type { Mutual } from '../data/Mutual';
 
 export type Tag = {
   group?: string;

@@ -4,7 +4,7 @@ import {
   type TransactWriteItemsInput,
   TransactionCanceledException,
 } from '@aws-sdk/client-dynamodb';
-import { StandardError } from '#/errors/standard-error';
+import { StandardError } from '../errors/standard-error';
 
 export class DbUtils {
   constructor(private ddbClient: DynamoDB) {}

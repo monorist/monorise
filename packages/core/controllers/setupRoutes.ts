@@ -1,7 +1,7 @@
 import type { Router } from 'express';
-import { DependencyContainer } from '#/services/DependencyContainer';
 import { entityTypeCheck } from '../middlewares/entity-type-check';
 import { mutualTypeCheck } from '../middlewares/mutual-type-check';
+import { DependencyContainer } from '../services/DependencyContainer';
 
 const setupCommonRoutes = (router: Router) => {
   /*
