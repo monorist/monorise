@@ -24,6 +24,7 @@ import { EntityService } from './entity.service';
 import { MutualService } from './mutual.service';
 
 import { ListTagsController } from '../controllers/tag/list-tags.controller';
+import { EntityServiceLifeCycle } from './entity-service-lifecycle';
 
 export class DependencyContainer {
   private _instanceCache: Map<string, any>;
@@ -111,6 +112,15 @@ export class DependencyContainer {
       this.EmailAuthEnabledEntities,
       this.entityRepository,
       this.publishEvent,
+      this.entityServiceLifeCycle,
+    );
+  }
+
+  get entityServiceLifeCycle(): EntityServiceLifeCycle {
+    return this.createCachedInstance(
+      EntityServiceLifeCycle,
+      this.EntityConfig,
+      this.publishEvent,
       this.eventUtils,
     );
   }
@@ -121,8 +131,8 @@ export class DependencyContainer {
       this.entityRepository,
       this.mutualRepository,
       this.publishEvent,
-      this.eventUtils,
       this.dbUtils,
+      this.entityServiceLifeCycle,
     );
   }
 

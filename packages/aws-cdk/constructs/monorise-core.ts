@@ -1,8 +1,9 @@
-import { Duration, type Stack } from 'aws-cdk-lib';
+import { Duration } from 'aws-cdk-lib';
 import { EventBus, Rule } from 'aws-cdk-lib/aws-events';
 import { SqsQueue } from 'aws-cdk-lib/aws-events-targets';
 import { Code, type Function as Lambda, Runtime } from 'aws-cdk-lib/aws-lambda';
 import { Construct } from 'constructs';
+import type { Stack } from 'sst/constructs';
 import { EVENT, SOURCE } from './event.js';
 import { QFunction } from './q-function.js';
 import { SingleTable } from './single-table.js';
