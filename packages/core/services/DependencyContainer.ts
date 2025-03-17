@@ -33,6 +33,7 @@ export class DependencyContainer {
   constructor(
     public EntityConfig: any,
     public AllowedEntityTypes: any[],
+    public EmailAuthEnabledEntities: string[],
   ) {
     this._instanceCache = new Map();
     this._publishEvent = null;
@@ -107,6 +108,7 @@ export class DependencyContainer {
     return this.createCachedInstance(
       EntityService,
       this.EntityConfig,
+      this.EmailAuthEnabledEntities,
       this.entityRepository,
       this.publishEvent,
       this.eventUtils,
