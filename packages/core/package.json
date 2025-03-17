@@ -1,6 +1,6 @@
 {
   "name": "@monorise/core",
-  "version": "1.0.3",
+  "version": "1.0.4-2",
   "description": "",
   "type": "module",
   "main": "dist/index.js",
@@ -8,6 +8,9 @@
   "scripts": {
     "build": "tsc"
   },
+  "files": [
+    "dist"
+  ],
   "keywords": [],
   "author": "",
   "license": "ISC",

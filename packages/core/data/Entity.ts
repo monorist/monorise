@@ -9,10 +9,10 @@ import {
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import type { EntitySchemaMap, Entity as EntityType } from '@monorise/base';
 import { ulid } from 'ulid';
-import {
-  EmailAuthEnabledEntities,
-  EntityConfig,
-} from '#/lambda-layer/monorise';
+// import {
+//   EmailAuthEnabledEntities,
+//   EntityConfig,
+// } from '#/lambda-layer/monorise';
 import { StandardError } from '../errors/standard-error';
 import type { ProjectionExpressionValues } from './ProjectionExpression';
 import { Item } from './abstract/Item.base';
@@ -100,6 +100,7 @@ export class Entity<T extends EntityType> extends Item {
 
 export class EntityRepository extends Repository {
   constructor(
+    private EntityConfig: any,
     private readonly TABLE_NAME: string,
     private readonly dynamodbClient: DynamoDB,
   ) {
@@ -302,20 +303,20 @@ export class EntityRepository extends Repository {
     // TODO: Future improvement, if we introduce multiple ways to register/login,
     // here we should also check if entity has the respective auth method defined
     // in the config file
-    if (EmailAuthEnabledEntities.includes(entity.entityType)) {
-      TransactItems.push({
-        Put: {
-          TableName: this.TABLE_NAME,
-          ConditionExpression: 'attribute_not_exists(PK)',
-          Item: {
-            ...entity.toItem(),
-            ...entity.emailKeys,
-            R1PK: entity.emailKeys.SK,
-            R1SK: entity.emailKeys.PK,
-          },
-        },
-      });
-    }
+    // if (EmailAuthEnabledEntities.includes(entity.entityType)) {
+    //   TransactItems.push({
+    //     Put: {
+    //       TableName: this.TABLE_NAME,
+    //       ConditionExpression: 'attribute_not_exists(PK)',
+    //       Item: {
+    //         ...entity.toItem(),
+    //         ...entity.emailKeys,
+    //         R1PK: entity.emailKeys.SK,
+    //         R1SK: entity.emailKeys.PK,
+    //       },
+    //     },
+    //   });
+    // }
 
     return TransactItems;
   }
@@ -476,7 +477,7 @@ export class EntityRepository extends Repository {
 
     const filteredItems: Entity<T>[] = [];
 
-    const { searchableFields } = EntityConfig[entityType];
+    const { searchableFields } = this.EntityConfig[entityType];
 
     for (const item of results.items) {
       const searchTerm = (searchableFields ?? [])

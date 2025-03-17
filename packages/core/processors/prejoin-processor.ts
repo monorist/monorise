@@ -1,6 +1,6 @@
 import type { Entity } from '@monorise/base';
 import type { SQSBatchItemFailure, SQSEvent } from 'aws-lambda';
-import { AllowedEntityTypes, EntityConfig } from '#/lambda-layer/monorise';
+// import { AllowedEntityTypes, EntityConfig } from '#/lambda-layer/monorise';
 import type { MutualRepository } from '../data/Mutual';
 import { PROJECTION_EXPRESSION } from '../data/ProjectionExpression';
 import { parseSQSBusEvent } from '../helpers/event';

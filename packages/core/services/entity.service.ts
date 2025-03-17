@@ -1,9 +1,9 @@
 import type { Entity, EntitySchemaMap } from '@monorise/base';
 import { z } from 'zod';
-import {
-  EmailAuthEnabledEntities,
-  EntityConfig,
-} from '#/lambda-layer/monorise';
+// import {
+//   EmailAuthEnabledEntities,
+//   EntityConfig,
+// } from '#/lambda-layer/monorise';
 import type { EntityRepository } from '../data/Entity';
 import type { EventUtils } from '../data/EventUtils';
 import { StandardError } from '../errors/standard-error';
@@ -14,6 +14,7 @@ import { afterCreateEntityHook } from './entity-service-lifecycle';
 
 export class EntityService {
   constructor(
+    private EntityConfig: any,
     private entityRepository: EntityRepository,
     private publishEvent: typeof publishEventType,
     private eventUtils: EventUtils,
@@ -35,12 +36,12 @@ export class EntityService {
       mutualId?: string;
     };
   }) => {
-    const finalSchema = EntityConfig[entityType].finalSchema;
+    const finalSchema = this.EntityConfig[entityType].finalSchema;
     const entitySchema =
-      EntityConfig[entityType]?.createSchema ||
-      EntityConfig[entityType]?.baseSchema ||
+      this.EntityConfig[entityType]?.createSchema ||
+      this.EntityConfig[entityType]?.baseSchema ||
       z.object({});
-    // const mutualSchema = EntityConfig[entityType]?.mutual?.mutualSchema;
+    // const mutualSchema = this.EntityConfig[entityType]?.mutual?.mutualSchema;
 
     if (!finalSchema || !entitySchema) {
       throw new StandardError('INVALID_ENTITY_TYPE', 'Invalid entity type');
@@ -104,8 +105,8 @@ export class EntityService {
     const errorContext: Record<string, unknown> = {};
 
     try {
-      const entitySchema = EntityConfig[entityType].baseSchema;
-      const mutualSchema = EntityConfig[entityType].mutual?.mutualSchema;
+      const entitySchema = this.EntityConfig[entityType].baseSchema;
+      const mutualSchema = this.EntityConfig[entityType].mutual?.mutualSchema;
 
       if (!entitySchema) {
         throw new StandardError('Invalid entity type', 'INVALID_ENTITY_TYPE');
@@ -130,7 +131,7 @@ export class EntityService {
         const publishEventPromises = [];
 
         for (const [fieldKey, config] of Object.entries(
-          EntityConfig[entityType].mutual?.mutualFields || {},
+          this.EntityConfig[entityType].mutual?.mutualFields || {},
         )) {
           const toMutualIds = config.toMutualIds;
           const mutualPayload = (parsedMutualPayload as Record<string, any>)[

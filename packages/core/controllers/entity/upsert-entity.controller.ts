@@ -2,7 +2,7 @@ import type { Entity } from '@monorise/base';
 import type { Request, Response } from 'express';
 import httpStatus from 'http-status';
 import { ZodError } from 'zod';
-import { EntityConfig } from '#/lambda-layer/monorise';
+// import { EntityConfig } from '#/lambda-layer/monorise';
 import type { EntityRepository } from '../../data/Entity';
 import { StandardError } from '../../errors/standard-error';
 import type { publishEvent as publishEventType } from '../../helpers/event';
@@ -10,6 +10,7 @@ import { EVENT } from '../../types/event';
 
 export class UpsertEntityController {
   constructor(
+    private EntityConfig: any,
     private entityRepository: EntityRepository,
     private publishEvent: typeof publishEventType,
   ) {}
@@ -23,9 +24,9 @@ export class UpsertEntityController {
 
     try {
       const entitySchema =
-        EntityConfig[entityType].createSchema ||
-        EntityConfig[entityType].baseSchema;
-      const mutualSchema = EntityConfig[entityType].mutual?.mutualSchema;
+        this.EntityConfig[entityType].createSchema ||
+        this.EntityConfig[entityType].baseSchema;
+      const mutualSchema = this.EntityConfig[entityType].mutual?.mutualSchema;
 
       if (!entitySchema || !mutualSchema) {
         throw new StandardError('Invalid entity type', 'INVALID_ENTITY_TYPE');
@@ -46,7 +47,7 @@ export class UpsertEntityController {
         const publishEventPromises = [];
 
         for (const [fieldKey, config] of Object.entries(
-          EntityConfig[entityType].mutual?.mutualFields || {},
+          this.EntityConfig[entityType].mutual?.mutualFields || {},
         )) {
           publishEventPromises.push(
             this.publishEvent({
