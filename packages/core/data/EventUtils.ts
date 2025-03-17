@@ -1,5 +1,5 @@
 import type { Entity as EntityType } from '@monorise/base';
-import { EntityConfig } from '#/lambda-layer/monorise';
+// import { EntityConfig } from '#/lambda-layer/monorise';
 import type { publishEvent as publishEventType } from '../helpers/event';
 import { EVENT } from '../types/event';
 import type { Entity } from './Entity';
@@ -10,7 +10,10 @@ type PublishEventProps<T extends EntityType> = {
 };
 
 export class EventUtils {
-  constructor(private publishEvent: typeof publishEventType) {}
+  constructor(
+    public EntityConfig: any,
+    private publishEvent: typeof publishEventType,
+  ) {}
 
   // Always when create entity, this must be called following, to make sure mutual data processor will be called
   publishCreateMutualsEvent = async <T extends EntityType>({
@@ -19,7 +22,7 @@ export class EventUtils {
   }: PublishEventProps<T>) => {
     const publishEventPromises = [];
     for (const [fieldKey, config] of Object.entries(
-      EntityConfig[entity.entityType].mutual?.mutualFields || {},
+      this.EntityConfig[entity.entityType].mutual?.mutualFields || {},
     )) {
       const toMutualIds = config.toMutualIds;
       const mutualPayloadByFieldKey = mutualPayload[fieldKey];

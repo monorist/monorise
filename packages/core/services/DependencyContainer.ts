@@ -30,7 +30,10 @@ export class DependencyContainer {
   private _publishEvent: typeof publishEventType | null;
   private _tableName: string;
 
-  constructor() {
+  constructor(
+    public EntityConfig: any,
+    public AllowedEntityTypes: any[],
+  ) {
     this._instanceCache = new Map();
     this._publishEvent = null;
     this._tableName = CORE_TABLE;
@@ -75,12 +78,17 @@ export class DependencyContainer {
   }
 
   get eventUtils(): EventUtils {
-    return this.createCachedInstance(EventUtils, this.publishEvent);
+    return this.createCachedInstance(
+      EventUtils,
+      this.publishEvent,
+      this.EntityConfig,
+    );
   }
 
   get entityRepository(): EntityRepository {
     return this.createCachedInstance(
       EntityRepository,
+      this.EntityConfig,
       this.coreTable,
       this.dynamodbClient,
     );
@@ -98,6 +106,7 @@ export class DependencyContainer {
   get entityService(): EntityService {
     return this.createCachedInstance(
       EntityService,
+      this.EntityConfig,
       this.entityRepository,
       this.publishEvent,
       this.eventUtils,
@@ -147,6 +156,7 @@ export class DependencyContainer {
   get upsertEntityController(): UpsertEntityController {
     return this.createCachedInstance(
       UpsertEntityController,
+      this.EntityConfig,
       this.entityRepository,
       this.publishEvent,
     );
