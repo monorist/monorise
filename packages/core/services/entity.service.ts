@@ -15,6 +15,7 @@ import { afterCreateEntityHook } from './entity-service-lifecycle';
 export class EntityService {
   constructor(
     private EntityConfig: any,
+    private EmailAuthEnabledEntities: string[],
     private entityRepository: EntityRepository,
     private publishEvent: typeof publishEventType,
     private eventUtils: EventUtils,
@@ -57,7 +58,7 @@ export class EntityService {
     // relationship can be formed when creating entity
     // const parsedMutualPayload = mutualSchema?.parse(entityPayload);
 
-    if (EmailAuthEnabledEntities.includes(entityType)) {
+    if (this.EmailAuthEnabledEntities.includes(entityType)) {
       await this.entityRepository.getEmailAvailability(
         entityType,
         parsedEntityPayload.email,

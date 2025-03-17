@@ -12,18 +12,22 @@ import { DependencyContainer } from './services/DependencyContainer';
 class CoreFactory {
   public setupCommonRoutes: any;
   public mutualProcessor: any;
+  public replicationProcessor: any;
 
   constructor(
     private EntityConfig: any,
     private AllowedEntityTypes: any[],
+    private EmailAuthEnabledEntities: string[],
   ) {
     const dependencyContainer = new DependencyContainer(
       this.EntityConfig,
       this.AllowedEntityTypes,
+      this.EmailAuthEnabledEntities,
     );
 
     this.setupCommonRoutes = setupCommonRoutes(dependencyContainer);
     this.mutualProcessor = mutualProcessor(dependencyContainer);
+    this.replicationProcessor = replicationProcessor(dependencyContainer);
   }
 }
 
@@ -35,7 +39,7 @@ export {
   createEntityProcessor,
   // mutualProcessor,
   // prejoinProcessor,
-  replicationProcessor,
+  // replicationProcessor,
   tagProcessor,
   DependencyContainer,
 };
