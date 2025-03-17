@@ -1,18 +1,14 @@
 import { Duration, type Stack } from 'aws-cdk-lib';
 import { Alarm } from 'aws-cdk-lib/aws-cloudwatch';
 import { SnsAction } from 'aws-cdk-lib/aws-cloudwatch-actions';
-import {
-  Code,
-  type FunctionProps,
-  Function as Lambda,
-  Runtime,
-} from 'aws-cdk-lib/aws-lambda';
+import { type FunctionProps, Function as Lambda } from 'aws-cdk-lib/aws-lambda';
 import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import type { Topic } from 'aws-cdk-lib/aws-sns';
 import { Queue } from 'aws-cdk-lib/aws-sqs';
 import { Construct } from 'constructs';
 
 interface QFunctionQueueProps {
+  stage: string;
   appName: string;
   visibilityTimeout?: Duration;
   maxBatchingWindow?: Duration;
@@ -36,10 +32,12 @@ export class QFunction extends Construct {
     this.id = id;
 
     this.dlq = new Queue(this, `${id}-queue-dlq`, {
+      queueName: `${props.stage}-${props.appName}-${id}-queue-dlq`,
       retentionPeriod: Duration.days(14),
     });
 
     this.queue = new Queue(this, `${id}-queue`, {
+      queueName: `${props.stage}-${props.appName}-${id}-queue`,
       visibilityTimeout: props.visibilityTimeout || Duration.seconds(30),
       deadLetterQueue: {
         queue: this.dlq,

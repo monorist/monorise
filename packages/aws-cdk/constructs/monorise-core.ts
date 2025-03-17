@@ -36,6 +36,8 @@ export class MonoriseCore extends Construct {
         tableProps: {
           timeToLiveAttribute: 'expiresAt',
         },
+        appName: props.appName,
+        stage: props.stage,
       });
 
     const environment = {
@@ -54,6 +56,7 @@ export class MonoriseCore extends Construct {
         environment,
       },
       appName: props.appName,
+      stage: props.stage,
     });
 
     const mutualProcessor = new QFunction(scope, 'mutual', {
@@ -67,6 +70,7 @@ export class MonoriseCore extends Construct {
         environment,
       },
       appName: props.appName,
+      stage: props.stage,
     });
 
     const prejoinProcessor = new QFunction(scope, 'prejoin', {
@@ -80,6 +84,7 @@ export class MonoriseCore extends Construct {
         environment,
       },
       appName: props.appName,
+      stage: props.stage,
     });
 
     const tagProcessor = new QFunction(scope, 'tag', {
@@ -93,6 +98,7 @@ export class MonoriseCore extends Construct {
         environment,
       },
       appName: props.appName,
+      stage: props.stage,
     });
 
     new Rule(scope, 'createEntityRule', {

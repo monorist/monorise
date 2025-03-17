@@ -27,6 +27,8 @@ import {
 export interface SingleTableProps {
   tableProps?: Partial<TableProps>;
   funcProps?: Partial<FunctionProps>;
+  appName: string;
+  stage: string;
 }
 
 export class SingleTable extends Construct {
@@ -34,11 +36,13 @@ export class SingleTable extends Construct {
   public readonly table: Table;
   private readonly dlq: Queue;
 
-  constructor(scope: Stack, id: string, props?: SingleTableProps) {
+  constructor(scope: Stack, id: string, props: SingleTableProps) {
     super(scope, id);
 
     this.id = id;
-    this.dlq = new Queue(this, `${id}-queue-dlq`);
+    this.dlq = new Queue(this, `${id}-queue-dlq`, {
+      queueName: `${props.stage}-${props.appName}-${id}-queue-dlq`,
+    });
 
     this.table = new Table(this, id, {
       partitionKey: { name: 'PK', type: AttributeType.STRING },
