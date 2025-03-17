@@ -1,4 +1,4 @@
-import { Duration, type Stack } from 'aws-cdk-lib';
+import { Duration } from 'aws-cdk-lib';
 import { Alarm } from 'aws-cdk-lib/aws-cloudwatch';
 import { SnsAction } from 'aws-cdk-lib/aws-cloudwatch-actions';
 import {
@@ -11,6 +11,7 @@ import { SqsEventSource } from 'aws-cdk-lib/aws-lambda-event-sources';
 import type { Topic } from 'aws-cdk-lib/aws-sns';
 import { Queue } from 'aws-cdk-lib/aws-sqs';
 import { Construct } from 'constructs';
+import type { Stack } from 'sst/constructs';
 
 interface QFunctionQueueProps {
   appName: string;
@@ -40,6 +41,7 @@ export class QFunction extends Construct {
     });
 
     this.queue = new Queue(this, `${id}-queue`, {
+      queueName: `${scope.stage}-${props.appName}-${id}-queue`,
       visibilityTimeout: props.visibilityTimeout || Duration.seconds(30),
       deadLetterQueue: {
         queue: this.dlq,
@@ -62,7 +64,7 @@ export class QFunction extends Construct {
     const metric = this.dlq.metricApproximateNumberOfMessagesVisible();
 
     const alarm = new Alarm(this, 'Alarm', {
-      alarmName: `${scope.node.tryGetContext('stage')}-${props.appName}-${id}-queue-dlq-alarm`,
+      alarmName: `${scope.stage}-${props.appName}-${id}-queue-dlq-alarm`,
       metric: metric,
       threshold: 1,
       evaluationPeriods: 1,

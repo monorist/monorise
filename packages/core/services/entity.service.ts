@@ -1,16 +1,11 @@
 import type { Entity, EntitySchemaMap } from '@monorise/base';
 import { z } from 'zod';
-// import {
-//   EmailAuthEnabledEntities,
-//   EntityConfig,
-// } from '#/lambda-layer/monorise';
 import type { EntityRepository } from '../data/Entity';
-import type { EventUtils } from '../data/EventUtils';
 import { StandardError } from '../errors/standard-error';
 import type { publishEvent as publishEventType } from '../helpers/event';
 import type { EventDetailBody as MutualProcessorEventDetailBody } from '../processors/mutual-processor';
 import { EVENT } from '../types/event';
-import { afterCreateEntityHook } from './entity-service-lifecycle';
+import type { EntityServiceLifeCycle } from './entity-service-lifecycle';
 
 export class EntityService {
   constructor(
@@ -18,7 +13,7 @@ export class EntityService {
     private EmailAuthEnabledEntities: string[],
     private entityRepository: EntityRepository,
     private publishEvent: typeof publishEventType,
-    private eventUtils: EventUtils,
+    private entityServiceLifeCycle: EntityServiceLifeCycle,
   ) {}
 
   createEntity = async <T extends Entity>({
@@ -81,12 +76,10 @@ export class EntityService {
       },
     );
 
-    await afterCreateEntityHook({
+    await this.entityServiceLifeCycle.afterCreateEntityHook({
       entity,
       entityPayload,
       accountId,
-      publishEvent: this.publishEvent,
-      eventUtils: this.eventUtils,
     });
 
     return entity;

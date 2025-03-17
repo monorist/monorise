@@ -1,9 +1,8 @@
 import type { CreatedEntity, Entity as EntityType } from '@monorise/base';
 import type { SQSBatchItemFailure, SQSEvent } from 'aws-lambda';
-// import { EntityConfig } from '#/lambda-layer/monorise';
 import type { Entity } from '../data/Entity';
 import { parseSQSBusEvent } from '../helpers/event';
-import { DependencyContainer } from '../services/DependencyContainer';
+import type { DependencyContainer } from '../services/DependencyContainer';
 import type { Tag } from '../types/entity.type';
 
 export type EventDetailBody = {
@@ -11,8 +10,6 @@ export type EventDetailBody = {
   entityId: string;
   data: Record<string, any>;
 };
-
-const container = new DependencyContainer();
 
 function compareTags(
   existingTags: Tag[],
@@ -55,10 +52,12 @@ function compareTags(
 }
 
 async function batchUpdateTags({
+  container,
   tagName,
   entity,
   diff,
 }: {
+  container: DependencyContainer;
   tagName: string;
   entity: Entity<EntityType>;
   diff: { old: Tag[]; new: Tag[] };
@@ -100,75 +99,77 @@ async function batchUpdateTags({
   await Promise.all([...removePromises, ...addPromises]);
 }
 
-export const handler = async (ev: SQSEvent) => {
-  const batchItemFailures: SQSBatchItemFailure[] = [];
+export const handler =
+  (container: DependencyContainer) => async (ev: SQSEvent) => {
+    const batchItemFailures: SQSBatchItemFailure[] = [];
 
-  for (const record of ev.Records) {
-    const body = parseSQSBusEvent<EventDetailBody>(record.body);
-    const { detail } = body;
-    const { entityType, entityId } = detail;
+    for (const record of ev.Records) {
+      const body = parseSQSBusEvent<EventDetailBody>(record.body);
+      const { detail } = body;
+      const { entityType, entityId } = detail;
 
-    const errorContext: Record<string, unknown> = {};
-    errorContext.body = body;
+      const errorContext: Record<string, unknown> = {};
+      errorContext.body = body;
 
-    try {
-      const tagConfigs = EntityConfig[entityType]?.tags;
+      try {
+        const tagConfigs = container.EntityConfig[entityType]?.tags;
 
-      if (!tagConfigs || !tagConfigs.length) {
-        // skip if entity has no tag configs
-        continue;
-      }
+        if (!tagConfigs || !tagConfigs.length) {
+          // skip if entity has no tag configs
+          continue;
+        }
 
-      await container.tagRepository.createLock({
-        entityType,
-        entityId,
-      });
-
-      for (const tagConfig of tagConfigs) {
-        const { name, processor } = tagConfig;
-
-        const existingTags = await container.tagRepository.getExistingTags({
+        await container.tagRepository.createLock({
           entityType,
           entityId,
-          tagName: name,
         });
-        errorContext.existingTags = existingTags;
 
-        const entity = await container.entityRepository.getEntity(
+        for (const tagConfig of tagConfigs) {
+          const { name, processor } = tagConfig;
+
+          const existingTags = await container.tagRepository.getExistingTags({
+            entityType,
+            entityId,
+            tagName: name,
+          });
+          errorContext.existingTags = existingTags;
+
+          const entity = await container.entityRepository.getEntity(
+            entityType,
+            entityId,
+          );
+          errorContext.entity = entity;
+
+          const newTags = await processor(
+            entity as unknown as CreatedEntity<EntityType>,
+          );
+          errorContext.newTags = newTags;
+
+          const diff = compareTags(existingTags, newTags);
+          errorContext.diff = diff;
+
+          await batchUpdateTags({
+            container,
+            tagName: name,
+            entity,
+            diff,
+          });
+        }
+
+        await container.tagRepository.deleteLock({
           entityType,
           entityId,
-        );
-        errorContext.entity = entity;
-
-        const newTags = await processor(
-          entity as unknown as CreatedEntity<EntityType>,
-        );
-        errorContext.newTags = newTags;
-
-        const diff = compareTags(existingTags, newTags);
-        errorContext.diff = diff;
-
-        await batchUpdateTags({
-          tagName: name,
-          entity,
-          diff,
         });
+      } catch (err) {
+        console.log(
+          '===TAG-PROCESSOR ERROR===',
+          err,
+          JSON.stringify({ errorContext }, null, 2),
+        );
+
+        batchItemFailures.push({ itemIdentifier: record.messageId });
       }
-
-      await container.tagRepository.deleteLock({
-        entityType,
-        entityId,
-      });
-    } catch (err) {
-      console.log(
-        '===TAG-PROCESSOR ERROR===',
-        err,
-        JSON.stringify({ errorContext }, null, 2),
-      );
-
-      batchItemFailures.push({ itemIdentifier: record.messageId });
     }
-  }
 
-  return { batchItemFailures };
-};
+    return { batchItemFailures };
+  };

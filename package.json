@@ -14,12 +14,7 @@
     "changeset:dev-exit": "npm run changeset -- pre exit",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "files": [
-    "dist"
-  ],
-  "workspaces": [
-    "packages/*"
-  ],
+  "workspaces": ["packages/*"],
   "keywords": [],
   "author": "monorise",
   "license": "ISC",
@@ -31,9 +26,7 @@
     "turbo": "^2.4.4",
     "typescript": "^5.1.6"
   },
-  "exports": {
-    "./base": "./dist/base/index.js",
-    "./react": "./dist/react/index.js",
-    "./cli": "./dist/cli/index.js"
+  "dependencies": {
+    "sst": "^2.41.5"
   }
 }

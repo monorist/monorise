@@ -1,12 +1,11 @@
 import type { Entity } from '@monorise/base';
 import type { SQSBatchItemFailure, SQSEvent } from 'aws-lambda';
-// import { AllowedEntityTypes, EntityConfig } from '#/lambda-layer/monorise';
 import type { MutualRepository } from '../data/Mutual';
 import { PROJECTION_EXPRESSION } from '../data/ProjectionExpression';
 import { parseSQSBusEvent } from '../helpers/event';
 import type { publishEvent as publishEventType } from '../helpers/event';
 import type { EventDetailBody as MutualProcessorEventDetailBody } from '../processors/mutual-processor';
-import { DependencyContainer } from '../services/DependencyContainer';
+import type { DependencyContainer } from '../services/DependencyContainer';
 import type { Prejoins } from '../types/entity.type';
 import { EVENT } from '../types/event';
 
@@ -16,8 +15,6 @@ export type EventDetailBody = {
   entityType: Entity;
   publishedAt: string;
 };
-
-const container = new DependencyContainer();
 
 async function processPrejoins({
   mutualRepository,
@@ -138,21 +135,21 @@ async function processPrejoins({
 }
 
 async function publishToSubscribers({
-  mutualRepository,
+  container,
   publishEvent,
   byEntityType,
   byEntityId,
   publishedAt,
 }: {
-  mutualRepository: MutualRepository;
+  container: DependencyContainer;
   publishEvent: typeof publishEventType;
   byEntityType: Entity;
   byEntityId: string;
   publishedAt: string;
 }) {
-  const listeners = AllowedEntityTypes.reduce(
+  const listeners = container.AllowedEntityTypes.reduce(
     (acc, configKey) => {
-      const { subscribes } = EntityConfig[configKey].mutual ?? {};
+      const { subscribes } = container.EntityConfig[configKey].mutual ?? {};
 
       const hasSubscription = (subscribes ?? []).some(
         ({ entityType }) => entityType === byEntityType,
@@ -175,7 +172,7 @@ async function publishToSubscribers({
   // publish event for each interested entity
   const subscribedMutualItems = await Promise.all(
     listeners.map(({ entityType: subscribedEntityType }) =>
-      mutualRepository.listEntitiesByEntity(
+      container.mutualRepository.listEntitiesByEntity(
         byEntityType,
         byEntityId,
         subscribedEntityType,
@@ -202,63 +199,64 @@ async function publishToSubscribers({
   );
 }
 
-export const handler = async (ev: SQSEvent) => {
-  const batchItemFailures: SQSBatchItemFailure[] = [];
+export const handler =
+  (container: DependencyContainer) => async (ev: SQSEvent) => {
+    const batchItemFailures: SQSBatchItemFailure[] = [];
 
-  const { mutualRepository, publishEvent } = container;
+    const { mutualRepository, publishEvent } = container;
 
-  for (const record of ev.Records) {
-    const body = parseSQSBusEvent<EventDetailBody>(record.body);
-    const { detail } = body;
-    const { byEntityType, byEntityId, entityType, publishedAt } = detail;
-    let errorContext: Record<string, unknown> = {
-      body,
-    };
-
-    try {
-      const isEntityTypeSubscribed = (
-        EntityConfig[byEntityType]?.mutual?.subscribes ?? []
-      ).some(
-        ({ entityType: subscribedEntityType }) =>
-          subscribedEntityType === entityType,
-      );
-      const hasPrejoins = EntityConfig[byEntityType]?.mutual?.prejoins;
-      const shouldProcessPrejoins = isEntityTypeSubscribed && hasPrejoins;
-      errorContext = {
-        ...errorContext,
-        isEntityTypeSubscribed,
-        hasPrejoins,
-        shouldProcessPrejoins,
+    for (const record of ev.Records) {
+      const body = parseSQSBusEvent<EventDetailBody>(record.body);
+      const { detail } = body;
+      const { byEntityType, byEntityId, entityType, publishedAt } = detail;
+      let errorContext: Record<string, unknown> = {
+        body,
       };
 
-      if (shouldProcessPrejoins) {
-        await processPrejoins({
-          mutualRepository,
+      try {
+        const isEntityTypeSubscribed = (
+          container.EntityConfig[byEntityType]?.mutual?.subscribes ?? []
+        ).some(
+          ({ entityType: subscribedEntityType }) =>
+            subscribedEntityType === entityType,
+        );
+        const hasPrejoins = container.EntityConfig[byEntityType]?.mutual?.prejoins;
+        const shouldProcessPrejoins = isEntityTypeSubscribed && hasPrejoins;
+        errorContext = {
+          ...errorContext,
+          isEntityTypeSubscribed,
+          hasPrejoins,
+          shouldProcessPrejoins,
+        };
+
+        if (shouldProcessPrejoins) {
+          await processPrejoins({
+            mutualRepository,
+            publishEvent,
+            byEntityType,
+            byEntityId,
+            prejoins: container.EntityConfig[byEntityType]?.mutual?.prejoins ?? [],
+            publishedAt,
+          });
+        }
+
+        await publishToSubscribers({
+          container,
           publishEvent,
           byEntityType,
           byEntityId,
-          prejoins: EntityConfig[byEntityType]?.mutual?.prejoins ?? [],
           publishedAt,
         });
+      } catch (err) {
+        console.log(
+          '===PREJOIN-PROCESSOR ERROR===',
+          err,
+          JSON.stringify({ errorContext }, null, 2),
+        );
+
+        batchItemFailures.push({ itemIdentifier: record.messageId });
       }
-
-      await publishToSubscribers({
-        mutualRepository,
-        publishEvent,
-        byEntityType,
-        byEntityId,
-        publishedAt,
-      });
-    } catch (err) {
-      console.log(
-        '===PREJOIN-PROCESSOR ERROR===',
-        err,
-        JSON.stringify({ errorContext }, null, 2),
-      );
-
-      batchItemFailures.push({ itemIdentifier: record.messageId });
     }
-  }
 
-  return { batchItemFailures };
-};
+    return { batchItemFailures };
+  };

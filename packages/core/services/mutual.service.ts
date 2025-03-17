@@ -4,19 +4,18 @@ import { ulid } from 'ulid';
 import { z } from 'zod';
 import type { DbUtils } from '../data/DbUtils';
 import { Entity, type EntityRepository } from '../data/Entity';
-import type { EventUtils } from '../data/EventUtils';
 import { Mutual, type MutualRepository } from '../data/Mutual';
 import type { publishEvent as publishEventType } from '../helpers/event';
 import { EVENT } from '../types/event';
-import { afterCreateEntityHook } from './entity-service-lifecycle';
+import type { EntityServiceLifeCycle } from './entity-service-lifecycle';
 
 export class MutualService {
   constructor(
     private entityRepository: EntityRepository,
     private mutualRepository: MutualRepository,
     private publishEvent: typeof publishEventType,
-    private eventUtils: EventUtils,
     private ddbUtils: DbUtils,
+    private entityServiceLifeCycle: EntityServiceLifeCycle,
   ) {}
 
   createMutual = async <
@@ -149,12 +148,10 @@ export class MutualService {
 
     // duplicated behaviour from entityService.createEntity after write success
     if (asEntity && entity && ensureEntityStrongConsistentWrite) {
-      await afterCreateEntityHook({
+      await this.entityServiceLifeCycle.afterCreateEntityHook({
         entity,
         entityPayload: mutualPayload,
         accountId,
-        publishEvent: this.publishEvent,
-        eventUtils: this.eventUtils,
       });
     }
 
