@@ -82,8 +82,8 @@ export class DependencyContainer {
   get eventUtils(): EventUtils {
     return this.createCachedInstance(
       EventUtils,
-      this.publishEvent,
       this.EntityConfig,
+      this.publishEvent,
     );
   }
 
@@ -105,6 +105,15 @@ export class DependencyContainer {
     );
   }
 
+  get entityServiceLifeCycle(): EntityServiceLifeCycle {
+    return this.createCachedInstance(
+      EntityServiceLifeCycle,
+      this.EntityConfig,
+      this.publishEvent,
+      this.eventUtils,
+    );
+  }
+
   get entityService(): EntityService {
     return this.createCachedInstance(
       EntityService,
@@ -113,15 +122,6 @@ export class DependencyContainer {
       this.entityRepository,
       this.publishEvent,
       this.entityServiceLifeCycle,
-    );
-  }
-
-  get entityServiceLifeCycle(): EntityServiceLifeCycle {
-    return this.createCachedInstance(
-      EntityServiceLifeCycle,
-      this.EntityConfig,
-      this.publishEvent,
-      this.eventUtils,
     );
   }
 

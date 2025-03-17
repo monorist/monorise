@@ -76,11 +76,11 @@ export class EntityService {
       },
     );
 
-    await this.entityServiceLifeCycle.afterCreateEntityHook({
+    await this.entityServiceLifeCycle.afterCreateEntityHook(
       entity,
       entityPayload,
       accountId,
-    });
+    );
 
     return entity;
   };
