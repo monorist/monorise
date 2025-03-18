@@ -1,6 +1,6 @@
 {
   "name": "@monorise/core",
-  "version": "1.0.4-2",
+  "version": "1.0.4-3",
   "description": "",
   "type": "module",
   "main": "dist/index.js",
