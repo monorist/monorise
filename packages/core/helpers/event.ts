@@ -45,8 +45,6 @@ export async function publishEvent<T extends Record<string, any>>({
     ],
   };
 
-  console.log('====params debug', JSON.stringify(params, null, 2));
-
   await eventBridge.send(new PutEventsCommand(params));
 }
 
