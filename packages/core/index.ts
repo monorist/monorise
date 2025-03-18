@@ -16,6 +16,7 @@ class CoreFactory {
   public createEntityProcessor: any;
   public prejoinProcessor: any;
   public tagProcessor: any;
+  public dependencyContainer: any;
 
   constructor(
     private EntityConfig: any,
@@ -28,6 +29,7 @@ class CoreFactory {
       this.EmailAuthEnabledEntities,
     );
 
+    this.dependencyContainer = dependencyContainer;
     this.setupCommonRoutes = setupCommonRoutes(dependencyContainer);
     this.mutualProcessor = mutualProcessor(dependencyContainer);
     this.replicationProcessor = replicationProcessor(dependencyContainer);

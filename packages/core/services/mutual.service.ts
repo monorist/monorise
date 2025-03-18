@@ -148,11 +148,11 @@ export class MutualService {
 
     // duplicated behaviour from entityService.createEntity after write success
     if (asEntity && entity && ensureEntityStrongConsistentWrite) {
-      await this.entityServiceLifeCycle.afterCreateEntityHook({
+      await this.entityServiceLifeCycle.afterCreateEntityHook(
         entity,
-        entityPayload: mutualPayload,
+        mutualPayload,
         accountId,
-      });
+      );
     }
 
     // publish an event to create entity if asEntity defined

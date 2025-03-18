@@ -1,5 +1,5 @@
 const SOURCE = {
-  CORE: 'monorise-core',
+  CORE: 'core-service',
   GENERAL: 'general',
 };
 
