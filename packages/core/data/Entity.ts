@@ -9,10 +9,6 @@ import {
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import type { EntitySchemaMap, Entity as EntityType } from '@monorise/base';
 import { ulid } from 'ulid';
-// import {
-//   EmailAuthEnabledEntities,
-//   EntityConfig,
-// } from '#/lambda-layer/monorise';
 import { StandardError } from '../errors/standard-error';
 import type { ProjectionExpressionValues } from './ProjectionExpression';
 import { Item } from './abstract/Item.base';
@@ -103,6 +99,7 @@ export class EntityRepository extends Repository {
     private EntityConfig: any,
     private readonly TABLE_NAME: string,
     private readonly dynamodbClient: DynamoDB,
+    private readonly EmailAuthEnabledEntities: string[],
   ) {
     super();
   }
@@ -303,20 +300,20 @@ export class EntityRepository extends Repository {
     // TODO: Future improvement, if we introduce multiple ways to register/login,
     // here we should also check if entity has the respective auth method defined
     // in the config file
-    // if (EmailAuthEnabledEntities.includes(entity.entityType)) {
-    //   TransactItems.push({
-    //     Put: {
-    //       TableName: this.TABLE_NAME,
-    //       ConditionExpression: 'attribute_not_exists(PK)',
-    //       Item: {
-    //         ...entity.toItem(),
-    //         ...entity.emailKeys,
-    //         R1PK: entity.emailKeys.SK,
-    //         R1SK: entity.emailKeys.PK,
-    //       },
-    //     },
-    //   });
-    // }
+    if (this.EmailAuthEnabledEntities.includes(entity.entityType)) {
+      TransactItems.push({
+        Put: {
+          TableName: this.TABLE_NAME,
+          ConditionExpression: 'attribute_not_exists(PK)',
+          Item: {
+            ...entity.toItem(),
+            ...entity.emailKeys,
+            R1PK: entity.emailKeys.SK,
+            R1SK: entity.emailKeys.PK,
+          },
+        },
+      });
+    }
 
     return TransactItems;
   }
