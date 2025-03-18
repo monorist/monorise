@@ -93,6 +93,7 @@ export class DependencyContainer {
       this.EntityConfig,
       this.coreTable,
       this.dynamodbClient,
+      this.EmailAuthEnabledEntities,
     );
   }
 
