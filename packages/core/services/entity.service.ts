@@ -133,6 +133,21 @@ export class EntityService {
           ];
           if (!mutualPayload) continue;
 
+          console.log('====debug payload====', {
+            event: EVENT.CORE.ENTITY_MUTUAL_TO_UPDATE,
+            payload: {
+              byEntityType,
+              byEntityId,
+              entityType: config.entityType,
+              field: fieldKey,
+              mutualIds: toMutualIds
+                ? toMutualIds(mutualPayload)
+                : mutualPayload,
+              customContext: toMutualIds ? mutualPayload : {},
+              publishedAt: entity.updatedAt || new Date().toISOString(),
+            },
+          });
+
           publishEventPromises.push(
             this.publishEvent<MutualProcessorEventDetailBody>({
               event: EVENT.CORE.ENTITY_MUTUAL_TO_UPDATE,
