@@ -3,15 +3,12 @@ import type { Request, Response } from 'express';
 import httpStatus from 'http-status';
 import { ZodError } from 'zod';
 import { StandardError } from '../../errors/standard-error';
-import type { publishEvent as publishEventType } from '../../helpers/event';
 import type { MutualService } from '../../services/mutual.service';
-// import { EVENT, type EventDetail } from '../../types/event';
-// import { Entity } from '#/lambda-layer/monorise';
 
 export class CreateMutualController {
   constructor(
     private mutualService: MutualService,
-    private publishEvent: typeof publishEventType,
+    private customCreateMutualLifeCycle: any,
   ) {}
 
   controller: (req: Request, res: Response) => void = async (req, res) => {
@@ -39,27 +36,11 @@ export class CreateMutualController {
         },
       });
 
-      /*
-       * Add more custom event based on byEntityType and entityType
-       */
-
-      // const eventPromises = [];
-
-      // const eventMaps: Record<string, EventDetail> = {
-      //   [`${Entity.LEARNER}_${Entity.LEARNING_ACTIVITY}`]:
-      //     EVENT.CORE_SERVICE.LEARNER_LEARNING_ACTIVITY_SUBMITTED,
-      // };
-
-      // if (eventMaps[`${byEntityType}_${entityType}`]) {
-      //   eventPromises.push(
-      //     this.publishEvent({
-      //       event: eventMaps[`${byEntityType}_${entityType}`],
-      //       payload: eventPayload,
-      //     }),
-      //   );
-      // }
-
-      // await Promise.all(eventPromises);
+      if (this.customCreateMutualLifeCycle) {
+        await this.customCreateMutualLifeCycle.afterCreateMutualHook(
+          eventPayload,
+        );
+      }
 
       return res.status(httpStatus.OK).json(mutual);
     } catch (err) {

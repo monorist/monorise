@@ -1,7 +1,10 @@
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import { CORE_TABLE } from '../configs/service.config';
 import { getDependencies } from '../helpers/dependencies';
-import type { publishEvent as publishEventType } from '../helpers/event';
+import {
+  publishEvent,
+  type publishEvent as publishEventType,
+} from '../helpers/event';
 
 import { DbUtils } from '../data/DbUtils';
 import { EntityRepository } from '../data/Entity';
@@ -35,6 +38,7 @@ export class DependencyContainer {
     public EntityConfig: any,
     public AllowedEntityTypes: any[],
     public EmailAuthEnabledEntities: string[],
+    public CreateMutualLifeCycle: any,
   ) {
     this._instanceCache = new Map();
     this._publishEvent = null;
@@ -207,7 +211,7 @@ export class DependencyContainer {
     return this.createCachedInstance(
       CreateMutualController,
       this.mutualService,
-      this.publishEvent,
+      this.createMutualLifeCycle,
     );
   }
 
@@ -227,5 +231,11 @@ export class DependencyContainer {
 
   get listTagsController(): ListTagsController {
     return this.createCachedInstance(ListTagsController, this.tagRepository);
+  }
+
+  get createMutualLifeCycle(): any {
+    if (!this.CreateMutualLifeCycle) return null;
+
+    return this.createCachedInstance(this.CreateMutualLifeCycle, this.publishEvent);
   }
 }
