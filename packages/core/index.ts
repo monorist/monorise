@@ -22,11 +22,13 @@ class CoreFactory {
     private EntityConfig: any,
     private AllowedEntityTypes: any[],
     private EmailAuthEnabledEntities: string[],
+    private CreateMutualLifeCycle: any,
   ) {
     const dependencyContainer = new DependencyContainer(
       this.EntityConfig,
       this.AllowedEntityTypes,
       this.EmailAuthEnabledEntities,
+      this.CreateMutualLifeCycle,
     );
 
     this.dependencyContainer = dependencyContainer;
