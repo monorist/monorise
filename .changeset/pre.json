@@ -2,7 +2,12 @@
   "mode": "pre",
   "tag": "dev",
   "initialVersions": {
-    "@monorise": "0.0.0"
+    "@monorise": "0.0.0",
+    "@monorise/base": "0.0.0",
+    "@monorise/cli": "0.0.0",
+    "@monorise/react": "0.0.0"
   },
-  "changesets": []
+  "changesets": [
+    "famous-moles-enjoy"
+  ]
 }
