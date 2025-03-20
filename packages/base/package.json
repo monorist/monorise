@@ -1,5 +1,6 @@
 {
   "name": "@monorise/base",
+  "private": true,
   "version": "1.0.3",
   "description": "",
   "main": "dist/index.js",
