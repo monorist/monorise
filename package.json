@@ -1,5 +1,5 @@
 {
-  "name": "@monorise",
+  "name": "monorise",
   "version": "0.0.0",
   "description": "",
   "main": "dist/index.js",
@@ -7,18 +7,17 @@
   "packageManager": "npm@10.9.2",
   "scripts": {
     "build": "turbo run build",
-    "release": "npm run build && npx @changesets/cli publish",
-    "version": "npx @changesets/cli version",
+    "release": "npm run build && npm run changeset -- publish",
+    "version": "npm run changeset -- version",
     "changeset": "npx @changesets/cli",
-    "changeset:dev-start": "npx @changesets/cli pre enter dev",
-    "changeset:dev-exit": "npx @changesets/cli pre exit",
+    "changeset:dev-start": "npm run changeset -- pre enter dev",
+    "changeset:dev-exit": "npm run changeset -- pre exit",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "files": [
     "dist"
   ],
   "workspaces": [
-    ".",
     "packages/*"
   ],
   "keywords": [],
@@ -26,6 +25,7 @@
   "license": "ISC",
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
+    "@changesets/cli": "^2.28.1",
     "@tsconfig/node20": "^20.1.4",
     "@types/node": "^22.13.9",
     "turbo": "^2.4.4",
