@@ -10,6 +10,8 @@
     "release": "npm run build && npx @changesets/cli publish",
     "version": "npx @changesets/cli version",
     "changeset": "npx @changesets/cli",
+    "changeset:dev-start": "npx @changesets/cli pre enter dev",
+    "changeset:dev-exit": "npx @changesets/cli pre exit",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "files": [
