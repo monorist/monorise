@@ -5,6 +5,7 @@ import {
   EntitySchemaMap,
   MonoriseEntityConfig,
 } from './types/monorise.type';
+import { createEntityConfig } from './utils';
 
 export {
   Entity,
@@ -12,4 +13,5 @@ export {
   DraftEntity,
   CreatedEntity,
   MonoriseEntityConfig,
+  createEntityConfig,
 };
