@@ -1,6 +1,6 @@
 {
   "name": "@monorise/react",
-  "version": "1.0.12",
+  "version": "0.0.1",
   "description": "",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -8,13 +8,13 @@
     "lib": "lib"
   },
   "scripts": {
-    "build": "tsc"
+    "build": "tsc -b"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@monorise/base": "^1.0.3",
+    "@monorise/base": "^0.0.1",
     "@tabler/icons-react": "^3.30.0",
     "axios": "^1.8.1",
     "immer": "^10.1.1",
@@ -27,5 +27,6 @@
   "peerDependencies": {
     "react": "^18",
     "react-dom": "^18"
-  }
+  },
+  "files": ["dist"]
 }
