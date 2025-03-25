@@ -5,7 +5,8 @@ import type { DependencyContainer } from '../services/DependencyContainer';
 // import { AllowedEntityTypes } from '#/lambda-layer/monorise';
 
 export const entityTypeCheck =
-  (container: DependencyContainer) => (req, res, next) => {
+  (container: DependencyContainer) =>
+  (req: Request, res: Response, next: NextFunction) => {
     const { entityType } = req.params as unknown as { entityType: Entity };
 
     if (!container.AllowedEntityTypes.includes(entityType)) {

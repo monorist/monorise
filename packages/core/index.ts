@@ -1,3 +1,5 @@
+import type { Entity as EntityType } from '@monorise/base';
+import type { createEntityConfig } from '@monorise/cli';
 import { setupCommonRoutes } from './controllers/setupRoutes';
 import { Entity } from './data/Entity';
 import { Mutual } from './data/Mutual';
@@ -11,25 +13,26 @@ import { handler as tagProcessor } from './processors/tag-processor';
 import { DependencyContainer } from './services/DependencyContainer';
 
 class CoreFactory {
-  public setupCommonRoutes: any;
-  public mutualProcessor: any;
-  public replicationProcessor: any;
-  public createEntityProcessor: any;
-  public prejoinProcessor: any;
-  public tagProcessor: any;
-  public dependencyContainer: any;
+  public setupCommonRoutes: ReturnType<typeof setupCommonRoutes>;
+  public mutualProcessor: ReturnType<typeof mutualProcessor>;
+  public replicationProcessor: ReturnType<typeof replicationProcessor>;
+  public createEntityProcessor: ReturnType<typeof createEntityProcessor>;
+  public prejoinProcessor: ReturnType<typeof prejoinProcessor>;
+  public tagProcessor: ReturnType<typeof tagProcessor>;
+  public dependencyContainer: DependencyContainer;
 
   constructor(
-    private EntityConfig: any,
-    private AllowedEntityTypes: any[],
+    private EntityConfig: Record<
+      EntityType,
+      ReturnType<typeof createEntityConfig>
+    >,
+    private AllowedEntityTypes: string[],
     private EmailAuthEnabledEntities: string[],
-    private CreateMutualLifeCycle: any,
   ) {
     const dependencyContainer = new DependencyContainer(
       this.EntityConfig,
       this.AllowedEntityTypes,
       this.EmailAuthEnabledEntities,
-      this.CreateMutualLifeCycle,
     );
 
     this.dependencyContainer = dependencyContainer;

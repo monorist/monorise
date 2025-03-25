@@ -6,10 +6,7 @@ import { StandardError } from '../../errors/standard-error';
 import type { MutualService } from '../../services/mutual.service';
 
 export class CreateMutualController {
-  constructor(
-    private mutualService: MutualService,
-    private customCreateMutualLifeCycle: any,
-  ) {}
+  constructor(private mutualService: MutualService) {}
 
   controller: (req: Request, res: Response) => void = async (req, res) => {
     const accountId = req.headers['account-id'];
@@ -24,7 +21,7 @@ export class CreateMutualController {
     const { asEntity } = req.query;
 
     try {
-      const { mutual, eventPayload } = await this.mutualService.createMutual({
+      const { mutual } = await this.mutualService.createMutual({
         byEntityType,
         byEntityId,
         entityType,
@@ -35,12 +32,6 @@ export class CreateMutualController {
           asEntity: asEntity as unknown as EntityType,
         },
       });
-
-      if (this.customCreateMutualLifeCycle) {
-        await this.customCreateMutualLifeCycle.afterCreateMutualHook(
-          eventPayload,
-        );
-      }
 
       return res.status(httpStatus.OK).json(mutual);
     } catch (err) {

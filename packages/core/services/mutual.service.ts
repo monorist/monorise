@@ -186,7 +186,7 @@ export class MutualService {
 
     const eventPromises = [
       this.publishEvent({
-        event: EVENT.CORE.MUTUAL_CREATED,
+        event: EVENT.CORE.MUTUAL_CREATED(byEntityType, entityType),
         payload: eventPayload,
       }),
     ];
@@ -232,7 +232,7 @@ export class MutualService {
     );
 
     await this.publishEvent({
-      event: EVENT.CORE.MUTUAL_UPDATED,
+      event: EVENT.CORE.MUTUAL_UPDATED(byEntityType, entityType),
       payload: {
         byEntityType,
         byEntityId,
@@ -267,7 +267,7 @@ export class MutualService {
     );
 
     await this.publishEvent({
-      event: EVENT.CORE.MUTUAL_UPDATED,
+      event: EVENT.CORE.MUTUAL_UPDATED(byEntityType, entityType),
       payload: {
         byEntityType,
         byEntityId,
