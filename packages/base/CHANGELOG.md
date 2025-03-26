@@ -1,5 +1,11 @@
 # @monorise/base
 
+## 0.0.2-dev.1
+
+### Patch Changes
+
+- 5ec72a5: Zod as peer dependency
+
 ## 0.0.2-dev.0
 
 ### Patch Changes

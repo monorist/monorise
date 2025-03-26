@@ -8,6 +8,7 @@
     "@monorise/core": "0.0.0"
   },
   "changesets": [
+    "common-houses-give",
     "giant-zebras-hope",
     "kind-towns-win",
     "short-readers-bathe"
