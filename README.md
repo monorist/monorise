@@ -27,5 +27,5 @@ Simplify Single table design
 ### Feature branch
 
 1. Run `npm run changeset` to record summary of your changes
-1. When ready for review, create PR and point to `dev` branch
+1. When ready for review, create a PR and point to `dev` branch
 
