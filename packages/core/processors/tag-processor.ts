@@ -112,7 +112,7 @@ export const handler =
       errorContext.body = body;
 
       try {
-        const tagConfigs = container.EntityConfig[entityType]?.tags;
+        const tagConfigs = container.config.EntityConfig[entityType]?.tags;
 
         if (!tagConfigs || !tagConfigs.length) {
           // skip if entity has no tag configs

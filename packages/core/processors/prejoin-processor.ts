@@ -147,9 +147,10 @@ async function publishToSubscribers({
   byEntityId: string;
   publishedAt: string;
 }) {
-  const listeners = container.AllowedEntityTypes.reduce(
+  const listeners = container.config.AllowedEntityTypes.reduce(
     (acc, configKey: Entity) => {
-      const { subscribes } = container.EntityConfig[configKey].mutual ?? {};
+      const { subscribes } =
+        container.config.EntityConfig[configKey].mutual ?? {};
 
       const hasSubscription = (subscribes ?? []).some(
         ({ entityType }) => entityType === byEntityType,
@@ -216,13 +217,13 @@ export const handler =
 
       try {
         const isEntityTypeSubscribed = (
-          container.EntityConfig[byEntityType]?.mutual?.subscribes ?? []
+          container.config.EntityConfig[byEntityType]?.mutual?.subscribes ?? []
         ).some(
           ({ entityType: subscribedEntityType }) =>
             subscribedEntityType === entityType,
         );
         const hasPrejoins =
-          container.EntityConfig[byEntityType]?.mutual?.prejoins;
+          container.config.EntityConfig[byEntityType]?.mutual?.prejoins;
         const shouldProcessPrejoins = isEntityTypeSubscribed && hasPrejoins;
         errorContext = {
           ...errorContext,
@@ -238,7 +239,8 @@ export const handler =
             byEntityType,
             byEntityId,
             prejoins:
-              container.EntityConfig[byEntityType]?.mutual?.prejoins ?? [],
+              container.config.EntityConfig[byEntityType]?.mutual?.prejoins ??
+              [],
             publishedAt,
           });
         }

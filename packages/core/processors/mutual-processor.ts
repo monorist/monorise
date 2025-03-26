@@ -49,7 +49,9 @@ export const handler =
         try {
           // Validate if mutual configuration exists
           const config =
-            container.EntityConfig[byEntityType]?.mutual?.mutualFields?.[field];
+            container.config.EntityConfig[byEntityType]?.mutual?.mutualFields?.[
+              field
+            ];
 
           if (!config) {
             throw new StandardError('INVALID_MUTUAL', 'Invalid mutual');

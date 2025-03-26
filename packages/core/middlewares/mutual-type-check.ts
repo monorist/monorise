@@ -12,8 +12,8 @@ export const mutualTypeCheck =
     };
 
     if (
-      !container.AllowedEntityTypes.includes(entityType) ||
-      !container.AllowedEntityTypes.includes(byEntityType)
+      !container.config.AllowedEntityTypes.includes(entityType) ||
+      !container.config.AllowedEntityTypes.includes(byEntityType)
     ) {
       res.status(httpStatus.NOT_FOUND).json({
         code: 'NOT_FOUND',

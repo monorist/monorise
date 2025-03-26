@@ -36,10 +36,11 @@ export class DependencyContainer {
   private _tableName: string;
 
   constructor(
-    public EntityConfig: Record<Entity, ReturnType<typeof createEntityConfig>>,
-    public AllowedEntityTypes: any[],
-    public EmailAuthEnabledEntities: any[],
-    public CreateMutualLifeCycle: any,
+    public config: {
+      EntityConfig: Record<Entity, ReturnType<typeof createEntityConfig>>;
+      AllowedEntityTypes: Entity[];
+      EmailAuthEnabledEntities: Entity[];
+    },
   ) {
     this._instanceCache = new Map();
     this._publishEvent = null;
@@ -87,7 +88,7 @@ export class DependencyContainer {
   get eventUtils(): EventUtils {
     return this.createCachedInstance(
       EventUtils,
-      this.EntityConfig,
+      this.config.EntityConfig,
       this.publishEvent,
     );
   }
@@ -95,10 +96,10 @@ export class DependencyContainer {
   get entityRepository(): EntityRepository {
     return this.createCachedInstance(
       EntityRepository,
-      this.EntityConfig,
+      this.config.EntityConfig,
       this.coreTable,
       this.dynamodbClient,
-      this.EmailAuthEnabledEntities,
+      this.config.EmailAuthEnabledEntities,
     );
   }
 
@@ -114,7 +115,7 @@ export class DependencyContainer {
   get entityServiceLifeCycle(): EntityServiceLifeCycle {
     return this.createCachedInstance(
       EntityServiceLifeCycle,
-      this.EntityConfig,
+      this.config.EntityConfig,
       this.publishEvent,
       this.eventUtils,
     );
@@ -123,8 +124,8 @@ export class DependencyContainer {
   get entityService(): EntityService {
     return this.createCachedInstance(
       EntityService,
-      this.EntityConfig,
-      this.EmailAuthEnabledEntities,
+      this.config.EntityConfig,
+      this.config.EmailAuthEnabledEntities,
       this.entityRepository,
       this.publishEvent,
       this.entityServiceLifeCycle,
@@ -174,7 +175,7 @@ export class DependencyContainer {
   get upsertEntityController(): UpsertEntityController {
     return this.createCachedInstance(
       UpsertEntityController,
-      this.EntityConfig,
+      this.config.EntityConfig,
       this.entityRepository,
       this.publishEvent,
     );
@@ -212,7 +213,6 @@ export class DependencyContainer {
     return this.createCachedInstance(
       CreateMutualController,
       this.mutualService,
-      this.createMutualLifeCycle,
     );
   }
 
@@ -232,14 +232,5 @@ export class DependencyContainer {
 
   get listTagsController(): ListTagsController {
     return this.createCachedInstance(ListTagsController, this.tagRepository);
-  }
-
-  get createMutualLifeCycle(): any {
-    if (!this.CreateMutualLifeCycle) return null;
-
-    return this.createCachedInstance(
-      this.CreateMutualLifeCycle,
-      this.publishEvent,
-    );
   }
 }

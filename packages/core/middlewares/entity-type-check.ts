@@ -8,7 +8,7 @@ export const entityTypeCheck =
   (req: Request, res: Response, next: NextFunction) => {
     const { entityType } = req.params as unknown as { entityType: Entity };
 
-    if (!container.AllowedEntityTypes.includes(entityType)) {
+    if (!container.config.AllowedEntityTypes.includes(entityType)) {
       res.status(httpStatus.NOT_FOUND).json({
         code: 'NOT_FOUND',
       });
