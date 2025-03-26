@@ -1,4 +1,4 @@
-import { createEntityConfig } from '@monorise/cli';
+import { createEntityConfig } from '@monorise/base';
 import { z } from 'zod';
 
 const baseSchema = z
