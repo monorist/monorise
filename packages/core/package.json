@@ -8,9 +8,7 @@
   "scripts": {
     "build": "tsc"
   },
-  "files": [
-    "dist"
-  ],
+  "files": ["dist"],
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -19,7 +17,7 @@
     "@aws-sdk/client-dynamodb-streams": "^3.758.0",
     "@aws-sdk/client-eventbridge": "^3.758.0",
     "@aws-sdk/util-dynamodb": "^3.758.0",
-    "@monorise/base": "^1.0.3",
+    "@monorise/base": "^0.0.2-dev.0",
     "http-status": "^1.7.0",
     "nanoid": "^5.1.3",
     "ulid": "^2.3.0"

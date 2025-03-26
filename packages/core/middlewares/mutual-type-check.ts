@@ -2,10 +2,10 @@ import type { Entity } from '@monorise/base';
 import type { NextFunction, Request, Response } from 'express';
 import httpStatus from 'http-status';
 import type { DependencyContainer } from '../services/DependencyContainer';
-// import { AllowedEntityTypes } from '#/lambda-layer/monorise';
 
 export const mutualTypeCheck =
-  (container: DependencyContainer) => (req, res, next) => {
+  (container: DependencyContainer) =>
+  (req: Request, res: Response, next: NextFunction) => {
     const { entityType, byEntityType } = req.params as unknown as {
       entityType: Entity;
       byEntityType: Entity;
@@ -15,9 +15,11 @@ export const mutualTypeCheck =
       !container.AllowedEntityTypes.includes(entityType) ||
       !container.AllowedEntityTypes.includes(byEntityType)
     ) {
-      return res.status(httpStatus.NOT_FOUND).json({
+      res.status(httpStatus.NOT_FOUND).json({
         code: 'NOT_FOUND',
       });
+
+      return;
     }
 
     next();

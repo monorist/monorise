@@ -34,7 +34,7 @@ export function parseSQSBusEvent<T>(
 export async function publishEvent<T extends Record<string, any>>({
   payload,
   event,
-}: PublishEventProps<T>): Promise<void> {
+}: PublishEventProps<T>) {
   const params = {
     Entries: [
       {

@@ -1,8 +1,7 @@
-import type { Entity } from '@monorise/base';
+import type { Entity, createEntityConfig } from '@monorise/base';
 import type { Request, Response } from 'express';
 import httpStatus from 'http-status';
 import { ZodError } from 'zod';
-// import { EntityConfig } from '#/lambda-layer/monorise';
 import type { EntityRepository } from '../../data/Entity';
 import { StandardError } from '../../errors/standard-error';
 import type { publishEvent as publishEventType } from '../../helpers/event';
@@ -10,7 +9,7 @@ import { EVENT } from '../../types/event';
 
 export class UpsertEntityController {
   constructor(
-    private EntityConfig: any,
+    private EntityConfig: Record<Entity, ReturnType<typeof createEntityConfig>>,
     private entityRepository: EntityRepository,
     private publishEvent: typeof publishEventType,
   ) {}

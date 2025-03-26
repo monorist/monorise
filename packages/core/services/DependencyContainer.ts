@@ -1,4 +1,5 @@
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
+import type { Entity, createEntityConfig } from '@monorise/base';
 import { CORE_TABLE } from '../configs/service.config';
 import { getDependencies } from '../helpers/dependencies';
 import {
@@ -35,9 +36,9 @@ export class DependencyContainer {
   private _tableName: string;
 
   constructor(
-    public EntityConfig: any,
+    public EntityConfig: Record<Entity, ReturnType<typeof createEntityConfig>>,
     public AllowedEntityTypes: any[],
-    public EmailAuthEnabledEntities: string[],
+    public EmailAuthEnabledEntities: any[],
     public CreateMutualLifeCycle: any,
   ) {
     this._instanceCache = new Map();
@@ -236,6 +237,9 @@ export class DependencyContainer {
   get createMutualLifeCycle(): any {
     if (!this.CreateMutualLifeCycle) return null;
 
-    return this.createCachedInstance(this.CreateMutualLifeCycle, this.publishEvent);
+    return this.createCachedInstance(
+      this.CreateMutualLifeCycle,
+      this.publishEvent,
+    );
   }
 }

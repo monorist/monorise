@@ -1,4 +1,8 @@
-import type { Entity, EntitySchemaMap } from '@monorise/base';
+import type {
+  Entity,
+  EntitySchemaMap,
+  createEntityConfig,
+} from '@monorise/base';
 import { z } from 'zod';
 import type { EntityRepository } from '../data/Entity';
 import { StandardError } from '../errors/standard-error';
@@ -9,7 +13,7 @@ import type { EntityServiceLifeCycle } from './entity-service-lifecycle';
 
 export class EntityService {
   constructor(
-    private EntityConfig: any,
+    private EntityConfig: Record<Entity, ReturnType<typeof createEntityConfig>>,
     private EmailAuthEnabledEntities: string[],
     private entityRepository: EntityRepository,
     private publishEvent: typeof publishEventType,

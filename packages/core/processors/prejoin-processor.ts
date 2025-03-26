@@ -148,7 +148,7 @@ async function publishToSubscribers({
   publishedAt: string;
 }) {
   const listeners = container.AllowedEntityTypes.reduce(
-    (acc, configKey) => {
+    (acc, configKey: Entity) => {
       const { subscribes } = container.EntityConfig[configKey].mutual ?? {};
 
       const hasSubscription = (subscribes ?? []).some(
@@ -171,15 +171,16 @@ async function publishToSubscribers({
 
   // publish event for each interested entity
   const subscribedMutualItems = await Promise.all(
-    listeners.map(({ entityType: subscribedEntityType }) =>
-      container.mutualRepository.listEntitiesByEntity(
-        byEntityType,
-        byEntityId,
-        subscribedEntityType,
-        {
-          ProjectionExpression: PROJECTION_EXPRESSION.NO_DATA,
-        },
-      ),
+    listeners.map(
+      ({ entityType: subscribedEntityType }: { entityType: Entity }) =>
+        container.mutualRepository.listEntitiesByEntity(
+          byEntityType,
+          byEntityId,
+          subscribedEntityType,
+          {
+            ProjectionExpression: PROJECTION_EXPRESSION.NO_DATA,
+          },
+        ),
     ),
   );
   const subscribedMutuals = subscribedMutualItems.flatMap((item) => item.items);
@@ -220,7 +221,8 @@ export const handler =
           ({ entityType: subscribedEntityType }) =>
             subscribedEntityType === entityType,
         );
-        const hasPrejoins = container.EntityConfig[byEntityType]?.mutual?.prejoins;
+        const hasPrejoins =
+          container.EntityConfig[byEntityType]?.mutual?.prejoins;
         const shouldProcessPrejoins = isEntityTypeSubscribed && hasPrejoins;
         errorContext = {
           ...errorContext,
@@ -235,7 +237,8 @@ export const handler =
             publishEvent,
             byEntityType,
             byEntityId,
-            prejoins: container.EntityConfig[byEntityType]?.mutual?.prejoins ?? [],
+            prejoins:
+              container.EntityConfig[byEntityType]?.mutual?.prejoins ?? [],
             publishedAt,
           });
         }

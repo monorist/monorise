@@ -7,7 +7,11 @@ import {
   type UpdateItemCommandInput,
 } from '@aws-sdk/client-dynamodb';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
-import type { EntitySchemaMap, Entity as EntityType } from '@monorise/base';
+import type {
+  EntitySchemaMap,
+  Entity as EntityType,
+  createEntityConfig,
+} from '@monorise/base';
 import { ulid } from 'ulid';
 import { StandardError } from '../errors/standard-error';
 import type { ProjectionExpressionValues } from './ProjectionExpression';
@@ -96,7 +100,10 @@ export class Entity<T extends EntityType> extends Item {
 
 export class EntityRepository extends Repository {
   constructor(
-    private EntityConfig: any,
+    private EntityConfig: Record<
+      EntityType,
+      ReturnType<typeof createEntityConfig>
+    >,
     private readonly TABLE_NAME: string,
     private readonly dynamodbClient: DynamoDB,
     private readonly EmailAuthEnabledEntities: string[],

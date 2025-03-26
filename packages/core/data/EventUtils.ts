@@ -1,4 +1,4 @@
-import type { Entity as EntityType } from '@monorise/base';
+import type { Entity as EntityType, createEntityConfig } from '@monorise/base';
 // import { EntityConfig } from '#/lambda-layer/monorise';
 import type { publishEvent as publishEventType } from '../helpers/event';
 import { EVENT } from '../types/event';
@@ -11,7 +11,10 @@ type PublishEventProps<T extends EntityType> = {
 
 export class EventUtils {
   constructor(
-    public EntityConfig: any,
+    public EntityConfig: Record<
+      EntityType,
+      ReturnType<typeof createEntityConfig>
+    >,
     private publishEvent: typeof publishEventType,
   ) {}
 
