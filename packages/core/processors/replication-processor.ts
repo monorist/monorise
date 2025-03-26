@@ -11,7 +11,6 @@ import {
 import { StandardError } from '../errors/standard-error';
 import type { DependencyContainer } from '../services/DependencyContainer';
 
-// const container = new DependencyContainer();
 const TableName = process.env.DDB_TABLE;
 
 export const handler =

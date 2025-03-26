@@ -18,8 +18,6 @@ export type EventDetailBody = {
   customContext?: Record<string, unknown>;
 };
 
-// const container = new DependencyContainer();
-
 const processEntities = async (
   entityIds: string[],
   action: (id: string) => Promise<void>,
