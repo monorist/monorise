@@ -1,5 +1,12 @@
 # @monorise/react
 
+## 0.0.2-dev.0
+
+### Patch Changes
+
+- Updated dependencies [9b6090c]
+  - @monorise/base@0.0.2-dev.0
+
 ## 0.0.1
 
 ### Patch Changes
