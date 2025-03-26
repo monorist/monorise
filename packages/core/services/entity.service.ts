@@ -28,7 +28,7 @@ export class EntityService {
     options,
   }: {
     entityType: T;
-    entityPayload: EntitySchemaMap[T];
+    entityPayload: EntitySchemaMap[T] | Record<string, any>;
     entityId?: string;
     accountId?: string | string[];
     options?: {

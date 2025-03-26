@@ -9,13 +9,7 @@ const baseSchema = z
   .partial();
 
 const createSchema = baseSchema.extend({
-  email: z
-    .string()
-    .toLowerCase()
-    .regex(
-      /^[a-zA-Z0-9.!#$%&’*+/=?^_`{|}~-]+@[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*$/,
-      "Doesn't seems like an email",
-    ),
+  email: z.string().toLowerCase(),
   displayName: z.string().min(1, 'Please provide a name for this user account'),
 });
 

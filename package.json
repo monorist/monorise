@@ -7,6 +7,7 @@
   "packageManager": "npm@10.9.2",
   "scripts": {
     "build": "turbo run build",
+    "build:no-cache": "npm run build -- --cache=local:",
     "release": "npm run build && npm run changeset -- publish",
     "version": "npm run changeset -- version",
     "changeset": "npx @changesets/cli",
@@ -30,6 +31,7 @@
   "exports": {
     "./base": "./dist/base/index.js",
     "./react": "./dist/react/index.js",
-    "./cli": "./dist/cli/index.js"
+    "./cli": "./dist/cli/index.js",
+    "./core": "./dist/core/index.js"
   }
 }

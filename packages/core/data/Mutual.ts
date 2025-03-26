@@ -26,10 +26,10 @@ export class Mutual<
   constructor(
     public byEntityType: B,
     public byEntityId: string,
-    public byData: Partial<EntitySchemaMap[B]>,
+    public byData: Partial<EntitySchemaMap[B]> | Record<string, any>,
     public entityType: T,
     public entityId: string,
-    public data: Partial<EntitySchemaMap[T]>,
+    public data: Partial<EntitySchemaMap[T]> | Record<string, any>,
     public mutualData: M,
     public mutualId?: string,
     private _createdAt?: Date,
@@ -407,10 +407,10 @@ export class MutualRepository extends Repository {
   >(
     byEntityType: B,
     byEntityId: string,
-    byData: EntitySchemaMap[B],
+    byData: EntitySchemaMap[B] | Record<string, any>,
     entityType: T,
     entityId: string,
-    data: EntitySchemaMap[T],
+    data: EntitySchemaMap[T] | Record<string, any>,
     mutualData: M = {} as M,
     opts?: {
       ConditionExpression?: string;
