@@ -6,5 +6,8 @@
     "@monorise/cli": "0.0.1",
     "@monorise/react": "0.0.1"
   },
-  "changesets": []
+  "changesets": [
+    "kind-towns-win",
+    "short-readers-bathe"
+  ]
 }
