@@ -1,6 +1,6 @@
 {
   "name": "@monorise/react",
-  "version": "0.0.2",
+  "version": "0.0.2-dev.0",
   "description": "",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -14,7 +14,7 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "@monorise/base": "^0.0.1",
+    "@monorise/base": "^0.0.2-dev.0",
     "@tabler/icons-react": "^3.30.0",
     "axios": "^1.8.1",
     "immer": "^10.1.1",
@@ -28,7 +28,5 @@
     "react": "^18",
     "react-dom": "^18"
   },
-  "files": [
-    "dist"
-  ]
+  "files": ["dist"]
 }
