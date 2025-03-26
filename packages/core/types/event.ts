@@ -55,18 +55,18 @@ const EVENT = {
     /*
      * Mutual
      */
-    MUTUAL_CREATED: {
+    MUTUAL_CREATED: (byEntityType: string, entityType: string) => ({
       Source: SOURCE.CORE,
-      DetailType: 'mutual-created',
-    },
-    MUTUAL_UPDATED: {
+      DetailType: `mutual-created:${byEntityType}:${entityType}`,
+    }),
+    MUTUAL_UPDATED: (byEntityType: string, entityType: string) => ({
       Source: SOURCE.CORE,
-      DetailType: 'mutual-updated',
-    },
-    MUTUAL_DELETED: {
+      DetailType: `mutual-updated:${byEntityType}:${entityType}`,
+    }),
+    MUTUAL_DELETED: (byEntityType: string, entityType: string) => ({
       Source: SOURCE.CORE,
-      DetailType: 'mutual-deleted',
-    },
+      DetailType: `mutual-deleted:${byEntityType}:${entityType}`,
+    }),
     PREJOIN_RELATIONSHIP_SYNC: {
       Source: SOURCE.CORE,
       DetailType: 'prejoin-relationship-sync',
