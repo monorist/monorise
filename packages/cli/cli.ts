@@ -133,6 +133,15 @@ export {
   EmailAuthEnabledEntities,
 };
 
+const config = {
+  EntityConfig,
+  FormSchema,
+  AllowedEntityTypes,
+  EmailAuthEnabledEntities,
+};
+
+export default config;
+
 declare module '@monorise/base' {
   export enum Entity {
     ${enumEntries.join(',\n    ')}
