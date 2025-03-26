@@ -4,9 +4,11 @@
   "initialVersions": {
     "@monorise/base": "0.0.1",
     "@monorise/cli": "0.0.1",
-    "@monorise/react": "0.0.1"
+    "@monorise/react": "0.0.1",
+    "@monorise/core": "0.0.0"
   },
   "changesets": [
+    "giant-zebras-hope",
     "kind-towns-win",
     "short-readers-bathe"
   ]
