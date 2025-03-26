@@ -1,5 +1,11 @@
 # @monorise/core
 
+## 0.0.1-dev.1
+
+### Patch Changes
+
+- 9200378: update mock import
+
 ## 0.0.1-dev.0
 
 ### Patch Changes

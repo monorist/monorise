@@ -8,9 +8,11 @@
     "@monorise/core": "0.0.0"
   },
   "changesets": [
+    "beige-hands-win",
     "common-houses-give",
     "giant-zebras-hope",
     "kind-towns-win",
+    "open-zebras-eat",
     "short-readers-bathe"
   ]
 }
