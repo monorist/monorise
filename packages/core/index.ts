@@ -1,7 +1,7 @@
 import type { Entity as EntityType, createEntityConfig } from '@monorise/base';
 import { setupCommonRoutes } from './controllers/setupRoutes';
-import { Entity } from './data/Entity';
-import { Mutual } from './data/Mutual';
+import { Entity, EntityRepository } from './data/Entity';
+import { Mutual, MutualRepository } from './data/Mutual';
 import { PROJECTION_EXPRESSION } from './data/ProjectionExpression';
 import { StandardError } from './errors/standard-error';
 import { handler as createEntityProcessor } from './processors/create-entity-processor';
@@ -10,6 +10,7 @@ import { handler as prejoinProcessor } from './processors/prejoin-processor';
 import { handler as replicationProcessor } from './processors/replication-processor';
 import { handler as tagProcessor } from './processors/tag-processor';
 import { DependencyContainer } from './services/DependencyContainer';
+import { EntityService } from './services/entity.service';
 
 class CoreFactory {
   public setupCommonRoutes: ReturnType<typeof setupCommonRoutes>;
@@ -42,7 +43,10 @@ class CoreFactory {
 export {
   setupCommonRoutes,
   Entity,
+  EntityRepository,
+  EntityService,
   Mutual,
+  MutualRepository,
   PROJECTION_EXPRESSION,
   createEntityProcessor,
   mutualProcessor,
