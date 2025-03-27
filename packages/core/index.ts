@@ -1,4 +1,3 @@
-import type { Entity as EntityType, createEntityConfig } from '@monorise/base';
 import { setupCommonRoutes } from './controllers/setupRoutes';
 import { Entity } from './data/Entity';
 import { Mutual } from './data/Mutual';
@@ -20,13 +19,7 @@ class CoreFactory {
   public tagProcessor: ReturnType<typeof tagProcessor>;
   public dependencyContainer: DependencyContainer;
 
-  constructor(
-    private config: {
-      EntityConfig: Record<EntityType, ReturnType<typeof createEntityConfig>>;
-      AllowedEntityTypes: EntityType[];
-      EmailAuthEnabledEntities: EntityType[];
-    },
-  ) {
+  constructor(private config: any) {
     const dependencyContainer = new DependencyContainer(this.config);
 
     this.dependencyContainer = dependencyContainer;
