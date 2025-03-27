@@ -1,5 +1,11 @@
 # @monorise/cli
 
+## 0.0.2-dev.2
+
+### Patch Changes
+
+- c8c3a45: EntitySchemaMap should be using Entity enum as key
+
 ## 0.0.2-dev.1
 
 ### Patch Changes
