@@ -1,7 +1,7 @@
 import type { Entity } from '@monorise/base';
 import type { Request, Response } from 'express';
 import httpStatus from 'http-status';
-import { ZodError } from 'zod';
+import type { ZodError } from 'zod';
 import { StandardError } from '../../errors/standard-error';
 import type { EntityService } from '../../services/entity.service';
 
@@ -31,11 +31,11 @@ export class UpdateEntityController {
 
       return res.status(httpStatus.OK).json(entity);
     } catch (err) {
-      if (err instanceof ZodError) {
+      if ((err as ZodError).constructor?.name === 'ZodError') {
         return res.status(httpStatus.BAD_REQUEST).json({
           code: 'API_VALIDATION_ERROR',
           message: 'API validation failed',
-          details: err.flatten(),
+          details: (err as ZodError).flatten(),
         });
       }
 
