@@ -162,22 +162,8 @@ export interface MonoriseEntityConfig<
    * }
    */
   effect?: (
-    schema: CO extends z.AnyZodObject
-      ? MO extends z.AnyZodObject
-        ? z.ZodObject<MO['shape'] & CO['shape']>
-        : CO
-      : MO extends z.AnyZodObject
-        ? z.ZodObject<MO['shape'] & B>
-        : z.ZodObject<B>,
-  ) => z.ZodEffects<
-    CO extends z.AnyZodObject
-      ? MO extends z.AnyZodObject
-        ? z.ZodObject<MO['shape'] & CO['shape']>
-        : CO
-      : MO extends z.AnyZodObject
-        ? z.ZodObject<MO['shape'] & B>
-        : z.ZodObject<B>
-  >;
+    schema: z.ZodObject<z.ZodRawShape>,
+  ) => z.ZodEffects<z.ZodObject<z.ZodRawShape>>;
 
   /**
    * @description (Optional) Use tags to create additional access patterns for the entity.
