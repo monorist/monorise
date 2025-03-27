@@ -1,5 +1,11 @@
 # @monorise/base
 
+## 0.0.2-dev.2
+
+### Patch Changes
+
+- b222348: simplify effect typing
+
 ## 0.0.2-dev.1
 
 ### Patch Changes
