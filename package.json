@@ -6,8 +6,9 @@
   "types": "dist/index.d.ts",
   "packageManager": "npm@10.9.2",
   "scripts": {
-    "build": "turbo run build",
+    "build": "npm run clear-dist && turbo run build",
     "build:no-cache": "npm run build -- --cache=local:",
+    "clear-dist": "./scripts/clear.sh",
     "release": "npm run build && npm run changeset -- publish",
     "version": "npm run changeset -- version",
     "changeset": "npx @changesets/cli",
