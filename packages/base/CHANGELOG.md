@@ -1,5 +1,11 @@
 # @monorise/base
 
+## 0.0.2-dev.3
+
+### Patch Changes
+
+- bfc0a44: FinalSchema with effect should resolve typing correctly
+
 ## 0.0.2-dev.2
 
 ### Patch Changes
