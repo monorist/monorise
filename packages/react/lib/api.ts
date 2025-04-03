@@ -8,6 +8,16 @@ import type { AuthActions } from '../actions/auth.action';
 import type { MonoriseStore } from '../store/monorise.store';
 import type { ApplicationRequestError } from '../types/api.type';
 
+type IntercepterAxiosRequestConfig<D> = AxiosRequestConfig<D> & {
+  requestKey: string;
+  isInterruptive?: boolean;
+  feedback?: {
+    loading?: string | boolean;
+    success?: ((data: any) => string) | string | boolean;
+    failure?: string | boolean;
+  };
+};
+
 const initAxiosInterceptor = (store: MonoriseStore, appActions: AppActions) => {
   const { startLoading } = appActions;
 
@@ -48,25 +58,25 @@ const initAxiosInterceptor = (store: MonoriseStore, appActions: AppActions) => {
     post: <T = any, R = AxiosResponse<T, any>, D = any>(
       url: string,
       data: D,
-      config: AxiosRequestConfig<D>,
+      config: IntercepterAxiosRequestConfig<D>,
     ): Promise<R> => makeRequest(url, { ...config, method: 'POST' }, data),
     put: <T = any, R = AxiosResponse<T, any>, D = any>(
       url: string,
       data: D,
-      config: AxiosRequestConfig<D>,
+      config: IntercepterAxiosRequestConfig<D>,
     ): Promise<R> => makeRequest(url, { ...config, method: 'PUT' }, data),
     patch: <T = any, R = AxiosResponse<T, any>, D = any>(
       url: string,
       data: D,
-      config: AxiosRequestConfig<D>,
+      config: IntercepterAxiosRequestConfig<D>,
     ): Promise<R> => makeRequest(url, { ...config, method: 'PATCH' }, data),
     delete: <T = any, R = AxiosResponse<T, any>, D = any>(
       url: string,
-      config: AxiosRequestConfig<D>,
+      config: IntercepterAxiosRequestConfig<D>,
     ): Promise<R> => makeRequest(url, { ...config, method: 'DELETE' }),
     get: <T = any, R = AxiosResponse<T, any>, D = any>(
       url: string,
-      config: AxiosRequestConfig<D>,
+      config: IntercepterAxiosRequestConfig<D>,
     ): Promise<R> => makeRequest(url, { ...config, method: 'GET' }),
   };
 
