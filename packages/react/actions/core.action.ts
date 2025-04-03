@@ -197,9 +197,10 @@ const initCoreActions = (
     const requestKey = `entity/${entityType}/get/${id}`;
     const isLoading = checkIsLoading(requestKey);
     const error = getError(requestKey);
+    const { forceFetch } = opts;
 
-    if (entity || isLoading || error) {
-      return;
+    if (!forceFetch && (entity || isLoading || error)) {
+      return entity;
     }
 
     ({ data: entity } = await entityService.getEntity(id, opts));
@@ -211,6 +212,8 @@ const initCoreActions = (
       undefined,
       `mr/entity/get/${entityType}/${id}`,
     );
+
+    return entity;
   };
 
   const createEntity = async <T extends Entity>(
@@ -301,8 +304,9 @@ const initCoreActions = (
     const requestKey = `mutual/${selfKey}/list`;
     const isLoading = checkIsLoading(requestKey);
     const error = getError(requestKey);
+    const { forceFetch } = opts;
 
-    if (isFirstFetched || isLoading || error) {
+    if (!forceFetch && (isFirstFetched || isLoading || error)) {
       return;
     }
 
@@ -679,9 +683,14 @@ const initCoreActions = (
     isLoading: boolean;
     error?: ApplicationRequestError;
     requestKey: string;
+    isFirstFetched?: boolean;
+    refetch: () => Promise<CreatedEntity<T> | undefined>;
   } => {
     const dataMap = monoriseStore(
       (state) => state.entity[entityType]?.dataMap || new Map(),
+    );
+    const isFirstFetched = monoriseStore(
+      (state) => state.entity[entityType]?.isFirstFetched,
     );
     const requestKey = `entity/${entityType}/get/${id}`;
     const isLoading = useLoadStore(requestKey);
@@ -698,6 +707,12 @@ const initCoreActions = (
       isLoading,
       error,
       requestKey,
+      isFirstFetched,
+      refetch: async () => {
+        if (id) {
+          return await getEntity(entityType, id, { ...opts, forceFetch: true });
+        }
+      },
     };
   };
 
@@ -863,6 +878,7 @@ const initCoreActions = (
     isLoading: boolean;
     requestKey: string;
     error?: ApplicationRequestError;
+    isFirstFetched?: boolean;
   } => {
     const state = monoriseStore(
       (state) => state.mutual[`${byEntityType}/${byId}/${entityType}`],
@@ -892,10 +908,19 @@ const initCoreActions = (
       entityType,
       opts,
       chainEntityQuery,
+      opts?.forceFetch,
+      opts?.noData,
     ]);
 
     useEffect(() => {
-      if (dataMap.size !== mutuals?.length) {
+      const dataMapArray = Array.from(dataMap.values());
+      if (
+        dataMap.size !== mutuals?.length ||
+        dataMapArray.some(
+          (item, index) =>
+            JSON.stringify(item) !== JSON.stringify(mutuals[index]),
+        )
+      ) {
         setMutuals(Array.from(dataMap.values()) as Mutual<B, T>[]);
       }
     }, [dataMap, dataMap.size, mutuals?.length]);
@@ -906,6 +931,7 @@ const initCoreActions = (
       isLoading,
       requestKey,
       error,
+      isFirstFetched,
     };
   };
 
