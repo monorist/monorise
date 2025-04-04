@@ -1,5 +1,13 @@
 # @monorise/react
 
+## 0.0.2-dev.2
+
+### Patch Changes
+
+- dfaea58: expose attributes and add options to useEntity & useMutuals hook
+- 5c83eda: add createLocalMutual action
+- 30076da: fix axios request config typing
+
 ## 0.0.2-dev.1
 
 ### Patch Changes
