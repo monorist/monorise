@@ -154,12 +154,16 @@ const initCoreActions = (
   ) => {
     const tagKey = `${entityType}/${tagName}/${opts.params?.group || ''}`;
 
-    const store = monoriseStore.getState();
-    const tagState = store.tag[tagKey] || {};
+    const state = monoriseStore.getState();
+    const tagState = state.tag[tagKey] || {};
     const { isFirstFetched, dataMap } = tagState;
     const entityService = makeEntityService(entityType);
+    const { forceFetch } = opts;
+    const requestKey = `tag/${entityType}/${tagName}/${opts.params?.group || ''}/list`;
+    const isLoading = checkIsLoading(requestKey);
+    const error = getError(requestKey);
 
-    if (isFirstFetched) {
+    if (!forceFetch && (isFirstFetched || isLoading || error)) {
       return;
     }
 
@@ -183,6 +187,8 @@ const initCoreActions = (
         };
       }),
     );
+
+    return data;
   };
   const getEntity = async <T extends Entity>(
     entityType: T,
@@ -983,6 +989,70 @@ const initCoreActions = (
     };
   };
 
+  const useTaggedEntities = <T extends Entity>(
+    entityType: T,
+    tagName: string,
+    opts: CommonOptions & { params?: ListEntitiesByTagParams } = {},
+  ) => {
+    const { params } = opts || {};
+    const state = monoriseStore(
+      (state) => state.tag[`${entityType}/${tagName}/${params?.group || ''}`],
+    );
+    const { dataMap, isFirstFetched, lastKey } = state || {
+      dataMap: new Map(),
+    };
+    const [entities, setEntities] = useState<CreatedEntity<T>[]>([]);
+    const requestKey = `tag/${entityType}/${tagName}/${params?.group || ''}/list`;
+    const isLoading = useLoadStore(requestKey);
+    const error = useErrorStore(requestKey);
+
+    useEffect(() => {
+      if (entityType && tagName && params?.group) {
+        listEntitiesByTag(entityType, tagName, opts);
+      }
+    }, [entityType, opts, tagName, params?.group, opts?.forceFetch]);
+
+    useEffect(() => {
+      const dataMapArray = Array.from(dataMap.values());
+      if (
+        dataMap.size !== entities?.length ||
+        dataMapArray.some(
+          (item, index) =>
+            JSON.stringify(item) !== JSON.stringify(entities[index]),
+        )
+      ) {
+        setEntities(Array.from(dataMap.values()) as CreatedEntity<T>[]);
+      }
+    }, [dataMap, dataMap.size, entities?.length]);
+
+    return {
+      entities,
+      entitiesMap: dataMap as Map<string, CreatedEntity<T>>,
+      isLoading,
+      requestKey,
+      error,
+      isFirstFetched,
+      lastKey,
+      refetch: async () => {
+        if (entityType && tagName && params?.group) {
+          return await listEntitiesByTag(entityType, tagName, {
+            ...opts,
+            forceFetch: true,
+          });
+        }
+      },
+      listMore: async () => {
+        if (entityType && tagName && params?.group) {
+          return await listEntitiesByTag(entityType, tagName, {
+            ...opts,
+            forceFetch: true,
+            params: { ...params, lastKey },
+          });
+        }
+      },
+    };
+  };
+
   const useEntityState = <T extends Entity>(entityType: T) => {
     return monoriseStore((state) => state.entity[entityType]);
   };
@@ -1005,7 +1075,7 @@ const initCoreActions = (
     useEntities,
     useMutual,
     useMutuals,
-    listEntitiesByTag,
+    useTaggedEntities,
     useEntityState,
   };
 };
