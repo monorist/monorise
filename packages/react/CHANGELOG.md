@@ -1,5 +1,11 @@
 # @monorise/react
 
+## 0.0.2-dev.3
+
+### Patch Changes
+
+- 76b597f: added useTaggedEntities hook
+
 ## 0.0.2-dev.2
 
 ### Patch Changes
