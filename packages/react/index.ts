@@ -135,6 +135,7 @@ const {
   useEntities,
   useMutual,
   useMutuals,
+  useTaggedEntities,
   useEntityState,
 } = Monorise;
 
@@ -181,6 +182,7 @@ export {
   useEntities,
   useMutual,
   useMutuals,
+  useTaggedEntities,
   useEntityState,
 };
 

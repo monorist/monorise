@@ -21,6 +21,7 @@ export type ListEntitiesByTagParams = {
   start?: string;
   end?: string;
   limit?: number;
+  lastKey?: string;
 };
 
 type ConfigOptions = {
