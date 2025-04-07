@@ -40,6 +40,7 @@ export type CommonOptions = Partial<AxiosRequestConfig> & {
   };
   forceFetch?: boolean;
   noData?: boolean;
+  stateKey?: string;
 };
 
 const initCoreService = (
