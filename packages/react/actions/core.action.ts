@@ -296,7 +296,7 @@ const initCoreActions = (
     opts: CommonOptions = {},
     chainEntityQuery?: string,
   ) => {
-    const selfKey = `${byEntityType}/${id}/${entityType}`;
+    const selfKey = opts.stateKey ?? `${byEntityType}/${id}/${entityType}`;
     const mutualService = makeMutualService(byEntityType, entityType);
     const store = monoriseStore.getState();
     const mutualState = store.mutual[selfKey] || {};
@@ -336,7 +336,7 @@ const initCoreActions = (
         };
       }),
       undefined,
-      `mr/mutual/list/${byEntityType}/${id}/${entityType}`,
+      `mr/mutual/list/${selfKey}`,
     );
   };
 
@@ -928,14 +928,13 @@ const initCoreActions = (
     error?: ApplicationRequestError;
     isFirstFetched?: boolean;
   } => {
-    const state = monoriseStore(
-      (state) => state.mutual[`${byEntityType}/${byId}/${entityType}`],
-    );
+    const stateKey = `${byEntityType}/${entityType}/${byId}/list${chainEntityQuery ? `?${chainEntityQuery}` : ''}`;
+    const state = monoriseStore((state) => state.mutual[stateKey]);
     const { dataMap, isFirstFetched } = state || {
       dataMap: new Map(),
     };
     const [mutuals, setMutuals] = useState<Mutual<B, T>[]>([]);
-    const requestKey = `mutual/${byEntityType}/${entityType}/${byId}/list${chainEntityQuery ? `?${chainEntityQuery}` : ''}`;
+    const requestKey = `mutual/${stateKey}`;
     const isLoading = useLoadStore(requestKey);
     const error = useErrorStore(requestKey);
 
@@ -945,7 +944,7 @@ const initCoreActions = (
           byEntityType,
           entityType,
           byId,
-          opts,
+          { ...opts, stateKey },
           chainEntityQuery,
         );
       }
@@ -958,6 +957,7 @@ const initCoreActions = (
       chainEntityQuery,
       opts?.forceFetch,
       opts?.noData,
+      stateKey,
     ]);
 
     useEffect(() => {
