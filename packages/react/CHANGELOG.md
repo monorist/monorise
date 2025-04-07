@@ -1,5 +1,11 @@
 # @monorise/react
 
+## 0.0.2
+
+### Patch Changes
+
+- 3517300: fix: clashed statekey when useMutuals with chainEntityQuery
+
 ## 0.0.1
 
 ### Patch Changes
