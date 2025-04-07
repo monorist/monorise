@@ -37,6 +37,7 @@ export type CommonOptions = Partial<AxiosRequestConfig> & {
     failure?: string;
     loading?: string;
   };
+  stateKey?: string;
 };
 
 const initCoreService = (
