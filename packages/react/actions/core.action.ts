@@ -964,6 +964,7 @@ const initCoreActions = (
       stateKey,
       opts?.forceFetch,
       opts?.noData,
+      stateKey,
     ]);
 
     useEffect(() => {
