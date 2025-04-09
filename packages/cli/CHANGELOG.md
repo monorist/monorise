@@ -1,5 +1,13 @@
 # @monorise/cli
 
+## 0.0.2
+
+### Patch Changes
+
+- 83579b5: Remove export of createEntityConfig
+- 83579b5: monorise cli generate an export default config object
+- 83579b5: EntitySchemaMap should be using Entity enum as key
+
 ## 0.0.2-dev.2
 
 ### Patch Changes

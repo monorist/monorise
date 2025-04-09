@@ -1,6 +1,6 @@
 {
   "name": "@monorise/core",
-  "version": "0.0.1-dev.4",
+  "version": "0.0.1",
   "description": "",
   "type": "module",
   "main": "dist/index.js",
@@ -28,7 +28,7 @@
     "@types/express": "^5.0.0"
   },
   "peerDependencies": {
-    "@monorise/base": "^0.0.2-dev.2",
+    "@monorise/base": "^0.0.2",
     "express": "^4.21.2"
   }
 }

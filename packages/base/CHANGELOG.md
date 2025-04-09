@@ -1,5 +1,14 @@
 # @monorise/base
 
+## 0.0.2
+
+### Patch Changes
+
+- 83579b5: FinalSchema with effect should resolve typing correctly
+- 83579b5: Zod as peer dependency
+- 83579b5: export createEntityConfig from base package
+- 83579b5: simplify effect typing
+
 ## 0.0.2-dev.3
 
 ### Patch Changes
