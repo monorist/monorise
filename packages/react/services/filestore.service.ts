@@ -109,6 +109,55 @@ const initFilestoreService = (axios: AxiosInterceptor) => {
     return data;
   };
 
+  const uploadAudio = async ({
+    file,
+    scope,
+    directory,
+    name,
+  }: UploadFileProps) => {
+    const { data: presign } = await axios.get(`${apiBaseUrl}/upload`, {
+      requestKey: `filestore/presign/audio/${name}`,
+      isInterruptive: true,
+      feedback: {
+        loading: 'Preparing upload',
+      },
+      params: {
+        scope,
+        directory,
+        filename: name,
+      },
+    });
+
+    await axios.put(presign.url, file, {
+      requestKey: `filestore/upload/audio/${name}`,
+      isInterruptive: true,
+      feedback: {
+        loading: 'Uploading audio',
+      },
+      headers: {
+        'Content-Type': file.type,
+      },
+    });
+
+    const { data } = await axios.post(
+      `${apiBaseUrl}/audio/convert`,
+      {
+        scope,
+        directory,
+        filename: name,
+      },
+      {
+        requestKey: 'filestore/convert/audio',
+        isInterruptive: true,
+        feedback: {
+          loading: 'Triggering audio conversion',
+        },
+      },
+    );
+
+    return data;
+  };
+
   const getJobStatus = async (id: string) => {
     const { data } = await axios.get(`${apiBaseUrl}/job/${id}`, {
       requestKey: `filestore/get-job/${id}`,
@@ -128,6 +177,7 @@ const initFilestoreService = (axios: AxiosInterceptor) => {
     uploadFile,
     deleteFiles,
     uploadVideo,
+    uploadAudio,
     getJobStatus,
     setOptions,
   };
