@@ -1,5 +1,11 @@
 # @monorise/react
 
+## 0.0.2-dev.5
+
+### Patch Changes
+
+- e48ed2e: Amend editMutual method to use PATCH method
+
 ## 0.0.2-dev.4
 
 ### Patch Changes
