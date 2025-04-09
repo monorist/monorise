@@ -26,6 +26,9 @@ export class UpdateMutualController {
         entityId,
         mutualPayload: req.body,
         accountId,
+        options: {
+          returnUpdatedValue: true,
+        },
       });
 
       return res.status(httpStatus.OK).json(mutual);

@@ -286,7 +286,7 @@ const initCoreService = (
     opts: CommonOptions = {},
   ) => {
     const { mutualApiBaseUrl = MUTUAL_API_BASE_URL } = options;
-    return axios.put<Mutual<B, T>>(
+    return axios.patch<Mutual<B, T>>(
       opts.customUrl ||
         `${mutualApiBaseUrl}/${byEntityType}/${byEntityId}/${entityType}/${entityId}`,
       payload,
