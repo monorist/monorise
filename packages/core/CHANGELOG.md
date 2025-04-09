@@ -1,5 +1,11 @@
 # @monorise/core
 
+## 0.0.1-dev.4
+
+### Patch Changes
+
+- e48ed2e: Amend editMutual method to use PATCH method
+
 ## 0.0.1-dev.3
 
 ### Patch Changes
