@@ -227,6 +227,7 @@ const initCoreService = (
         feedback: opts.feedback,
         params: {
           chainEntityQuery,
+          ...opts.params,
           ...(opts.noData && { projection: 'no-data' }),
         },
       },

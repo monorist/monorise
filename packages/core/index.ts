@@ -3,6 +3,7 @@ import { setupCommonRoutes } from './controllers/setupRoutes';
 import { Entity, EntityRepository } from './data/Entity';
 import { Mutual, MutualRepository } from './data/Mutual';
 import { PROJECTION_EXPRESSION } from './data/ProjectionExpression';
+import { TagRepository } from './data/Tag';
 import { StandardError } from './errors/standard-error';
 import { handler as createEntityProcessor } from './processors/create-entity-processor';
 import { handler as mutualProcessor } from './processors/mutual-processor';
@@ -47,6 +48,7 @@ export {
   EntityService,
   Mutual,
   MutualRepository,
+  TagRepository,
   PROJECTION_EXPRESSION,
   createEntityProcessor,
   mutualProcessor,

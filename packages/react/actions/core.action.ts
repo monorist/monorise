@@ -271,6 +271,17 @@ const initCoreActions = (
     monoriseStore.setState(
       produce((state) => {
         state.entity[entityType].dataMap.set(data.entityId, data);
+
+        for (const key of Object.keys(state.mutual)) {
+          const [byEntity, entity, byId] = key.split('/');
+          if ((entity as any) === entityType) {
+            const mutual = state.mutual[key].dataMap.get(id);
+            state.mutual[key].dataMap = new Map(state.mutual[key].dataMap).set(
+              id,
+              { ...mutual, data: data.data },
+            );
+          }
+        }
       }),
       undefined,
       `mr/entity/edit/${entityType}/${id}`,
@@ -790,12 +801,14 @@ const initCoreActions = (
       value: string;
       onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
     };
+    lastKey?: string;
+    isFirstFetched?: boolean;
   } => {
     const requestKey = `entity/${entityType}/list`;
     const isListing = useLoadStore(requestKey);
     const error = useErrorStore(requestKey);
     const state = monoriseStore((state) => state.entity[entityType]);
-    const { dataMap, searchResults, isFirstFetched } = state ?? {
+    const { dataMap, searchResults, isFirstFetched, lastKey } = state ?? {
       dataMap: new Map(),
     };
     const [entities, setEntities] = useState<CreatedEntity<T>[]>();
@@ -877,6 +890,8 @@ const initCoreActions = (
       isLoading,
       error,
       requestKey,
+      isFirstFetched,
+      lastKey,
     };
   };
 
@@ -933,10 +948,12 @@ const initCoreActions = (
     requestKey: string;
     error?: ApplicationRequestError;
     isFirstFetched?: boolean;
+    lastKey?: string;
+    listMore: () => void;
   } => {
     const stateKey = `${byEntityType}/${entityType}/${byId}/list${chainEntityQuery ? `?${chainEntityQuery}` : ''}`;
     const state = monoriseStore((state) => state.mutual[stateKey]);
-    const { dataMap, isFirstFetched } = state || {
+    const { dataMap, isFirstFetched, lastKey } = state || {
       dataMap: new Map(),
     };
     const [mutuals, setMutuals] = useState<Mutual<B, T>[]>([]);
@@ -964,7 +981,6 @@ const initCoreActions = (
       stateKey,
       opts?.forceFetch,
       opts?.noData,
-      stateKey,
     ]);
 
     useEffect(() => {
@@ -987,6 +1003,23 @@ const initCoreActions = (
       requestKey,
       error,
       isFirstFetched,
+      lastKey,
+      listMore: () => {
+        if (byEntityType && entityType && byId) {
+          listEntitiesByEntity(
+            byEntityType,
+            entityType,
+            byId,
+            {
+              ...opts,
+              forceFetch: true,
+              params: { ...opts.params, lastKey },
+              stateKey,
+            },
+            chainEntityQuery,
+          );
+        }
+      },
     };
   };
 

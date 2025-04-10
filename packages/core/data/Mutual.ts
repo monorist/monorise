@@ -220,7 +220,7 @@ export class MutualRepository extends Repository {
           S: mutual.byFullEntityId,
         },
         ':SK': {
-          S: mutual.listEntitySK,
+          S: `${mutual.listEntitySK}#`,
         },
         ':nullType': { S: 'NULL' },
       },
