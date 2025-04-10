@@ -2,7 +2,7 @@
 This repository revolves around three core concepts: `Entity`, `Mutual` and `Tag`. You can view all the API routes [here](https://github.com/monorist/monorise/blob/4de00a930b5143b9365970fcfdb9a1456ae5eb98/packages/core/controllers/setupRoutes.ts) for a comprehensive overview.
 
 ### ENTITY
-The `Entity` endpoint is designed to manage various entities within the system. It supports CRUD operations for a **single entity**.
+The `Entity` endpoint is used to manage a single entity. It supports CRUD operations for a **single entity**.
 
 ### MUTUAL
 The `Mutual` endpoint is used to manage relationships or interactions between **two entities**. It supports CRUD operations for mutual relationships.
