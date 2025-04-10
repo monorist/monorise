@@ -12,6 +12,7 @@ Simplify Single table design with DynamoDB
 
 - Entity
 - Mutual
+- Tag
 
 ## 📦 Installation
 
