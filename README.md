@@ -13,6 +13,8 @@ Simplify Single table design with DynamoDB
 - Entity
 - Mutual
 - Tag
+  
+Learn more about these concepts in our [Concepts Guide](docs/CONCEPT.MD).
 
 ## 📦 Installation
 
