@@ -75,6 +75,7 @@ git push origin your-feature
 - [x] React data access
 - [x] CLI Generator
 - [ ] Test cases
+- [ ] Component for SST/Pulumi for simpler setup
 
 ## 🧪 Running Tests
 ```bash
