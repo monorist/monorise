@@ -20,7 +20,7 @@
   "workspaces": ["packages/*"],
   "keywords": [],
   "author": "monorise",
-  "license": "ISC",
+  "license": "MIT",
   "devDependencies": {
     "@biomejs/biome": "^1.9.4",
     "@changesets/cli": "^2.28.1",
