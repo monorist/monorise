@@ -5,6 +5,7 @@ type UploadFileProps = {
   scope: string;
   directory: string;
   name: string;
+  onProgress?: (progress: number) => void;
 };
 
 type Options = {
@@ -20,6 +21,7 @@ const initFilestoreService = (axios: AxiosInterceptor) => {
     scope,
     directory,
     name,
+    onProgress,
   }: UploadFileProps) => {
     const { data } = await axios.get(`${apiBaseUrl}/upload`, {
       requestKey: `filestore/presign/file/${name}`,
@@ -42,6 +44,14 @@ const initFilestoreService = (axios: AxiosInterceptor) => {
       },
       headers: {
         'Content-Type': file.type,
+      },
+      onUploadProgress: (progressEvent) => {
+        if (onProgress && progressEvent.total) {
+          const progress = Math.round(
+            (progressEvent.loaded / progressEvent.total) * 100,
+          );
+          onProgress(progress);
+        }
       },
     });
   };
