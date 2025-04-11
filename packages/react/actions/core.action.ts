@@ -272,9 +272,10 @@ const initCoreActions = (
       produce((state) => {
         state.entity[entityType].dataMap.set(data.entityId, data);
 
+        // update mutual's entity data
         for (const key of Object.keys(state.mutual)) {
-          const [byEntity, entity, byId] = key.split('/');
-          if ((entity as any) === entityType) {
+          const [_byEntity, _entityType, _byId] = key.split('/');
+          if ((_entityType as unknown as Entity) === entityType) {
             const mutual = state.mutual[key].dataMap.get(id);
             state.mutual[key].dataMap = new Map(state.mutual[key].dataMap).set(
               id,
