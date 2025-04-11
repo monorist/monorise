@@ -375,7 +375,7 @@ const initCoreActions = (
       defaultMutualData?: Record<string, any>;
     } = {},
   ) => {
-    const selfKey = `${byEntityType}/${byEntityId}/${entityType}`;
+    const selfKey = `${byEntityType}/${entityType}/${byEntityId}/list`;
     const mutualService = makeMutualService(byEntityType, entityType);
     const store = monoriseStore.getState();
     const mutualState = store.mutual[selfKey] || {};
@@ -461,8 +461,8 @@ const initCoreActions = (
 
     monoriseStore.setState(
       produce((state) => {
-        const bySide = `${byEntityType}/${byEntityId}/${entityType}`;
-        const side = `${entityType}/${entityId}/${byEntityType}`;
+        const bySide = `${byEntityType}/${entityType}/${byEntityId}/list`;
+        const side = `${entityType}/${byEntityType}/${entityId}/list`;
 
         if (!state.mutual[bySide]) {
           state.mutual[bySide] = {
@@ -509,8 +509,8 @@ const initCoreActions = (
 
     monoriseStore.setState(
       produce((state) => {
-        const bySide = `${byEntityType}/${byEntityId}/${entityType}`;
-        const side = `${entityType}/${entityId}/${byEntityType}`;
+        const bySide = `${byEntityType}/${entityType}/${byEntityId}/list`;
+        const side = `${entityType}/${byEntityType}/${entityId}/list`;
 
         if (!state.mutual[bySide]) {
           state.mutual[bySide] = {
@@ -573,8 +573,8 @@ const initCoreActions = (
 
     monoriseStore.setState(
       produce((state) => {
-        const bySide = `${byEntityType}/${byEntityId}/${entityType}`;
-        const side = `${entityType}/${entityId}/${byEntityType}`;
+        const bySide = `${byEntityType}/${entityType}/${byEntityId}/list`;
+        const side = `${entityType}/${byEntityType}/${entityId}/list`;
 
         if (!state.mutual[bySide]) {
           state.mutual[bySide] = {
@@ -620,8 +620,8 @@ const initCoreActions = (
 
     monoriseStore.setState(
       produce((state) => {
-        const bySide = `${byEntityType}/${byEntityId}/${entityType}`;
-        const side = `${entityType}/${entityId}/${byEntityType}`;
+        const bySide = `${byEntityType}/${entityType}/${byEntityId}/list`;
+        const side = `${entityType}/${byEntityType}/${entityId}/list`;
 
         if (!state.mutual[bySide]) {
           state.mutual[bySide] = {
@@ -665,8 +665,8 @@ const initCoreActions = (
 
     monoriseStore.setState(
       produce((state) => {
-        const bySide = `${byEntityType}/${byEntityId}/${entityType}`;
-        const side = `${entityType}/${entityId}/${byEntityType}`;
+        const bySide = `${byEntityType}/${entityType}/${byEntityId}/list`;
+        const side = `${entityType}/${byEntityType}/${entityId}/list`;
 
         state.mutual[bySide].dataMap.delete(data.entityId);
 
@@ -687,8 +687,8 @@ const initCoreActions = (
   ) => {
     monoriseStore.setState(
       produce((state) => {
-        const bySide = `${byEntityType}/${byEntityId}/${entityType}`;
-        const side = `${entityType}/${entityId}/${byEntityType}`;
+        const bySide = `${byEntityType}/${entityType}/${byEntityId}/list`;
+        const side = `${entityType}/${byEntityType}/${entityId}/list`;
         const bySideDataMap = new Map(state[bySide]?.dataMap);
         const sideDataMap = new Map(state[side]?.dataMap);
         bySideDataMap.delete(entityId);
