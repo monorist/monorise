@@ -39,7 +39,6 @@ jobs:
         AWS_DEFAULT_REGION: us-east-1
         AWS_ACCESS_KEY_ID: test
         AWS_SECRET_ACCESS_KEY: test
-        LOCALSTACK_ENDPOINT: http://localhost:4566
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -55,6 +54,8 @@ jobs:
 
       - name: Run test for @monorise/core
         run: npm -w @monorise/core run test
+        env:
+          LOCALSTACK_ENDPOINT: http://localhost:4566
 
   build:
     name: Build Package
