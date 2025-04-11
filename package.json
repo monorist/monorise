@@ -14,7 +14,7 @@
     "changeset": "npx @changesets/cli",
     "changeset:dev-start": "npm run changeset -- pre enter dev",
     "changeset:dev-exit": "npm run changeset -- pre exit",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start:test-core-env": "docker-compose -f packages/core/docker-compose.test.yml up"
   },
   "files": ["dist"],
   "workspaces": ["packages/*"],

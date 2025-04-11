@@ -356,10 +356,12 @@ export class EntityRepository extends Repository {
     entityId: string,
     payload: Partial<EntitySchemaMap[T]>,
   ): Promise<Entity<T>> {
+    const currentDatetime = new Date().toISOString();
     const toUpdateExpressions = this.toUpdate({
       entityType,
       entityId,
       data: payload,
+      updatedAt: currentDatetime
     });
     const params: UpdateItemCommandInput = {
       TableName: this.TABLE_NAME,
