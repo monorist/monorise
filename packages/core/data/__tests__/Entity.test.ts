@@ -215,7 +215,6 @@ describe('Entity & EntityRepository', () => {
       );
 
       const item = entity.toItem();
-      console.log('item:', item);
       // Basic checks - marshalling adds type info (S, N, etc.)
       expect(item.PK).toEqual({ S: `${MockEntityType.USER}#${userId}` }); // Use MockEntityType enum
       expect(item.SK).toEqual({ S: '#METADATA#' });
