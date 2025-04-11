@@ -16,7 +16,7 @@ import {
   waitUntilTableExists,
   waitUntilTableNotExists,
 } from '@aws-sdk/client-dynamodb';
-import { type Entity as EntityType, createEntityConfig } from '@monorise/base';
+import { type Entity as EntityType, createEntityConfig } from '../../../base';
 import { ulid } from 'ulid';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { z } from 'zod'; // Import z for placeholder schemas
