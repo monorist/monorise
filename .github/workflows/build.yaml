@@ -35,10 +35,6 @@ jobs:
         image: localstack/localstack:latest
         ports:
           - 4566:4566
-        env:
-        AWS_DEFAULT_REGION: us-east-1
-        AWS_ACCESS_KEY_ID: test
-        AWS_SECRET_ACCESS_KEY: test
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
