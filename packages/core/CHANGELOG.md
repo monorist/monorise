@@ -1,5 +1,12 @@
 # @monorise/core
 
+## 0.0.3
+
+### Patch Changes
+
+- f95a5ed: \* chore(core): add tests for Entity and EntityRepository
+  - fix(core): upsertEntity `updatedAt` not updated to latest time
+
 ## 0.0.2
 
 ### Patch Changes

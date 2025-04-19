@@ -1,5 +1,11 @@
 # @monorise/react
 
+## 0.0.5
+
+### Patch Changes
+
+- 59d3bcb: fix mutual state key
+
 ## 0.0.4
 
 ### Patch Changes
