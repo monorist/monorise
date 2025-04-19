@@ -17,9 +17,10 @@ export const mutualStateKey = (
   byEntity: Entity,
   byEntityId: string | null,
   entity: Entity,
+  entityId?: string,
   chainEntityQuery?: string,
 ) => {
-  return `${byEntity}/${byEntityId}/${entity}${chainEntityQuery ? `?${chainEntityQuery}` : ''}`;
+  return `${byEntity}/${byEntityId}/${entity}${entityId ? `/${entityId}` : ''}${chainEntityQuery ? `?${chainEntityQuery}` : ''}`;
 };
 
 export const tagStateKey = (

@@ -315,7 +315,8 @@ const initCoreActions = (
     chainEntityQuery?: string,
   ) => {
     const selfKey =
-      opts.stateKey ?? mutualStateKey(byEntityType, id, entityType);
+      opts.stateKey ??
+      mutualStateKey(byEntityType, id, entityType, undefined, chainEntityQuery);
     const mutualService = makeMutualService(byEntityType, entityType);
     const store = monoriseStore.getState();
     const mutualState = store.mutual[selfKey] || {};
@@ -380,7 +381,12 @@ const initCoreActions = (
     const mutualService = makeMutualService(byEntityType, entityType);
     const store = monoriseStore.getState();
     const mutualState = store.mutual[selfKey] || {};
-    const requestKey = `mutual/${selfKey}/${entityId}/get`;
+    const requestKey = `mutual/${mutualStateKey(
+      byEntityType,
+      byEntityId,
+      entityType,
+      entityId,
+    )}/get`;
     const isLoading = checkIsLoading(requestKey);
     const error = getError(requestKey);
 
@@ -439,7 +445,12 @@ const initCoreActions = (
           state.entity[entityType].dataMap = newEntityDataMap;
         }),
         undefined,
-        `mr/mutual/get/${selfKey}/${entityId}`,
+        `mr/mutual/get/${mutualStateKey(
+          byEntityType,
+          byEntityId,
+          entityType,
+          entityId,
+        )}`,
       );
     }
   };
@@ -487,7 +498,7 @@ const initCoreActions = (
         );
       }),
       undefined,
-      `mr/mutual/create/${mutualStateKey(byEntityType, byEntityId, entityType)}/${entityId}`,
+      `mr/mutual/create/${mutualStateKey(byEntityType, byEntityId, entityType, entityId)}`,
     );
   };
 
@@ -535,7 +546,7 @@ const initCoreActions = (
         );
       }),
       undefined,
-      `mr/mutual/create/${mutualStateKey(byEntityType, byEntityId, entityType)}/${entityId}`,
+      `mr/mutual/create/${mutualStateKey(byEntityType, byEntityId, entityType, entityId)}`,
     );
   };
 
@@ -599,7 +610,7 @@ const initCoreActions = (
         );
       }),
       undefined,
-      `mr/mutual/local-update/${mutualStateKey(byEntityType, byEntityId, entityType)}/${entityId}`,
+      `mr/mutual/local-update/${mutualStateKey(byEntityType, byEntityId, entityType, entityId)}`,
     );
   };
 
@@ -646,7 +657,7 @@ const initCoreActions = (
         );
       }),
       undefined,
-      `mr/mutual/edit/${mutualStateKey(byEntityType, byEntityId, entityType)}/${entityId}`,
+      `mr/mutual/edit/${mutualStateKey(byEntityType, byEntityId, entityType, entityId)}`,
     );
   };
 
@@ -676,7 +687,7 @@ const initCoreActions = (
         }
       }),
       undefined,
-      `mr/mutual/delete/${mutualStateKey(byEntityType, byEntityId, entityType)}/${entityId}`,
+      `mr/mutual/delete/${mutualStateKey(byEntityType, byEntityId, entityType, entityId)}`,
     );
   };
 
@@ -699,7 +710,7 @@ const initCoreActions = (
         state.mutual[side].dataMap.delete(byEntityId);
       }),
       undefined,
-      `mr/mutual/local-delete/${mutualStateKey(byEntityType, byEntityId, entityType)}/${entityId}`,
+      `mr/mutual/local-delete/${mutualStateKey(byEntityType, byEntityId, entityType, entityId)}`,
     );
   };
 
@@ -918,7 +929,7 @@ const initCoreActions = (
   } => {
     const stateKey = mutualStateKey(byEntityType, byId, entityType);
     const state = monoriseStore((state) => state.mutual[stateKey]);
-    const requestKey = `mutual/${stateKey}/${id}/get`;
+    const requestKey = `mutual/${mutualStateKey(byEntityType, byId, entityType, id)}/get`;
     const isLoading = useLoadStore(requestKey);
     const error = useErrorStore(requestKey);
 
@@ -960,6 +971,7 @@ const initCoreActions = (
       byEntityType,
       byId || '',
       entityType,
+      undefined,
       chainEntityQuery,
     );
     const state = monoriseStore((state) => state.mutual[stateKey]);
