@@ -1,69 +1,92 @@
-# Core Concepts
+<!--toc:start-->
 
-## Design Philosophy
+- [Design Philosophy](#design-philosophy-💡)
+- [Definitions](#definitions-✍️)
+  - [Entity](#entity)
+  - [Mutual](#mutual)
+  - [Tag](#tag)
 
-- Built on a single-table design to ensure `O(1) performance for every query`, regardless of complexity.
-- The database is intentionally denormalized to support this performance model. While this means some data is replicated, all of it is seamlessly handled by **Monorise** — developers never need to manage or think about duplication.
-- Designed to feel intuitive and familiar, much like querying a traditional relational database (e.g., RDS), but with the scalability and speed of modern infrastructure.
+<!--toc:end-->
 
-## Definitions
+# Design Philosophy 💡
 
-This repository revolves around three core concepts: `Entity`, `Mutual` and `Tag`. You can view all the API routes [here](https://github.com/monorist/monorise/blob/4de00a930b5143b9365970fcfdb9a1456ae5eb98/packages/core/controllers/setupRoutes.ts) for a comprehensive overview.
+- Designed using a **single-table pattern** to deliver consistent `O(1)` performance for every query—regardless of size or complexity.
+- The data model is **intentionally denormalized** to support this performance. While some data may be replicated, all duplication is managed automatically by **Monorise**, so developers don’t have to worry about it.
+- Built to feel **intuitive and familiar**, similar to querying a traditional relational database (like RDS), but with the scalability and speed of a modern infrastructure.
 
-### Entity
+---
 
-An `entity` is as a distinct, identifiable object or concept that cah have data stored about it.
+# Definitions ✍️
 
-#### 📘 Example
+This system revolves around three core building blocks: `Entity`, `Mutual`, and `Tag`.
 
-If you're building a database for a bookstore, you might have entities like:
+Want a look under the hood? Check out all the API routes [here](https://github.com/monorist/monorise/blob/4de00a930b5143b9365970fcfdb9a1456ae5eb98/packages/core/controllers/setupRoutes.ts) for the full picture.
 
-- book - represent a book in your inventory
-- author - represents a person who wrote a book
-- customer - represents someone who buys books
+---
 
-### Mutual
+## Entity
 
-A `mutual` is a type of relationship between two entities where the relationship itself holds meaningful data that needs to be stored. In cases where a mutual relationship becomes complex or needs to be linked with other entities, it can be promoted into its own entity, enabling mutual relationships between mutuals and other entities.
+An **entity** is a distinct, identifiable object or concept that can have data stored about it.
 
-#### ✅ Key characteristics
+#### Example 📑
 
-- Represents a **relationship** between two entities
-- The relationship itself can store data
-- Enables querying from either side of the relationship (e.g., "all courses for a student" or "all students in a course").
-- Can be converted into a **standalone entity** when it needs to participate in additional mutuals with other entities
-- Supports rich and flexible relationship modeling, such as many-to-many connections or stateful interactions.
+If you're modeling a bookstore, you might define entities such as:
 
-#### 📘 Example
+- `book` — represents an item in your inventory
+- `author` — represents a person who wrote a book
+- `customer` — represents someone who buys books
+
+---
+
+## Mutual
+
+A **mutual** is a **relationship between two entities** where the relationship itself holds meaningful data. Rather than just linking two entities together, mutuals capture **context**—such as timestamps, roles, or statuses—that lives on the relationship itself.
+
+If a mutual relationship becomes more complex or needs to connect with other entities, it can be **promoted into its own entity**, enabling it to form mutuals with other entities too.
+
+#### Key Characteristics 🔑
+
+- Represents a **relationship** between two distinct entities
+- The relationship itself can **store data** (e.g., roles, timestamps, status)
+- Supports querying **from either direction** (e.g., all courses for a student, or all students in a course)
+- Can be **converted into a standalone entity** when richer modeling is needed
+- Enables **flexible relationship modeling**, such as many-to-many or stateful interactions
+
+#### Example 📑
 
 Imagine a database for a school:
 
-- Student is an entity.
-- Course is an entity.
-- A **mutual** relationship could be enrollment, which connects Students and Courses.
+- `Student` is an entity
+- `Course` is an entity
+- A **mutual** relationship like `Enrollment` connects them
 
-But instead of just linking them, you also want to store:
+Instead of just linking them, you may want to store:
 
 - Date of enrollment
 - Grade
 - Completion status
 
-This mutual can later be converted into an entity called **enrollment**, which can then have its own tags or mutuals
+Now `Enrollment` becomes a **mutual**, holding data about the relationship. Later, you can even **promote Enrollment to a full entity**—which allows it to have its own tags or mutuals (like approvals or certifications).
 
-### Tag
+> For example, when Student `A` is associated with 5 Courses, you can also query by the mutual relationship to list all courses for Student `A`.
 
-A **tag** is a **key-value pair** used to label and classify entities. Tags provide a flexible way to associate descriptive information with an entity, such as its status, type, category, or priority. Tags can also be structured in a way that makes them sortable, enabling ordered views and filtered queries.
+---
 
-#### ✅ Key characteristics
+## Tag
 
-- Tags are attached to a **single type of entity**.
-- An entity can have multiple tags, each representing different dimensions of classification.
-- Tags can be **queried** by key, value, or both.
-- When tags include structured values (e.g., `priority#high`, `createdAt#2025-04-24`), they can also be **sorted** by order.
+A **tag** is a **key-value pair** used to label and classify entities. Tags offer a flexible way to attach descriptive context—like status, type, region, or priority—and can be structured in a way that supports **sorting and filtering**.
 
-#### 📘 Example
+#### Key Characteristics 🔑
 
-Imagine an entity of type **organization** tagged like this:
+- Tags are attached to a **single type of entity**
+- Each tag consists of a **key** and a **value**
+- An entity can have **multiple tags** across different dimensions
+- Tags can be queried by **key, value, or both**
+- Structured tags (e.g., `priority#high`, `createdAt#2025-04-24`) can be **sorted** or used in range queries
+
+#### Example 📑
+
+Imagine an **organization** entity with the following tags:
 
 - `region#eu-west-1`: `activatedAt#2025-05-01`
 - `<empty>`: `activatedAt#2025-05-01`
@@ -71,6 +94,8 @@ Imagine an entity of type **organization** tagged like this:
 
 These tags allow you to:
 
-- Retrieve organizations in a specific region based on a range of activation dates
+- Retrieve organizations in a specific region, filtered by activation date
 - Retrieve all organizations based on a range of activation dates (regardless of region or status)
-- Retrieve organizations based on their activation status
+- Retrieve organizations by their activation status
+
+---
