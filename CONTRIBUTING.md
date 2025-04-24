@@ -82,7 +82,7 @@ npm test
 
 ## 🤝 Need Help?
 
-Feel free to our [Discord](https://discord.gg/9c3ccQkvGj) for discussion or create an issue if you’re stuck!
+Feel free to join our [Discord](https://discord.gg/9c3ccQkvGj) for discussion or create an issue if you’re stuck!
 
 Thanks again! You’re awesome. 💙
 ```
