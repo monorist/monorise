@@ -4,7 +4,7 @@
 
 - [Monorise](#monorise)
   - [🚀 Features](#🚀-features)
-  - [Core Concepts](#core-concepts)
+  - [💡 Core Concepts](#💡-core-concepts)
   - [📦 Installation](#📦-installation)
     - [Using npm / yarn / etc](#using-npm-yarn-etc)
     - [Or clone the repo](#or-clone-the-repo)
@@ -34,7 +34,7 @@ Simplify Single table design with DynamoDB
 - Relationships management between entities
 - No more writing complex DynamoDB queries
 
-## Core Concepts
+## 💡 Core Concepts
 
 - Entity
 - Mutual
