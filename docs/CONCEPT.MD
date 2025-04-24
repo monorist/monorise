@@ -18,7 +18,7 @@
 
 This system revolves around three core building blocks: `Entity`, `Mutual`, and `Tag`.
 
-Want a look under the hood? Check out all the API routes [here](https://github.com/monorist/monorise/blob/4de00a930b5143b9365970fcfdb9a1456ae5eb98/packages/core/controllers/setupRoutes.ts) for the full picture.
+Want a look under the hood? Check out all the API routes [here](https://github.com/monorist/monorise/blob/main/packages/core/controllers/setupRoutes.ts) for the full picture.
 
 ## Entity
 
