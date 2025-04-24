@@ -1,5 +1,30 @@
 # Monorise
 
+<!--toc:start-->
+
+- [Monorise](#monorise)
+  - [🚀 Features](#🚀-features)
+  - [Core Concepts](#core-concepts)
+  - [📦 Installation](#📦-installation)
+    - [Using npm / yarn / etc](#using-npm-yarn-etc)
+    - [Or clone the repo](#or-clone-the-repo)
+  - [🛠️ Usage](#🛠️-usage)
+    - [Basic Example](#basic-example)
+    - [CLI Example (if applicable)](#cli-example-if-applicable)
+  - [📄 Documentation](#📄-documentation)
+  - [🤝 Contributing](#🤝-contributing)
+  - [📂 Folder Structure](#📂-folder-structure)
+  - [✅ Roadmap](#roadmap)
+  - [🧪 Running Tests](#🧪-running-tests)
+  - [🧰 Built With](#🧰-built-with)
+  - [Gitflow (How to develop)](#gitflow-how-to-develop)
+    - [Main branch](#main-branch)
+    - [Dev branch](#dev-branch)
+    - [Feature branch](#feature-branch)
+  - [📝 License](#📝-license)
+  - [🌟 Acknowledgments](#🌟-acknowledgments)
+  <!--toc:end-->
+
 Simplify Single table design with DynamoDB
 
 ## 🚀 Features
@@ -38,9 +63,9 @@ npm install
 ### Basic Example
 
 ```js
-import { yourFunction } from "your-package-name";
+import { yourFunction } from 'your-package-name';
 
-yourFunction("example");
+yourFunction('example');
 ```
 
 ### CLI Example (if applicable)
