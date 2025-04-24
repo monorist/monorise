@@ -14,15 +14,11 @@
 - The data model is **intentionally denormalized** to support this performance. While some data may be replicated, all duplication is managed automatically by **Monorise**, so developers don’t have to worry about it.
 - Built to feel **intuitive and familiar**, similar to querying a traditional relational database (like RDS), but with the scalability and speed of a modern infrastructure.
 
----
-
 # Definitions ✍️
 
 This system revolves around three core building blocks: `Entity`, `Mutual`, and `Tag`.
 
 Want a look under the hood? Check out all the API routes [here](https://github.com/monorist/monorise/blob/4de00a930b5143b9365970fcfdb9a1456ae5eb98/packages/core/controllers/setupRoutes.ts) for the full picture.
-
----
 
 ## Entity
 
@@ -35,8 +31,6 @@ If you're modeling a bookstore, you might define entities such as:
 - `book` — represents an item in your inventory
 - `author` — represents a person who wrote a book
 - `customer` — represents someone who buys books
-
----
 
 ## Mutual
 
@@ -70,8 +64,6 @@ Now `Enrollment` becomes a **mutual**, holding data about the relationship. Late
 
 > For example, when Student `A` is associated with 5 Courses, you can also query by the mutual relationship to list all courses for Student `A`.
 
----
-
 ## Tag
 
 A **tag** is a **key-value pair** used to label and classify entities. Tags offer a flexible way to attach descriptive context—like status, type, region, or priority—and can be structured in a way that supports **sorting and filtering**.
@@ -97,5 +89,3 @@ These tags allow you to:
 - Retrieve organizations in a specific region, filtered by activation date
 - Retrieve all organizations based on a range of activation dates (regardless of region or status)
 - Retrieve organizations by their activation status
-
----
