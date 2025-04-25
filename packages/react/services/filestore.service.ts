@@ -5,6 +5,7 @@ type UploadFileProps = {
   scope: string;
   directory: string;
   name: string;
+  disableLoading?: boolean;
   onProgress?: (progress: number) => void;
 };
 
@@ -21,11 +22,12 @@ const initFilestoreService = (axios: AxiosInterceptor) => {
     scope,
     directory,
     name,
+    disableLoading,
     onProgress,
   }: UploadFileProps) => {
     const { data } = await axios.get(`${apiBaseUrl}/upload`, {
       requestKey: `filestore/presign/file/${name}`,
-      isInterruptive: true,
+      isInterruptive: disableLoading? false : true,
       feedback: {
         loading: 'Preparing upload',
       },
@@ -33,12 +35,13 @@ const initFilestoreService = (axios: AxiosInterceptor) => {
         scope,
         directory,
         filename: name,
+        fileType: file.type,
       },
     });
 
     return axios.put(data.url, file, {
       requestKey: `filestore/upload/${name}`,
-      isInterruptive: true,
+      isInterruptive: disableLoading? false : true,
       feedback: {
         loading: 'Uploading file',
       },
