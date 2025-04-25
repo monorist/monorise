@@ -1,5 +1,11 @@
 # @monorise/react
 
+## 0.1.0
+
+### Minor Changes
+
+- ea9d13f: file upload service disable loading and pass filetype
+
 ## 0.0.6
 
 ### Patch Changes
