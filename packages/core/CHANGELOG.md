@@ -1,5 +1,12 @@
 # @monorise/core
 
+## 0.0.4
+
+### Patch Changes
+
+- Updated dependencies [06e2048]
+  - @monorise/base@0.0.3
+
 ## 0.0.3
 
 ### Patch Changes

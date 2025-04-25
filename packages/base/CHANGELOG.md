@@ -1,5 +1,11 @@
 # @monorise/base
 
+## 0.0.3
+
+### Patch Changes
+
+- 06e2048: add unique fields to createEntityConfig
+
 ## 0.0.2
 
 ### Patch Changes

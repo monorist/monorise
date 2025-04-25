@@ -1,6 +1,6 @@
 {
   "name": "@monorise/react",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -24,7 +24,7 @@
     "@types/react-dom": "^18"
   },
   "peerDependencies": {
-    "@monorise/base": "^0.0.2",
+    "@monorise/base": "^0.0.3",
     "react": "^18",
     "react-dom": "^18"
   },
