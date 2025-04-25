@@ -27,7 +27,7 @@ const initFilestoreService = (axios: AxiosInterceptor) => {
   }: UploadFileProps) => {
     const { data } = await axios.get(`${apiBaseUrl}/upload`, {
       requestKey: `filestore/presign/file/${name}`,
-      isInterruptive: disableLoading? false : true,
+      isInterruptive: !disableLoading
       feedback: {
         loading: 'Preparing upload',
       },
