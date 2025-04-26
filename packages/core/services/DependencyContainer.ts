@@ -41,11 +41,12 @@ export class DependencyContainer {
       EntityConfig: Record<Entity, ReturnType<typeof createEntityConfig>>;
       AllowedEntityTypes: Entity[];
       EmailAuthEnabledEntities: Entity[];
+      tableName?: string;
     },
   ) {
     this._instanceCache = new Map();
     this._publishEvent = null;
-    this._tableName = CORE_TABLE;
+    this._tableName = config.tableName || CORE_TABLE;
   }
 
   createCachedInstance<T extends new (...args: any[]) => any>(

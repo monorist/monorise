@@ -116,17 +116,6 @@ export class Mutual<
     return this._expiresAt?.toISOString();
   }
 
-  toMutualItemOnly(): Record<string, AttributeValue> {
-    // Mutual #METADATA# has `mutualData` only
-    return {
-      ...marshall(
-        { ...this.toJSON(), data: {} },
-        { removeUndefinedValues: true },
-      ),
-      ...this.mainKeys(),
-    };
-  }
-
   toItem(): Record<string, AttributeValue> {
     return {
       ...marshall(this.toJSON(), { removeUndefinedValues: true }),
@@ -284,15 +273,27 @@ export class MutualRepository extends Repository {
       {},
     );
 
-    const resp = await this.dynamodbClient.getItem({
+    const resp = await this.dynamodbClient.query({
       TableName: this.TABLE_NAME,
-      Key: mutual.subKeys(),
-      ProjectionExpression: opts?.ProjectionExpression,
+      KeyConditionExpression: '#PK = :PK and begins_with(#SK, :SK)',
+      FilterExpression:
+        'attribute_not_exists(#expiresAt) or attribute_type(#expiresAt, :nullType)',
+      ExpressionAttributeNames: {
+        '#PK': 'PK',
+        '#SK': 'SK',
+        '#expiresAt': 'expiresAt',
+      },
+      ExpressionAttributeValues: {
+        ':PK': { S: mutual.byFullEntityId },
+        ':SK': { S: mutual.fullEntityId },
+        ':nullType': { S: 'NULL' },
+      },
+      Limit: 1,
     });
 
     let mutualMetadata: Mutual<B, T, M> | null = null;
     if (opts?.isFromMetadata) {
-      const tempMutual = Mutual.fromItem<B, T, M>(resp.Item);
+      const tempMutual = Mutual.fromItem<B, T, M>(resp.Items?.[0]);
       const respMetadataMutual = await this.dynamodbClient.getItem({
         TableName: this.TABLE_NAME,
         Key: tempMutual.mainKeys(),
@@ -302,7 +303,7 @@ export class MutualRepository extends Repository {
       mutualMetadata = Mutual.fromItem(respMetadataMutual.Item);
     }
 
-    return mutualMetadata || Mutual.fromItem<B, T, M>(resp.Item);
+    return mutualMetadata || Mutual.fromItem<B, T, M>(resp.Items?.[0]);
   }
 
   async checkMutualExist<B extends Entity, T extends Entity>(

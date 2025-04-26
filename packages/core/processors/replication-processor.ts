@@ -11,11 +11,10 @@ import {
 import { StandardError } from '../errors/standard-error';
 import type { DependencyContainer } from '../services/DependencyContainer';
 
-const TableName = process.env.DDB_TABLE;
-
 export const handler =
   (container: DependencyContainer) =>
   async (event: { Records: DynamoDBStreamEvent[] }) => {
+    const TableName = process.env.DDB_TABLE || container.coreTable;
     const batchItemFailures: DynamoDBBatchItemFailure[] = [];
     const { dynamodbClient } = container;
 
