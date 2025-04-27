@@ -40,6 +40,7 @@ const initAxiosInterceptor = (store: MonoriseStore, appActions: AppActions) => {
       url,
       data,
       headers: {
+        ...(config.headers || {}),
         'Mr-Interruptive': String(isInterruptive),
       },
     });

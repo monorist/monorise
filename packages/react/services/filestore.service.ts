@@ -35,7 +35,6 @@ const initFilestoreService = (axios: AxiosInterceptor) => {
         scope,
         directory,
         filename: name,
-        fileType: file.type,
       },
     });
 
@@ -47,6 +46,7 @@ const initFilestoreService = (axios: AxiosInterceptor) => {
       },
       headers: {
         'Content-Type': file.type,
+        'Content-Disposition': 'inline',
       },
       onUploadProgress: (progressEvent) => {
         if (onProgress && progressEvent.total) {
