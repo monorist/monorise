@@ -1,5 +1,11 @@
 # @monorise/react
 
+## 0.1.1
+
+### Patch Changes
+
+- 6867c27: fix axios interceptor removing all headers
+
 ## 0.1.0
 
 ### Minor Changes
