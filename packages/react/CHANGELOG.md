@@ -1,5 +1,11 @@
 # @monorise/react
 
+## 0.1.2
+
+### Patch Changes
+
+- f0c7994: fix file delete endpoint
+
 ## 0.1.1
 
 ### Patch Changes
