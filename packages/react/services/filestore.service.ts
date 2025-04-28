@@ -60,8 +60,9 @@ const initFilestoreService = (axios: AxiosInterceptor) => {
   };
 
   const deleteFiles = async (keys: string[]) => {
+    console.log('Deleting files', keys);
     const { data } = await axios.post(
-      '/file/delete',
+      `${apiBaseUrl}/delete`,
       {
         keys,
       },
