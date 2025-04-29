@@ -330,6 +330,17 @@ describe('Entity & EntityRepository', () => {
       ).rejects.toThrow(); // Should throw due to ConditionExpression failure
     });
 
+    it('should fail to create an entity when unique field value is not string', async () => {
+      await expect(
+        // Use MockEntityType enum
+        entityRepository.createEntity(
+          MockEntityType.USER as unknown as EntityType,
+          { name: 'Invalid record', username: ['123', '456'] },
+          createdUser.entityId,
+        ),
+      ).rejects.toThrow(); // Should throw due to ConditionExpression failure
+    });
+
     // TODO FIXME: due to different PK and SK during account creation, idempotency check is failed
     // to fix this, we should make sure SK is not dynamic for email creation
     // it('should fail to create an entity with the same email (if email auth enabled)', async () => {

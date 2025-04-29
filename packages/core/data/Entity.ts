@@ -421,7 +421,7 @@ export class EntityRepository extends Repository {
     let uniqueFieldValues: Record<string, string> = {};
 
     if (hasUniqueFields) {
-      const uniqueFieldAvailabilityPromises = uniqueFields.map((field) => {
+      for (const field of uniqueFields) {
         if (
           typeof (entityPayload as Record<string, string>)[field] !== 'string'
         ) {
@@ -430,14 +430,7 @@ export class EntityRepository extends Repository {
             `Invalid type. ${field} is not a 'string'.`,
           );
         }
-        return this.getUniqueFieldValueAvailability(
-          entityType,
-          field,
-          (entityPayload as Record<string, string>)[field],
-        );
-      });
-
-      await Promise.all(uniqueFieldAvailabilityPromises);
+      }
 
       uniqueFieldValues = uniqueFields.reduce(
         (acc, field) => ({
@@ -609,9 +602,7 @@ export class EntityRepository extends Repository {
           {},
         );
 
-        const uniqueFieldAvailabilityPromises = Object.keys(
-          previousUniqueFieldValues,
-        ).map((field) => {
+        for (const field in previousUniqueFieldValues) {
           if (
             typeof (toUpdate.data as Record<string, unknown>)[field] !==
             'string'
@@ -621,14 +612,7 @@ export class EntityRepository extends Repository {
               `Invalid type. ${field} is not a 'string'.`,
             );
           }
-          return this.getUniqueFieldValueAvailability(
-            entityType,
-            field,
-            (toUpdate.data as Record<string, string>)[field],
-          );
-        });
-
-        await Promise.all(uniqueFieldAvailabilityPromises);
+        }
 
         if (updatedUniqueFields.length > 0) {
           const TransactItems = this.updateEntityTransactItems(
