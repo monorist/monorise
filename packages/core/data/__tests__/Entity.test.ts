@@ -2,7 +2,13 @@
 // This simulates the consumer-generated enum
 declare module '@monorise/base' {
   interface EntitySchemaMap {
-    user: { name: string; email: string; role: string };
+    user: {
+      name: string;
+      email: string;
+      role: string;
+      username: string;
+      age: number;
+    };
     product: { name: string };
     // admin: { name: string };
     // course: { name: string };
@@ -272,7 +278,6 @@ describe('Entity & EntityRepository', () => {
   describe('EntityRepository', () => {
     // Use MockEntityType enum
     let createdUser: Entity<EntityType>;
-    let updatedUser: Entity<EntityType>;
     const userEmail = `test-${ulid()}@example.com`;
     const username = `test-${ulid()}`;
     const userData = {
