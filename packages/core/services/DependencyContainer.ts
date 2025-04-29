@@ -16,6 +16,7 @@ import { TagRepository } from '../data/Tag';
 import { CreateEntityController } from '../controllers/entity/create-entity.controller';
 import { DeleteEntityController } from '../controllers/entity/delete-entity.controller';
 import { GetEntityController } from '../controllers/entity/get-entity.controller';
+import { GetEntityByUniqueFieldValueController } from '../controllers/entity/get-entity-by-unique-field-value.controller';
 import { ListEntitiesController } from '../controllers/entity/list-entities.controller';
 import { UpdateEntityController } from '../controllers/entity/update-entity.controller';
 import { UpsertEntityController } from '../controllers/entity/upsert-entity.controller';
@@ -154,6 +155,13 @@ export class DependencyContainer {
   get getEntityController(): GetEntityController {
     return this.createCachedInstance(
       GetEntityController,
+      this.entityRepository,
+    );
+  }
+
+  get getEntityByUniqueFieldController(): GetEntityByUniqueFieldValueController {
+    return this.createCachedInstance(
+      GetEntityByUniqueFieldValueController,
       this.entityRepository,
     );
   }
