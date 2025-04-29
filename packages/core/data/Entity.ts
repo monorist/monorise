@@ -268,10 +268,60 @@ export class EntityRepository extends Repository {
     return;
   }
 
+  async getEntityByUniqueField<T extends EntityType>(
+    entityType: T,
+    fieldName: string,
+    value: string,
+  ): Promise<Entity<T>> {
+    const resp = await this.dynamodbClient.query({
+      TableName: this.TABLE_NAME,
+      KeyConditionExpression: '#PK = :PK and begins_with(#SK, :SK)',
+      ExpressionAttributeNames: {
+        '#PK': 'PK',
+        '#SK': 'SK',
+      },
+      ExpressionAttributeValues: {
+        ':PK': { S: `UNIQUE#${fieldName}#${value}` },
+        ':SK': { S: entityType },
+      },
+    });
+
+    return Entity.fromItem(resp.Items?.[0]);
+  }
+
+  async getUniqueFieldValueAvailability<T extends EntityType>(
+    entityType: T,
+    fieldName: string,
+    value: string,
+  ): Promise<void> {
+    const resp = await this.dynamodbClient.query({
+      TableName: this.TABLE_NAME,
+      KeyConditionExpression: '#PK = :PK and begins_with(#SK, :SK)',
+      ExpressionAttributeNames: {
+        '#PK': 'PK',
+        '#SK': 'SK',
+      },
+      ExpressionAttributeValues: {
+        ':PK': { S: `UNIQUE#${fieldName}#${value}` },
+        ':SK': { S: entityType },
+      },
+    });
+
+    if (resp.Items?.[0]) {
+      throw new StandardError(
+        'UNIQUE_VALUE_EXISTS',
+        `${fieldName} '${value}' already exists`,
+      );
+    }
+
+    return;
+  }
+
   createEntityTransactItems<T extends EntityType>(
     entity: Entity<T>,
-    opts?: {
+    opts: {
       mutualId?: string;
+      uniqueFieldValues: Record<string, string>;
     },
   ): TransactWriteItem[] {
     const TransactItems: TransactWriteItem[] = [
@@ -322,6 +372,24 @@ export class EntityRepository extends Repository {
       });
     }
 
+    for (const field in opts.uniqueFieldValues) {
+      TransactItems.push({
+        Put: {
+          TableName: this.TABLE_NAME,
+          ConditionExpression: 'attribute_not_exists(PK)',
+          Item: {
+            ...entity.toItem(),
+            PK: {
+              S: `UNIQUE#${field}#${(entity.data as Record<string, string>)[field]}`,
+            },
+            SK: { S: entity.entityType },
+            R1PK: entity.keys().PK,
+            R1SK: entity.keys().SK,
+          },
+        },
+      });
+    }
+
     return TransactItems;
   }
 
@@ -342,8 +410,47 @@ export class EntityRepository extends Repository {
       currentDatetime,
       currentDatetime,
     );
+
+    const uniqueFields = (this.EntityConfig[entityType].uniqueFields ||
+      []) as string[];
+
+    const hasUniqueFields = Object.keys(entityPayload).some((field) =>
+      uniqueFields.includes(field),
+    );
+
+    let uniqueFieldValues: Record<string, string> = {};
+
+    if (hasUniqueFields) {
+      const uniqueFieldAvailabilityPromises = uniqueFields.map((field) => {
+        if (
+          typeof (entityPayload as Record<string, string>)[field] !== 'string'
+        ) {
+          throw new StandardError(
+            'INVALID_UNIQUE_VALUE_TYPE',
+            `Invalid type. ${field} is not a 'string'.`,
+          );
+        }
+        return this.getUniqueFieldValueAvailability(
+          entityType,
+          field,
+          (entityPayload as Record<string, string>)[field],
+        );
+      });
+
+      await Promise.all(uniqueFieldAvailabilityPromises);
+
+      uniqueFieldValues = uniqueFields.reduce(
+        (acc, field) => ({
+          ...acc,
+          [field]: (entityPayload as Record<string, unknown>)[field],
+        }),
+        {},
+      );
+    }
+
     const TransactItems = this.createEntityTransactItems<T>(entity, {
       mutualId: opts?.mutualId,
+      uniqueFieldValues,
     });
 
     await this.dynamodbClient.transactWriteItems({ TransactItems });
@@ -361,7 +468,7 @@ export class EntityRepository extends Repository {
       entityType,
       entityId,
       data: payload,
-      updatedAt: currentDatetime
+      updatedAt: currentDatetime,
     });
     const params: UpdateItemCommandInput = {
       TableName: this.TABLE_NAME,
@@ -381,6 +488,59 @@ export class EntityRepository extends Repository {
     return updatedEntity;
   }
 
+  updateEntityTransactItems<T extends EntityType>(
+    entity: Entity<T>,
+    updateParams: UpdateItemCommandInput,
+    previousUniqueFieldValues: Record<string, string>,
+    previousEntity: Entity<T>,
+  ) {
+    const transactItems: TransactWriteItem[] = [
+      {
+        Update: {
+          ...updateParams,
+          UpdateExpression: updateParams.UpdateExpression,
+        },
+      },
+    ];
+
+    for (const field in previousUniqueFieldValues) {
+      transactItems.push(
+        {
+          Delete: {
+            TableName: this.TABLE_NAME,
+            Key: {
+              PK: { S: `UNIQUE#${field}#${previousUniqueFieldValues[field]}` },
+              SK: { S: entity.entityType },
+            },
+          },
+        },
+        {
+          Put: {
+            TableName: this.TABLE_NAME,
+            ConditionExpression: 'attribute_not_exists(PK)',
+            Item: {
+              ...entity.toItem(),
+              data: {
+                M: {
+                  ...previousEntity.toItem().data.M,
+                  ...entity.toItem().data.M,
+                },
+              },
+              PK: {
+                S: `UNIQUE#${field}#${(entity.data as Record<string, string>)[field]}`,
+              },
+              SK: { S: entity.entityType },
+              R1PK: entity.keys().PK,
+              R1SK: entity.keys().SK,
+            },
+          },
+        },
+      );
+    }
+
+    return transactItems;
+  }
+
   async updateEntity<T extends EntityType>(
     entityType: T,
     entityId: string,
@@ -389,9 +549,9 @@ export class EntityRepository extends Repository {
       updatedAt?: string;
     },
     opts?: {
-      ConditionExpression: string;
-      ExpressionAttributeNames: Record<string, string>;
-      ExpressionAttributeValues: Record<string, AttributeValue>;
+      ConditionExpression?: string;
+      ExpressionAttributeNames?: Record<string, string>;
+      ExpressionAttributeValues?: Record<string, AttributeValue>;
     },
   ): Promise<Entity<T>> {
     try {
@@ -400,6 +560,7 @@ export class EntityRepository extends Repository {
         updatedAt: currentDatetime,
         ...toUpdate,
       });
+
       const params: UpdateItemCommandInput = {
         TableName: this.TABLE_NAME,
         ReturnValues: 'ALL_NEW',
@@ -416,6 +577,72 @@ export class EntityRepository extends Repository {
           ...opts?.ExpressionAttributeValues,
         },
       };
+
+      const entity = new Entity(entityType, entityId, toUpdate.data);
+
+      const uniqueFields = (this.EntityConfig[entityType].uniqueFields ||
+        []) as string[];
+
+      const hasUniqueFields = Object.keys(toUpdate.data).some((field) =>
+        uniqueFields.includes(field),
+      );
+
+      let updatedUniqueFields: string[] = [];
+      let previousUniqueFieldValues: Record<string, string> = {};
+      let previousEntity: Entity<T>;
+
+      if (hasUniqueFields) {
+        previousEntity = await this.getEntity(entityType, entityId);
+
+        // check if any of the unique fields has changed
+        updatedUniqueFields = uniqueFields.filter(
+          (field) =>
+            (toUpdate.data as Record<string, unknown>)[field] !==
+            (previousEntity.data as Record<string, unknown>)[field],
+        );
+
+        previousUniqueFieldValues = updatedUniqueFields.reduce(
+          (acc, field) => ({
+            ...acc,
+            [field]: (previousEntity.data as Record<string, unknown>)[field],
+          }),
+          {},
+        );
+
+        const uniqueFieldAvailabilityPromises = Object.keys(
+          previousUniqueFieldValues,
+        ).map((field) => {
+          if (
+            typeof (toUpdate.data as Record<string, unknown>)[field] !==
+            'string'
+          ) {
+            throw new StandardError(
+              'INVALID_UNIQUE_VALUE_TYPE',
+              `Invalid type. ${field} is not a 'string'.`,
+            );
+          }
+          return this.getUniqueFieldValueAvailability(
+            entityType,
+            field,
+            (toUpdate.data as Record<string, string>)[field],
+          );
+        });
+
+        await Promise.all(uniqueFieldAvailabilityPromises);
+
+        if (updatedUniqueFields.length > 0) {
+          const TransactItems = this.updateEntityTransactItems(
+            entity,
+            params,
+            previousUniqueFieldValues,
+            previousEntity,
+          );
+
+          await this.dynamodbClient.transactWriteItems({ TransactItems });
+
+          return await this.getEntity(entityType, entityId);
+        }
+      }
 
       const resp = await this.dynamodbClient.updateItem(params);
       const updatedEntity = Entity.fromItem<T>(resp.Attributes);

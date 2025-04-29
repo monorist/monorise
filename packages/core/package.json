@@ -9,9 +9,7 @@
     "build": "tsc -b",
     "test": "vitest run"
   },
-  "files": [
-    "dist"
-  ],
+  "files": ["dist"],
   "keywords": [],
   "author": "",
   "license": "ISC",

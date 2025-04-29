@@ -61,6 +61,7 @@ export interface MonoriseEntityConfig<
   displayName: string;
 
   /**
+   * @description (DEPRECATED) Use `uniqueFields` instead, Monorise should not handle auth mechanism
    * @description (Optional) Specify the authentication method to be used for the entity
    */
   authMethod?: {
