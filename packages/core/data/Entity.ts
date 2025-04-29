@@ -321,7 +321,7 @@ export class EntityRepository extends Repository {
     entity: Entity<T>,
     opts: {
       mutualId?: string;
-      uniqueFieldValues: Record<string, string>;
+      uniqueFieldValues?: Record<string, string>;
     },
   ): TransactWriteItem[] {
     const TransactItems: TransactWriteItem[] = [
@@ -372,7 +372,7 @@ export class EntityRepository extends Repository {
       });
     }
 
-    for (const field in opts.uniqueFieldValues) {
+    for (const field in opts.uniqueFieldValues || {}) {
       TransactItems.push({
         Put: {
           TableName: this.TABLE_NAME,
