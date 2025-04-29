@@ -288,9 +288,6 @@ describe('Entity & EntityRepository', () => {
         MockEntityType.USER as unknown as EntityType,
         userData,
         undefined,
-        {
-          uniqueFields: ['username'],
-        },
       );
 
       expect(createdUser).toBeInstanceOf(Entity);
@@ -317,6 +314,17 @@ describe('Entity & EntityRepository', () => {
         entityRepository.createEntity(
           MockEntityType.USER as unknown as EntityType,
           { name: 'Duplicate', email: 'dup@example.com' },
+          createdUser.entityId,
+        ),
+      ).rejects.toThrow(); // Should throw due to ConditionExpression failure
+    });
+
+    it('should fail to create an entity with existing unique field value', async () => {
+      await expect(
+        // Use MockEntityType enum
+        entityRepository.createEntity(
+          MockEntityType.USER as unknown as EntityType,
+          { name: 'Duplicate', username: createdUser.data.username },
           createdUser.entityId,
         ),
       ).rejects.toThrow(); // Should throw due to ConditionExpression failure
