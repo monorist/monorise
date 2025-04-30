@@ -30,11 +30,6 @@ jobs:
     name: Run Tests
     runs-on: ubuntu-latest
     # needs: lint
-    # services:
-    #   localstack:
-    #     image: localstack/localstack:latest
-    #     ports:
-    #       - 4566:4566
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
