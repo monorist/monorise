@@ -14,7 +14,8 @@
     "changeset": "npx @changesets/cli",
     "changeset:dev-start": "npm run changeset -- pre enter dev",
     "changeset:dev-exit": "npm run changeset -- pre exit",
-    "start:test-env": "./scripts/start-test-env.sh"
+    "start:test-env": "./scripts/start-test-env.sh",
+    "test": "npm -w @monorise/core run test"
   },
   "files": [
     "dist"

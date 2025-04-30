@@ -42,14 +42,14 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 22
           cache: 'npm'
 
       - name: Install dependencies
         run: npm ci
 
       - name: Run test for @monorise/core
-        run: npm -w @monorise/core run test
+        run: npm run test
         env:
           LOCALSTACK_ENDPOINT: http://localhost:4566
 
