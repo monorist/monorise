@@ -114,10 +114,10 @@ git push origin your-feature
 
 ```bash
 # Start test environment
-npm run start:test-core-env
+npm run start:test-env
 
 # Test only available for core now
-npm -w @monorise/core run test
+npm run test
 ```
 
 ## 🧰 Built With

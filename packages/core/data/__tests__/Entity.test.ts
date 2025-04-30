@@ -1,6 +1,6 @@
-import type { Entity as EntityType } from '@monorise/base';
 import { ulid } from 'ulid';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { Entity as EntityType } from '../../../base';
 import {
   MockEntityType,
   createBasicTestTable,
@@ -15,7 +15,9 @@ import { Entity, EntityRepository } from '../Entity';
 const TABLE_NAME = getTableName();
 const dynamodbClient = createDynamoDbClient();
 const mockEntityConfig = createMockEntityConfig();
-const EmailAuthEnabledEntities: EntityType[] = [MockEntityType.USER as unknown as EntityType];
+const EmailAuthEnabledEntities: EntityType[] = [
+  MockEntityType.USER as unknown as EntityType,
+];
 
 // Create repository instance
 const entityRepository = new EntityRepository(

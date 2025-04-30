@@ -1,7 +1,7 @@
 import { unmarshall } from '@aws-sdk/util-dynamodb';
-import type { Entity as EntityType } from '@monorise/base';
 import { ulid } from 'ulid';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import type { Entity as EntityType } from '../../../base';
 import { StandardError } from '../../errors/standard-error';
 import {
   MockEntityType,

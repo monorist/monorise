@@ -11,9 +11,9 @@ import {
   GetRecordsCommand,
   GetShardIteratorCommand,
 } from '@aws-sdk/client-dynamodb-streams';
-import { createEntityConfig } from '@monorise/base';
 import { ulid } from 'ulid';
 import { z } from 'zod';
+import { createEntityConfig } from '../../../base';
 import {
   ENTITY_REPLICATION_INDEX,
   MUTUAL_REPLICATION_INDEX,
