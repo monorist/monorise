@@ -138,7 +138,9 @@ const streamHandler = new StreamHandler(
   streamClient,
 );
 const mockEntityConfig = createMockEntityConfig();
-const EmailAuthEnabledEntities = [MockEntityType.USER];
+const EmailAuthEnabledEntities: EntityType[] = [
+  MockEntityType.USER as unknown as EntityType,
+];
 const replicationHandler = createReplicationHandler(TABLE_NAME, dynamodbClient);
 
 // Create repository instance

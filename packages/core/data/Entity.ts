@@ -106,7 +106,7 @@ export class EntityRepository extends Repository {
     >,
     private readonly TABLE_NAME: string,
     private readonly dynamodbClient: DynamoDB,
-    private readonly EmailAuthEnabledEntities: string[],
+    private readonly EmailAuthEnabledEntities: EntityType[],
   ) {
     super();
   }
@@ -282,7 +282,7 @@ export class EntityRepository extends Repository {
       },
       ExpressionAttributeValues: {
         ':PK': { S: `UNIQUE#${fieldName}#${value}` },
-        ':SK': { S: entityType },
+        ':SK': { S: entityType as unknown as string },
       },
     });
 
@@ -303,7 +303,7 @@ export class EntityRepository extends Repository {
       },
       ExpressionAttributeValues: {
         ':PK': { S: `UNIQUE#${fieldName}#${value}` },
-        ':SK': { S: entityType },
+        ':SK': { S: entityType as unknown as string },
       },
     });
 
@@ -382,7 +382,7 @@ export class EntityRepository extends Repository {
             PK: {
               S: `UNIQUE#${field}#${(entity.data as Record<string, string>)[field]}`,
             },
-            SK: { S: entity.entityType },
+            SK: { S: entity.entityType as unknown as string },
             R1PK: entity.keys().PK,
             R1SK: entity.keys().SK,
           },
@@ -503,7 +503,7 @@ export class EntityRepository extends Repository {
             TableName: this.TABLE_NAME,
             Key: {
               PK: { S: `UNIQUE#${field}#${previousUniqueFieldValues[field]}` },
-              SK: { S: entity.entityType },
+              SK: { S: entity.entityType as unknown as string },
             },
           },
         },
@@ -522,7 +522,7 @@ export class EntityRepository extends Repository {
               PK: {
                 S: `UNIQUE#${field}#${(entity.data as Record<string, string>)[field]}`,
               },
-              SK: { S: entity.entityType },
+              SK: { S: entity.entityType as unknown as string },
               R1PK: entity.keys().PK,
               R1SK: entity.keys().SK,
             },

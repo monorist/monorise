@@ -2,10 +2,7 @@ import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import type { Entity, createEntityConfig } from '@monorise/base';
 import { CORE_TABLE } from '../configs/service.config';
 import { getDependencies } from '../helpers/dependencies';
-import {
-  publishEvent,
-  type publishEvent as publishEventType,
-} from '../helpers/event';
+import type { publishEvent as publishEventType } from '../helpers/event';
 
 import { DbUtils } from '../data/DbUtils';
 import { EntityRepository } from '../data/Entity';
@@ -15,8 +12,8 @@ import { TagRepository } from '../data/Tag';
 
 import { CreateEntityController } from '../controllers/entity/create-entity.controller';
 import { DeleteEntityController } from '../controllers/entity/delete-entity.controller';
-import { GetEntityController } from '../controllers/entity/get-entity.controller';
 import { GetEntityByUniqueFieldValueController } from '../controllers/entity/get-entity-by-unique-field-value.controller';
+import { GetEntityController } from '../controllers/entity/get-entity.controller';
 import { ListEntitiesController } from '../controllers/entity/list-entities.controller';
 import { UpdateEntityController } from '../controllers/entity/update-entity.controller';
 import { UpsertEntityController } from '../controllers/entity/upsert-entity.controller';

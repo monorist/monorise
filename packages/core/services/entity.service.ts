@@ -1,6 +1,6 @@
 import type {
-  Entity,
   EntitySchemaMap,
+  Entity as EntityType,
   createEntityConfig,
 } from '@monorise/base';
 import { z } from 'zod';
@@ -13,14 +13,17 @@ import type { EntityServiceLifeCycle } from './entity-service-lifecycle';
 
 export class EntityService {
   constructor(
-    private EntityConfig: Record<Entity, ReturnType<typeof createEntityConfig>>,
-    private EmailAuthEnabledEntities: string[],
+    private EntityConfig: Record<
+      EntityType,
+      ReturnType<typeof createEntityConfig>
+    >,
+    private EmailAuthEnabledEntities: EntityType[],
     private entityRepository: EntityRepository,
     private publishEvent: typeof publishEventType,
     private entityServiceLifeCycle: EntityServiceLifeCycle,
   ) {}
 
-  createEntity = async <T extends Entity>({
+  createEntity = async <T extends EntityType>({
     entityType,
     entityId,
     entityPayload,
@@ -89,7 +92,7 @@ export class EntityService {
     return entity;
   };
 
-  updateEntity = async <T extends Entity>({
+  updateEntity = async <T extends EntityType>({
     entityType,
     entityId,
     entityPayload,
@@ -177,7 +180,7 @@ export class EntityService {
     }
   };
 
-  deleteEntity = async <T extends Entity>({
+  deleteEntity = async <T extends EntityType>({
     entityType,
     entityId,
     accountId,

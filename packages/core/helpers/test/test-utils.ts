@@ -17,7 +17,7 @@ import { z } from 'zod';
 import {
   ENTITY_REPLICATION_INDEX,
   MUTUAL_REPLICATION_INDEX,
-} from '../../dist/constants/table';
+} from '../../constants/table';
 import { handler as replicationHandlerFunction } from '../../processors/replication-processor';
 import type { DependencyContainer } from '../../services/DependencyContainer';
 

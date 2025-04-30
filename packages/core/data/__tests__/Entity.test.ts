@@ -15,7 +15,7 @@ import { Entity, EntityRepository } from '../Entity';
 const TABLE_NAME = getTableName();
 const dynamodbClient = createDynamoDbClient();
 const mockEntityConfig = createMockEntityConfig();
-const EmailAuthEnabledEntities = [MockEntityType.USER];
+const EmailAuthEnabledEntities: EntityType[] = [MockEntityType.USER as unknown as EntityType];
 
 // Create repository instance
 const entityRepository = new EntityRepository(
@@ -151,7 +151,7 @@ describe('Entity & EntityRepository', () => {
       // Verify directly in DynamoDB (optional but good practice)
       const fetched = await entityRepository.getEntity(
         MockEntityType.USER as unknown as EntityType,
-        createdUser.entityId,
+        createdUser.entityId as unknown as string,
       );
       expect(fetched.entityId).toEqual(createdUser.entityId);
       expect(fetched.data).toEqual(userData);
@@ -162,7 +162,7 @@ describe('Entity & EntityRepository', () => {
         entityRepository.createEntity(
           MockEntityType.USER as unknown as EntityType,
           { name: 'Duplicate', email: 'dup@example.com' },
-          createdUser.entityId,
+          createdUser.entityId as unknown as string,
         ),
       ).rejects.toThrow(); // Should throw due to ConditionExpression failure
     });
@@ -172,7 +172,7 @@ describe('Entity & EntityRepository', () => {
         entityRepository.createEntity(
           MockEntityType.USER as unknown as EntityType,
           { name: 'Duplicate', username: createdUser.data.username },
-          createdUser.entityId,
+          createdUser.entityId as unknown as string,
         ),
       ).rejects.toThrow(); // Should throw due to ConditionExpression failure
     });
@@ -182,7 +182,7 @@ describe('Entity & EntityRepository', () => {
         entityRepository.createEntity(
           MockEntityType.USER as unknown as EntityType,
           { name: 'Invalid record', username: ['123', '456'] },
-          createdUser.entityId,
+          createdUser.entityId as unknown as string,
         ),
       ).rejects.toThrow(); // Should throw due to ConditionExpression failure
     });
@@ -190,7 +190,7 @@ describe('Entity & EntityRepository', () => {
     it('should get an entity by ID', async () => {
       const fetched = await entityRepository.getEntity(
         MockEntityType.USER as unknown as EntityType,
-        createdUser.entityId,
+        createdUser.entityId as unknown as string,
       );
       expect(fetched.entityId).toEqual(createdUser.entityId);
       expect(fetched.data).toEqual(userData);
@@ -321,7 +321,7 @@ describe('Entity & EntityRepository', () => {
               price: i * 10,
             },
           );
-          productIds.push(product.entityId);
+          productIds.push(product.entityId as string);
         }
       });
 
@@ -390,15 +390,15 @@ describe('Entity & EntityRepository', () => {
       afterAll(async () => {
         await entityRepository.deleteEntity(
           MockEntityType.USER as unknown as EntityType,
-          user1.entityId,
+          user1.entityId as string,
         );
         await entityRepository.deleteEntity(
           MockEntityType.USER as unknown as EntityType,
-          user2.entityId,
+          user2.entityId as string,
         );
         await entityRepository.deleteEntity(
           MockEntityType.USER as unknown as EntityType,
-          user3.entityId,
+          user3.entityId as string,
         );
       });
 
@@ -431,26 +431,26 @@ describe('Entity & EntityRepository', () => {
       // Delete it
       await entityRepository.deleteEntity(
         MockEntityType.USER as unknown as EntityType,
-        tempUser.entityId,
+        tempUser.entityId as string,
       );
 
       // Verify it's gone
       await expect(
         entityRepository.getEntity(
           MockEntityType.USER as unknown as EntityType,
-          tempUser.entityId,
+          tempUser.entityId as string,
         ),
       ).rejects.toThrow('Entity item empty');
 
       // Also try deleting the main test user created at the start of this block
       await entityRepository.deleteEntity(
         MockEntityType.USER as unknown as EntityType,
-        createdUser.entityId,
+        createdUser.entityId as unknown as string,
       );
       await expect(
         entityRepository.getEntity(
           MockEntityType.USER as unknown as EntityType,
-          createdUser.entityId,
+          createdUser.entityId as unknown as string,
         ),
       ).rejects.toThrow('Entity item empty');
     });

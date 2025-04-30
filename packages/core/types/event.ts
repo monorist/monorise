@@ -1,3 +1,5 @@
+import type { Entity as EntityType } from '@monorise/base';
+
 const SOURCE = {
   CORE: 'core-service',
   GENERAL: 'general',
@@ -55,15 +57,15 @@ const EVENT = {
     /*
      * Mutual
      */
-    MUTUAL_CREATED: (byEntityType: string, entityType: string) => ({
+    MUTUAL_CREATED: (byEntityType: EntityType, entityType: EntityType) => ({
       Source: SOURCE.CORE,
       DetailType: `mutual-created:${byEntityType}:${entityType}`,
     }),
-    MUTUAL_UPDATED: (byEntityType: string, entityType: string) => ({
+    MUTUAL_UPDATED: (byEntityType: EntityType, entityType: EntityType) => ({
       Source: SOURCE.CORE,
       DetailType: `mutual-updated:${byEntityType}:${entityType}`,
     }),
-    MUTUAL_DELETED: (byEntityType: string, entityType: string) => ({
+    MUTUAL_DELETED: (byEntityType: EntityType, entityType: EntityType) => ({
       Source: SOURCE.CORE,
       DetailType: `mutual-deleted:${byEntityType}:${entityType}`,
     }),
