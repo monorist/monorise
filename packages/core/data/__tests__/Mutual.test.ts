@@ -6,7 +6,7 @@ import { StandardError } from '../../errors/standard-error';
 import {
   MockEntityType,
   StreamHandler,
-  createBasicTestTable,
+  createTestTable,
   createDynamoDbClient,
   createMockEntityConfig,
   createReplicationHandler,
@@ -159,7 +159,7 @@ const mutualRepository = new MutualRepository(
 
 describe('Mutual Repository', () => {
   beforeAll(async () => {
-    await createBasicTestTable(TABLE_NAME, dynamodbClient, {
+    await createTestTable(TABLE_NAME, dynamodbClient, {
       enableStream: true,
     });
     await waitForStreamReady(TABLE_NAME, dynamodbClient, streamClient);

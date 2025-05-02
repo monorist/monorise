@@ -99,7 +99,7 @@ export const createMockEntityConfig = () => ({
 });
 
 // --- Table Creation and Deletion ---
-export const createBasicTestTable = async (
+export const createTestTable = async (
   tableName: string,
   dynamodbClient: DynamoDB,
   opts: { enableStream?: boolean } = {},
@@ -143,60 +143,6 @@ export const createBasicTestTable = async (
         StreamViewType: 'NEW_AND_OLD_IMAGES',
       },
     }),
-  });
-
-  await dynamodbClient.send(command);
-  await waitUntilTableExists(
-    { client: dynamodbClient, maxWaitTime: 30 },
-    { TableName: tableName },
-  );
-};
-
-export const createStreamEnabledTestTable = async (
-  tableName: string,
-  dynamodbClient: DynamoDB,
-  indexNames = {
-    entityReplication: 'GSI1',
-    mutualReplication: 'GSI2',
-  },
-) => {
-  const command = new CreateTableCommand({
-    TableName: tableName,
-    KeySchema: [
-      { AttributeName: 'PK', KeyType: 'HASH' },
-      { AttributeName: 'SK', KeyType: 'RANGE' },
-    ],
-    AttributeDefinitions: [
-      { AttributeName: 'PK', AttributeType: 'S' },
-      { AttributeName: 'SK', AttributeType: 'S' },
-      { AttributeName: 'R1PK', AttributeType: 'S' },
-      { AttributeName: 'R1SK', AttributeType: 'S' },
-      { AttributeName: 'R2PK', AttributeType: 'S' },
-      { AttributeName: 'R2SK', AttributeType: 'S' },
-    ],
-    BillingMode: 'PAY_PER_REQUEST',
-    GlobalSecondaryIndexes: [
-      {
-        IndexName: indexNames.entityReplication,
-        KeySchema: [
-          { AttributeName: 'R1PK', KeyType: 'HASH' },
-          { AttributeName: 'R1SK', KeyType: 'RANGE' },
-        ],
-        Projection: { ProjectionType: 'ALL' },
-      },
-      {
-        IndexName: indexNames.mutualReplication,
-        KeySchema: [
-          { AttributeName: 'R2PK', KeyType: 'HASH' },
-          { AttributeName: 'R2SK', KeyType: 'RANGE' },
-        ],
-        Projection: { ProjectionType: 'ALL' },
-      },
-    ],
-    StreamSpecification: {
-      StreamEnabled: true,
-      StreamViewType: 'NEW_AND_OLD_IMAGES',
-    },
   });
 
   await dynamodbClient.send(command);

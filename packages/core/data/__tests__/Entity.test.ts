@@ -3,7 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { Entity as EntityType } from '../../../base';
 import {
   MockEntityType,
-  createBasicTestTable,
+  createTestTable,
   createDynamoDbClient,
   createMockEntityConfig,
   deleteTestTable,
@@ -29,7 +29,7 @@ const entityRepository = new EntityRepository(
 
 describe('Entity & EntityRepository', () => {
   beforeAll(async () => {
-    await createBasicTestTable(TABLE_NAME, dynamodbClient);
+    await createTestTable(TABLE_NAME, dynamodbClient);
   }, 60000); // Increase timeout for table creation
 
   afterAll(async () => {
