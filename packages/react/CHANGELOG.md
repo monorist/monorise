@@ -1,5 +1,16 @@
 # @monorise/react
 
+## 0.2.0
+
+### Minor Changes
+
+- d9c74bf: Introduce useEntityByUniqueField hook
+
+### Patch Changes
+
+- Updated dependencies [47957b2]
+  - @monorise/base@0.0.4
+
 ## 0.1.2
 
 ### Patch Changes

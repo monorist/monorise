@@ -1,6 +1,6 @@
 {
   "name": "@monorise/core",
-  "version": "0.0.4",
+  "version": "0.1.0",
   "description": "",
   "type": "module",
   "main": "dist/index.js",
@@ -25,7 +25,7 @@
     "ulid": "^2.3.0"
   },
   "devDependencies": {
-    "@monorise/base": "^0.0.3",
+    "@monorise/base": "^0.0.4",
     "@types/aws-lambda": "^8.10.147",
     "@types/express": "^5.0.0",
     "vitest": "^3.1.1"

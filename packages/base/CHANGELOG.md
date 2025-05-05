@@ -1,5 +1,11 @@
 # @monorise/base
 
+## 0.0.4
+
+### Patch Changes
+
+- 47957b2: Introduce unique fields
+
 ## 0.0.3
 
 ### Patch Changes

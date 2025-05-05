@@ -1,5 +1,17 @@
 # @monorise/core
 
+## 0.1.0
+
+### Minor Changes
+
+- 47957b2: Introduce unique fields
+
+### Patch Changes
+
+- eccbfbd: - test cases for Mutual and Mutual Repository
+  - fix get deleted Mutual still exists
+  - refactored test helpers
+
 ## 0.0.4
 
 ### Patch Changes
