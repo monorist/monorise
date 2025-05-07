@@ -1,5 +1,11 @@
 # @monorise/core
 
+## 0.1.2
+
+### Patch Changes
+
+- 992399f: fix @monorise/core export issue
+
 ## 0.1.1
 
 ### Patch Changes
