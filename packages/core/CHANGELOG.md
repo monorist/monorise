@@ -1,5 +1,11 @@
 # @monorise/core
 
+## 0.1.4
+
+### Patch Changes
+
+- edcc3e9: fix tsconfig exclude path to relative
+
 ## 0.1.3
 
 ### Patch Changes
