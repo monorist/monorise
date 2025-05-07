@@ -1,5 +1,11 @@
 # @monorise/core
 
+## 0.1.3
+
+### Patch Changes
+
+- f23b09e: Change core package transpile target
+
 ## 0.1.2
 
 ### Patch Changes
