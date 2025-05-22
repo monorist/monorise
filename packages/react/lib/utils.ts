@@ -37,3 +37,39 @@ export const getUniqueFieldStateKey = (
 ) => {
   return `${fieldName}/${fieldValue}`;
 };
+
+export const getEntityRequestKey = (
+  mode: 'create' | 'upsert' | 'edit' | 'delete' | 'get' | 'list' | 'search',
+  entityType: Entity,
+  entityId?: string,
+) => {
+  return `entity/${entityType}/${mode}${entityId ? `/${entityId}` : ''}`;
+};
+
+export const getMutualRequestKey = (
+  mode: 'create' | 'update' | 'delete' | 'get' | 'list',
+  byEntityType: Entity,
+  entityType: Entity,
+  byEntityId: string | null,
+  entityId?: string,
+  chainEntityQuery?: string,
+) => {
+  return `mutual/${getMutualStateKey(byEntityType, byEntityId, entityType, entityId, chainEntityQuery)}/${mode}`;
+};
+
+export const getTagRequestKey = (
+  mode: 'list',
+  entityType: Entity,
+  tagName: string,
+  group?: string,
+) => {
+  return `tag/${getTagStateKey(entityType, tagName, group)}/${mode}`;
+};
+
+export const getUniqueFieldRequestKey = (
+  entityType: Entity,
+  fieldName: string,
+  value: string,
+) => {
+  return `entity/${entityType}/unique/${getUniqueFieldStateKey(fieldName, value)}`;
+};

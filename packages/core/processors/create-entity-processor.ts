@@ -1,6 +1,6 @@
 import type { Entity } from '@monorise/base';
 import type { SQSBatchItemFailure, SQSEvent } from 'aws-lambda';
-import { StandardError } from '../errors/standard-error';
+import { StandardError, StandardErrorCode } from '../errors/standard-error';
 import { parseSQSBusEvent } from '../helpers/event';
 import type { DependencyContainer } from '../services/DependencyContainer';
 
@@ -45,7 +45,7 @@ export const handler =
 
         if (
           err instanceof StandardError &&
-          err.code === 'INVALID_ENTITY_TYPE'
+          err.code === StandardErrorCode.INVALID_ENTITY_TYPE
         ) {
           continue; // do not retry
         }

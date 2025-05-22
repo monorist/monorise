@@ -5,6 +5,12 @@ import { initAuthActions } from './actions/auth.action';
 import { initConfigActions } from './actions/config.action';
 import { initCoreActions } from './actions/core.action';
 import { initAxiosInterceptor, injectAxiosInterceptor } from './lib/api';
+import {
+  getEntityRequestKey,
+  getMutualRequestKey,
+  getTagRequestKey,
+  getUniqueFieldRequestKey,
+} from './lib/utils';
 import initAuthService from './services/auth.service';
 import initCoreService from './services/core.service';
 import initFilestoreService from './services/filestore.service';
@@ -186,6 +192,10 @@ export {
   useMutuals,
   useTaggedEntities,
   useEntityState,
+  getEntityRequestKey,
+  getMutualRequestKey,
+  getTagRequestKey,
+  getUniqueFieldRequestKey,
 };
 
 export default Monorise;

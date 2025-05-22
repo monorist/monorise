@@ -3,7 +3,7 @@ import type { Request, Response } from 'express';
 import httpStatus from 'http-status';
 import { ZodError } from 'zod';
 import type { EntityRepository } from '../../data/Entity';
-import { StandardError } from '../../errors/standard-error';
+import { StandardError, StandardErrorCode } from '../../errors/standard-error';
 import type { publishEvent as publishEventType } from '../../helpers/event';
 import { EVENT } from '../../types/event';
 
@@ -28,7 +28,10 @@ export class UpsertEntityController {
       const mutualSchema = this.EntityConfig[entityType].mutual?.mutualSchema;
 
       if (!entitySchema || !mutualSchema) {
-        throw new StandardError('Invalid entity type', 'INVALID_ENTITY_TYPE');
+        throw new StandardError(
+          StandardErrorCode.INVALID_ENTITY_TYPE,
+          'Invalid entity type',
+        );
       }
 
       const parsedEntityPayload = entitySchema.parse(req.body);
@@ -85,7 +88,10 @@ export class UpsertEntityController {
         });
       }
 
-      if (err instanceof StandardError && err.code === 'EMAIL_EXISTS') {
+      if (
+        err instanceof StandardError &&
+        err.code === StandardErrorCode.EMAIL_EXISTS
+      ) {
         return res.status(httpStatus.BAD_REQUEST).json({
           ...err.toJSON(),
         });

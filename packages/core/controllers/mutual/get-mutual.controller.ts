@@ -2,6 +2,7 @@ import type { Entity } from '@monorise/base';
 import type { Request, Response } from 'express';
 import httpStatus from 'http-status';
 import type { MutualRepository } from '../../data/Mutual';
+import { StandardError, StandardErrorCode } from '../../errors/standard-error';
 
 export class GetMutualController {
   constructor(private associateRepository: MutualRepository) {}
@@ -25,7 +26,10 @@ export class GetMutualController {
 
       return res.status(httpStatus.OK).json(associate);
     } catch (err) {
-      if ((err as any).code === 'MUTUAL_IS_UNDEFINED') {
+      if (
+        err instanceof StandardError &&
+        err.code === StandardErrorCode.MUTUAL_IS_UNDEFINED
+      ) {
         return res.status(httpStatus.NOT_FOUND).json({
           code: 'MUTUAL_NOT_FOUND',
           message: 'Mutual not found',

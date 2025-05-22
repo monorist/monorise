@@ -8,7 +8,7 @@ import {
   ENTITY_REPLICATION_INDEX,
   MUTUAL_REPLICATION_INDEX,
 } from '../configs/service.config';
-import { StandardError } from '../errors/standard-error';
+import { StandardError, StandardErrorCode } from '../errors/standard-error';
 import type { DependencyContainer } from '../services/DependencyContainer';
 
 export const handler =
@@ -151,7 +151,7 @@ export const handler =
             )
           ) {
             throw new StandardError(
-              'REPLICATION_ERROR',
+              StandardErrorCode.REPLICATION_ERROR,
               'Replication error',
               null,
               errorContext,
@@ -235,7 +235,7 @@ export const handler =
             )
           ) {
             throw new StandardError(
-              'REPLICATION_ERROR',
+              StandardErrorCode.REPLICATION_ERROR,
               'Replication error',
               null,
               errorContext,

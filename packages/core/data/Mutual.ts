@@ -10,8 +10,10 @@ import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import type { Entity, EntitySchemaMap } from '@monorise/base';
 import { ulid } from 'ulid';
 import type { DbUtils } from '../data/DbUtils';
-import { StandardError } from '../errors/standard-error';
+import { StandardError, StandardErrorCode } from '../errors/standard-error';
+import { fromLastKeyQuery } from '../helpers/fromLastKeyQuery';
 import { sleep } from '../helpers/sleep';
+import { toLastKeyResponse } from '../helpers/toLastKeyResponse';
 import {
   PROJECTION_EXPRESSION,
   type ProjectionExpressionValues,
@@ -44,7 +46,10 @@ export class Mutual<
     M extends Record<string, unknown>,
   >(item?: Record<string, AttributeValue>): Mutual<B, T, M> {
     if (!item)
-      throw new StandardError('MUTUAL_IS_UNDEFINED', 'Mutual item empty');
+      throw new StandardError(
+        StandardErrorCode.MUTUAL_IS_UNDEFINED,
+        'Mutual item empty',
+      );
 
     const parsedItem = unmarshall(item);
 
@@ -176,13 +181,13 @@ export class MutualRepository extends Repository {
     byEntityId: string,
     entityType: T,
     opts: {
-      lastKey?: Record<string, AttributeValue>;
+      lastKey?: string;
       ProjectionExpression?: ProjectionExpressionValues;
       limit?: number; // if this is not set, retrieve all items
     } = {},
   ): Promise<{
     items: Mutual<B, T, M>[];
-    lastKey?: Record<string, AttributeValue>;
+    lastKey?: string;
   }> {
     const mutual = new Mutual(
       byEntityType,
@@ -223,7 +228,7 @@ export class MutualRepository extends Repository {
         ...listAssociationsQuery,
         ...(remainingCount && { Limit: remainingCount }),
         ...(lastKey && {
-          ExclusiveStartKey: lastKey,
+          ExclusiveStartKey: fromLastKeyQuery(lastKey),
         }),
       });
 
@@ -231,7 +236,7 @@ export class MutualRepository extends Repository {
         resp.Items?.map((item) => Mutual.fromItem(item)) || [],
       );
 
-      lastKey = resp.LastEvaluatedKey;
+      lastKey = toLastKeyResponse(resp.LastEvaluatedKey);
       if (opts.limit) {
         remainingCount = remainingCount - (resp.Items?.length ?? 0);
       }
@@ -328,7 +333,10 @@ export class MutualRepository extends Repository {
     });
 
     if (resp.Item && !resp.Item?.expiresAt) {
-      throw new StandardError('MUTUAL_EXISTS', 'Entities are already linked');
+      throw new StandardError(
+        StandardErrorCode.MUTUAL_EXISTS,
+        'Entities are already linked',
+      );
     }
 
     return;
@@ -551,11 +559,16 @@ export class MutualRepository extends Repository {
     } catch (err) {
       if (
         err instanceof StandardError &&
-        err.code === 'CONDITIONAL_CHECK_FAILED'
+        err.code === StandardErrorCode.CONDITIONAL_CHECK_FAILED
       ) {
-        throw new StandardError('MUTUAL_NOT_FOUND', 'Mutual not found', err, {
-          errorContext,
-        });
+        throw new StandardError(
+          StandardErrorCode.MUTUAL_NOT_FOUND,
+          'Mutual not found',
+          err,
+          {
+            errorContext,
+          },
+        );
       }
 
       throw err;
@@ -656,12 +669,18 @@ export class MutualRepository extends Repository {
         );
 
       const isMutualIsUndefined =
-        err instanceof StandardError && err.code === 'MUTUAL_IS_UNDEFINED';
+        err instanceof StandardError &&
+        err.code === StandardErrorCode.MUTUAL_IS_UNDEFINED;
 
       if (isConditionalCheckFailed || isMutualIsUndefined) {
-        throw new StandardError('MUTUAL_NOT_FOUND', 'Mutual not found', err, {
-          errorContext,
-        });
+        throw new StandardError(
+          StandardErrorCode.MUTUAL_NOT_FOUND,
+          'Mutual not found',
+          err,
+          {
+            errorContext,
+          },
+        );
       }
 
       throw err;
@@ -727,7 +746,7 @@ export class MutualRepository extends Repository {
           existingVersion >= version;
         if (isExistingVersionGreaterThanNewVersion) {
           throw new StandardError(
-            'MUTUAL_LOCK_CONFLICT',
+            StandardErrorCode.MUTUAL_LOCK_CONFLICT,
             'Lock conflict',
             err,
             { lock: lock.Item },
@@ -745,7 +764,7 @@ export class MutualRepository extends Repository {
 
     // catch real unhandled error, so it can reach DLQ for inspection
     throw new StandardError(
-      'RETRYABLE_MUTUAL_LOCK_CONFLICT',
+      StandardErrorCode.RETRYABLE_MUTUAL_LOCK_CONFLICT,
       'Retryable lock conflict',
     );
   }

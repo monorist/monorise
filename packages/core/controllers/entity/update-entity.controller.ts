@@ -2,7 +2,7 @@ import type { Entity } from '@monorise/base';
 import type { Request, Response } from 'express';
 import httpStatus from 'http-status';
 import type { ZodError } from 'zod';
-import { StandardError } from '../../errors/standard-error';
+import { StandardError, StandardErrorCode } from '../../errors/standard-error';
 import type { EntityService } from '../../services/entity.service';
 
 export class UpdateEntityController {
@@ -39,13 +39,19 @@ export class UpdateEntityController {
         });
       }
 
-      if (err instanceof StandardError && err.code === 'ENTITY_NOT_FOUND') {
+      if (
+        err instanceof StandardError &&
+        err.code === StandardErrorCode.ENTITY_NOT_FOUND
+      ) {
         return res.status(httpStatus.NOT_FOUND).json({
           ...err.toJSON(),
         });
       }
 
-      if (err instanceof StandardError && err.code === 'UNIQUE_VALUE_EXISTS') {
+      if (
+        err instanceof StandardError &&
+        err.code === StandardErrorCode.UNIQUE_VALUE_EXISTS
+      ) {
         return res.status(httpStatus.BAD_REQUEST).json({
           ...err.toJSON(),
         });

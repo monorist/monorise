@@ -4,7 +4,7 @@ import { Entity, EntityRepository } from './data/Entity';
 import { Mutual, MutualRepository } from './data/Mutual';
 import { PROJECTION_EXPRESSION } from './data/ProjectionExpression';
 import { TagRepository } from './data/Tag';
-import { StandardError } from './errors/standard-error';
+import { StandardError, StandardErrorCode } from './errors/standard-error';
 import { handler as createEntityProcessor } from './processors/create-entity-processor';
 import { handler as mutualProcessor } from './processors/mutual-processor';
 import { handler as prejoinProcessor } from './processors/prejoin-processor';
@@ -57,6 +57,7 @@ export {
   tagProcessor,
   DependencyContainer,
   StandardError,
+  StandardErrorCode,
 };
 
 export default CoreFactory;

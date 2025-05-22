@@ -2,8 +2,6 @@ import type { Entity } from '@monorise/base';
 import type { Request, Response } from 'express';
 import { z } from 'zod';
 import type { TagRepository } from '../../data/Tag';
-import { fromLastKeyQuery } from '../../helpers/fromLastKeyQuery';
-import { toLastKeyResponse } from '../../helpers/toLastKeyResponse';
 
 const querySchema = z.object({
   group: z.string().optional(),
@@ -37,7 +35,7 @@ export class ListTagsController {
         tagName,
         limit: Number(limit),
         options: {
-          lastKey: fromLastKeyQuery(lastKey),
+          lastKey,
         },
         query,
         group,
@@ -47,7 +45,7 @@ export class ListTagsController {
       return res.json({
         entities: results.items.map((item) => item.toJSON()),
         totalCount: results.totalCount,
-        lastKey: toLastKeyResponse(results.lastKey),
+        lastKey: results.lastKey,
       });
     } catch (error) {
       console.log({ error, errorContext });

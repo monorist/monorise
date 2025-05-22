@@ -2,7 +2,7 @@ import type { Entity as EntityType } from '@monorise/base';
 import type { Request, Response } from 'express';
 import httpStatus from 'http-status';
 import { ZodError } from 'zod';
-import { StandardError } from '../../errors/standard-error';
+import { StandardError, StandardErrorCode } from '../../errors/standard-error';
 import type { MutualService } from '../../services/mutual.service';
 
 export class CreateMutualController {
@@ -43,13 +43,19 @@ export class CreateMutualController {
         });
       }
 
-      if (err instanceof StandardError && err.code === 'MUTUAL_EXISTS') {
+      if (
+        err instanceof StandardError &&
+        err.code === StandardErrorCode.MUTUAL_EXISTS
+      ) {
         return res.status(httpStatus.BAD_REQUEST).json({
           ...err.toJSON(),
         });
       }
 
-      if (err instanceof StandardError && err.code === 'ENTITY_IS_UNDEFINED') {
+      if (
+        err instanceof StandardError &&
+        err.code === StandardErrorCode.ENTITY_IS_UNDEFINED
+      ) {
         return res.status(httpStatus.BAD_REQUEST).json({
           ...err.toJSON(),
         });

@@ -4,7 +4,7 @@ import {
   type TransactWriteItemsInput,
   TransactionCanceledException,
 } from '@aws-sdk/client-dynamodb';
-import { StandardError } from '../errors/standard-error';
+import { StandardError, StandardErrorCode } from '../errors/standard-error';
 
 export class DbUtils {
   constructor(private ddbClient: DynamoDB) {}
@@ -21,7 +21,7 @@ export class DbUtils {
 
         if (hasConditionalCheckFailed) {
           throw new StandardError(
-            'CONDITIONAL_CHECK_FAILED',
+            StandardErrorCode.CONDITIONAL_CHECK_FAILED,
             'Failed to executeTransactWrite',
             err,
             { params },
@@ -30,7 +30,7 @@ export class DbUtils {
       }
 
       throw new StandardError(
-        'TRANSACTION_FAILED',
+        StandardErrorCode.TRANSACTION_FAILED,
         'Failed to executeTransactWrite',
         err,
         { params },

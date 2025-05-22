@@ -5,7 +5,7 @@ import type {
 } from '@monorise/base';
 import { z } from 'zod';
 import type { EntityRepository } from '../data/Entity';
-import { StandardError } from '../errors/standard-error';
+import { StandardError, StandardErrorCode } from '../errors/standard-error';
 import type { publishEvent as publishEventType } from '../helpers/event';
 import type { EventDetailBody as MutualProcessorEventDetailBody } from '../processors/mutual-processor';
 import { EVENT } from '../types/event';
@@ -47,7 +47,10 @@ export class EntityService {
     // const mutualSchema = this.EntityConfig[entityType]?.mutual?.mutualSchema;
 
     if (!finalSchema || !entitySchema) {
-      throw new StandardError('INVALID_ENTITY_TYPE', 'Invalid entity type');
+      throw new StandardError(
+        StandardErrorCode.INVALID_ENTITY_TYPE,
+        'Invalid entity type',
+      );
     }
 
     finalSchema.parse(entityPayload);
@@ -110,7 +113,10 @@ export class EntityService {
       const mutualSchema = this.EntityConfig[entityType].mutual?.mutualSchema;
 
       if (!entitySchema) {
-        throw new StandardError('Invalid entity type', 'INVALID_ENTITY_TYPE');
+        throw new StandardError(
+          StandardErrorCode.INVALID_ENTITY_TYPE,
+          'Invalid entity type',
+        );
       }
 
       const parsedEntityPayload = entitySchema.parse(entityPayload) as Partial<

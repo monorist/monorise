@@ -1,7 +1,7 @@
 import type { Entity } from '@monorise/base';
 import type { Request, Response } from 'express';
 import httpStatus from 'http-status';
-import { StandardError } from '../../errors/standard-error';
+import { StandardError, StandardErrorCode } from '../../errors/standard-error';
 import type { MutualService } from '../../services/mutual.service';
 
 export class DeleteMutualController {
@@ -28,7 +28,10 @@ export class DeleteMutualController {
 
       return res.json(mutual);
     } catch (err) {
-      if (err instanceof StandardError && err.code === 'MUTUAL_NOT_FOUND') {
+      if (
+        err instanceof StandardError &&
+        err.code === StandardErrorCode.MUTUAL_NOT_FOUND
+      ) {
         return res.status(httpStatus.BAD_REQUEST).json({
           ...err.toJSON(),
         });

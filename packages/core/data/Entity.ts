@@ -15,7 +15,9 @@ import type {
   createEntityConfig,
 } from '@monorise/base';
 import { ulid } from 'ulid';
-import { StandardError } from '../errors/standard-error';
+import { StandardError, StandardErrorCode } from '../errors/standard-error';
+import { fromLastKeyQuery } from '../helpers/fromLastKeyQuery';
+import { toLastKeyResponse } from '../helpers/toLastKeyResponse';
 import type { ProjectionExpressionValues } from './ProjectionExpression';
 import { Item } from './abstract/Item.base';
 import { Repository } from './abstract/Repository.base';
@@ -38,7 +40,10 @@ export class Entity<T extends EntityType> extends Item {
     item?: Record<string, AttributeValue>,
   ): Entity<T> {
     if (!item)
-      throw new StandardError('ENTITY_IS_UNDEFINED', 'Entity item empty');
+      throw new StandardError(
+        StandardErrorCode.ENTITY_IS_UNDEFINED,
+        'Entity item empty',
+      );
 
     const parsedItem = unmarshall(item);
 
@@ -126,13 +131,13 @@ export class EntityRepository extends Repository {
       end: string;
     };
     options?: {
-      lastKey?: Record<string, AttributeValue>;
+      lastKey?: string;
       ProjectionExpression?: ProjectionExpressionValues;
     };
   }): Promise<{
     items: Entity<T>[];
     totalCount?: number;
-    lastKey?: Record<string, AttributeValue>;
+    lastKey?: string;
   }> {
     const entity = new Entity(entityType);
     // when query for records that SK are between provided start and end
@@ -189,12 +194,12 @@ export class EntityRepository extends Repository {
         ...defaultListQuery,
         ...(remainingCount && { Limit: remainingCount }),
         ...(lastKey && {
-          ExclusiveStartKey: lastKey,
+          ExclusiveStartKey: fromLastKeyQuery(lastKey),
         }),
       });
       items = items.concat(resp.Items ?? []);
 
-      lastKey = resp.LastEvaluatedKey;
+      lastKey = toLastKeyResponse(resp.LastEvaluatedKey);
 
       if (limit) {
         remainingCount = remainingCount - (resp.Items?.length ?? 0);
@@ -264,7 +269,10 @@ export class EntityRepository extends Repository {
     });
 
     if (resp.Items?.[0]) {
-      throw new StandardError('EMAIL_EXISTS', 'Email already exists');
+      throw new StandardError(
+        StandardErrorCode.EMAIL_EXISTS,
+        'Email already exists',
+      );
     }
 
     return;
@@ -311,7 +319,7 @@ export class EntityRepository extends Repository {
 
     if (resp.Items?.[0]) {
       throw new StandardError(
-        'UNIQUE_VALUE_EXISTS',
+        StandardErrorCode.UNIQUE_VALUE_EXISTS,
         `${fieldName} '${value}' already exists`,
       );
     }
@@ -428,7 +436,7 @@ export class EntityRepository extends Repository {
           typeof (entityPayload as Record<string, string>)[field] !== 'string'
         ) {
           throw new StandardError(
-            'INVALID_UNIQUE_VALUE_TYPE',
+            StandardErrorCode.INVALID_UNIQUE_VALUE_TYPE,
             `Invalid type. ${field} is not a 'string'.`,
           );
         }
@@ -467,7 +475,7 @@ export class EntityRepository extends Repository {
           ) {
             const field = uniqueFields[i];
             throw new StandardError(
-              'UNIQUE_VALUE_EXISTS',
+              StandardErrorCode.UNIQUE_VALUE_EXISTS,
               `${field} '${uniqueFieldValues[field]}' already exists`,
             );
           }
@@ -637,7 +645,7 @@ export class EntityRepository extends Repository {
             'string'
           ) {
             throw new StandardError(
-              'INVALID_UNIQUE_VALUE_TYPE',
+              StandardErrorCode.INVALID_UNIQUE_VALUE_TYPE,
               `Invalid type. ${field} is not a 'string'.`,
             );
           }
@@ -666,7 +674,7 @@ export class EntityRepository extends Repository {
                 ) {
                   const field = updatedUniqueFields[Math.floor(i / 2)];
                   throw new StandardError(
-                    'UNIQUE_VALUE_EXISTS',
+                    StandardErrorCode.UNIQUE_VALUE_EXISTS,
                     `${field} '${entity.data[field]}' already exists`,
                   );
                 }
@@ -685,10 +693,15 @@ export class EntityRepository extends Repository {
       return updatedEntity;
     } catch (err) {
       if (err instanceof ConditionalCheckFailedException) {
-        throw new StandardError('ENTITY_NOT_FOUND', 'Entity not found', err, {
-          entityId,
-          toUpdate,
-        });
+        throw new StandardError(
+          StandardErrorCode.ENTITY_NOT_FOUND,
+          'Entity not found',
+          err,
+          {
+            entityId,
+            toUpdate,
+          },
+        );
       }
 
       throw err;
@@ -709,9 +722,14 @@ export class EntityRepository extends Repository {
       });
     } catch (err) {
       if (err instanceof ConditionalCheckFailedException) {
-        throw new StandardError('ENTITY_NOT_FOUND', 'Entity not found', err, {
-          entityId,
-        });
+        throw new StandardError(
+          StandardErrorCode.ENTITY_NOT_FOUND,
+          'Entity not found',
+          err,
+          {
+            entityId,
+          },
+        );
       }
 
       throw err;

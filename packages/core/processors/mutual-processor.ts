@@ -3,7 +3,7 @@ import type { Entity } from '@monorise/base';
 import type { SQSBatchItemFailure, SQSEvent } from 'aws-lambda';
 // import { EntityConfig } from '#/lambda-layer/monorise';
 import { Mutual } from '../data/Mutual';
-import { StandardError } from '../errors/standard-error';
+import { StandardError, StandardErrorCode } from '../errors/standard-error';
 import { parseSQSBusEvent } from '../helpers/event';
 import type { DependencyContainer } from '../services/DependencyContainer';
 import { EVENT } from '../types/event';
@@ -52,7 +52,10 @@ export const handler =
             ];
 
           if (!config) {
-            throw new StandardError('INVALID_MUTUAL', 'Invalid mutual');
+            throw new StandardError(
+              StandardErrorCode.INVALID_MUTUAL,
+              'Invalid mutual',
+            );
           }
 
           const mutualDataProcessor =
@@ -217,12 +220,12 @@ export const handler =
                 !(
                   res.reason instanceof TransactionCanceledException ||
                   (res.reason instanceof StandardError &&
-                    res.reason.code === 'MUTUAL_NOT_FOUND')
+                    res.reason.code === StandardErrorCode.MUTUAL_NOT_FOUND)
                 ),
             )
           ) {
             throw new StandardError(
-              'MUTUAL_PROCESSOR_ERROR',
+              StandardErrorCode.MUTUAL_PROCESSOR_ERROR,
               'Mutual processor error',
               null,
               errorContext,
@@ -256,7 +259,10 @@ export const handler =
 
           if (
             err instanceof StandardError &&
-            ['INVALID_MUTUAL', 'MUTUAL_LOCK_CONFLICT'].includes(err.code)
+            [
+              StandardErrorCode.INVALID_MUTUAL,
+              StandardErrorCode.MUTUAL_LOCK_CONFLICT,
+            ].includes(err.code as StandardErrorCode)
           ) {
             return;
           }
