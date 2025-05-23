@@ -9,7 +9,8 @@
     "monorise": "dist/cli.js"
   },
   "scripts": {
-    "build": "tsc -b"
+    "build": "tsc -b",
+    "dev": "tsc -b --watch"
   },
   "keywords": [],
   "author": "",

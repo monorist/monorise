@@ -1150,9 +1150,8 @@ const initCoreActions = (
     tagName: string,
     opts: CommonOptions & { params?: ListEntitiesByTagParams } = {},
   ) => {
-    console.log('====useTaggedEntities');
     const { params } = opts || {};
-    const stateKey = getTagStateKey(entityType, tagName, params?.group);
+    const stateKey = getTagStateKey(entityType, tagName, params);
     const state = monoriseStore((state) => state.tag[stateKey]);
     const { dataMap, isFirstFetched, lastKey } = state || {
       dataMap: new Map(),
@@ -1163,9 +1162,7 @@ const initCoreActions = (
     const error = useErrorStore(requestKey);
 
     useEffect(() => {
-      console.log('===useEffect list');
       if (entityType && tagName && Object.keys(params).length > 0) {
-        console.log('====listEntitiesByTag');
         listEntitiesByTag(entityType, tagName, opts);
       }
     }, [entityType, opts, tagName, params, opts?.forceFetch]);

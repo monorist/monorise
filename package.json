@@ -7,6 +7,7 @@
   "packageManager": "npm@10.9.2",
   "scripts": {
     "build": "npm run clear-dist && turbo run build",
+    "dev": "npm run clear-dist && turbo run dev",
     "clear-dist": "./scripts/clear.sh",
     "release": "npm run build && npm run changeset -- publish",
     "version": "npm run changeset -- version",
@@ -38,5 +39,8 @@
     "./react": "./dist/react/index.js",
     "./cli": "./dist/cli/index.js",
     "./core": "./dist/core/index.js"
+  },
+  "dependencies": {
+    "zustand": "^4.5.2"
   }
 }
