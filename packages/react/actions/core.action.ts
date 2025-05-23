@@ -51,7 +51,7 @@ const initCoreActions = (
     opts: CommonOptions = {},
   ) => {
     const store = monoriseStore.getState();
-    const entityState = store.entity[entityType];
+    const entityState = store.entity[entityType] ?? {};
     const { isFirstFetched } = entityState;
     const entityService = makeEntityService(entityType);
     const { skRange } = params;
@@ -157,7 +157,7 @@ const initCoreActions = (
     tagName: string,
     opts: CommonOptions & { params?: ListEntitiesByTagParams } = {},
   ) => {
-    const tagKey = getTagStateKey(entityType, tagName, opts.params?.group);
+    const tagKey = getTagStateKey(entityType, tagName, opts.params);
 
     const state = monoriseStore.getState();
     const tagState = state.tag[tagKey] || {};
@@ -172,7 +172,10 @@ const initCoreActions = (
       return;
     }
 
-    const { data } = await entityService.listEntitiesByTag(tagName, opts);
+    const { data } = await entityService.listEntitiesByTag(tagName, {
+      ...opts,
+      requestKey,
+    });
     const { entities, lastKey } = data;
 
     monoriseStore.setState(
@@ -396,7 +399,7 @@ const initCoreActions = (
     monoriseStore.setState(
       produce((state) => {
         for (const [key, value] of newEntityDataMap) {
-          state.entity[entityType].dataMap.set(key, value);
+          state.entity[entityType]?.dataMap.set(key, value);
         }
 
         state.mutual[selfKey] = {
@@ -1147,6 +1150,7 @@ const initCoreActions = (
     tagName: string,
     opts: CommonOptions & { params?: ListEntitiesByTagParams } = {},
   ) => {
+    console.log('====useTaggedEntities');
     const { params } = opts || {};
     const stateKey = getTagStateKey(entityType, tagName, params?.group);
     const state = monoriseStore((state) => state.tag[stateKey]);
@@ -1159,10 +1163,12 @@ const initCoreActions = (
     const error = useErrorStore(requestKey);
 
     useEffect(() => {
-      if (entityType && tagName && params?.group) {
+      console.log('===useEffect list');
+      if (entityType && tagName && Object.keys(params).length > 0) {
+        console.log('====listEntitiesByTag');
         listEntitiesByTag(entityType, tagName, opts);
       }
-    }, [entityType, opts, tagName, params?.group, opts?.forceFetch]);
+    }, [entityType, opts, tagName, params, opts?.forceFetch]);
 
     useEffect(() => {
       const dataMapArray = Array.from(dataMap.values());

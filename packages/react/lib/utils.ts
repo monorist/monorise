@@ -26,9 +26,13 @@ export const getMutualStateKey = (
 export const getTagStateKey = (
   entityType: Entity,
   tagName: string,
-  group?: string,
+  params: Record<string, string> = {},
 ) => {
-  return `${entityType}/${tagName}/${group || ''}`;
+  const paramsKey = Object.keys(params)
+    .map((key) => `${key}:${params[key]}`)
+    .join('/');
+
+  return `${entityType}/${tagName}/${paramsKey}`;
 };
 
 export const getUniqueFieldStateKey = (
