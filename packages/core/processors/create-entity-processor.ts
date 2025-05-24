@@ -29,6 +29,10 @@ export const handler =
       errorContext.body = body;
 
       try {
+        if (!entityType) {
+          continue;
+        }
+
         await entityService.createEntity({
           entityType,
           entityId,
