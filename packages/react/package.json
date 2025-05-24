@@ -8,7 +8,8 @@
     "lib": "lib"
   },
   "scripts": {
-    "build": "tsc -b"
+    "build": "tsc -b",
+    "dev": "tsc -b --watch"
   },
   "keywords": [],
   "author": "",
@@ -16,8 +17,7 @@
   "dependencies": {
     "@tabler/icons-react": "^3.30.0",
     "axios": "^1.8.1",
-    "immer": "^10.1.1",
-    "zustand": "^4.5.2"
+    "immer": "^10.1.1"
   },
   "devDependencies": {
     "@types/react": "^18",
