@@ -1,7 +1,4 @@
 ---
-"@monorise/base": patch
-"@monorise/cli": patch
-"@monorise/core": patch
 "@monorise/react": patch
 ---
 
