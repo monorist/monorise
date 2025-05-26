@@ -1,5 +1,16 @@
 # @monorise/react
 
+## 0.2.1
+
+### Patch Changes
+
+- 7fc2cf9: Update
+
+  - chore: add `npm run dev` to ease development locally
+  - feat: support more list tag query params
+  - fix: potential undefined state
+  - fix: unhandled message in processor/create-entity
+
 ## 0.2.0
 
 ### Minor Changes
