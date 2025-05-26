@@ -1,13 +1,13 @@
 import type { CreatedEntity, DraftEntity, Entity } from '@monorise/base';
 import type { AxiosRequestConfig } from 'axios';
-import type { MonoriseStore } from '../store/monorise.store';
-import type { AxiosInterceptor } from '../types/api.type';
-import type { Mutual, MutualData } from '../types/mutual.type';
 import {
   getMutualStateKey,
   getTagStateKey,
   getUniqueFieldStateKey,
 } from '../lib/utils';
+import type { MonoriseStore } from '../store/monorise.store';
+import type { AxiosInterceptor } from '../types/api.type';
+import type { Mutual, MutualData } from '../types/mutual.type';
 
 const ENTITY_API_BASE_URL = '/api/core/entity';
 const MUTUAL_API_BASE_URL = '/api/core/mutual';
@@ -100,7 +100,8 @@ const initCoreService = (
     return axios.get<{ entities: CreatedEntity<T>[]; lastKey: string }>(
       opts.customUrl || `${tagApiBaseUrl}/${entityType}/${tagName}`,
       {
-        requestKey: opts.requestKey || `tag/${entityType}/${tagName}/list`,
+        requestKey:
+          opts.requestKey || `tag/${getTagStateKey(entityType, tagName)}/list`,
         params: opts.params,
         isInterruptive: opts.isInterruptive,
         feedback: opts.feedback,
