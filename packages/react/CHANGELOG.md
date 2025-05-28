@@ -1,5 +1,15 @@
 # @monorise/react
 
+## 0.2.3
+
+### Patch Changes
+
+- 19efdf5: Update:
+
+  - createEntity accepting custom `requestKey`
+    - in some cases, we need to perform bulk create, where multiple requests are deduped
+  - expose `getEntity` from core.action
+
 ## 0.2.2
 
 ### Patch Changes
