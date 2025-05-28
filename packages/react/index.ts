@@ -144,6 +144,7 @@ const {
   useMutuals,
   useTaggedEntities,
   useEntityState,
+  getEntity,
 } = Monorise;
 
 export {
@@ -196,6 +197,7 @@ export {
   getMutualRequestKey,
   getTagRequestKey,
   getUniqueFieldRequestKey,
+  getEntity,
 };
 
 export default Monorise;

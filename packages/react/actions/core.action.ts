@@ -1258,6 +1258,7 @@ const initCoreActions = (
     listMoreEntities,
     createEntity,
     upsertEntity,
+    getEntity,
     editEntity,
     deleteEntity,
     getMutual,

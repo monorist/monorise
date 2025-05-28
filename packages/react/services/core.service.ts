@@ -164,7 +164,7 @@ const initCoreService = (
       opts.customUrl || `${entityApiBaseUrl}/${entityType}`,
       values,
       {
-        requestKey: getEntityRequestKey('create', entityType),
+        requestKey: opts.requestKey || getEntityRequestKey('create', entityType),
         isInterruptive: opts.isInterruptive ?? true,
         feedback: {
           loading: `Creating ${entityConfig[entityType].displayName}`,
