@@ -4,9 +4,21 @@ import 'tsx';
 import 'tsconfig-paths/register.js';
 import fs from 'node:fs';
 import path from 'node:path';
+import { spawn } from 'node:child_process';
+import chokidar from 'chokidar';
 
-async function main() {
-  // Check for monorise.config.ts or monorise.config.js
+function kebabToCamel(str: string): string {
+  return str.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
+}
+
+function kebabToPascal(kebab: string): string {
+  return kebab
+    .split('-')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join('');
+}
+
+async function generateConfig(): Promise<string> {
   const configFilePathTS = path.resolve('./monorise.config.ts');
   const configFilePathJS = path.resolve('./monorise.config.js');
 
@@ -157,20 +169,120 @@ declare module '@monorise/base' {
 
   fs.writeFileSync(configOutputPath, outputContent);
   console.log('Successfully generated entity configurations and enum!');
+  return configDir;
 }
 
-function kebabToCamel(str: string): string {
-  return str.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
-}
+async function main() {
+  const args = process.argv.slice(2);
+  const command = args[0];
 
-function kebabToPascal(kebab: string): string {
-  return kebab
-    .split('-')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join('');
+  if (command === 'dev') {
+    let configDir: string | undefined;
+    try {
+      configDir = await generateConfig();
+    } catch (err) {
+      console.error('Generation failed:', err);
+      process.exit(1);
+    }
+
+    if (configDir) {
+      console.log(`Watching for changes in ${configDir}...`);
+      const watcher = chokidar.watch(configDir, {
+        ignored: (watchedPath: string) => {
+          const fileName = path.basename(watchedPath);
+          return (
+            fileName === 'index.ts' ||
+            fileName.startsWith('.') ||
+            watchedPath.endsWith('.js') ||
+            watchedPath.endsWith('.jsx') ||
+            watchedPath.endsWith('.d.ts')
+          );
+        },
+        persistent: true,
+        ignoreInitial: true,
+      });
+
+      let sstDevProcess: ReturnType<typeof spawn> | null = null;
+
+      const runSSTDev = () => {
+        if (sstDevProcess) {
+          console.log('Terminating existing sst dev process...');
+          sstDevProcess.kill('SIGTERM');
+          sstDevProcess = null;
+        }
+        console.log('Starting sst dev...');
+        sstDevProcess = spawn('npx', ['sst', 'dev'], { stdio: 'inherit' });
+        sstDevProcess.on('close', (code) => {
+          console.log(`sst dev process exited with code ${code}`);
+          sstDevProcess = null;
+        });
+        sstDevProcess.on('error', (err) => {
+          console.error('Failed to start sst dev process:', err);
+          sstDevProcess = null;
+        });
+      };
+
+      watcher.on('add', async (filePath) => {
+        console.log(`File ${filePath} has been added. Regenerating...`);
+        try {
+          await generateConfig();
+        } catch (err) {
+          console.error('Regeneration failed:', err);
+        }
+      });
+
+      watcher.on('change', async (filePath) => {
+        console.log(`File ${filePath} has been changed. Regenerating...`);
+        try {
+          await generateConfig();
+        } catch (err) {
+          console.error('Regeneration failed:', err);
+        }
+      });
+
+      watcher.on('unlink', async (filePath) => {
+        console.log(`File ${filePath} has been removed. Regenerating...`);
+        try {
+          await generateConfig();
+        } catch (err) {
+          console.error('Regeneration failed:', err);
+        }
+      });
+
+      // sst dev is started only once, after initial generation
+      runSSTDev();
+
+      process.on('SIGINT', () => {
+        console.log('Monorise dev terminated. Closing watcher and sst dev...');
+        watcher.close();
+        if (sstDevProcess) {
+          sstDevProcess.kill('SIGTERM');
+        }
+        process.exit(0);
+      });
+      process.on('SIGTERM', () => {
+        console.log('Monorise dev terminated. Closing watcher and sst dev...');
+        watcher.close();
+        if (sstDevProcess) {
+          sstDevProcess.kill('SIGTERM');
+        }
+        process.exit(0);
+      });
+    }
+  } else if (command === 'build') {
+    try {
+      await generateConfig();
+    } catch (err) {
+      console.error('Build generation failed:', err);
+      process.exit(1);
+    }
+  } else {
+    console.error('Unknown command. Usage: monorise [dev|build]');
+    process.exit(1);
+  }
 }
 
 main().catch((err) => {
-  console.error('Generation failed:', err);
+  console.error('Monorise encountered an unhandled error:', err);
   process.exit(1);
 });
