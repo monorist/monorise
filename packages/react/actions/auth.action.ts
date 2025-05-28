@@ -35,22 +35,19 @@ const initAuthActions = (store: MonoriseStore, authService: AuthService) => {
 
       store.setState(
         produce((state) => {
+          state.auth.profile = { displayName, email, accountId, ...rest };
           state.auth.isUnauthorized = false;
-          state.auth.profile = {
-            displayName,
-            email,
-            accountId,
-            ...rest,
-          };
+          state.auth.isLoading = false;
         }),
         undefined,
         'mr/auth/get-profile',
       );
-    } catch (err) {
+    } catch {
       store.setState(
         produce((state) => {
-          state.auth.isUnauthorized = true;
           state.auth.profile = {};
+          state.auth.isUnauthorized = true;
+          state.auth.isLoading = false;
         }),
         undefined,
         'mr/auth/get-profile',
@@ -59,7 +56,9 @@ const initAuthActions = (store: MonoriseStore, authService: AuthService) => {
   };
 
   const useIsUnauthorized = () => {
-    return store((state) => state.auth.isUnauthorized);
+    const { isUnauthorized, profile, isLoading } = store((state) => state.auth);
+
+    return { isUnauthorized: isUnauthorized && !profile.accountId, isLoading };
   };
 
   const setIsUnauthorized = (isUnauthorized: boolean) =>

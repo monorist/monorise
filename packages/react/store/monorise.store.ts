@@ -59,6 +59,7 @@ const initMonoriseStore = () => {
             email: string;
             accountId: string;
           };
+          isLoading: boolean;
         };
       } => ({
         app: {
@@ -82,6 +83,7 @@ const initMonoriseStore = () => {
             email: '',
             accountId: '',
           },
+          isLoading: true,
         },
       }),
       configureDevtools('monorise'),
