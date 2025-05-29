@@ -12,6 +12,7 @@ import { handler as replicationProcessor } from './processors/replication-proces
 import { handler as tagProcessor } from './processors/tag-processor';
 import { DependencyContainer } from './services/DependencyContainer';
 import { EntityService } from './services/entity.service';
+import { MutualService } from './services/mutual.service';
 
 class CoreFactory {
   public setupCommonRoutes: ReturnType<typeof setupCommonRoutes>;
@@ -47,6 +48,7 @@ export {
   EntityRepository,
   EntityService,
   Mutual,
+  MutualService,
   MutualRepository,
   TagRepository,
   PROJECTION_EXPRESSION,
