@@ -1,5 +1,5 @@
 ---
-"@monorise/cli": patch
+"@monorise/cli": minor
 ---
 
 add cli dev mode
