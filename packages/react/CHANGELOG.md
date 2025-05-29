@@ -1,5 +1,12 @@
 # @monorise/react
 
+## 0.3.0
+
+### Minor Changes
+
+- 63fd472: - breaking change:
+  - chore: `useIsUnauthorized` return { isUnauthorized, isLoading }
+
 ## 0.2.3
 
 ### Patch Changes

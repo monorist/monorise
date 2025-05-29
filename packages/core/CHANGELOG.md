@@ -1,5 +1,11 @@
 # @monorise/core
 
+## 0.1.8
+
+### Patch Changes
+
+- c134108: chore: expose MutualService class
+
 ## 0.1.7
 
 ### Patch Changes
