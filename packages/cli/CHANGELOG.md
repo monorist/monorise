@@ -1,5 +1,11 @@
 # @monorise/cli
 
+## 0.1.0
+
+### Minor Changes
+
+- c9bbbd9: add cli dev mode
+
 ## 0.0.2
 
 ### Patch Changes
