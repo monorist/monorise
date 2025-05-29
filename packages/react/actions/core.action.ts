@@ -211,7 +211,7 @@ const initCoreActions = (
     entityType: T,
     id: string,
     opts: CommonOptions = {},
-  ) => {
+  ): Promise<CreatedEntity<T> | undefined> => {
     const store = monoriseStore.getState();
     const entityState = store.entity[entityType];
     const { dataMap } = entityState;
