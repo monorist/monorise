@@ -111,7 +111,7 @@ export enum Entity {}
   }
 
   const outputContent = `
-import type { z } from 'zod';
+import type { z } from 'zod/v4';
 ${imports.join('\n')}
 
 export enum Entity {

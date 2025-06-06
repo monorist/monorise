@@ -1,4 +1,4 @@
-import type { z } from 'zod';
+import type { z } from 'zod/v4';
 
 export enum Entity {}
 
@@ -42,9 +42,15 @@ export type CreatedEntity<T extends Entity = Entity> = {
  */
 export interface MonoriseEntityConfig<
   T extends Entity = Entity,
-  B extends z.ZodRawShape = z.ZodRawShape,
-  C extends z.ZodRawShape = z.ZodRawShape,
-  M extends z.ZodRawShape = z.ZodRawShape,
+  B extends Partial<Record<never, z.core.SomeType>> = Partial<
+    Record<never, z.core.SomeType>
+  >,
+  C extends Partial<Record<never, z.core.SomeType>> = Partial<
+    Record<never, z.core.SomeType>
+  >,
+  M extends Partial<Record<never, z.core.SomeType>> = Partial<
+    Record<never, z.core.SomeType>
+  >,
   CO extends z.ZodObject<C> | undefined = undefined,
   MO extends z.ZodObject<M> | undefined = undefined,
 > {
@@ -149,23 +155,6 @@ export interface MonoriseEntityConfig<
       }[];
     }[];
   };
-  /**
-   * Use this function to perform side effects on the final schema for example refine/superRefine the schema
-   *
-   * @param schema The final schema of the entity (the combination of `baseSchema`/`createSchema` and `mutualSchema` if specified)
-   * @returns void
-   *
-   * @example
-   * ```ts
-   * effect: (schema) => {
-   *   schema.refine(
-   *     // refinement logic here
-   *   )
-   * }
-   */
-  effect?: (
-    schema: z.ZodObject<z.ZodRawShape>,
-  ) => z.ZodEffects<z.ZodObject<z.ZodRawShape>>;
 
   /**
    * @description (Optional) Use tags to create additional access patterns for the entity.
