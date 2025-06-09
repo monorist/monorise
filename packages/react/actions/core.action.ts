@@ -487,7 +487,7 @@ const initCoreActions = (
       ));
     } catch (err) {
       if (!opts.defaultMutualData) {
-        throw err;
+        return;
       }
 
       hasRequestFailed = true;
