@@ -1,45 +1,33 @@
-import type { Entity, MonoriseEntityConfig } from '@monorise/base';
-import { z } from 'zod';
+import { z } from 'zod/v4';
+import type { Entity, MonoriseEntityConfig } from '../types/monorise.type';
 
 function makeSchema<
   T extends Entity,
-  B extends z.ZodRawShape,
-  C extends z.ZodRawShape,
-  M extends z.ZodRawShape,
-  CO extends z.ZodObject<C> | undefined = undefined,
-  MO extends z.ZodObject<M> | undefined = undefined,
+  B extends Partial<Record<never, z.core.SomeType>>,
+  C extends Partial<Record<never, z.core.SomeType>>,
+  M extends Partial<Record<never, z.core.SomeType>>,
+  CO extends z.ZodObject<C> | undefined,
+  MO extends z.ZodObject<M> | undefined,
 >(config: MonoriseEntityConfig<T, B, C, M, CO, MO>) {
-  const { baseSchema, createSchema, mutual, effect } = config;
+  const { baseSchema, createSchema, mutual } = config;
   const { mutualSchema } = mutual || {};
-
-  type FinalSchemaType = CO extends z.AnyZodObject
-    ? MO extends z.AnyZodObject
-      ? z.ZodObject<MO['shape'] & CO['shape']>
-      : CO
-    : MO extends z.AnyZodObject
-      ? z.ZodObject<MO['shape'] & B>
-      : z.ZodObject<B>;
 
   const finalSchema = z.object({
     ...baseSchema.shape,
-    ...createSchema?.shape,
-    ...mutualSchema?.shape,
-  }) as FinalSchemaType;
-
-  if (effect) {
-    return effect(finalSchema) as z.ZodEffects<FinalSchemaType>;
-  }
+    ...(createSchema ? createSchema.shape : {}),
+    ...(mutualSchema ? mutualSchema.shape : {}),
+  });
 
   return finalSchema;
 }
 
 const createEntityConfig = <
   T extends Entity,
-  B extends z.ZodRawShape,
-  C extends z.ZodRawShape,
-  M extends z.ZodRawShape,
-  CO extends z.ZodObject<C> | undefined = undefined,
-  MO extends z.ZodObject<M> | undefined = undefined,
+  B extends Partial<Record<never, z.core.SomeType>>,
+  C extends Partial<Record<never, z.core.SomeType>>,
+  M extends Partial<Record<never, z.core.SomeType>>,
+  CO extends z.ZodObject<C> | undefined,
+  MO extends z.ZodObject<M> | undefined,
 >(
   config: MonoriseEntityConfig<T, B, C, M, CO, MO>,
 ) => ({
