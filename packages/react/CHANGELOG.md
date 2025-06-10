@@ -1,5 +1,11 @@
 # @monorise/react
 
+## 0.3.2
+
+### Patch Changes
+
+- a465c32: Fix getMutual action to return instead of throwing error
+
 ## 0.3.1
 
 ### Patch Changes
