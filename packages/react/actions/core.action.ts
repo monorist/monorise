@@ -38,6 +38,13 @@ import type { AppActions } from './app.action';
 // USE store.getState() WHEN using within an action such as getEntity, getProfile
 // USE store() WHEN using within a react hook so that it gets the benefit of reactivity, such as useProfile, useEntity
 
+const defaultOnError = (error: ApplicationRequestError | Error) => {
+  if (!(error instanceof Error) && error.status >= 500) {
+    // we only want server error to be captured by error tracking service
+    throw error;
+  }
+};
+
 const initCoreActions = (
   monoriseStore: MonoriseStore,
   appActions: AppActions,
@@ -62,77 +69,104 @@ const initCoreActions = (
     const requestKey = getEntityRequestKey('list', entityType);
     const isLoading = checkIsLoading(requestKey);
     const error = getError(requestKey);
+    const onError = opts.onError ?? defaultOnError;
 
     if ((isFirstFetched && !params.skRange) || isLoading || error) {
+      if (error) {
+        onError(error);
+      }
+
       return;
     }
 
-    const { data: result } = await entityService.listEntities(
-      {
-        ...(params?.all ? {} : { limit: 20 }),
-        start: skRange?.start,
-        end: skRange?.end,
-      },
-      opts,
-    );
-    const newEntityMap = convertToMap<CreatedEntity<T>>(
-      result.data,
-      'entityId',
-    );
+    try {
+      const { data: result } = await entityService.listEntities(
+        {
+          ...(params?.all ? {} : { limit: 20 }),
+          start: skRange?.start,
+          end: skRange?.end,
+        },
+        opts,
+      );
+      const newEntityMap = convertToMap<CreatedEntity<T>>(
+        result.data,
+        'entityId',
+      );
 
-    const mergedMap = new Map([
-      ...newEntityMap,
-      ...store.entity[entityType].dataMap,
-    ]);
+      const mergedMap = new Map([
+        ...newEntityMap,
+        ...store.entity[entityType].dataMap,
+      ]);
 
-    monoriseStore.setState(
-      produce((state) => {
-        state.entity[entityType] = {
-          dataMap: params.skRange ? newEntityMap : mergedMap,
-          isFirstFetched: true,
-          lastKey: result.lastKey,
-        };
-      }),
-      undefined,
-      `mr/entity/list/${entityType}`,
-    );
+      monoriseStore.setState(
+        produce((state) => {
+          state.entity[entityType] = {
+            dataMap: params.skRange ? newEntityMap : mergedMap,
+            isFirstFetched: true,
+            lastKey: result.lastKey,
+          };
+        }),
+        undefined,
+        `mr/entity/list/${entityType}`,
+      );
+    } catch (err) {
+      const error: Error & { originalError?: unknown } =
+        err instanceof Error ? err : new Error('Unknown error occurred');
+
+      return { error };
+    }
   };
 
   const listMoreEntities = async <T extends Entity>(
     entityType: T,
     opts: CommonOptions = {},
   ) => {
+    const requestKey = getEntityRequestKey('list', entityType);
     const store = monoriseStore.getState();
     const entityState = store.entity[entityType];
     const { dataMap, lastKey } = entityState;
     const entityService = makeEntityService(entityType);
+    const error = getError(requestKey);
+    const onError = opts.onError ?? defaultOnError;
 
     if (!lastKey) {
       return;
     }
 
-    const { data: result } = await entityService.listEntities(
-      {
-        limit: 20,
-        lastKey,
-      },
-      opts,
-    );
+    if (error) {
+      onError(error);
+      return;
+    }
 
-    monoriseStore.setState(
-      produce((state) => {
-        state.entity[entityType].isFirstFetched = true;
-        state.entity[entityType].lastKey = result.lastKey;
-        for (const i in result.data) {
-          state.entity[entityType].dataMap.set(
-            result.data[i].entityId,
-            result.data[i],
-          );
-        }
-      }),
-      undefined,
-      `mr/entity/list-more/${entityType}`,
-    );
+    try {
+      const { data: result } = await entityService.listEntities(
+        {
+          limit: 20,
+          lastKey,
+        },
+        opts,
+      );
+
+      monoriseStore.setState(
+        produce((state) => {
+          state.entity[entityType].isFirstFetched = true;
+          state.entity[entityType].lastKey = result.lastKey;
+          for (const i in result.data) {
+            state.entity[entityType].dataMap.set(
+              result.data[i].entityId,
+              result.data[i],
+            );
+          }
+        }),
+        undefined,
+        `mr/entity/list-more/${entityType}`,
+      );
+    } catch (err) {
+      const error: Error & { originalError?: unknown } =
+        err instanceof Error ? err : new Error('Unknown error occurred');
+
+      return { error };
+    }
   };
 
   const searchEntities = async <T extends Entity>(
@@ -140,20 +174,36 @@ const initCoreActions = (
     query: string,
     opts: CommonOptions = {},
   ) => {
+    const requestKey = getEntityRequestKey('search', entityType);
     const entityService = makeEntityService(entityType);
-    const { data: result } = await entityService.searchEntities(query, opts);
+    const error = getError(requestKey);
+    const onError = opts.onError ?? defaultOnError;
 
-    monoriseStore.setState(
-      produce((state) => {
-        state.entity[entityType].searchResults = result.data;
-        for (const i in result.data) {
-          state.entity[entityType].dataMap.set(
-            result.data[i].entityId,
-            result.data[i],
-          );
-        }
-      }),
-    );
+    if (error) {
+      onError(error);
+      return;
+    }
+
+    try {
+      const { data: result } = await entityService.searchEntities(query, opts);
+
+      monoriseStore.setState(
+        produce((state) => {
+          state.entity[entityType].searchResults = result.data;
+          for (const i in result.data) {
+            state.entity[entityType].dataMap.set(
+              result.data[i].entityId,
+              result.data[i],
+            );
+          }
+        }),
+      );
+    } catch (err) {
+      const error: Error & { originalError?: unknown } =
+        err instanceof Error ? err : new Error('Unknown error occurred');
+
+      return { error };
+    }
   };
 
   const listEntitiesByTag = async <T extends Entity>(
@@ -176,42 +226,55 @@ const initCoreActions = (
     );
     const isLoading = checkIsLoading(requestKey);
     const error = getError(requestKey);
+    const onError = opts.onError ?? defaultOnError;
 
     if (!forceFetch && (isFirstFetched || isLoading || error)) {
+      if (error) {
+        onError(error);
+        return { error, data: null };
+      }
       return;
     }
 
-    const { data } = await entityService.listEntitiesByTag(tagName, {
-      ...opts,
-      requestKey,
-    });
-    const { entities, lastKey } = data;
+    try {
+      const { data } = await entityService.listEntitiesByTag(tagName, {
+        ...opts,
+        requestKey,
+      });
+      const { entities, lastKey } = data;
 
-    monoriseStore.setState(
-      produce((state) => {
-        for (const entity of entities) {
-          state.entity[entityType].dataMap.set(entity.entityId, entity);
-        }
-      }),
-    );
+      monoriseStore.setState(
+        produce((state) => {
+          for (const entity of entities) {
+            state.entity[entityType].dataMap.set(entity.entityId, entity);
+          }
+        }),
+      );
 
-    monoriseStore.setState(
-      produce((state) => {
-        state.tag[tagKey] = {
-          dataMap: convertToMap(entities, 'entityId'),
-          isFirstFetched: true,
-          lastKey,
-        };
-      }),
-    );
+      monoriseStore.setState(
+        produce((state) => {
+          state.tag[tagKey] = {
+            dataMap: convertToMap(entities, 'entityId'),
+            isFirstFetched: true,
+            lastKey,
+          };
+        }),
+      );
 
-    return data;
+      return { data };
+    } catch (err) {
+      const error: Error & { originalError?: unknown } =
+        err instanceof Error ? err : new Error('Unknown error occurred');
+
+      return { error, data: null };
+    }
   };
+
   const getEntity = async <T extends Entity>(
     entityType: T,
     id: string,
     opts: CommonOptions = {},
-  ): Promise<CreatedEntity<T> | undefined> => {
+  ) => {
     const store = monoriseStore.getState();
     const entityState = store.entity[entityType];
     const { dataMap } = entityState;
@@ -221,22 +284,34 @@ const initCoreActions = (
     const isLoading = checkIsLoading(requestKey);
     const error = getError(requestKey);
     const { forceFetch } = opts;
+    const onError = opts.onError ?? defaultOnError;
 
     if (!forceFetch && (entity || isLoading || error)) {
-      return entity;
+      if (error) {
+        onError?.(error);
+        return { data: undefined, error };
+      }
+      return { data: entity, error: undefined };
     }
 
-    ({ data: entity } = await entityService.getEntity(id, opts));
+    try {
+      ({ data: entity } = await entityService.getEntity(id, opts));
 
-    monoriseStore.setState(
-      produce((state) => {
-        state.entity[entityType].dataMap.set(entity?.entityId, entity);
-      }),
-      undefined,
-      `mr/entity/get/${entityType}/${id}`,
-    );
+      monoriseStore.setState(
+        produce((state) => {
+          state.entity[entityType].dataMap.set(entity?.entityId, entity);
+        }),
+        undefined,
+        `mr/entity/get/${entityType}/${id}`,
+      );
 
-    return entity;
+      return { data: entity, error: null };
+    } catch (err) {
+      const error: Error & { originalError?: unknown } =
+        err instanceof Error ? err : new Error('Unknown error occurred');
+
+      return { data: undefined, error };
+    }
   };
 
   const getEntityByUniqueField = async <T extends Entity>(
@@ -255,27 +330,39 @@ const initCoreActions = (
     const isLoading = checkIsLoading(requestKey);
     const error = getError(requestKey);
     const { forceFetch } = opts;
+    const onError = opts.onError ?? defaultOnError;
 
     if (!forceFetch && (entity || isLoading || error)) {
-      return entity;
+      if (error) {
+        onError?.(error);
+        return { data: undefined, error };
+      }
+      return { data: entity, error: null };
     }
 
-    ({ data: entity } = await entityService.getEntityByUniqueField(
-      fieldName,
-      value,
-      opts,
-    ));
+    try {
+      ({ data: entity } = await entityService.getEntityByUniqueField(
+        fieldName,
+        value,
+        opts,
+      ));
 
-    monoriseStore.setState(
-      produce((state) => {
-        state.entity[entityType].dataMap.set(entity?.entityId, entity);
-        state.entity[entityType].dataMap.set(`${stateKey}`, entity);
-      }),
-      undefined,
-      `mr/entity/unique/${entityType}/${stateKey}`,
-    );
+      monoriseStore.setState(
+        produce((state) => {
+          state.entity[entityType].dataMap.set(entity?.entityId, entity);
+          state.entity[entityType].dataMap.set(`${stateKey}`, entity);
+        }),
+        undefined,
+        `mr/entity/unique/${entityType}/${stateKey}`,
+      );
 
-    return entity;
+      return { data: entity, error: null };
+    } catch (err) {
+      const error: Error & { originalError?: unknown } =
+        err instanceof Error ? err : new Error('Unknown error occurred');
+
+      return { data: undefined, error };
+    }
   };
 
   const createEntity = async <T extends Entity>(
@@ -284,17 +371,28 @@ const initCoreActions = (
     opts: CommonOptions = {},
   ) => {
     const entityService = makeEntityService(entityType);
-    const { data } = await entityService.createEntity(entity, opts);
+    const onError = opts.onError ?? defaultOnError;
 
-    monoriseStore.setState(
-      produce((state) => {
-        state.entity[entityType].dataMap.set(data.entityId, data);
-      }),
-      undefined,
-      `mr/entity/create/${entityType}`,
-    );
+    try {
+      const { data } = await entityService.createEntity(entity, opts);
 
-    return data;
+      monoriseStore.setState(
+        produce((state) => {
+          state.entity[entityType].dataMap.set(data.entityId, data);
+        }),
+        undefined,
+        `mr/entity/create/${entityType}`,
+      );
+
+      return { data, error: null };
+    } catch (err) {
+      const error: Error & { originalError?: unknown } =
+        err instanceof Error ? err : new Error('Unknown error occurred');
+
+      onError?.(error);
+
+      return { data: null, error };
+    }
   };
 
   const upsertEntity = async <T extends Entity>(
@@ -304,15 +402,25 @@ const initCoreActions = (
     opts: CommonOptions = {},
   ) => {
     const entityService = makeEntityService(entityType);
-    const { data } = await entityService.upsertEntity(id, entity, opts);
+    const onError = opts.onError ?? defaultOnError;
 
-    monoriseStore.setState(
-      produce((state) => {
-        state.entity[entityType].dataMap.set(data.entityId, data);
-      }),
-      undefined,
-      `mr/entity/upsert/${entityType}/${id}`,
-    );
+    try {
+      const { data } = await entityService.upsertEntity(id, entity, opts);
+
+      monoriseStore.setState(
+        produce((state) => {
+          state.entity[entityType].dataMap.set(data.entityId, data);
+        }),
+        undefined,
+        `mr/entity/upsert/${entityType}/${id}`,
+      );
+      return { data, error: null };
+    } catch (err) {
+      const error: Error & { originalError?: unknown } =
+        err instanceof Error ? err : new Error('Unknown error occurred');
+      onError(error);
+      return { data: null, error };
+    }
   };
 
   const editEntity = async <T extends Entity>(
@@ -322,27 +430,36 @@ const initCoreActions = (
     opts: CommonOptions = {},
   ) => {
     const entityService = makeEntityService(entityType);
-    const { data } = await entityService.editEntity(id, entity, opts);
+    const onError = opts.onError ?? defaultOnError;
 
-    monoriseStore.setState(
-      produce((state) => {
-        state.entity[entityType].dataMap.set(data.entityId, data);
+    try {
+      const { data } = await entityService.editEntity(id, entity, opts);
 
-        // update mutual's entity data
-        for (const key of Object.keys(state.mutual)) {
-          const [_byEntity, _byId, _entityType] = key.split('/');
-          if ((_entityType as unknown as Entity) === entityType) {
-            const mutual = state.mutual[key].dataMap.get(id);
-            state.mutual[key].dataMap = new Map(state.mutual[key].dataMap).set(
-              id,
-              { ...mutual, data: data.data },
-            );
+      monoriseStore.setState(
+        produce((state) => {
+          state.entity[entityType].dataMap.set(data.entityId, data);
+
+          // update mutual's entity data
+          for (const key of Object.keys(state.mutual)) {
+            const [_byEntity, _byId, _entityType] = key.split('/');
+            if ((_entityType as unknown as Entity) === entityType) {
+              const mutual = state.mutual[key].dataMap.get(id);
+              state.mutual[key].dataMap = new Map(
+                state.mutual[key].dataMap,
+              ).set(id, { ...mutual, data: data.data });
+            }
           }
-        }
-      }),
-      undefined,
-      `mr/entity/edit/${entityType}/${id}`,
-    );
+        }),
+        undefined,
+        `mr/entity/edit/${entityType}/${id}`,
+      );
+      return { data, error: null };
+    } catch (err) {
+      const error: Error & { originalError?: unknown } =
+        err instanceof Error ? err : new Error('Unknown error occurred');
+      onError(error);
+      return { data: null, error };
+    }
   };
 
   const deleteEntity = async <T extends Entity>(
@@ -351,24 +468,34 @@ const initCoreActions = (
     opts: CommonOptions = {},
   ) => {
     const entityService = makeEntityService(entityType);
-    await entityService.deleteEntity(id, opts);
-    deleteLocalMutualsByEntity(entityType, id);
+    const onError = opts.onError ?? defaultOnError;
 
-    monoriseStore.setState(
-      produce((state) => {
-        state.entity[entityType].dataMap.delete(id);
+    try {
+      await entityService.deleteEntity(id, opts);
+      deleteLocalMutualsByEntity(entityType, id);
 
-        // delete mutual's entity data
-        for (const key of Object.keys(state.mutual)) {
-          const [_byEntity, _byId, _entityType] = key.split('/');
-          if ((_entityType as unknown as Entity) === entityType) {
-            state.mutual[key].dataMap.delete(id);
+      monoriseStore.setState(
+        produce((state) => {
+          state.entity[entityType].dataMap.delete(id);
+
+          // delete mutual's entity data
+          for (const key of Object.keys(state.mutual)) {
+            const [_byEntity, _byId, _entityType] = key.split('/');
+            if ((_entityType as unknown as Entity) === entityType) {
+              state.mutual[key].dataMap.delete(id);
+            }
           }
-        }
-      }),
-      undefined,
-      `mr/entity/delete/${entityType}/${id}`,
-    );
+        }),
+        undefined,
+        `mr/entity/delete/${entityType}/${id}`,
+      );
+      return { data: { entityId: id }, error: null }; // Indicate success with the deleted ID
+    } catch (err) {
+      const error: Error & { originalError?: unknown } =
+        err instanceof Error ? err : new Error('Unknown error occurred');
+      onError(error);
+      return { data: null, error };
+    }
   };
 
   const listEntitiesByEntity = async <B extends Entity, T extends Entity>(
@@ -378,6 +505,7 @@ const initCoreActions = (
     opts: CommonOptions = {},
     chainEntityQuery?: string,
   ) => {
+    const onError = opts.onError ?? defaultOnError;
     const selfKey =
       opts.stateKey ??
       getMutualStateKey(
@@ -404,37 +532,55 @@ const initCoreActions = (
     const { forceFetch } = opts;
 
     if (!forceFetch && (isFirstFetched || isLoading || error)) {
-      return;
+      if (error) {
+        onError(error);
+        return { error, data: null };
+      }
+
+      return {
+        error: null,
+        data: {
+          entities: Array.from(mutualState.dataMap?.values() || []),
+          lastKey: mutualState.lastKey,
+        },
+      };
     }
 
-    const { data } = await mutualService.listEntitiesByEntity(
-      id,
-      opts,
-      chainEntityQuery,
-    );
-    const { entities, lastKey } = data;
+    try {
+      const { data } = await mutualService.listEntitiesByEntity(
+        id,
+        opts,
+        chainEntityQuery,
+      );
+      const { entities, lastKey } = data;
+      const newEntityDataMap = new Map();
 
-    const newEntityDataMap = new Map();
+      for (const i in entities) {
+        newEntityDataMap.set(entities[i].entityId, entities[i]);
+      }
 
-    for (const i in entities) {
-      newEntityDataMap.set(entities[i].entityId, entities[i]);
+      monoriseStore.setState(
+        produce((state) => {
+          for (const [key, value] of newEntityDataMap) {
+            state.entity[entityType]?.dataMap.set(key, value);
+          }
+          state.mutual[selfKey] = {
+            dataMap: convertToMap(entities, 'entityId'),
+            isFirstFetched: true,
+            lastKey,
+          };
+        }),
+        undefined,
+        `mr/mutual/list/${selfKey}`,
+      );
+
+      return { data, error: null };
+    } catch (err) {
+      const error: Error & { originalError?: unknown } =
+        err instanceof Error ? err : new Error('Unknown error occurred');
+
+      return { error, data: null };
     }
-
-    monoriseStore.setState(
-      produce((state) => {
-        for (const [key, value] of newEntityDataMap) {
-          state.entity[entityType]?.dataMap.set(key, value);
-        }
-
-        state.mutual[selfKey] = {
-          dataMap: convertToMap(entities, 'entityId'),
-          isFirstFetched: true,
-          lastKey,
-        };
-      }),
-      undefined,
-      `mr/mutual/list/${selfKey}`,
-    );
   };
 
   // todo: list more mutuals by entity
@@ -467,13 +613,24 @@ const initCoreActions = (
     );
     const isLoading = checkIsLoading(requestKey);
     const error = getError(requestKey);
+    const onError = opts.onError ?? defaultOnError;
 
     if (!byEntityId || isLoading || error) {
-      return;
+      if (error) {
+        onError?.(error);
+        return { data: undefined, error };
+      }
+      return {
+        data: mutualState.dataMap?.get(entityId) as Mutual<B, T>,
+        error: null,
+      };
     }
 
     if (mutualState.dataMap?.get(entityId)) {
-      return mutualState.dataMap.get(entityId) as Mutual<B, T>;
+      return {
+        data: mutualState.dataMap.get(entityId) as Mutual<B, T>,
+        error: null,
+      };
     }
 
     let mutual: Omit<Mutual<B, T>, 'data'>;
@@ -487,7 +644,9 @@ const initCoreActions = (
       ));
     } catch (err) {
       if (!opts.defaultMutualData) {
-        return;
+        const error: Error & { originalError?: unknown } =
+          err instanceof Error ? err : new Error('Unknown error occurred');
+        return { data: null, error };
       }
 
       hasRequestFailed = true;
@@ -531,6 +690,7 @@ const initCoreActions = (
         )}`,
       );
     }
+    return { data: mutual as Mutual<B, T> };
   };
 
   const createMutual = async <B extends Entity, T extends Entity>(
@@ -542,42 +702,56 @@ const initCoreActions = (
     opts: CommonOptions = {},
   ) => {
     const mutualService = makeMutualService(byEntityType, entityType);
-    const { data: mutual } = await mutualService.createMutual(
-      byEntityId,
-      entityId,
-      payload,
-      opts,
-    );
+    const onError = opts.onError ?? defaultOnError;
 
-    monoriseStore.setState(
-      produce((state) => {
-        const bySide = getMutualStateKey(byEntityType, byEntityId, entityType);
-        const side = getMutualStateKey(entityType, entityId, byEntityType);
+    try {
+      const { data: mutual } = await mutualService.createMutual(
+        byEntityId,
+        entityId,
+        payload,
+        opts,
+      );
 
-        if (!state.mutual[bySide]) {
-          state.mutual[bySide] = {
-            dataMap: new Map(),
-          };
-        }
+      monoriseStore.setState(
+        produce((state) => {
+          const bySide = getMutualStateKey(
+            byEntityType,
+            byEntityId,
+            entityType,
+          );
+          const side = getMutualStateKey(entityType, entityId, byEntityType);
 
-        state.mutual[bySide].dataMap = new Map(
-          state.mutual[bySide]?.dataMap,
-        ).set(mutual.entityId, mutual);
+          if (!state.mutual[bySide]) {
+            state.mutual[bySide] = {
+              dataMap: new Map(),
+            };
+          }
 
-        if (!state.mutual[side]) {
-          state.mutual[side] = {
-            dataMap: new Map(),
-          };
-        }
+          state.mutual[bySide].dataMap = new Map(
+            state.mutual[bySide]?.dataMap,
+          ).set(mutual.entityId, mutual);
 
-        state.mutual[side].dataMap = new Map(state.mutual[side]?.dataMap).set(
-          mutual.byEntityId,
-          flipMutual(mutual),
-        );
-      }),
-      undefined,
-      `mr/mutual/create/${getMutualStateKey(byEntityType, byEntityId, entityType, entityId)}`,
-    );
+          if (!state.mutual[side]) {
+            state.mutual[side] = {
+              dataMap: new Map(),
+            };
+          }
+
+          state.mutual[side].dataMap = new Map(state.mutual[side]?.dataMap).set(
+            mutual.byEntityId,
+            flipMutual(mutual),
+          );
+        }),
+        undefined,
+        `mr/mutual/create/${getMutualStateKey(byEntityType, byEntityId, entityType, entityId)}`,
+      );
+      return { data: mutual, error: null };
+    } catch (err) {
+      const error: Error & { originalError?: unknown } =
+        err instanceof Error ? err : new Error('Unknown error occurred');
+      onError(error);
+      return { data: null, error };
+    }
   };
 
   const createLocalMutual = async <B extends Entity, T extends Entity>(
@@ -701,42 +875,56 @@ const initCoreActions = (
     opts: CommonOptions = {},
   ) => {
     const mutualService = makeMutualService(byEntityType, entityType);
-    const { data: mutual } = await mutualService.editMutual(
-      byEntityId,
-      entityId,
-      payload,
-      opts,
-    );
+    const onError = opts.onError ?? defaultOnError;
 
-    monoriseStore.setState(
-      produce((state) => {
-        const bySide = getMutualStateKey(byEntityType, byEntityId, entityType);
-        const side = getMutualStateKey(entityType, entityId, byEntityType);
+    try {
+      const { data: mutual } = await mutualService.editMutual(
+        byEntityId,
+        entityId,
+        payload,
+        opts,
+      );
 
-        if (!state.mutual[bySide]) {
-          state.mutual[bySide] = {
-            dataMap: new Map(),
-          };
-        }
+      monoriseStore.setState(
+        produce((state) => {
+          const bySide = getMutualStateKey(
+            byEntityType,
+            byEntityId,
+            entityType,
+          );
+          const side = getMutualStateKey(entityType, entityId, byEntityType);
 
-        state.mutual[bySide].dataMap = new Map(
-          state.mutual[bySide]?.dataMap,
-        ).set(mutual.entityId, mutual);
+          if (!state.mutual[bySide]) {
+            state.mutual[bySide] = {
+              dataMap: new Map(),
+            };
+          }
 
-        if (!state.mutual[side]) {
-          state.mutual[side] = {
-            dataMap: new Map(),
-          };
-        }
+          state.mutual[bySide].dataMap = new Map(
+            state.mutual[bySide]?.dataMap,
+          ).set(mutual.entityId, mutual);
 
-        state.mutual[side].dataMap = new Map(state.mutual[side]?.dataMap).set(
-          mutual.byEntityId,
-          flipMutual(mutual),
-        );
-      }),
-      undefined,
-      `mr/mutual/edit/${getMutualStateKey(byEntityType, byEntityId, entityType, entityId)}`,
-    );
+          if (!state.mutual[side]) {
+            state.mutual[side] = {
+              dataMap: new Map(),
+            };
+          }
+
+          state.mutual[side].dataMap = new Map(state.mutual[side]?.dataMap).set(
+            mutual.byEntityId,
+            flipMutual(mutual),
+          );
+        }),
+        undefined,
+        `mr/mutual/edit/${getMutualStateKey(byEntityType, byEntityId, entityType, entityId)}`,
+      );
+      return { data: mutual, error: null };
+    } catch (err) {
+      const error: Error & { originalError?: unknown } =
+        err instanceof Error ? err : new Error('Unknown error occurred');
+      onError(error);
+      return { data: null, error };
+    }
   };
 
   const deleteMutual = async <B extends Entity, T extends Entity>(
@@ -747,26 +935,40 @@ const initCoreActions = (
     opts: CommonOptions = {},
   ) => {
     const mutualService = makeMutualService(byEntityType, entityType);
-    const { data } = await mutualService.deleteMutual(
-      byEntityId,
-      entityId,
-      opts,
-    );
+    const onError = opts.onError ?? defaultOnError;
 
-    monoriseStore.setState(
-      produce((state) => {
-        const bySide = getMutualStateKey(byEntityType, byEntityId, entityType);
-        const side = getMutualStateKey(entityType, entityId, byEntityType);
+    try {
+      const { data } = await mutualService.deleteMutual(
+        byEntityId,
+        entityId,
+        opts,
+      );
 
-        state.mutual[bySide].dataMap.delete(data.entityId);
+      monoriseStore.setState(
+        produce((state) => {
+          const bySide = getMutualStateKey(
+            byEntityType,
+            byEntityId,
+            entityType,
+          );
+          const side = getMutualStateKey(entityType, entityId, byEntityType);
 
-        if (state.mutual[side]) {
-          state.mutual[side].dataMap.delete(data.byEntityId);
-        }
-      }),
-      undefined,
-      `mr/mutual/delete/${getMutualStateKey(byEntityType, byEntityId, entityType, entityId)}`,
-    );
+          state.mutual[bySide].dataMap.delete(data.entityId);
+
+          if (state.mutual[side]) {
+            state.mutual[side].dataMap.delete(data.byEntityId);
+          }
+        }),
+        undefined,
+        `mr/mutual/delete/${getMutualStateKey(byEntityType, byEntityId, entityType, entityId)}`,
+      );
+      return { data, error: null };
+    } catch (err) {
+      const error: Error & { originalError?: unknown } =
+        err instanceof Error ? err : new Error('Unknown error occurred');
+      onError(error);
+      return { data: null, error };
+    }
   };
 
   const deleteLocalMutual = <B extends Entity, T extends Entity>(
@@ -779,13 +981,17 @@ const initCoreActions = (
       produce((state) => {
         const bySide = getMutualStateKey(byEntityType, byEntityId, entityType);
         const side = getMutualStateKey(entityType, entityId, byEntityType);
-        const bySideDataMap = new Map(state[bySide]?.dataMap);
-        const sideDataMap = new Map(state[side]?.dataMap);
+        const bySideDataMap = new Map(state.mutual[bySide]?.dataMap);
+        const sideDataMap = new Map(state.mutual[side]?.dataMap);
         bySideDataMap.delete(entityId);
         sideDataMap.delete(byEntityId);
 
-        state.mutual[bySide].dataMap.delete(entityId);
-        state.mutual[side].dataMap.delete(byEntityId);
+        if (state.mutual[bySide]) {
+          state.mutual[bySide].dataMap.delete(entityId);
+        }
+        if (state.mutual[side]) {
+          state.mutual[side].dataMap.delete(byEntityId);
+        }
       }),
       undefined,
       `mr/mutual/local-delete/${getMutualStateKey(byEntityType, byEntityId, entityType, entityId)}`,
@@ -797,7 +1003,7 @@ const initCoreActions = (
     id: string,
   ) => {
     const store = monoriseStore.getState();
-    const entityConfig = store.config;
+    const entityConfig = store.config; // Assuming store.config holds mutual related configurations
     let mutuals: Mutual[] = [];
     for (const i of Object.keys(entityConfig)) {
       const mutualState = store.mutual[`${entityType}/${id}/${i}`];
@@ -814,7 +1020,7 @@ const initCoreActions = (
           mutual.entityId,
           mutual.byEntityType,
         );
-        const dataMap = new Map(store.mutual[side].dataMap);
+        const dataMap = new Map(store.mutual[side]?.dataMap); // Use optional chaining
         dataMap.delete(id);
         acc[side] = {
           ...store.mutual[side],
@@ -827,7 +1033,12 @@ const initCoreActions = (
 
     monoriseStore.setState(
       produce((state) => {
-        state.mutual = updatedState;
+        // This is a full replacement, might not be desired for partial updates.
+        // If state.mutual can contain other keys, this might clear them.
+        // Consider a more granular update if needed.
+        for (const key in updatedState) {
+          state.mutual[key] = updatedState[key];
+        }
       }),
       undefined,
       `mr/mutual/local-delete-by-entity/${entityType}/${id}`,
@@ -870,7 +1081,14 @@ const initCoreActions = (
       isFirstFetched,
       refetch: async () => {
         if (id) {
-          return await getEntity(entityType, id, { ...opts, forceFetch: true });
+          const { data, error: fetchError } = await getEntity(entityType, id, {
+            ...opts,
+            forceFetch: true,
+          });
+          if (fetchError) {
+            // Handle refetch error if necessary, e.g., throw or set local state
+          }
+          return data;
         }
       },
     };
@@ -918,10 +1136,19 @@ const initCoreActions = (
       isFirstFetched,
       refetch: async () => {
         if (value) {
-          return await getEntityByUniqueField(entityType, fieldName, value, {
-            ...opts,
-            forceFetch: true,
-          });
+          const { data, error: fetchError } = await getEntityByUniqueField(
+            entityType,
+            fieldName,
+            value,
+            {
+              ...opts,
+              forceFetch: true,
+            },
+          );
+          if (fetchError) {
+            // Handle refetch error if necessary
+          }
+          return data;
         }
       },
     };
