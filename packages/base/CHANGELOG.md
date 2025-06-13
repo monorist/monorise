@@ -1,5 +1,11 @@
 # @monorise/base
 
+## 0.0.5
+
+### Patch Changes
+
+- 1fd91c6: Fix @monorise/base import relatively instead of recursively
+
 ## 0.0.4
 
 ### Patch Changes
