@@ -1,9 +1,11 @@
 {
   "tasks": {
     "build": {
+      "dependsOn": ["^build"],
       "outputs": ["dist/**"]
     },
     "dev": {
+      "dependsOn": ["@monorise/base#build"],
       "cache": false,
       "persistent": true
     }

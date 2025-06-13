@@ -1,6 +1,6 @@
 import { ulid } from 'ulid';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { Entity as EntityType } from '../../../base';
+import type { Entity as EntityType } from '../../../../base/src';
 import {
   MockEntityType,
   createTestTable,

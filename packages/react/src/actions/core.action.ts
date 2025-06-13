@@ -38,6 +38,10 @@ import type { AppActions } from './app.action';
 // USE store.getState() WHEN using within an action such as getEntity, getProfile
 // USE store() WHEN using within a react hook so that it gets the benefit of reactivity, such as useProfile, useEntity
 
+const defaultOnError = (error: ApplicationRequestError) => {
+  console.error('===defaultOnError===', error);
+}
+
 const initCoreActions = (
   monoriseStore: MonoriseStore,
   appActions: AppActions,
@@ -1102,6 +1106,7 @@ const initCoreActions = (
     lastKey?: string;
     listMore: () => void;
   } => {
+    const onError = opts.onError ?? defaultOnError;
     const stateKey = getMutualStateKey(
       byEntityType,
       byId || '',
@@ -1124,6 +1129,13 @@ const initCoreActions = (
     );
     const isLoading = useLoadStore(requestKey);
     const error = useErrorStore(requestKey);
+
+    // Call the onError callback when an error is detected
+    useEffect(() => {
+      if (error) {
+        onError(error);
+      }
+    }, [error, onError]);
 
     useEffect(() => {
       if (!isFirstFetched && byEntityType && entityType && byId) {
