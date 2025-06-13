@@ -404,37 +404,44 @@ const initCoreActions = (
     const { forceFetch } = opts;
 
     if (!forceFetch && (isFirstFetched || isLoading || error)) {
-      return;
+      return { error };
     }
 
-    const { data } = await mutualService.listEntitiesByEntity(
-      id,
-      opts,
-      chainEntityQuery,
-    );
-    const { entities, lastKey } = data;
+    try {
+      const { data } = await mutualService.listEntitiesByEntity(
+        id,
+        opts,
+        chainEntityQuery,
+      );
+      const { entities, lastKey } = data;
+      const newEntityDataMap = new Map();
 
-    const newEntityDataMap = new Map();
+      for (const i in entities) {
+        newEntityDataMap.set(entities[i].entityId, entities[i]);
+      }
 
-    for (const i in entities) {
-      newEntityDataMap.set(entities[i].entityId, entities[i]);
+      monoriseStore.setState(
+        produce((state) => {
+          for (const [key, value] of newEntityDataMap) {
+            state.entity[entityType]?.dataMap.set(key, value);
+          }
+          state.mutual[selfKey] = {
+            dataMap: convertToMap(entities, 'entityId'),
+            isFirstFetched: true,
+            lastKey,
+          };
+        }),
+        undefined,
+        `mr/mutual/list/${selfKey}`,
+      );
+
+      return { data, error: null };
+    } catch (err) {
+      const error: Error & { originalError?: unknown } =
+        err instanceof Error ? err : new Error('Unknown error occurred');
+
+      return { error, data: null };
     }
-
-    monoriseStore.setState(
-      produce((state) => {
-        for (const [key, value] of newEntityDataMap) {
-          state.entity[entityType]?.dataMap.set(key, value);
-        }
-
-        state.mutual[selfKey] = {
-          dataMap: convertToMap(entities, 'entityId'),
-          isFirstFetched: true,
-          lastKey,
-        };
-      }),
-      undefined,
-      `mr/mutual/list/${selfKey}`,
-    );
   };
 
   // todo: list more mutuals by entity
