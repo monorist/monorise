@@ -11,9 +11,6 @@
       "types": "./dist/index.d.ts"
     }
   },
-  "directories": {
-    "lib": "lib"
-  },
   "scripts": {
     "build": "tsc -b",
     "dev": "tsc -b --watch"
@@ -27,11 +24,11 @@
     "immer": "^10.1.1"
   },
   "devDependencies": {
+    "@monorise/base": "^0.0.4",
     "@types/react": "^18",
     "@types/react-dom": "^18"
   },
   "peerDependencies": {
-    "@monorise/base": "^0.0.4",
     "react": "^18",
     "react-dom": "^18"
   },

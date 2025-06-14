@@ -13,7 +13,7 @@ import {
 } from '@aws-sdk/client-dynamodb-streams';
 import { ulid } from 'ulid';
 import { z } from 'zod';
-import { createEntityConfig } from '../../../base';
+import { createEntityConfig } from '../../../../base/src';
 import {
   ENTITY_REPLICATION_INDEX,
   MUTUAL_REPLICATION_INDEX,
