@@ -9,7 +9,10 @@ import {
   getUniqueFieldStateKey,
 } from '../lib/utils';
 import type { MonoriseStore } from '../store/monorise.store';
-import type { AxiosInterceptor } from '../types/api.type';
+import type {
+  ApplicationRequestError,
+  AxiosInterceptor,
+} from '../types/api.type';
 import type { Mutual, MutualData } from '../types/mutual.type';
 
 const ENTITY_API_BASE_URL = '/api/core/entity';
@@ -50,6 +53,7 @@ export type CommonOptions = Partial<AxiosRequestConfig> & {
   forceFetch?: boolean;
   noData?: boolean;
   requestKey?: string;
+  onError?: (error: ApplicationRequestError | Error) => void;
 };
 
 const initCoreService = (
@@ -164,7 +168,8 @@ const initCoreService = (
       opts.customUrl || `${entityApiBaseUrl}/${entityType}`,
       values,
       {
-        requestKey: opts.requestKey || getEntityRequestKey('create', entityType),
+        requestKey:
+          opts.requestKey || getEntityRequestKey('create', entityType),
         isInterruptive: opts.isInterruptive ?? true,
         feedback: {
           loading: `Creating ${entityConfig[entityType].displayName}`,

@@ -105,6 +105,7 @@ const injectAxiosInterceptor = (
   const { setIsUnauthorized } = authActions;
 
   const unknownError: ApplicationRequestError = {
+    status: 500,
     code: 'UNKNOWN_EXCEPTION',
     message: "Ops, something doesn't seems right",
   };
@@ -137,10 +138,18 @@ const injectAxiosInterceptor = (
 
       return Promise.resolve(response);
     },
-    (error: AxiosError<ApplicationRequestError>) => {
+    (error: AxiosError<string>) => {
       const { requestKey, isInterruptive } = error.config as AxiosRequestConfig;
       endLoading({ requestKey, isInterruptive });
-      setError({ requestKey, error: error.response?.data || unknownError });
+
+      const appError = error.response?.data
+        ? {
+            code: error.response?.statusText,
+            status: error.response?.status,
+            message: error.response?.data,
+          }
+        : unknownError;
+      setError({ requestKey, error: appError });
       if (error.response?.status === 401) {
         setIsUnauthorized(true);
       }

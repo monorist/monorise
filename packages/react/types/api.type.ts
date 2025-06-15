@@ -1,6 +1,7 @@
 import request, { type AxiosRequestConfig, type AxiosResponse } from 'axios';
 
 export type ApplicationRequestError = {
+  status: number;
   code: string;
   message: string;
 };
