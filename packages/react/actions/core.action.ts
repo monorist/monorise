@@ -71,11 +71,12 @@ const initCoreActions = (
     const error = getError(requestKey);
     const onError = opts.onError ?? defaultOnError;
 
-    if ((isFirstFetched && !params.skRange) || isLoading || error) {
-      if (error) {
-        onError(error);
-      }
+    if (error) {
+      onError(error);
+      return;
+    }
 
+    if ((isFirstFetched && !params.skRange) || isLoading) {
       return;
     }
 
@@ -228,11 +229,12 @@ const initCoreActions = (
     const error = getError(requestKey);
     const onError = opts.onError ?? defaultOnError;
 
-    if (!forceFetch && (isFirstFetched || isLoading || error)) {
-      if (error) {
-        onError(error);
-        return { error, data: null };
-      }
+    if (error) {
+      onError(error);
+      return { error, data: null };
+    }
+
+    if (!forceFetch && (isFirstFetched || isLoading)) {
       return;
     }
 
@@ -286,12 +288,22 @@ const initCoreActions = (
     const { forceFetch } = opts;
     const onError = opts.onError ?? defaultOnError;
 
-    if (!forceFetch && (entity || isLoading || error)) {
+    if (!forceFetch) {
       if (error) {
+        // If there's an existing error, handle it and return the error.
         onError?.(error);
         return { data: undefined, error };
       }
-      return { data: entity, error: undefined };
+
+      if (entity) {
+        // If entity already exists and no force fetch, return it.
+        return { data: entity, error: undefined };
+      }
+
+      if (isLoading) {
+        // If already loading, return undefined data and error to indicate ongoing operation.
+        return { data: undefined, error: undefined };
+      }
     }
 
     try {
@@ -332,11 +344,12 @@ const initCoreActions = (
     const { forceFetch } = opts;
     const onError = opts.onError ?? defaultOnError;
 
-    if (!forceFetch && (entity || isLoading || error)) {
-      if (error) {
-        onError?.(error);
-        return { data: undefined, error };
-      }
+    if (error) {
+      onError?.(error);
+      return { data: undefined, error };
+    }
+
+    if (!forceFetch && (entity || isLoading)) {
       return { data: entity, error: null };
     }
 
@@ -531,12 +544,12 @@ const initCoreActions = (
     const error = getError(requestKey);
     const { forceFetch } = opts;
 
-    if (!forceFetch && (isFirstFetched || isLoading || error)) {
-      if (error) {
-        onError(error);
-        return { error, data: null };
-      }
+    if (error) {
+      onError(error);
+      return { error, data: null };
+    }
 
+    if (!forceFetch && (isFirstFetched || isLoading)) {
       return {
         error: null,
         data: {
@@ -615,11 +628,12 @@ const initCoreActions = (
     const error = getError(requestKey);
     const onError = opts.onError ?? defaultOnError;
 
-    if (!byEntityId || isLoading || error) {
-      if (error) {
-        onError?.(error);
-        return { data: undefined, error };
-      }
+    if (error) {
+      onError?.(error);
+      return { data: undefined, error };
+    }
+
+    if (!byEntityId || isLoading) {
       return {
         data: mutualState.dataMap?.get(entityId) as Mutual<B, T>,
         error: null,

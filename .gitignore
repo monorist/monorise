@@ -8,3 +8,4 @@ dist
 **/.turbo
 
 .DS_Store
+tsconfig.tsbuildinfo
