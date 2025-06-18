@@ -281,7 +281,10 @@ const initCoreActions = (
     entityType: T,
     id: string,
     opts: CommonOptions = {},
-  ) => {
+  ): Promise<{
+    data: CreatedEntity<T> | undefined;
+    error: ApplicationRequestError | Error | undefined;
+  }> => {
     const store = monoriseStore.getState();
     const entityState = store.entity[entityType];
     const { dataMap } = entityState;
@@ -322,7 +325,7 @@ const initCoreActions = (
         `mr/entity/get/${entityType}/${id}`,
       );
 
-      return { data: entity, error: null };
+      return { data: entity, error: undefined };
     } catch (err) {
       const error: Error & { originalError?: unknown } =
         err instanceof Error ? err : new Error('Unknown error occurred');
