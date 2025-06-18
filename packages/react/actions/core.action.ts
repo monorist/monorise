@@ -232,13 +232,12 @@ const initCoreActions = (
     if (!forceFetch) {
       if (error) {
         onError(error);
-        return { error, data: null };
+        return { error };
       }
 
       if (isFirstFetched || isLoading) {
         return {
           data: { entities: Array.from(dataMap.values()), lastKey: null },
-          error: null,
         };
       }
     }
@@ -273,7 +272,7 @@ const initCoreActions = (
       const error: Error & { originalError?: unknown } =
         err instanceof Error ? err : new Error('Unknown error occurred');
 
-      return { error, data: null };
+      return { error };
     }
   };
 
@@ -282,8 +281,8 @@ const initCoreActions = (
     id: string,
     opts: CommonOptions = {},
   ): Promise<{
-    data: CreatedEntity<T> | undefined;
-    error: ApplicationRequestError | Error | undefined;
+    data?: CreatedEntity<T>;
+    error?: ApplicationRequestError | (Error & { originalError?: unknown });
   }> => {
     const store = monoriseStore.getState();
     const entityState = store.entity[entityType];
@@ -300,17 +299,17 @@ const initCoreActions = (
       if (error) {
         // If there's an existing error, handle it and return the error.
         onError?.(error);
-        return { data: undefined, error };
+        return { error };
       }
 
       if (entity) {
         // If entity already exists and no force fetch, return it.
-        return { data: entity, error: undefined };
+        return { data: entity };
       }
 
       if (isLoading) {
         // If already loading, return undefined data and error to indicate ongoing operation.
-        return { data: undefined, error: undefined };
+        return {};
       }
     }
 
@@ -325,12 +324,12 @@ const initCoreActions = (
         `mr/entity/get/${entityType}/${id}`,
       );
 
-      return { data: entity, error: undefined };
+      return { data: entity };
     } catch (err) {
       const error: Error & { originalError?: unknown } =
         err instanceof Error ? err : new Error('Unknown error occurred');
 
-      return { data: undefined, error };
+      return { error };
     }
   };
 
@@ -355,15 +354,15 @@ const initCoreActions = (
     if (!forceFetch) {
       if (error) {
         onError?.(error);
-        return { data: undefined, error };
+        return { error };
       }
 
       if (entity) {
-        return { data: entity, error: undefined };
+        return { data: entity };
       }
 
       if (isLoading) {
-        return { data: undefined, error: undefined };
+        return {};
       }
     }
 
@@ -383,12 +382,12 @@ const initCoreActions = (
         `mr/entity/unique/${entityType}/${stateKey}`,
       );
 
-      return { data: entity, error: null };
+      return { data: entity };
     } catch (err) {
       const error: Error & { originalError?: unknown } =
         err instanceof Error ? err : new Error('Unknown error occurred');
 
-      return { data: undefined, error };
+      return { error };
     }
   };
 
@@ -411,14 +410,14 @@ const initCoreActions = (
         `mr/entity/create/${entityType}`,
       );
 
-      return { data, error: null };
+      return { data };
     } catch (err) {
       const error: Error & { originalError?: unknown } =
         err instanceof Error ? err : new Error('Unknown error occurred');
 
       onError?.(error);
 
-      return { data: null, error };
+      return { error };
     }
   };
 
@@ -441,12 +440,12 @@ const initCoreActions = (
         undefined,
         `mr/entity/upsert/${entityType}/${id}`,
       );
-      return { data, error: null };
+      return { data };
     } catch (err) {
       const error: Error & { originalError?: unknown } =
         err instanceof Error ? err : new Error('Unknown error occurred');
       onError(error);
-      return { data: null, error };
+      return { error };
     }
   };
 
@@ -480,12 +479,12 @@ const initCoreActions = (
         undefined,
         `mr/entity/edit/${entityType}/${id}`,
       );
-      return { data, error: null };
+      return { data };
     } catch (err) {
       const error: Error & { originalError?: unknown } =
         err instanceof Error ? err : new Error('Unknown error occurred');
       onError(error);
-      return { data: null, error };
+      return { error };
     }
   };
 
@@ -516,12 +515,12 @@ const initCoreActions = (
         undefined,
         `mr/entity/delete/${entityType}/${id}`,
       );
-      return { data: { entityId: id }, error: null }; // Indicate success with the deleted ID
+      return { data: { entityId: id } }; // Indicate success with the deleted ID
     } catch (err) {
       const error: Error & { originalError?: unknown } =
         err instanceof Error ? err : new Error('Unknown error occurred');
       onError(error);
-      return { data: null, error };
+      return { error };
     }
   };
 
@@ -561,12 +560,11 @@ const initCoreActions = (
     if (!forceFetch) {
       if (error) {
         onError(error);
-        return { error, data: null };
+        return { error };
       }
 
       if (isFirstFetched || isLoading) {
         return {
-          error: null,
           data: {
             entities: Array.from(mutualState.dataMap?.values() || []),
             lastKey: mutualState.lastKey,
@@ -603,12 +601,12 @@ const initCoreActions = (
         `mr/mutual/list/${selfKey}`,
       );
 
-      return { data, error: null };
+      return { data };
     } catch (err) {
       const error: Error & { originalError?: unknown } =
         err instanceof Error ? err : new Error('Unknown error occurred');
 
-      return { error, data: null };
+      return { error };
     }
   };
 
@@ -646,20 +644,18 @@ const initCoreActions = (
 
     if (error) {
       onError?.(error);
-      return { data: undefined, error };
+      return { error };
     }
 
     if (!byEntityId || isLoading) {
       return {
         data: mutualState.dataMap?.get(entityId) as Mutual<B, T>,
-        error: null,
       };
     }
 
     if (mutualState.dataMap?.get(entityId)) {
       return {
         data: mutualState.dataMap.get(entityId) as Mutual<B, T>,
-        error: null,
       };
     }
 
@@ -676,7 +672,7 @@ const initCoreActions = (
       if (!opts.defaultMutualData) {
         const error: Error & { originalError?: unknown } =
           err instanceof Error ? err : new Error('Unknown error occurred');
-        return { data: null, error };
+        return { error };
       }
 
       hasRequestFailed = true;
@@ -775,12 +771,12 @@ const initCoreActions = (
         undefined,
         `mr/mutual/create/${getMutualStateKey(byEntityType, byEntityId, entityType, entityId)}`,
       );
-      return { data: mutual, error: null };
+      return { data: mutual };
     } catch (err) {
       const error: Error & { originalError?: unknown } =
         err instanceof Error ? err : new Error('Unknown error occurred');
       onError(error);
-      return { data: null, error };
+      return { error };
     }
   };
 
@@ -948,12 +944,12 @@ const initCoreActions = (
         undefined,
         `mr/mutual/edit/${getMutualStateKey(byEntityType, byEntityId, entityType, entityId)}`,
       );
-      return { data: mutual, error: null };
+      return { data: mutual };
     } catch (err) {
       const error: Error & { originalError?: unknown } =
         err instanceof Error ? err : new Error('Unknown error occurred');
       onError(error);
-      return { data: null, error };
+      return { error };
     }
   };
 
@@ -992,12 +988,12 @@ const initCoreActions = (
         undefined,
         `mr/mutual/delete/${getMutualStateKey(byEntityType, byEntityId, entityType, entityId)}`,
       );
-      return { data, error: null };
+      return { data };
     } catch (err) {
       const error: Error & { originalError?: unknown } =
         err instanceof Error ? err : new Error('Unknown error occurred');
       onError(error);
-      return { data: null, error };
+      return { error };
     }
   };
 
