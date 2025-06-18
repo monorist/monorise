@@ -229,13 +229,18 @@ const initCoreActions = (
     const error = getError(requestKey);
     const onError = opts.onError ?? defaultOnError;
 
-    if (error) {
-      onError(error);
-      return { error, data: null };
-    }
+    if (!forceFetch) {
+      if (error) {
+        onError(error);
+        return { error, data: null };
+      }
 
-    if (!forceFetch && (isFirstFetched || isLoading)) {
-      return;
+      if (isFirstFetched || isLoading) {
+        return {
+          data: { entities: Array.from(dataMap.values()), lastKey: null },
+          error: null,
+        };
+      }
     }
 
     try {
@@ -344,13 +349,19 @@ const initCoreActions = (
     const { forceFetch } = opts;
     const onError = opts.onError ?? defaultOnError;
 
-    if (error) {
-      onError?.(error);
-      return { data: undefined, error };
-    }
+    if (!forceFetch) {
+      if (error) {
+        onError?.(error);
+        return { data: undefined, error };
+      }
 
-    if (!forceFetch && (entity || isLoading)) {
-      return { data: entity, error: null };
+      if (entity) {
+        return { data: entity, error: undefined };
+      }
+
+      if (isLoading) {
+        return { data: undefined, error: undefined };
+      }
     }
 
     try {
@@ -544,19 +555,21 @@ const initCoreActions = (
     const error = getError(requestKey);
     const { forceFetch } = opts;
 
-    if (error) {
-      onError(error);
-      return { error, data: null };
-    }
+    if (!forceFetch) {
+      if (error) {
+        onError(error);
+        return { error, data: null };
+      }
 
-    if (!forceFetch && (isFirstFetched || isLoading)) {
-      return {
-        error: null,
-        data: {
-          entities: Array.from(mutualState.dataMap?.values() || []),
-          lastKey: mutualState.lastKey,
-        },
-      };
+      if (isFirstFetched || isLoading) {
+        return {
+          error: null,
+          data: {
+            entities: Array.from(mutualState.dataMap?.values() || []),
+            lastKey: mutualState.lastKey,
+          },
+        };
+      }
     }
 
     try {
