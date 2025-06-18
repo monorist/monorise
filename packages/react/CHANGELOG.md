@@ -1,5 +1,13 @@
 # @monorise/react
 
+## 0.3.3
+
+### Patch Changes
+
+- 7df6b1b: chore: standardized error handling when promise call
+- Updated dependencies [1fd91c6]
+  - @monorise/base@0.0.5
+
 ## 0.3.2
 
 ### Patch Changes
