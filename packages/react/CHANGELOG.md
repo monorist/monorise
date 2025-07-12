@@ -1,5 +1,34 @@
 # @monorise/react
 
+## 0.4.0
+
+### Minor Changes
+
+- 5990059: update:
+
+  - fix: return typing in getEntity()
+  - bump minor to prevent breaking changes
+    - core.action.getEntity()
+    - core.action.getMutual()
+    - core.action.getEntityByUniqueField()
+    - core.action.createEntity()
+    - core.action.upsertEntity()
+    - core.action.editEntity()
+
+## 0.3.3
+
+### Patch Changes
+
+- 7df6b1b: chore: standardized error handling when promise call
+- Updated dependencies [1fd91c6]
+  - @monorise/base@0.0.5
+
+## 0.3.2
+
+### Patch Changes
+
+- a465c32: Fix getMutual action to return instead of throwing error
+
 ## 0.3.1
 
 ### Patch Changes

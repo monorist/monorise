@@ -1,5 +1,11 @@
 # @monorise/core
 
+## 0.1.9
+
+### Patch Changes
+
+- 9ceb344: list mutuals and entities projection expression accepts any string.
+
 ## 0.1.8
 
 ### Patch Changes

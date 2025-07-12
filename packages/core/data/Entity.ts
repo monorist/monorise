@@ -132,7 +132,7 @@ export class EntityRepository extends Repository {
     };
     options?: {
       lastKey?: string;
-      ProjectionExpression?: ProjectionExpressionValues;
+      ProjectionExpression?: ProjectionExpressionValues | (string & {});
     };
   }): Promise<{
     items: Entity<T>[];

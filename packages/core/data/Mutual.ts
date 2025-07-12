@@ -182,7 +182,7 @@ export class MutualRepository extends Repository {
     entityType: T,
     opts: {
       lastKey?: string;
-      ProjectionExpression?: ProjectionExpressionValues;
+      ProjectionExpression?: ProjectionExpressionValues | (string & {});
       limit?: number; // if this is not set, retrieve all items
     } = {},
   ): Promise<{
