@@ -22,6 +22,7 @@ export class QFunction {
       maxBatchingWindow,
       batchSize,
       alarmTopic,
+      link,
       ...functionArgs
     } = args;
 
@@ -34,7 +35,9 @@ export class QFunction {
 
     this.function = new sst.aws.Function(`${id}-processor`, {
       ...functionArgs,
-      link: [this.queue],
+      link: (link as any[])?.length
+        ? [this.queue, ...(link as any[])]
+        : [this.queue],
     });
 
     this.queue.subscribe(this.function.arn, {

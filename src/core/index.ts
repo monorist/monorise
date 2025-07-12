@@ -16,7 +16,6 @@ export {
   DependencyContainer,
   StandardError,
   StandardErrorCode,
-  appHandle,
 } from '../../packages/core/index';
 
 import CoreFactory from '../../packages/core';

@@ -1,4 +1,4 @@
-import type { Entity, MonoriseEntityConfig } from '@monorise/base';
+import type { Entity, MonoriseEntityConfig } from '../types/monorise.type';
 import { z } from 'zod';
 
 function makeSchema<

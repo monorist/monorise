@@ -108,6 +108,7 @@ export class MonoriseCore {
       alarmTopic: this.alarmTopic,
       runtime,
       environment,
+      link: [this.table.table],
     });
 
     const tagProcessor = new QFunction('tag', {
@@ -119,6 +120,7 @@ export class MonoriseCore {
       alarmTopic: this.alarmTopic,
       runtime,
       environment,
+      link: [this.table.table],
     });
 
     const treeProcessor = new QFunction('tree', {
@@ -130,6 +132,7 @@ export class MonoriseCore {
       alarmTopic: this.alarmTopic,
       runtime,
       environment,
+      link: [this.table.table],
     });
 
     this.bus.subscribeQueue(`${id}-mutual-queue-rule`, mutualProcessor.queue, {
