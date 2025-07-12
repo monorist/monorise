@@ -6,6 +6,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
+    "sst:install": "npx sst install",
     "build": "tsc -b",
     "dev": "tsc -b --watch"
   },
