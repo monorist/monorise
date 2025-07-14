@@ -1,4 +1,3 @@
-import { spawn } from 'node:child_process';
 import path from 'node:path';
 import chokidar from 'chokidar';
 import generateFiles from './utils/generate';

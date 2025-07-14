@@ -1,4 +1,3 @@
-import type { Entity as EntityType, createEntityConfig } from '@monorise/base';
 import { Hono } from 'hono';
 import { entityTypeCheck } from '../middlewares/entity-type-check';
 import { mutualTypeCheck } from '../middlewares/mutual-type-check';

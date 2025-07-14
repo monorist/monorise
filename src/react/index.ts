@@ -53,8 +53,6 @@ export {
   getEntity,
 } from '../../packages/react';
 
-export default Monorise;
-
 export type {
   MutualDataWithIndex,
   MutualDataMapping,
@@ -68,3 +66,5 @@ export type {
   Entity,
   EntitySchemaMap,
 } from '../../packages/base';
+
+export default Monorise;
