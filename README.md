@@ -25,14 +25,26 @@
   - [🌟 Acknowledgments](#🌟-acknowledgments)
   <!--toc:end-->
 
-Simplify Single table design with DynamoDB
+Full-stack data framework to simplify Single table design in DynamoDB
+using graph database principles.
 
-## 🚀 Features
+## ✨ Why Build with Monorise?
 
-- Use DynamoDB as a Graph DB
-- Access data through simple API calls
-- Relationships management between entities
-- No more writing complex DynamoDB queries
+- ⚡ **O(1) Performance**: Consistent, blazing-fast queries regardless of data
+  size or complexity.
+- 🧠 **Smart Single-Table Design**: Automates complex partitioning and access
+  patterns.
+- 🔄 **Auto Denormalization**: Monorise handles data duplication, keeping
+  your data consistent.
+- 💡 **Intuitive Data Modeling**: Use Entities, Mutuals (relationships
+  with data), and Tags for flexible, graph-like data.
+- 👋 **Familiar Dev Experience**: Query like a relational database, but
+  with NoSQL scale.
+- 🚀 **Seamless Full-Stack**: Unified package and SST v3 Super Component
+  for easy setup and deployment.
+- 🏎️ **Serverless Optimized**: Built for speed with lightweight runtimes.
+- 📈 **Scalability by Design**: Grow your app infinitely, powered by
+  DynamoDB and Monorise's efficiency.
 
 ## 💡 Core Concepts
 
@@ -63,9 +75,9 @@ npm install
 ### Basic Example
 
 ```js
-import { yourFunction } from 'your-package-name';
+import { yourFunction } from "your-package-name";
 
-yourFunction('example');
+yourFunction("example");
 ```
 
 ### CLI Example (if applicable)
