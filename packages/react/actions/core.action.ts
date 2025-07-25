@@ -1367,7 +1367,7 @@ const initCoreActions = (
     error?: ApplicationRequestError;
     isFirstFetched?: boolean;
     lastKey?: string;
-    listMore: () => void;
+    listMore?: () => void;
   } => {
     const stateKey = getMutualStateKey(
       byEntityType,
