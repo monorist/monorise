@@ -237,7 +237,10 @@ const initCoreActions = (
 
       if (isFirstFetched || isLoading) {
         return {
-          data: { entities: Array.from(dataMap.values()), lastKey: null },
+          data: {
+            entities: Array.from(dataMap?.values() || []),
+            lastKey: null,
+          },
         };
       }
     }
@@ -1409,7 +1412,7 @@ const initCoreActions = (
             JSON.stringify(item) !== JSON.stringify(mutuals[index]),
         )
       ) {
-        setMutuals(Array.from(dataMap.values()) as Mutual<B, T>[]);
+        setMutuals(dataMapArray as Mutual<B, T>[]);
       }
     }, [dataMap, dataMap.size, mutuals?.length]);
 
@@ -1471,7 +1474,7 @@ const initCoreActions = (
             JSON.stringify(item) !== JSON.stringify(entities[index]),
         )
       ) {
-        setEntities(Array.from(dataMap.values()) as CreatedEntity<T>[]);
+        setEntities(dataMapArray as CreatedEntity<T>[]);
       }
     }, [dataMap, dataMap.size, entities?.length]);
 
@@ -1507,6 +1510,34 @@ const initCoreActions = (
     return monoriseStore((state) => state.entity[entityType]);
   };
 
+  const updateLocalTaggedEntity = <T extends Entity>(
+    entityType: T,
+    entityId: string,
+    tagName: string,
+    data: Partial<DraftEntity<T>> = {},
+    params?: ListEntitiesByTagParams,
+  ) => {
+    const tagKey = getTagStateKey(
+      entityType,
+      tagName,
+      params as Record<string, string>,
+    );
+
+    monoriseStore.setState(
+      produce((state) => {
+        const entity = state.tag[tagKey]?.dataMap?.get(entityId);
+        if (entity) {
+          state.tag[tagKey].dataMap.set(entityId, {
+            ...entity,
+            data: { ...entity.data, ...data },
+          });
+        }
+      }),
+      undefined,
+      `mr/tag/local-update/${entityType}/${entityId}`,
+    );
+  };
+
   return {
     listMoreEntities,
     createEntity,
@@ -1529,6 +1560,7 @@ const initCoreActions = (
     useMutuals,
     useTaggedEntities,
     useEntityState,
+    updateLocalTaggedEntity,
   };
 };
 
