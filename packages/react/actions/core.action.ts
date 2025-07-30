@@ -591,11 +591,25 @@ const initCoreActions = (
           for (const [key, value] of newEntityDataMap) {
             state.entity[entityType]?.dataMap.set(key, value);
           }
-          state.mutual[selfKey] = {
-            dataMap: convertToMap(entities, 'entityId'),
-            isFirstFetched: true,
-            lastKey,
-          };
+
+          // prepare or extend the mutual entry
+          const existing = state.mutual[selfKey];
+          if (existing) {
+            // extend the existing map
+            const incoming = convertToMap(entities, 'entityId');
+            for (const [k, v] of incoming) {
+              existing.dataMap.set(k, v);
+            }
+            existing.isFirstFetched = true;
+            existing.lastKey = lastKey;
+          } else {
+            // first time: create it
+            state.mutual[selfKey] = {
+              dataMap: convertToMap(entities, 'entityId'),
+              isFirstFetched: true,
+              lastKey,
+            };
+          }
         }),
         undefined,
         `mr/mutual/list/${selfKey}`,
@@ -1353,7 +1367,7 @@ const initCoreActions = (
     error?: ApplicationRequestError;
     isFirstFetched?: boolean;
     lastKey?: string;
-    listMore: () => void;
+    listMore?: () => void;
   } => {
     const stateKey = getMutualStateKey(
       byEntityType,
@@ -1421,22 +1435,24 @@ const initCoreActions = (
       error,
       isFirstFetched,
       lastKey,
-      listMore: () => {
-        if (byEntityType && entityType && byId) {
-          listEntitiesByEntity(
-            byEntityType,
-            entityType,
-            byId,
-            {
-              ...opts,
-              forceFetch: true,
-              params: { ...opts.params, lastKey },
-              stateKey,
-            },
-            chainEntityQuery,
-          );
-        }
-      },
+      ...(lastKey && {
+        listMore: () => {
+          if (byEntityType && entityType && byId) {
+            listEntitiesByEntity(
+              byEntityType,
+              entityType,
+              byId,
+              {
+                ...opts,
+                forceFetch: true,
+                params: { ...opts.params, lastKey },
+                stateKey,
+              },
+              chainEntityQuery,
+            );
+          }
+        },
+      }),
     };
   };
 
