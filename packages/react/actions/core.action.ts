@@ -1457,10 +1457,29 @@ const initCoreActions = (
     const error = useErrorStore(requestKey);
 
     useEffect(() => {
-      if (entityType && tagName && Object.keys(params).length > 0) {
+      if (process.env.NODE_ENV === 'development') {
+        const isMemoized = (obj: unknown) => {
+          return (
+            obj &&
+            (Object.getPrototypeOf(obj) === Object.prototype ||
+              Array.isArray(obj))
+          );
+        };
+        if (params && typeof params === 'object' && !isMemoized(params)) {
+          console.warn(
+            '[Monorise] useTaggedEntities: params should be memoized with useMemo to avoid infinite loops.',
+          );
+        }
+        if (opts && typeof opts === 'object' && !isMemoized(opts)) {
+          console.warn(
+            '[Monorise] useTaggedEntities: opts should be memoized with useMemo to avoid infinite loops.',
+          );
+        }
+      }
+      if (entityType && tagName && params?.group) {
         listEntitiesByTag(entityType, tagName, opts);
       }
-    }, [entityType, opts, tagName, params, opts?.forceFetch]);
+    }, [entityType, tagName, params?.group, opts?.forceFetch]);
 
     useEffect(() => {
       const dataMapArray = Array.from(dataMap.values());
@@ -1468,12 +1487,12 @@ const initCoreActions = (
         dataMap.size !== entities?.length ||
         dataMapArray.some(
           (item, index) =>
-            JSON.stringify(item) !== JSON.stringify(entities[index]),
+            JSON.stringify(item) !== JSON.stringify(entities?.[index]),
         )
       ) {
         setEntities(Array.from(dataMap.values()) as CreatedEntity<T>[]);
       }
-    }, [dataMap, dataMap.size, entities?.length]);
+    }, [dataMap, entities]);
 
     return {
       entities,
