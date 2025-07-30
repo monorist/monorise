@@ -1,5 +1,11 @@
 # @monorise/react
 
+## 0.4.1
+
+### Patch Changes
+
+- 5eafbba: feat: support limit mutuals returned
+
 ## 0.4.0
 
 ### Minor Changes

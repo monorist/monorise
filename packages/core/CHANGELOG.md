@@ -1,5 +1,11 @@
 # @monorise/core
 
+## 0.1.10
+
+### Patch Changes
+
+- 5eafbba: feat: support limit mutuals returned
+
 ## 0.1.9
 
 ### Patch Changes
