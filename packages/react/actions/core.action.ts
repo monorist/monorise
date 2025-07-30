@@ -1538,6 +1538,29 @@ const initCoreActions = (
     );
   };
 
+  const deleteLocalTaggedEntity = <T extends Entity>(
+    entityType: T,
+    entityId: string,
+    tagName: string,
+    params?: ListEntitiesByTagParams,
+  ) => {
+    const tagKey = getTagStateKey(
+      entityType,
+      tagName,
+      params as Record<string, string>,
+    );
+
+    monoriseStore.setState(
+      produce((state) => {
+        if (state.tag[tagKey]?.dataMap?.has(entityId)) {
+          state.tag[tagKey].dataMap.delete(entityId);
+        }
+      }),
+      undefined,
+      `mr/tag/local-delete/${entityType}/${entityId}`,
+    );
+  };
+
   return {
     listMoreEntities,
     createEntity,
@@ -1561,6 +1584,7 @@ const initCoreActions = (
     useTaggedEntities,
     useEntityState,
     updateLocalTaggedEntity,
+    deleteLocalTaggedEntity,
   };
 };
 

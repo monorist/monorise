@@ -146,6 +146,7 @@ const {
   useEntityState,
   getEntity,
   updateLocalTaggedEntity,
+  deleteLocalTaggedEntity,
 } = Monorise;
 
 export {
@@ -200,6 +201,7 @@ export {
   getUniqueFieldRequestKey,
   getEntity,
   updateLocalTaggedEntity,
+  deleteLocalTaggedEntity,
 };
 
 export default Monorise;
