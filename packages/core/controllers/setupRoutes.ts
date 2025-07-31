@@ -1,81 +1,70 @@
-import type { Router } from 'express';
+import { Hono } from 'hono';
 import { entityTypeCheck } from '../middlewares/entity-type-check';
 import { mutualTypeCheck } from '../middlewares/mutual-type-check';
 import type { DependencyContainer } from '../services/DependencyContainer';
 
-const setupCommonRoutes =
-  (container: DependencyContainer) => (router: Router) => {
-    /*
-     * Mutual endpoint
-     */
-    // const container = new DependencyContainer();
+export const setupCommonRoutes = (container: DependencyContainer): Hono => {
+  const app = new Hono();
+  /*
+   * Mutual endpoint
+   */
 
-    router.use(
-      '/mutual/:byEntityType/:byEntityId/:entityType',
-      mutualTypeCheck(container),
-    );
-    router.get(
-      '/mutual/:byEntityType/:byEntityId/:entityType',
-      container.listEntitiesByEntityController.controller,
-    );
-    router.post(
-      '/mutual/:byEntityType/:byEntityId/:entityType/:entityId',
-      container.createMutualController.controller,
-    );
-    router.get(
-      '/mutual/:byEntityType/:byEntityId/:entityType/:entityId',
-      container.getMutualController.controller,
-    );
-    router.patch(
-      '/mutual/:byEntityType/:byEntityId/:entityType/:entityId',
-      container.updateMutualController.controller,
-    );
-    router.delete(
-      '/mutual/:byEntityType/:byEntityId/:entityType/:entityId',
-      container.deleteMutualController.controller,
-    );
+  app.use(
+    '/mutual/:byEntityType/:byEntityId/:entityType',
+    mutualTypeCheck(container),
+  );
+  app.get(
+    '/mutual/:byEntityType/:byEntityId/:entityType',
+    container.listEntitiesByEntityController.controller,
+  );
+  app.post(
+    '/mutual/:byEntityType/:byEntityId/:entityType/:entityId',
+    container.createMutualController.controller,
+  );
+  app.get(
+    '/mutual/:byEntityType/:byEntityId/:entityType/:entityId',
+    container.getMutualController.controller,
+  );
+  app.patch(
+    '/mutual/:byEntityType/:byEntityId/:entityType/:entityId',
+    container.updateMutualController.controller,
+  );
+  app.delete(
+    '/mutual/:byEntityType/:byEntityId/:entityType/:entityId',
+    container.deleteMutualController.controller,
+  );
 
-    /*
-     * Entities endpoint
-     */
+  /*
+   * Entities endpoint
+   */
 
-    router.use('/entity/:entityType', entityTypeCheck(container));
-    router.get(
-      '/entity/:entityType',
-      container.listEntitiesController.controller,
-    );
-    router.post(
-      '/entity/:entityType',
-      container.createEntityController.controller,
-    );
-    router.get(
-      '/entity/:entityType/unique/:uniqueField/:uniqueFieldValue',
-      container.getEntityByUniqueFieldController.controller,
-    );
-    router.get(
-      '/entity/:entityType/:entityId',
-      container.getEntityController.controller,
-    );
-    router.put(
-      '/entity/:entityType/:entityId',
-      container.upsertEntityController.controller,
-    );
-    router.patch(
-      '/entity/:entityType/:entityId',
-      container.updateEntityController.controller,
-    );
-    router.delete(
-      '/entity/:entityType/:entityId',
-      container.deleteEntityController.controller,
-    );
+  app.use('/entity/:entityType', entityTypeCheck(container));
+  app.get('/entity/:entityType', container.listEntitiesController.controller);
+  app.post('/entity/:entityType', container.createEntityController.controller);
+  app.get(
+    '/entity/:entityType/unique/:uniqueField/:uniqueFieldValue',
+    container.getEntityByUniqueFieldController.controller,
+  );
+  app.get(
+    '/entity/:entityType/:entityId',
+    container.getEntityController.controller,
+  );
+  app.put(
+    '/entity/:entityType/:entityId',
+    container.upsertEntityController.controller,
+  );
+  app.patch(
+    '/entity/:entityType/:entityId',
+    container.updateEntityController.controller,
+  );
+  app.delete(
+    '/entity/:entityType/:entityId',
+    container.deleteEntityController.controller,
+  );
 
-    /*
-     * Tag endpoint
-     */
-    router.get(
-      '/tag/:entityType/:tagName',
-      container.listTagsController.controller,
-    );
-  };
-
-export { setupCommonRoutes };
+  /*
+   * Tag endpoint
+   */
+  app.get('/tag/:entityType/:tagName', container.listTagsController.controller);
+  return app;
+};

@@ -1,5 +1,5 @@
 import type { Entity } from '@monorise/base';
-import type { Request, Response } from 'express';
+import { createMiddleware } from 'hono/factory';
 import httpStatus from 'http-status';
 import { z } from 'zod';
 import type { Mutual, MutualRepository } from '../../data/Mutual';
@@ -7,8 +7,8 @@ import type { Mutual, MutualRepository } from '../../data/Mutual';
 export class ListEntitiesByEntityController {
   constructor(private associateRepository: MutualRepository) {}
 
-  controller: (req: Request, res: Response) => void = async (req, res) => {
-    const { byEntityType, byEntityId, entityType } = req.params as unknown as {
+  controller = createMiddleware(async (c) => {
+    const { byEntityType, byEntityId, entityType } = c.req.param() as {
       byEntityType: Entity;
       byEntityId: string;
       entityType: Entity;
@@ -24,7 +24,7 @@ export class ListEntitiesByEntityController {
     const querySchema = z.object({
       chainEntityQuery: z.string().optional(),
     });
-    const queryParam = querySchema.parse(req.query);
+    const queryParam = querySchema.parse(c.req.query());
     if (queryParam?.chainEntityQuery) {
       try {
         const mutualTypes = queryParam.chainEntityQuery.split(
@@ -51,11 +51,12 @@ export class ListEntitiesByEntityController {
           byIds = items.map((item) => item.entityId);
         }
 
-        return res.json({
+        return c.json({
           entities: items,
         });
       } catch (err) {
-        return res.status(httpStatus.BAD_REQUEST).json({
+        c.status(httpStatus.BAD_REQUEST);
+        return c.json({
           code: 'INVALID_CHAIN_QUERY',
           message:
             'Chain query is invalid. Please double check the chainEntityQuery param',
@@ -68,9 +69,9 @@ export class ListEntitiesByEntityController {
         entityType,
       );
 
-      return res.json({
+      return c.json({
         entities: resp.items,
       });
     }
-  };
+  });
 }

@@ -1,5 +1,5 @@
 import type { Entity } from '@monorise/base';
-import type { Request, Response } from 'express';
+import { createMiddleware } from 'hono/factory';
 import httpStatus from 'http-status';
 import type { MutualRepository } from '../../data/Mutual';
 import { StandardError, StandardErrorCode } from '../../errors/standard-error';
@@ -7,9 +7,9 @@ import { StandardError, StandardErrorCode } from '../../errors/standard-error';
 export class GetMutualController {
   constructor(private associateRepository: MutualRepository) {}
 
-  controller: (req: Request, res: Response) => void = async (req, res) => {
+  controller = createMiddleware(async (c) => {
     const { byEntityType, byEntityId, entityType, entityId } =
-      req.params as unknown as {
+      c.req.param() as {
         byEntityType: Entity;
         byEntityId: string;
         entityType: Entity;
@@ -24,13 +24,14 @@ export class GetMutualController {
         entityId,
       );
 
-      return res.status(httpStatus.OK).json(associate);
+      return c.json(associate);
     } catch (err) {
       if (
         err instanceof StandardError &&
         err.code === StandardErrorCode.MUTUAL_IS_UNDEFINED
       ) {
-        return res.status(httpStatus.NOT_FOUND).json({
+        c.status(httpStatus.NOT_FOUND);
+        return c.json({
           code: 'MUTUAL_NOT_FOUND',
           message: 'Mutual not found',
         });
@@ -38,5 +39,5 @@ export class GetMutualController {
 
       throw err;
     }
-  };
+  });
 }

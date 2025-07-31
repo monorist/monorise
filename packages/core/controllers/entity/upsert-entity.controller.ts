@@ -1,5 +1,5 @@
 import type { Entity, createEntityConfig } from '@monorise/base';
-import type { Request, Response } from 'express';
+import { createMiddleware } from 'hono/factory';
 import httpStatus from 'http-status';
 import { ZodError } from 'zod';
 import type { EntityRepository } from '../../data/Entity';
@@ -14,9 +14,9 @@ export class UpsertEntityController {
     private publishEvent: typeof publishEventType,
   ) {}
 
-  controller: (req: Request, res: Response) => void = async (req, res) => {
-    const accountId = req.headers['account-id'];
-    const { entityType, entityId } = req.params as unknown as {
+  controller = createMiddleware(async (c) => {
+    const accountId = c.req.header('account-id');
+    const { entityType, entityId } = c.req.param() as {
       entityType: Entity;
       entityId: string;
     };
@@ -34,8 +34,10 @@ export class UpsertEntityController {
         );
       }
 
-      const parsedEntityPayload = entitySchema.parse(req.body);
-      const parsedMutualPayload = mutualSchema.parse(req.body);
+      const body = await c.req.json();
+
+      const parsedEntityPayload = entitySchema.parse(body);
+      const parsedMutualPayload = mutualSchema.parse(body);
 
       const entity = await this.entityRepository.upsertEntity(
         entityType,
@@ -73,15 +75,16 @@ export class UpsertEntityController {
         payload: {
           entityType,
           entityId: entity.entityId,
-          payload: req.body,
+          payload: body,
           createdByAccountId: accountId,
         },
       });
 
-      return res.status(httpStatus.OK).json(entity);
+      return c.json(entity);
     } catch (err) {
       if (err instanceof ZodError) {
-        return res.status(httpStatus.BAD_REQUEST).json({
+        c.status(httpStatus.BAD_REQUEST);
+        return c.json({
           code: 'API_VALIDATION_ERROR',
           message: 'API validation failed',
           details: err.flatten(),
@@ -92,12 +95,13 @@ export class UpsertEntityController {
         err instanceof StandardError &&
         err.code === StandardErrorCode.EMAIL_EXISTS
       ) {
-        return res.status(httpStatus.BAD_REQUEST).json({
+        c.status(httpStatus.BAD_REQUEST);
+        return c.json({
           ...err.toJSON(),
         });
       }
 
       throw err;
     }
-  };
+  });
 }

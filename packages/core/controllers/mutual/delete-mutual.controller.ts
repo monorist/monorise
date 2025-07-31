@@ -1,5 +1,5 @@
 import type { Entity } from '@monorise/base';
-import type { Request, Response } from 'express';
+import { createMiddleware } from 'hono/factory';
 import httpStatus from 'http-status';
 import { StandardError, StandardErrorCode } from '../../errors/standard-error';
 import type { MutualService } from '../../services/mutual.service';
@@ -7,10 +7,10 @@ import type { MutualService } from '../../services/mutual.service';
 export class DeleteMutualController {
   constructor(private mutualService: MutualService) {}
 
-  controller: (req: Request, res: Response) => void = async (req, res) => {
-    const accountId = req.headers['account-id'];
+  controller = createMiddleware(async (c) => {
+    const accountId = c.req.header('account-id');
     const { byEntityType, byEntityId, entityType, entityId } =
-      req.params as unknown as {
+      c.req.param() as {
         byEntityType: Entity;
         byEntityId: string;
         entityType: Entity;
@@ -26,18 +26,19 @@ export class DeleteMutualController {
         accountId,
       });
 
-      return res.json(mutual);
+      return c.json(mutual);
     } catch (err) {
       if (
         err instanceof StandardError &&
         err.code === StandardErrorCode.MUTUAL_NOT_FOUND
       ) {
-        return res.status(httpStatus.BAD_REQUEST).json({
+        c.status(httpStatus.BAD_REQUEST);
+        return c.json({
           ...err.toJSON(),
         });
       }
 
       throw err;
     }
-  };
+  });
 }

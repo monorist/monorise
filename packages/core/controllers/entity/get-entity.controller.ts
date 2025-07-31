@@ -1,5 +1,5 @@
 import type { Entity } from '@monorise/base';
-import type { Request, Response } from 'express';
+import { createMiddleware } from 'hono/factory';
 import httpStatus from 'http-status';
 import type { EntityRepository } from '../../data/Entity';
 import { StandardError, StandardErrorCode } from '../../errors/standard-error';
@@ -7,8 +7,8 @@ import { StandardError, StandardErrorCode } from '../../errors/standard-error';
 export class GetEntityController {
   constructor(private entityRepository: EntityRepository) {}
 
-  controller: (req: Request, res: Response) => void = async (req, res) => {
-    const { entityType, entityId } = req.params as unknown as {
+  controller = createMiddleware(async (c) => {
+    const { entityType, entityId } = c.req.param() as {
       entityType: Entity;
       entityId: string;
     };
@@ -19,13 +19,15 @@ export class GetEntityController {
         entityId,
       );
 
-      return res.status(httpStatus.OK).json(entity);
+      c.status(httpStatus.OK);
+      return c.json(entity);
     } catch (err) {
       if (
         err instanceof StandardError &&
         err.code === StandardErrorCode.ENTITY_IS_UNDEFINED
       ) {
-        return res.status(httpStatus.NOT_FOUND).json({
+        c.status(httpStatus.NOT_FOUND);
+        return c.json({
           code: 'ENTITY_NOT_FOUND',
           message: 'Entity not found',
         });
@@ -33,5 +35,5 @@ export class GetEntityController {
 
       throw err;
     }
-  };
+  });
 }

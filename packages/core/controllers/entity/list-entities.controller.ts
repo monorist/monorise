@@ -1,5 +1,5 @@
 import type { Entity } from '@monorise/base';
-import type { Request, Response } from 'express';
+import { createMiddleware } from 'hono/factory';
 import { z } from 'zod';
 import type { EntityRepository } from '../../data/Entity';
 
@@ -14,32 +14,33 @@ const querySchema = z.object({
 export class ListEntitiesController {
   constructor(private entityRepository: EntityRepository) {}
 
-  controller: (req: Request, res: Response) => void = async (req, res) => {
+  controller = createMiddleware(async (c) => {
     const errorContext: { [key: string]: any } = {};
     try {
-      const accountId = req.headers['account-id'] || '';
+      const accountId = c.req.header('account-id') || '';
       if (Array.isArray(accountId)) {
         throw new Error('multiple account-id detected');
       }
 
-      errorContext.accountId = accountId;
-      errorContext.params = req.params;
-      errorContext.query = req.query;
+      const params = c.req.param();
+      const queries = c.req.query();
 
-      const { entityType } = req.params as unknown as {
+      errorContext.accountId = accountId;
+      errorContext.params = params;
+      errorContext.query = queries;
+
+      const { entityType } = params as {
         entityType: Entity;
       };
 
-      const { lastKey, query, limit, start, end } = querySchema.parse(
-        req.query,
-      );
+      const { lastKey, query, limit, start, end } = querySchema.parse(queries);
       if (query) {
         const results = await this.entityRepository.queryEntities(
           entityType,
           query,
         );
 
-        return res.json({
+        return c.json({
           data: results.items.map((item) => item.toJSON()),
           totalCount: results.totalCount,
           filteredCount: results.filteredCount,
@@ -54,14 +55,15 @@ export class ListEntitiesController {
         },
         ...(start && end ? { between: { start, end } } : {}),
       });
-      return res.json({
+      return c.json({
         data: results.items.map((item) => item.toJSON()),
         totalCount: results.totalCount,
         lastKey: results.lastKey,
       });
     } catch (error) {
       console.log({ error, errorContext });
-      return res.status(500).json({ message: error });
+      c.status(500);
+      return c.json({ message: error });
     }
-  };
+  });
 }
