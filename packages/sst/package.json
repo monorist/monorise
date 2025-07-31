@@ -1,6 +1,6 @@
 {
   "name": "@monorise/sst",
-  "version": "0.0.0",
+  "version": "1.0.0-dev.0",
   "description": "",
   "type": "module",
   "main": "dist/index.js",
@@ -10,7 +10,9 @@
     "build": "tsc -b",
     "dev": "tsc -b --watch"
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "keywords": [],
   "author": "",
   "license": "ISC",
