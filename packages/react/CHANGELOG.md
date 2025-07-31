@@ -1,5 +1,13 @@
 # @monorise/react
 
+## 0.4.2
+
+### Patch Changes
+
+- 2211e49: - fix undefined tag state `dataMap`
+  - added update local tag state action
+  - added delete local tag state action
+
 ## 0.4.1
 
 ### Patch Changes
