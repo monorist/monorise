@@ -23,7 +23,9 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          npm ci
+          npm -w @monorise/sst run sst:install
 
       - name: Create Release Pull Request or Publish to npm
         id: changesets
