@@ -616,8 +616,9 @@ export class EntityRepository extends Repository {
         // check if any of the unique fields has changed
         updatedUniqueFields = uniqueFields.filter(
           (field) =>
+            toUpdate.data[field] !== undefined &&
             (toUpdate.data as Record<string, unknown>)[field] !==
-            (previousEntity.data as Record<string, unknown>)[field],
+              (previousEntity.data as Record<string, unknown>)[field],
         );
 
         previousUniqueFieldValues = updatedUniqueFields.reduce(
