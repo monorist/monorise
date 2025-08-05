@@ -423,32 +423,21 @@ export class EntityRepository extends Repository {
 
     const uniqueFields = (this.EntityConfig[entityType].uniqueFields ||
       []) as string[];
+    const uniqueFieldValues: Record<string, string> = {};
 
-    const hasUniqueFields = Object.keys(entityPayload).some((field) =>
-      uniqueFields.includes(field),
-    );
+    for (const field of uniqueFields) {
+      if (!(field in entityPayload)) continue;
 
-    let uniqueFieldValues: Record<string, string> = {};
-
-    if (hasUniqueFields) {
-      for (const field of uniqueFields) {
-        if (
-          typeof (entityPayload as Record<string, string>)[field] !== 'string'
-        ) {
-          throw new StandardError(
-            StandardErrorCode.INVALID_UNIQUE_VALUE_TYPE,
-            `Invalid type. ${field} is not a 'string'.`,
-          );
-        }
+      if (
+        typeof (entityPayload as Record<string, string>)[field] !== 'string'
+      ) {
+        throw new StandardError(
+          StandardErrorCode.INVALID_UNIQUE_VALUE_TYPE,
+          `Invalid type. ${field} is not a 'string'.`,
+        );
       }
 
-      uniqueFieldValues = uniqueFields.reduce(
-        (acc, field) => ({
-          ...acc,
-          [field]: (entityPayload as Record<string, unknown>)[field],
-        }),
-        {},
-      );
+      uniqueFieldValues[field] = entityPayload[field];
     }
 
     const TransactItems = this.createEntityTransactItems<T>(entity, {
