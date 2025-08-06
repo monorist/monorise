@@ -1,5 +1,11 @@
 # @monorise/core
 
+## 0.1.11
+
+### Patch Changes
+
+- a6ce58a: unique field validation bug fix
+
 ## 0.1.10
 
 ### Patch Changes
