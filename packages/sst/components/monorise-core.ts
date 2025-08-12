@@ -108,7 +108,7 @@ export class MonoriseCore {
       alarmTopic: this.alarmTopic,
       runtime,
       environment,
-      link: [this.table.table],
+      link: [this.table.table, this.bus],
     });
 
     const tagProcessor = new QFunction('tag', {
