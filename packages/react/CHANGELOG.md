@@ -1,5 +1,11 @@
 # @monorise/react
 
+## 1.0.0-dev.1
+
+### Patch Changes
+
+- 9016b15: update react to 19
+
 ## 1.0.0-dev.0
 
 ### Patch Changes
