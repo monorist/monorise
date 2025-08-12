@@ -9,6 +9,7 @@
     "@monorise/sst": "0.0.0"
   },
   "changesets": [
+    "deep-rockets-poke",
     "lovely-parts-sniff"
   ]
 }
