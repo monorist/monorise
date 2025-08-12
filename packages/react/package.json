@@ -27,15 +27,13 @@
     "immer": "^10.1.1"
   },
   "devDependencies": {
-    "@types/react": "^18",
-    "@types/react-dom": "^18"
+    "@types/react": "^19",
+    "@types/react-dom": "^19"
   },
   "peerDependencies": {
     "@monorise/base": "^1.0.0-dev.0",
-    "react": "^18",
-    "react-dom": "^18"
+    "react": "^19",
+    "react-dom": "^19"
   },
-  "files": [
-    "dist"
-  ]
+  "files": ["dist"]
 }
