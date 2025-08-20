@@ -67,36 +67,36 @@ export class MonoriseCore {
     });
 
     this.alarmTopic = new sst.aws.SnsTopic(`${id}-monorise-dlq-alarm-topic`);
-    this.alarmTopic.subscribe('send-cloudwatch-alarm', {
-      name: `${$app.stage}-${id}-monorise-send-cloudwatch-alarm`,
-      handler:
-        'node_modules/monorise/sst/function/send-cloudwatch-alarm.handler',
-      memory: '512 MB',
-      runtime,
-      environment: args?.slackWebhook
-        ? { SLACK_MONITOR_WEBHOOK: args.slackWebhook }
-        : undefined,
-    });
+    // this.alarmTopic.subscribe('send-cloudwatch-alarm', {
+    //   name: `${$app.stage}-${id}-monorise-send-cloudwatch-alarm`,
+    //   handler:
+    //     'node_modules/monorise/sst/function/send-cloudwatch-alarm.handler',
+    //   memory: '512 MB',
+    //   runtime,
+    //   environment: args?.slackWebhook
+    //     ? { SLACK_MONITOR_WEBHOOK: args.slackWebhook }
+    //     : undefined,
+    // });
 
-    this.bus.subscribe(
-      'send-error-message',
-      {
-        name: `${$app.stage}-${id}-monorise-send-error-message`,
-        handler:
-          'node_modules/monorise/sst/function/send-error-message.handler',
-        memory: '512 MB',
-        runtime,
-        environment: args?.slackWebhook
-          ? { SLACK_MONITOR_WEBHOOK: args.slackWebhook }
-          : undefined,
-      },
-      {
-        pattern: {
-          source: [EVENT.GENERAL.ENDPOINT_ERROR.Source],
-          detailType: [EVENT.GENERAL.ENDPOINT_ERROR.DetailType],
-        },
-      },
-    );
+    // this.bus.subscribe(
+    //   'send-error-message',
+    //   {
+    //     name: `${$app.stage}-${id}-monorise-send-error-message`,
+    //     handler:
+    //       'node_modules/monorise/sst/function/send-error-message.handler',
+    //     memory: '512 MB',
+    //     runtime,
+    //     environment: args?.slackWebhook
+    //       ? { SLACK_MONITOR_WEBHOOK: args.slackWebhook }
+    //       : undefined,
+    //   },
+    //   {
+    //     pattern: {
+    //       source: [EVENT.GENERAL.ENDPOINT_ERROR.Source],
+    //       detailType: [EVENT.GENERAL.ENDPOINT_ERROR.DetailType],
+    //     },
+    //   },
+    // );
 
     const environment = {
       CORE_TABLE: this.table.table.name,
