@@ -239,9 +239,10 @@ export const appHandler = coreFactory.appHandler(${appHandlerPayload});
   return handleOutputPath;
 }
 
-async function generateFiles(): Promise<string> {
-  const configFilePathTS = path.resolve('./monorise.config.ts');
-  const configFilePathJS = path.resolve('./monorise.config.js');
+async function generateFiles(rootPath?: string): Promise<string> {
+  const baseDir = rootPath ? path.resolve(rootPath) : process.cwd();
+  const configFilePathTS = path.join(baseDir, 'monorise.config.ts');
+  const configFilePathJS = path.join(baseDir, 'monorise.config.js');
 
   let configFilePath: string;
   if (fs.existsSync(configFilePathTS)) {
@@ -269,8 +270,8 @@ async function generateFiles(): Promise<string> {
   return configDir;
 }
 
-async function runInitCommand() {
-  const projectRoot = process.cwd();
+async function runInitCommand(rootPath?: string) {
+  const projectRoot = rootPath ? path.resolve(rootPath) : process.cwd();
   console.log(`Initializing Monorise project in ${projectRoot}...`);
 
   // 1. Create monorise.config.ts
@@ -362,7 +363,7 @@ export default config;
   console.log('Monorise initialization complete!');
 }
 
-async function runDevCommand(configDir: string) {
+async function runDevCommand(configDir: string, rootPath?: string) {
   console.log(`Watching for changes in ${configDir}...`);
   const watcher = chokidar.watch(configDir, {
     ignored: (watchedPath: string) => {
@@ -385,7 +386,7 @@ async function runDevCommand(configDir: string) {
   watcher.on('add', async (filePath) => {
     console.log(`File ${filePath} has been added. Regenerating...`);
     try {
-      await generateFiles();
+      await generateFiles(rootPath);
     } catch (err) {
       console.error('Regeneration failed:', err);
     }
@@ -394,7 +395,7 @@ async function runDevCommand(configDir: string) {
   watcher.on('change', async (filePath) => {
     console.log(`File ${filePath} has been changed. Regenerating...`);
     try {
-      await generateFiles();
+      await generateFiles(rootPath);
     } catch (err) {
       console.error('Regeneration failed:', err);
     }
@@ -403,7 +404,7 @@ async function runDevCommand(configDir: string) {
   watcher.on('unlink', async (filePath) => {
     console.log(`File ${filePath} has been removed. Regenerating...`);
     try {
-      await generateFiles();
+      await generateFiles(rootPath);
     } catch (err) {
       console.error('Regeneration failed:', err);
     }
@@ -421,25 +422,33 @@ async function runDevCommand(configDir: string) {
   });
 }
 
-async function runBuildCommand() {
+async function runBuildCommand(rootPath?: string) {
   console.log('Starting sst build...');
-  await generateFiles();
+  await generateFiles(rootPath);
 }
 
 async function main() {
   const args = process.argv.slice(2);
   const command = args[0];
 
+  let rootPath: string | undefined;
+  const rootFlagIndex = args.indexOf('--config-root');
+  if (rootFlagIndex > -1 && args[rootFlagIndex + 1]) {
+    rootPath = args[rootFlagIndex + 1];
+  }
+
   try {
     if (command === 'dev') {
-      const configDir = await generateFiles();
-      await runDevCommand(configDir);
+      const configDir = await generateFiles(rootPath);
+      await runDevCommand(configDir, rootPath);
     } else if (command === 'build') {
-      await runBuildCommand();
+      await runBuildCommand(rootPath);
     } else if (command === 'init') {
-      await runInitCommand();
+      await runInitCommand(rootPath);
     } else {
-      console.error('Unknown command. Usage: monorise [dev|build|init]');
+      console.error(
+        'Unknown command. Usage: monorise [dev|build|init] [--root <path>]',
+      );
       process.exit(1);
     }
   } catch (err) {
