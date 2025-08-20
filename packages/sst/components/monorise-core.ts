@@ -1,12 +1,14 @@
-import { SingleTable } from './single-table';
+import path from 'node:path';
 import { EVENT, SOURCE } from '../constants/event';
 import { QFunction } from './q-function';
+import { SingleTable } from './single-table';
 
 type MonoriseCoreArgs = {
   tableTtl?: string;
   slackWebhook?: string;
   allowHeaders?: string[];
   allowOrigins?: string[];
+  configRoot?: string;
 };
 
 export class MonoriseCore {
@@ -18,11 +20,15 @@ export class MonoriseCore {
 
   constructor(id: string, args?: MonoriseCoreArgs) {
     const runtime: sst.aws.FunctionArgs['runtime'] = 'nodejs22.x';
+    const configRootCommand = args?.configRoot
+      ? `--config-root ${args.configRoot}`
+      : '';
+    const dotMonorisePath = path.join(args?.configRoot ?? '', '.monorise');
 
     new sst.x.DevCommand('Monorise', {
       dev: {
         autostart: true,
-        command: 'npx monorise dev',
+        command: `npx monorise dev ${configRootCommand}`,
       },
     });
 
@@ -45,12 +51,13 @@ export class MonoriseCore {
     this.table = new SingleTable(id, {
       ttl: args?.tableTtl,
       runtime,
+      configRoot: args?.configRoot,
     });
 
     const secretApiKeys = new sst.Secret('API_KEYS', '["secret1", "secret2"]');
 
     this.api.route('ANY /core/{proxy+}', {
-      handler: '.monorise/handle.appHandler',
+      handler: `${dotMonorisePath}/handle.appHandler`,
       link: [this.table.table, this.bus, secretApiKeys],
       environment: {
         API_KEYS: secretApiKeys.value,
@@ -101,7 +108,7 @@ export class MonoriseCore {
      */
     const mutualProcessor = new QFunction('mutual', {
       name: `${$app.stage}-${$app.name}-${id}-mutual-processor`,
-      handler: '.monorise/handle.mutualHandler',
+      handler: `${dotMonorisePath}/handle.mutualHandler`,
       memory: '512 MB',
       timeout: '30 seconds',
       visibilityTimeout: '30 seconds',
@@ -113,7 +120,7 @@ export class MonoriseCore {
 
     const tagProcessor = new QFunction('tag', {
       name: `${$app.stage}-${$app.name}-${id}-tag-processor`,
-      handler: '.monorise/handle.tagHandler',
+      handler: `${dotMonorisePath}/handle.tagHandler`,
       memory: '512 MB',
       timeout: '30 seconds',
       visibilityTimeout: '30 seconds',
@@ -125,7 +132,7 @@ export class MonoriseCore {
 
     const treeProcessor = new QFunction('tree', {
       name: `${$app.stage}-${$app.name}-${id}-tree-processor`,
-      handler: '.monorise/handle.treeHandler',
+      handler: `${dotMonorisePath}/handle.treeHandler`,
       memory: '512 MB',
       timeout: '30 seconds',
       visibilityTimeout: '30 seconds',

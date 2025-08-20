@@ -224,9 +224,10 @@ export const appHandler = AppHandler({
   return handleOutputPath;
 }
 
-async function generateFiles(): Promise<string> {
-  const configFilePathTS = path.resolve('./monorise.config.ts');
-  const configFilePathJS = path.resolve('./monorise.config.js');
+async function generateFiles(rootPath?: string): Promise<string> {
+  const baseDir = rootPath ? path.resolve(rootPath) : process.cwd();
+  const configFilePathTS = path.join(baseDir, 'monorise.config.ts');
+  const configFilePathJS = path.join(baseDir, 'monorise.config.js');
 
   let configFilePath: string;
   if (fs.existsSync(configFilePathTS)) {
