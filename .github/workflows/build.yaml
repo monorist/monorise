@@ -74,4 +74,3 @@ jobs:
         run: |
           npm -w @monorise/sst run sst:install
           npm run build
-          chmod +x packages/cli/dist/cli.js
