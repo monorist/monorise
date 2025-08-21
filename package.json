@@ -4,7 +4,7 @@
   "description": "",
   "packageManager": "npm@10.9.2",
   "scripts": {
-    "build": "npm run clear-dist && turbo run build -- --force && chmod +x packages/cli/dist/cli.js",
+    "build": "npm run clear-dist && turbo run build && chmod +x packages/cli/dist/cli.js",
     "dev": "npm run clear-dist && turbo run dev",
     "clear-dist": "./scripts/clear.sh",
     "release": "npm run build && npm run changeset -- publish",
