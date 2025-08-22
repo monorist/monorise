@@ -6,6 +6,18 @@
 
 - 54beb03: monorise to support sst v3
 
+## 0.1.11
+
+### Patch Changes
+
+- a6ce58a: unique field validation bug fix
+
+## 0.1.10
+
+### Patch Changes
+
+- 5eafbba: feat: support limit mutuals returned
+
 ## 0.1.9
 
 ### Patch Changes
