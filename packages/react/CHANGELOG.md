@@ -1,5 +1,13 @@
 # @monorise/react
 
+## 0.4.3
+
+### Patch Changes
+
+- c7f5ec0: add useEntities attributes
+  - enable custom search interval
+  - added `refetch()` & `listMore()` attributes
+
 ## 0.4.2
 
 ### Patch Changes
