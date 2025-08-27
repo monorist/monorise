@@ -76,7 +76,10 @@ const initCoreActions = (
       return;
     }
 
-    if ((isFirstFetched && !params.skRange) || isLoading) {
+    if (
+      !opts.forceFetch &&
+      ((isFirstFetched && !params.skRange) || isLoading)
+    ) {
       return;
     }
 
@@ -1206,7 +1209,7 @@ const initCoreActions = (
       };
       all?: boolean;
     } = {},
-    opts: CommonOptions = {},
+    opts: CommonOptions & { searchInterval?: number } = {},
   ): {
     isLoading: boolean;
     entities?: CreatedEntity<T>[];
@@ -1219,6 +1222,8 @@ const initCoreActions = (
     };
     lastKey?: string;
     isFirstFetched?: boolean;
+    listMore: () => void;
+    refetch: () => void;
   } => {
     const requestKey = getEntityRequestKey('list', entityType);
     const isListing = useLoadStore(requestKey);
@@ -1264,7 +1269,7 @@ const initCoreActions = (
         queryTimeout = setTimeout(async () => {
           await searchEntities(entityType, query);
           setIsSearching(false);
-        }, 700);
+        }, opts.searchInterval ?? 700);
       }
 
       return () => queryTimeout && clearTimeout(queryTimeout);
@@ -1308,6 +1313,28 @@ const initCoreActions = (
       requestKey,
       isFirstFetched,
       lastKey,
+      refetch: async () => {
+        if (entityType && query) {
+          await searchEntities(entityType, query);
+          return;
+        }
+        await listEntities(
+          entityType,
+          { skRange, all },
+          {
+            ...opts,
+            forceFetch: true,
+          },
+        );
+      },
+      listMore: async () => {
+        if (!lastKey) return;
+
+        await listMoreEntities(entityType, {
+          ...opts,
+          forceFetch: true,
+        });
+      },
     };
   };
 
