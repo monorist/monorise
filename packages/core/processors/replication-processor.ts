@@ -50,7 +50,7 @@ export const handler =
             ExpressionAttributeNames: Record<string, string>;
             ExpressionAttributeValues: Record<string, AttributeValue>;
           } = {
-            FilterExpression: `#${targetUpdatedAt} < :${targetUpdatedAt}`,
+            FilterExpression: `attribute_not_exists(#${targetUpdatedAt}) OR #${targetUpdatedAt} < :${targetUpdatedAt}`,
             ExpressionAttributeNames: {
               [`#${targetRPK}`]: targetRPK,
               [`#${targetUpdatedAt}`]: targetUpdatedAt,
@@ -68,12 +68,14 @@ export const handler =
             ExpressionAttributeValues: Record<string, AttributeValue>;
           } = {
             UpdateExpression: `SET #${targetUpdatedAt} = :${targetUpdatedAt}, #${targetData} = :${targetData}`,
-            ConditionExpression: `#${targetUpdatedAt} < :${targetUpdatedAt}`,
+            ConditionExpression: `#PK <> :PK AND (attribute_not_exists(#${targetUpdatedAt}) OR #${targetUpdatedAt} < :${targetUpdatedAt})`,
             ExpressionAttributeNames: {
+              '#PK': 'PK',
               [`#${targetData}`]: targetData,
               [`#${targetUpdatedAt}`]: targetUpdatedAt,
             },
             ExpressionAttributeValues: {
+              ':PK': modifiedItem.PK,
               [`:${targetData}`]: modifiedItem.data,
               [`:${targetUpdatedAt}`]: modifiedItem.updatedAt,
             },
