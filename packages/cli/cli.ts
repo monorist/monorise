@@ -447,7 +447,7 @@ async function main() {
       await runInitCommand(rootPath);
     } else {
       console.error(
-        'Unknown command. Usage: monorise [dev|build|init] [--root <path>]',
+        'Unknown command. Usage: monorise [dev|build|init] [--config-root <path>]',
       );
       process.exit(1);
     }
