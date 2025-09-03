@@ -259,7 +259,7 @@ async function generateFiles(rootPath?: string): Promise<string> {
   const monoriseConfigModule = await import(configFilePath);
   const monoriseConfig = monoriseConfigModule.default;
 
-  const configDir = path.resolve(monoriseConfig.configDir);
+  const configDir = path.resolve(projectRoot, monoriseConfig.configDir);
   const monoriseOutputDir = path.join(projectRoot, '.monorise');
 
   fs.mkdirSync(monoriseOutputDir, { recursive: true });
