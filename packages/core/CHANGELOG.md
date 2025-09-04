@@ -1,5 +1,11 @@
 # @monorise/core
 
+## 1.0.0-dev.1
+
+### Patch Changes
+
+- c3609ab: feat: dependency container access from custom route
+
 ## 1.0.0-dev.0
 
 ### Major Changes
