@@ -1,5 +1,13 @@
 # @monorise/cli
 
+## 1.0.0-dev.2
+
+### Patch Changes
+
+- b642115: fix: monorise.config.ts read path inconsistency
+  chore: help manual update to --config-root
+- c3609ab: feat: dependency container access from custom route
+
 ## 1.0.0-dev.1
 
 ### Patch Changes
