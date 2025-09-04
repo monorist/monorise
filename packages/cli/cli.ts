@@ -193,17 +193,16 @@ async function generateHandleFile(
 
     if (
       !routesExport ||
-      (typeof routesExport !== 'function' &&
-        typeof routesExport !== 'object') ||
       routesExport === null ||
-      !(
-        'get' in routesExport &&
-        'post' in routesExport &&
-        'use' in routesExport
-      )
+      (typeof routesExport === 'object' &&
+        !(
+          'get' in routesExport &&
+          'post' in routesExport &&
+          'use' in routesExport
+        ))
     ) {
       throw new Error(
-        `Custom routes file at '${absoluteCustomRoutesPath}' must default export an instance of Hono (or an object with .get, .post, .use methods).`,
+        `Custom routes file at '${absoluteCustomRoutesPath}' must default export an instance of Hono (or an object with .get, .post, .use methods). Or a function that consume the dependency container provided by route handler.`,
       );
     }
 

@@ -8,33 +8,37 @@ import generalErrorHandler from '../middlewares/general-error-handler';
 import type { DependencyContainer } from '../services/DependencyContainer';
 
 type AppHandleArgs = {
-  routes?: Hono;
+  routes?: (container: DependencyContainer) => Hono | Hono;
 };
 
 export const appHandler =
   (container: DependencyContainer) =>
-  ({ routes }: AppHandleArgs) => {
-    const app = new Hono().basePath('/core');
+    ({ routes }: AppHandleArgs) => {
+      const app = new Hono().basePath('/core');
 
-    app.use(secureHeaders());
-    app.use(
-      cors({
-        allowHeaders: ['Content-Type'],
-        credentials: true,
-        origin: process.env.ALLOWED_ORIGIN
-          ? (JSON.parse(process.env.ALLOWED_ORIGIN as string) as string[])
-          : [],
-      }),
-    );
-    app.use(apiKeyAuth);
+      app.use(secureHeaders());
+      app.use(
+        cors({
+          allowHeaders: ['Content-Type'],
+          credentials: true,
+          origin: process.env.ALLOWED_ORIGIN
+            ? (JSON.parse(process.env.ALLOWED_ORIGIN as string) as string[])
+            : [],
+        }),
+      );
+      app.use(apiKeyAuth);
 
-    if (routes) {
-      app.route('/app', routes);
-    }
+      if (routes) {
+        if (typeof routes !== 'function') {
+          app.route('/app', routes);
+        } else {
+          app.route('/app', routes(container));
+        }
+      }
 
-    app.route('/', setupCommonRoutes(container));
+      app.route('/', setupCommonRoutes(container));
 
-    app.use(generalErrorHandler());
+      app.use(generalErrorHandler());
 
-    return handle(app);
-  };
+      return handle(app);
+    };
