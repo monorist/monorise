@@ -223,7 +223,7 @@ async function generateHandleFile(
   // If customRoutesPath is not provided, routesImportLine remains empty and appHandlerPayload remains `{}`
 
   const combinedContent = `
-import CoreFactory from '@monorise/core';
+import CoreFactory from 'monorise/core';
 import config from './config';
 ${routesImportLine ? `${routesImportLine}\n` : ''}const coreFactory = new CoreFactory(config);
 
@@ -269,8 +269,113 @@ async function generateFiles(): Promise<string> {
   return configDir;
 }
 
+function addTurbopackConfig(configContent: string): string {
+  // Check if it's a simple config object
+  if (
+    configContent.includes('const nextConfig: NextConfig = {') &&
+    configContent.includes('/* config options here */')
+  ) {
+    // Replace the simple config with one that includes turbopack
+    return configContent.replace(
+      'const nextConfig: NextConfig = {\n  /* config options here */\n};',
+      `const nextConfig: NextConfig = {
+  turbopack: {
+    resolveAlias: {
+      'monorise/base': './node_modules/monorise/dist/base/index.js',
+      'monorise/react': './node_modules/monorise/dist/react/index.js',
+      'monorise/core': './node_modules/monorise/dist/core/index.js',
+      'monorise/sst': './node_modules/monorise/dist/sst/index.js',
+    },
+  },
+};`,
+    );
+  }
+
+  // If it's a more complex config, try to add turbopack to existing config
+  if (configContent.includes('const nextConfig: NextConfig = {')) {
+    // Find the closing brace and add turbopack config before it
+    const lines = configContent.split('\n');
+    const configStartIndex = lines.findIndex((line) =>
+      line.includes('const nextConfig: NextConfig = {'),
+    );
+    const configEndIndex = lines.findIndex(
+      (line, index) => index > configStartIndex && line.trim() === '};',
+    );
+
+    if (configStartIndex !== -1 && configEndIndex !== -1) {
+      // Insert turbopack config before the closing brace
+      const turbopackConfig = [
+        '  turbopack: {',
+        '    resolveAlias: {',
+        "      'monorise/base': './node_modules/monorise/dist/base/index.js',",
+        "      'monorise/react': './node_modules/monorise/dist/react/index.js',",
+        "      'monorise/core': './node_modules/monorise/dist/core/index.js',",
+        "      'monorise/sst': './node_modules/monorise/dist/sst/index.js',",
+        '    },',
+        '  },',
+      ];
+
+      lines.splice(configEndIndex, 0, ...turbopackConfig);
+      return lines.join('\n');
+    }
+  }
+
+  // If we can't parse it, return original content
+  return configContent;
+}
+
+const MONORISE_LOGO = `
+                                                                                  
+                                                                                  
+                                                                                  
+                                     ░░░░░░░                                      
+                                 ░░▒▒▒░░░░░░▒▒▒░                                  
+                               ░▒▒░           ░▒▒░                                
+                             ░▒▒░               ░▒▒░                              
+                            ░▒░                   ░▒▒░                            
+                          ░▒▒░                      ▒▒▒░                          
+                        ░▒░░░▒░                    ░▒░░▒▒░                        
+                      ░▒▒░ ░▒▒▒░                  ░▒▒░  ░▒░░                      
+                    ░▒▒  ░▒▒░ ░▒▒░              ░▒░  ░▒░  ░▒░                     
+                  ░▒▒░  ░▒░  ░▒░░▒▒░░░      ░░▒▒░░▒░  ░▒▒   ░▒░                   
+                ░░▒░  ░▒░   ░▒░  ░▒▒░░▒▒▒▒▒▒░░▒░  ░▒░░  ░▒░   ░▒░                 
+               ░▒░  ░░▒░   ░▒░  ░░░  ░▒░  ░░  ░▒░   ░▒░  ░▒░░  ░░▒░               
+             ░▒░   ░▒░   ░▒░    ░▒   ░░   ░▒░  ░▒░   ░▒░   ░▒░   ░░░░             
+           ░░░   ░░░░   ░░░    ░░    ▒░   ░░░   ░░░   ░░░    ░░░   ░░░░           
+         ░░░   ░░░░    ░░░    ░░░   ░░░    ░░    ░░░    ░░░   ░░░    ░░░░         
+       ░░░    ░░░    ░░░     ░░░    ░░     ░░     ░░░    ░░░    ░░░    ░░░        
+      ░░░   ░░░░    ░░░     ░░░     ░░     ░░░     ░░     ░░░    ░░░     ░░░      
+     ░░    ░░░    ░░░      ░░░     ░░░      ░░     ░░░      ░░░    ░░░    ░░░     
+    ░░    ░░      ░░       ░░      ░░       ░░░     ░░░      ░░░    ░░░░   ░░░    
+                                  ░░░        ░░      ░░░      ░░░     ░░░         
+    ░░░░░▒░░░░░░░░░▒░░░░░░░░░      ░         ░░       ░░░       ░░░     ░░        
+    ░░░                    ░░░░░░░░░         ░░░       ░░░                        
+    ░░░                           ░░░░░░      ░░            ░░░░░▒░░░░░░▒░░░░     
+     ░░░░░░░░░░░░░░░░░                 ░░░░░          ░░░░░░░░            ░░      
+      ░░░░░░░     ░░░░░░░░░░░░░░           ░░░░    ░░░░░                ░▒░       
+        ░░░                   ░░░░░░░         ░░░░░░             ░░░░░░░░         
+          ░░░░░░░░░░░░              ░░░░░░   ░░░░         ░░░░░░░░░░░░░           
+            ░▒▒░░░░░░░░░░░▒▒░░          ░░▒▒▒░░       ░▒▒░░       ░░░░            
+              ░▒░            ░░▒▒░        ░▒░      ░▒▒░         ░░▒░              
+                ░▒░    ░░░░▒▒▒▒▒▒▒▒▒▒░░ ░▒░      ▒▒░        ░░▒▒▒░                
+                 ░▒▒▒▒▒░░░          ░░░▒▒▒▒▒░  ▒▒░      ░▒▒▒▒▒▒░                  
+                   ░▒▒░                     ░▒▒▒▒     ▒▒▒  ▒▒▒                    
+                     ░▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░         ░▒▒▒▒▒░  ░▒▒                      
+                       ▒▒▒          ░░▒▒▒▒▒▒░      ▒▒▒ ░▒▒                        
+                         ▒▒▒               ░▒▒▒▒    ░▒▒▒░                         
+                           ▒▓▓▓▒▒▒▓▓▒▒▒░       ▒▒▒░░▒▒░                           
+                             ▒▓░      ░▒▒▓▓▒░    ▒▓▓░                             
+                              ░▒▓░         ░▒▓▒░▒▓▒                               
+                                ░▒▓▒░       ░▒▓▓▒                                 
+                                   ░▒▒▓▓▓▓▓▓▒▒░                                   
+                                                                                  
+                                                                                  
+                                                                                  
+`;
+
 async function runInitCommand() {
   const projectRoot = process.cwd();
+  console.log(MONORISE_LOGO);
   console.log(`Initializing Monorise project in ${projectRoot}...`);
 
   // 1. Create monorise.config.ts
@@ -299,7 +404,7 @@ export default config;
 
   const userEntityTsPath = path.join(monoriseEntitiesDir, 'user.ts');
   const userEntityContent = `
-import { createEntityConfig } from '@monorise/base';
+import { createEntityConfig } from 'monorise/base';
 import { z } from 'zod';
 
 const baseSchema = z
@@ -359,10 +464,40 @@ export default config;
     );
   }
 
+  // 4. Configure Next.js if next.config.ts exists
+  const nextConfigPath = path.join(projectRoot, 'next.config.ts');
+  if (fs.existsSync(nextConfigPath)) {
+    try {
+      const nextConfigContent = fs.readFileSync(nextConfigPath, 'utf8');
+
+      // Check if turbopack config already exists
+      if (
+        !nextConfigContent.includes('turbopack') &&
+        !nextConfigContent.includes('resolveAlias')
+      ) {
+        const updatedConfig = addTurbopackConfig(nextConfigContent);
+        fs.writeFileSync(nextConfigPath, updatedConfig);
+        console.log(
+          `Updated ${path.relative(projectRoot, nextConfigPath)} with Monorise aliases`,
+        );
+      } else {
+        console.log(
+          `${path.relative(projectRoot, nextConfigPath)} already has Turbopack configuration. Skipping.`,
+        );
+      }
+    } catch (error) {
+      console.error(
+        `Error updating ${path.relative(projectRoot, nextConfigPath)}:`,
+        error,
+      );
+    }
+  }
+
   console.log('Monorise initialization complete!');
 }
 
 async function runDevCommand(configDir: string) {
+  console.log(MONORISE_LOGO);
   console.log(`Watching for changes in ${configDir}...`);
   const watcher = chokidar.watch(configDir, {
     ignored: (watchedPath: string) => {

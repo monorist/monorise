@@ -4,7 +4,8 @@
   "description": "",
   "packageManager": "npm@10.9.2",
   "scripts": {
-    "build": "npm run clear-dist && turbo run build -- --force && chmod +x packages/cli/dist/cli.js",
+    "build": "npm run clear-dist && turbo run build -- --force && chmod +x packages/cli/dist/cli.js && npm run build:monorise",
+    "build:monorise": "cd packages/monorise && npm run build",
     "dev": "npm run clear-dist && turbo run dev",
     "clear-dist": "./scripts/clear.sh",
     "release": "npm run build && npm run changeset -- publish",
@@ -25,16 +26,12 @@
     "@changesets/cli": "^2.28.1",
     "@tsconfig/node20": "^20.1.4",
     "@types/node": "^22.13.9",
+    "tailwindcss": "^4.1.11",
     "turbo": "^2.4.4",
     "typescript": "^5.1.6"
   },
-  "exports": {
-    "./base": "./dist/base/index.js",
-    "./react": "./dist/react/index.js",
-    "./cli": "./dist/cli/index.js",
-    "./core": "./dist/core/index.js"
-  },
   "dependencies": {
     "zustand": "^4.5.2"
-  }
+  },
+  "type": "module"
 }

@@ -1,0 +1,81 @@
+{
+  "name": "monorise",
+  "version": "0.0.0",
+  "description": "Monorise - A unified package for all Monorise functionality",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "bin": {
+    "monorise": "./dist/cli/cli.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./base": {
+      "import": "./dist/base/index.js",
+      "types": "./dist/base/index.d.ts",
+      "require": "./dist/base/index.js"
+    },
+    "./core": {
+      "import": "./dist/core/index.js",
+      "types": "./dist/core/index.d.ts",
+      "require": "./dist/core/index.js"
+    },
+    "./react": {
+      "import": "./dist/react/index.js",
+      "types": "./dist/react/index.d.ts",
+      "require": "./dist/react/index.js"
+    },
+    "./sst": {
+      "import": "./dist/sst/index.js",
+      "types": "./dist/sst/index.d.ts",
+      "require": "./dist/sst/index.js"
+    },
+    "./cli": {
+      "import": "./dist/cli/cli.js",
+      "types": "./dist/cli/cli.d.ts"
+    }
+  },
+  "directories": {
+    "lib": "lib"
+  },
+  "scripts": {
+    "build": "node build.js",
+    "dev": "node build.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "files": ["dist"],
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.758.0",
+    "@aws-sdk/client-dynamodb-streams": "^3.758.0",
+    "@aws-sdk/client-eventbridge": "^3.758.0",
+    "@aws-sdk/util-dynamodb": "^3.758.0",
+    "axios": "^1.8.1",
+    "chokidar": "^4.0.3",
+    "http-status": "^1.8.1",
+    "immer": "^10.1.1",
+    "nanoid": "^5.1.3",
+    "tsconfig-paths": "^4.2.0",
+    "tsx": "^4.19.3",
+    "ulid": "^2.3.0",
+    "zustand": "^4.5.2"
+  },
+  "peerDependencies": {
+    "@tabler/icons-react": "^3.30.0",
+    "zod": "^3.25.67",
+    "hono": "^4.7.10",
+    "react": "^19",
+    "react-dom": "^19",
+    "sst": "^3.16.3"
+  },
+  "devDependencies": {
+    "@types/aws-lambda": "^8.10.147",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "vitest": "^3.1.1"
+  }
+}

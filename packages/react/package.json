@@ -35,7 +35,5 @@
     "react": "^19",
     "react-dom": "^19"
   },
-  "files": [
-    "dist"
-  ]
+  "files": ["dist"]
 }

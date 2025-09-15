@@ -10,9 +10,7 @@
     "dev": "tsc -b --watch",
     "test": "vitest run"
   },
-  "files": [
-    "dist"
-  ],
+  "files": ["dist"],
   "keywords": [],
   "author": "",
   "license": "ISC",
