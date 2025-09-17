@@ -8,6 +8,7 @@
   "scripts": {
     "build": "npm run clear-dist && turbo run build",
     "dev": "npm run clear-dist && turbo run dev",
+    "doc": "npm -w www run start",
     "clear-dist": "./scripts/clear.sh",
     "release": "npm run build && npm run changeset -- publish",
     "version": "npm run changeset -- version",
@@ -17,12 +18,8 @@
     "start:test-env": "./scripts/start-test-env.sh",
     "test": "npm -w @monorise/core run test"
   },
-  "files": [
-    "dist"
-  ],
-  "workspaces": [
-    "packages/*"
-  ],
+  "files": ["dist"],
+  "workspaces": ["packages/*", "www"],
   "keywords": [],
   "author": "monorise",
   "license": "MIT",
