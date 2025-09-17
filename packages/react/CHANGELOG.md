@@ -13,6 +13,20 @@
 - Updated dependencies [54beb03]
   - @monorise/base@1.0.0-dev.0
 
+## 0.4.2
+
+### Patch Changes
+
+- 2211e49: - fix undefined tag state `dataMap`
+  - added update local tag state action
+  - added delete local tag state action
+
+## 0.4.1
+
+### Patch Changes
+
+- 5eafbba: feat: support limit mutuals returned
+
 ## 0.4.0
 
 ### Minor Changes

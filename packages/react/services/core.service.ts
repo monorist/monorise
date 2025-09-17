@@ -54,6 +54,7 @@ export type CommonOptions = Partial<AxiosRequestConfig> & {
   noData?: boolean;
   requestKey?: string;
   onError?: (error: ApplicationRequestError | Error) => void;
+  limit?: number;
 };
 
 const initCoreService = (
@@ -271,6 +272,7 @@ const initCoreService = (
         feedback: opts.feedback,
         params: {
           chainEntityQuery,
+          limit: opts.limit,
           ...opts.params,
           ...(opts.noData && { projection: 'no-data' }),
         },
