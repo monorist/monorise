@@ -1,5 +1,11 @@
 # @monorise/core
 
+## 0.1.13
+
+### Patch Changes
+
+- 2181e0a: fix unique field missing updatedAt timestamp
+
 ## 0.1.12
 
 ### Patch Changes
