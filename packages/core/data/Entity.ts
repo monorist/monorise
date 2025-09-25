@@ -395,6 +395,8 @@ export class EntityRepository extends Repository {
             SK: { S: entity.entityType as unknown as string },
             R1PK: entity.keys().PK,
             R1SK: entity.keys().SK,
+            createdAt: { S: entity.createdAt || new Date().toISOString() },
+            updatedAt: { S: entity.updatedAt || new Date().toISOString() },
           },
         },
       });
@@ -551,6 +553,13 @@ export class EntityRepository extends Repository {
               SK: { S: entity.entityType as unknown as string },
               R1PK: entity.keys().PK,
               R1SK: entity.keys().SK,
+              createdAt: {
+                S:
+                  previousEntity.createdAt ||
+                  entity.createdAt ||
+                  new Date().toISOString(),
+              },
+              updatedAt: { S: entity.updatedAt || new Date().toISOString() },
             },
           },
         },
