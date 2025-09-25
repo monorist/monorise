@@ -82,6 +82,7 @@ async function batchUpdateTags({
     ],
     [] as Promise<any>[],
   );
+  await Promise.all(removePromises);
 
   const addPromises = tagsToAdd.reduce(
     (acc, tag) => [
@@ -95,8 +96,7 @@ async function batchUpdateTags({
     ],
     [] as Promise<any>[],
   );
-
-  await Promise.all([...removePromises, ...addPromises]);
+  await Promise.all(addPromises);
 }
 
 export const handler =
