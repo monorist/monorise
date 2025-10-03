@@ -1,5 +1,11 @@
 # @monorise/cli
 
+## 1.0.0-dev.3
+
+### Patch Changes
+
+- 9c0dcaf: fix: Provide a default typing for EmailAuthEnabledEntities
+
 ## 1.0.0-dev.2
 
 ### Patch Changes
