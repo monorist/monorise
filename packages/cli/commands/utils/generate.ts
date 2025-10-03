@@ -112,7 +112,7 @@ const AllowedEntityTypes = [
   ${allowedEntityEntries.join(',\n  ')}
 ];
 
-const EmailAuthEnabledEntities = [${entityWithEmailAuthEntries.join(', ')}];
+const EmailAuthEnabledEntities: Entity[] = [${entityWithEmailAuthEntries.join(', ')}];
 
 export {
   EntityConfig,
