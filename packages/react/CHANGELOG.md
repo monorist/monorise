@@ -1,5 +1,18 @@
 # @monorise/react
 
+## 1.0.0-dev.2
+
+### Patch Changes
+
+- 586405c: chore: backward compatible react 18
+- e14f480: sync main branch fixes
+  - #120
+  - #121
+  - #127
+  - #138
+  - #144
+  - #148
+
 ## 1.0.0-dev.1
 
 ### Patch Changes
