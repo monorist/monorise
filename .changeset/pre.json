@@ -9,10 +9,12 @@
     "@monorise/sst": "0.0.0"
   },
   "changesets": [
+    "big-horses-doubt",
     "chatty-pugs-swim",
     "clear-clocks-strive",
     "deep-rockets-poke",
     "lovely-parts-sniff",
+    "many-spies-allow",
     "shaky-parrots-dig",
     "silent-tools-check",
     "twenty-beers-wink"
