@@ -1222,8 +1222,8 @@ const initCoreActions = (
     };
     lastKey?: string;
     isFirstFetched?: boolean;
+    listMore: () => void;
     refetch: () => void;
-    listMore?: () => void;
   } => {
     const requestKey = getEntityRequestKey('list', entityType);
     const isListing = useLoadStore(requestKey);
@@ -1321,16 +1321,20 @@ const initCoreActions = (
         await listEntities(
           entityType,
           { skRange, all },
-          { ...opts, forceFetch: true },
+          {
+            ...opts,
+            forceFetch: true,
+          },
         );
       },
-      ...(lastKey && {
-        listMore: async () => {
-          if (!lastKey) return;
+      listMore: async () => {
+        if (!lastKey) return;
 
-          await listMoreEntities(entityType, { ...opts, forceFetch: true });
-        },
-      }),
+        await listMoreEntities(entityType, {
+          ...opts,
+          forceFetch: true,
+        });
+      },
     };
   };
 

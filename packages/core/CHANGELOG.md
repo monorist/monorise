@@ -24,6 +24,30 @@
 
 - 54beb03: monorise to support sst v3
 
+## 0.1.13
+
+### Patch Changes
+
+- 2181e0a: fix unique field missing updatedAt timestamp
+
+## 0.1.12
+
+### Patch Changes
+
+- dfdf262: fix tag processor race condition
+
+## 0.1.11
+
+### Patch Changes
+
+- a6ce58a: unique field validation bug fix
+
+## 0.1.10
+
+### Patch Changes
+
+- 5eafbba: feat: support limit mutuals returned
+
 ## 0.1.9
 
 ### Patch Changes
