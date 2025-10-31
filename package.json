@@ -8,6 +8,7 @@
     "dev": "npm run clear-dist && turbo run dev",
     "clear-dist": "./scripts/clear.sh",
     "release": "npm run build && npm run changeset -- publish",
+    "release:v0": "npm run build && npm run changeset -- publish --tag v0",
     "version": "npm run changeset -- version",
     "changeset": "npx @changesets/cli",
     "changeset:dev-start": "npm run changeset -- pre enter dev",

@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - v0
       - dev
 
 jobs:
@@ -27,11 +28,20 @@ jobs:
           npm ci
           npm -w @monorise/sst run sst:install
 
+      - name: Determine release tag
+        id: release-tag
+        run: |
+          if [[ "${{ github.ref }}" == "refs/heads/v0" ]]; then
+            echo "script=release:v0" >> $GITHUB_OUTPUT
+          else
+            echo "script=release" >> $GITHUB_OUTPUT
+          fi
+
       - name: Create Release Pull Request or Publish to npm
         id: changesets
         uses: changesets/action@v1
         with:
-          publish: npm run release
+          publish: npm run ${{ steps.release-tag.outputs.script }}
           version: npm run version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
