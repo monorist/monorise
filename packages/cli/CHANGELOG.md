@@ -1,5 +1,33 @@
 # @monorise/cli
 
+## 2.0.0
+
+### Major Changes
+
+- Bump version
+
+## 1.0.0
+
+### Major Changes
+
+- Release v3.0.0 - Major stable release
+- 54beb03: monorise to support sst v3
+
+### Patch Changes
+
+- 9c0dcaf: fix: Provide a default typing for EmailAuthEnabledEntities
+- a83462f: update:
+
+  - sst: support `configRoot`
+  - sst: piggyback fix tsconfig.json indefinite loop when build
+  - sst: comment out unused send alarm handler
+  - cli: support `--config-root`
+  - cli: piggyback fix tsconfig.json indefinite loop when build
+
+- b642115: fix: monorise.config.ts read path inconsistency
+  chore: help manual update to --config-root
+- c3609ab: feat: dependency container access from custom route
+
 ## 1.0.0-dev.3
 
 ### Patch Changes

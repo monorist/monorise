@@ -1,5 +1,37 @@
 # @monorise/react
 
+## 2.0.0
+
+### Major Changes
+
+- Bump version
+
+### Patch Changes
+
+- Updated dependencies
+  - @monorise/base@2.0.0
+
+## 1.0.0
+
+### Major Changes
+
+- Release v3.0.0 - Major stable release
+
+### Patch Changes
+
+- 586405c: chore: backward compatible react 18
+- 9016b15: update react to 19
+- e14f480: sync main branch fixes
+  - #120
+  - #121
+  - #127
+  - #138
+  - #144
+  - #148
+- Updated dependencies
+- Updated dependencies [54beb03]
+  - @monorise/base@1.0.0
+
 ## 1.0.0-dev.2
 
 ### Patch Changes
