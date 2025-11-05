@@ -1,5 +1,16 @@
 # @monorise/react
 
+## 3.0.0
+
+### Major Changes
+
+- 70c31c7: Bump to v3
+
+### Patch Changes
+
+- Updated dependencies [70c31c7]
+  - @monorise/base@3.0.0
+
 ## 2.0.0
 
 ### Major Changes

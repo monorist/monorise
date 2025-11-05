@@ -1,5 +1,11 @@
 # @monorise/cli
 
+## 3.0.0
+
+### Major Changes
+
+- 70c31c7: Bump to v3
+
 ## 2.0.0
 
 ### Major Changes
