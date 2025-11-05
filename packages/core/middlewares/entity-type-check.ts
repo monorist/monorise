@@ -1,20 +1,18 @@
 import type { Entity } from '@monorise/base';
-import type { NextFunction, Request, Response } from 'express';
+import { createMiddleware } from 'hono/factory';
 import httpStatus from 'http-status';
 import type { DependencyContainer } from '../services/DependencyContainer';
 
-export const entityTypeCheck =
-  (container: DependencyContainer) =>
-  (req: Request, res: Response, next: NextFunction) => {
-    const { entityType } = req.params as unknown as { entityType: Entity };
+export const entityTypeCheck = (container: DependencyContainer) =>
+  createMiddleware(async (c, next) => {
+    const { entityType } = c.req.param() as { entityType: Entity };
 
     if (!container.config.AllowedEntityTypes.includes(entityType)) {
-      res.status(httpStatus.NOT_FOUND).json({
+      c.status(httpStatus.NOT_FOUND);
+      return c.json({
         code: 'NOT_FOUND',
       });
-
-      return;
     }
 
-    next();
-  };
+    await next();
+  });

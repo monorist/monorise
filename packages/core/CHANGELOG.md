@@ -1,5 +1,53 @@
 # @monorise/core
 
+## 2.0.0
+
+### Major Changes
+
+- Bump version
+
+## 1.0.0
+
+### Major Changes
+
+- Release v3.0.0 - Major stable release
+- 54beb03: monorise to support sst v3
+
+### Patch Changes
+
+- e14f480: sync main branch fixes
+  - #120
+  - #121
+  - #127
+  - #138
+  - #144
+  - #148
+- c3609ab: feat: dependency container access from custom route
+
+## 1.0.0-dev.2
+
+### Patch Changes
+
+- e14f480: sync main branch fixes
+  - #120
+  - #121
+  - #127
+  - #138
+  - #144
+  - #148
+
+## 1.0.0-dev.1
+
+### Patch Changes
+
+- c3609ab: feat: dependency container access from custom route
+
+## 1.0.0-dev.0
+
+### Major Changes
+
+- 54beb03: monorise to support sst v3
+
 ## 0.1.13
 
 ### Patch Changes

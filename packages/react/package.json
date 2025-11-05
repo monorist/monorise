@@ -1,6 +1,6 @@
 {
   "name": "@monorise/react",
-  "version": "0.4.3",
+  "version": "2.0.0",
   "description": "",
   "main": "dist/index.js",
   "module": "dist/index.js",
@@ -27,13 +27,13 @@
     "immer": "^10.1.1"
   },
   "devDependencies": {
-    "@types/react": "^18",
-    "@types/react-dom": "^18"
+    "@types/react": "^19",
+    "@types/react-dom": "^19"
   },
   "peerDependencies": {
-    "@monorise/base": "^0.0.5",
-    "react": "^18",
-    "react-dom": "^18"
+    "@monorise/base": "^2.0.0",
+    "react": "^18 || ^19",
+    "react-dom": "^18 || ^19"
   },
   "files": [
     "dist"

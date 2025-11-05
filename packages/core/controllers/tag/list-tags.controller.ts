@@ -1,5 +1,6 @@
 import type { Entity } from '@monorise/base';
-import type { Request, Response } from 'express';
+import { createMiddleware } from 'hono/factory';
+import httpStatus from 'http-status';
 import { z } from 'zod';
 import type { TagRepository } from '../../data/Tag';
 
@@ -15,19 +16,19 @@ const querySchema = z.object({
 export class ListTagsController {
   constructor(private tagRepository: TagRepository) {}
 
-  controller: (req: Request, res: Response) => void = async (req, res) => {
+  controller = createMiddleware(async (c) => {
     const errorContext: Record<string, unknown> = {};
     try {
-      errorContext.params = req.params;
-      errorContext.query = req.query;
+      errorContext.params = c.req.param();
+      errorContext.query = c.req.query();
 
-      const { entityType, tagName } = req.params as unknown as {
+      const { entityType, tagName } = c.req.param() as {
         entityType: Entity;
         tagName: string;
       };
 
       const { lastKey, query, limit, start, end, group } = querySchema.parse(
-        req.query,
+        c.req.query(),
       );
 
       const results = await this.tagRepository.listTags({
@@ -42,14 +43,15 @@ export class ListTagsController {
         start,
         end,
       });
-      return res.json({
+      return c.json({
         entities: results.items.map((item) => item.toJSON()),
         totalCount: results.totalCount,
         lastKey: results.lastKey,
       });
     } catch (error) {
       console.log({ error, errorContext });
-      return res.status(500).json({ message: error });
+      c.status(httpStatus.INTERNAL_SERVER_ERROR);
+      return c.json({ message: error });
     }
-  };
+  });
 }

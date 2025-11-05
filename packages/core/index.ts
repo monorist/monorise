@@ -5,6 +5,7 @@ import { Mutual, MutualRepository } from './data/Mutual';
 import { PROJECTION_EXPRESSION } from './data/ProjectionExpression';
 import { TagRepository } from './data/Tag';
 import { StandardError, StandardErrorCode } from './errors/standard-error';
+import { appHandler } from './handles/app';
 import { handler as createEntityProcessor } from './processors/create-entity-processor';
 import { handler as mutualProcessor } from './processors/mutual-processor';
 import { handler as prejoinProcessor } from './processors/prejoin-processor';
@@ -21,6 +22,7 @@ class CoreFactory {
   public createEntityProcessor: ReturnType<typeof createEntityProcessor>;
   public prejoinProcessor: ReturnType<typeof prejoinProcessor>;
   public tagProcessor: ReturnType<typeof tagProcessor>;
+  public appHandler: ReturnType<typeof appHandler>;
   public dependencyContainer: DependencyContainer;
 
   constructor(
@@ -39,6 +41,7 @@ class CoreFactory {
     this.createEntityProcessor = createEntityProcessor(dependencyContainer);
     this.prejoinProcessor = prejoinProcessor(dependencyContainer);
     this.tagProcessor = tagProcessor(dependencyContainer);
+    this.appHandler = appHandler(dependencyContainer);
   }
 }
 
@@ -57,6 +60,7 @@ export {
   prejoinProcessor,
   replicationProcessor,
   tagProcessor,
+  appHandler,
   DependencyContainer,
   StandardError,
   StandardErrorCode,
