@@ -1,5 +1,11 @@
 # @monorise/react
 
+## 3.0.1
+
+### Patch Changes
+
+- 1b8d5ce: Insert if condition to check mutual exists before updating the state
+
 ## 3.0.0
 
 ### Major Changes
