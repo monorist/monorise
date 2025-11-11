@@ -476,9 +476,11 @@ const initCoreActions = (
             const [_byEntity, _byId, _entityType] = key.split('/');
             if ((_entityType as unknown as Entity) === entityType) {
               const mutual = state.mutual[key].dataMap.get(id);
-              state.mutual[key].dataMap = new Map(
-                state.mutual[key].dataMap,
-              ).set(id, { ...mutual, data: data.data });
+              if (mutual) {
+                state.mutual[key].dataMap = new Map(
+                  state.mutual[key].dataMap,
+                ).set(id, { ...mutual, data: data.data });
+              }
             }
           }
         }),
