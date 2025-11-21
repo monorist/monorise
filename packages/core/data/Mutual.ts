@@ -219,6 +219,7 @@ export class MutualRepository extends Repository {
         ':nullType': { S: 'NULL' },
       },
       ProjectionExpression: opts.ProjectionExpression,
+      ScanIndexForward: false,
     };
     let lastKey = opts.lastKey;
     let items: Mutual<B, T, M>[] = [];
