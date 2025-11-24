@@ -1,5 +1,11 @@
 # @monorise/core
 
+## 3.0.1
+
+### Patch Changes
+
+- ddbee02: Add ScanIndexForward option to listEntitiesByEntity method for descending order
+
 ## 3.0.0
 
 ### Major Changes
