@@ -265,11 +265,21 @@ const initCoreActions = (
 
       monoriseStore.setState(
         produce((state) => {
-          state.tag[tagKey] = {
-            dataMap: convertToMap(entities, 'entityId'),
-            isFirstFetched: true,
-            lastKey,
-          };
+          // Initialize tag state if it doesn't exist
+          if (!state.tag[tagKey]) {
+            state.tag[tagKey] = {
+              dataMap: new Map(),
+              isFirstFetched: false,
+            };
+          }
+
+          // Merge new entities into existing dataMap instead of replacing
+          for (const entity of entities) {
+            state.tag[tagKey].dataMap.set(entity.entityId, entity);
+          }
+
+          state.tag[tagKey].isFirstFetched = true;
+          state.tag[tagKey].lastKey = lastKey;
         }),
       );
 
