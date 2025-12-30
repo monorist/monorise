@@ -23,13 +23,15 @@ export const getMutualStateKey = (
   return `${byEntity}/${byEntityId}/${entity}${entityId ? `/${entityId}` : ''}${chainEntityQuery ? `?${chainEntityQuery}` : ''}`;
 };
 
-export const getTagStateKey = (
+ export const getTagStateKey = (
   entityType: Entity,
   tagName: string,
   params: Record<string, string> = {},
 ) => {
-  const paramsKey = Object.keys(params)
-    .map((key) => `${key}:${params[key]}`)
+  const { lastKey, ...stateParams } = params;
+
+  const paramsKey = Object.keys(stateParams)
+    .map((key) => `${key}:${stateParams[key]}`)
     .join('/');
 
   return `${entityType}/${tagName}/${paramsKey}`;
