@@ -23,7 +23,7 @@ export const getMutualStateKey = (
   return `${byEntity}/${byEntityId}/${entity}${entityId ? `/${entityId}` : ''}${chainEntityQuery ? `?${chainEntityQuery}` : ''}`;
 };
 
- export const getTagStateKey = (
+export const getTagStateKey = (
   entityType: Entity,
   tagName: string,
   params: Record<string, string> = {},
