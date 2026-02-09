@@ -1,10 +1,88 @@
 # @monorise/core
 
+## 3.0.1
+
+### Patch Changes
+
+- ddbee02: Add ScanIndexForward option to listEntitiesByEntity method for descending order
+
+## 3.0.0
+
+### Major Changes
+
+- 70c31c7: Bump to v3
+
+## 2.0.0
+
+### Major Changes
+
+- Bump version
+
+## 1.0.0
+
+### Major Changes
+
+- Release v3.0.0 - Major stable release
+- 54beb03: monorise to support sst v3
+
+### Patch Changes
+
+- e14f480: sync main branch fixes
+  - #120
+  - #121
+  - #127
+  - #138
+  - #144
+  - #148
+- c3609ab: feat: dependency container access from custom route
+
+## 1.0.0-dev.2
+
+### Patch Changes
+
+- e14f480: sync main branch fixes
+  - #120
+  - #121
+  - #127
+  - #138
+  - #144
+  - #148
+
+## 1.0.0-dev.1
+
+### Patch Changes
+
+- c3609ab: feat: dependency container access from custom route
+
 ## 1.0.0-dev.0
 
 ### Major Changes
 
 - 54beb03: monorise to support sst v3
+
+## 0.1.13
+
+### Patch Changes
+
+- 2181e0a: fix unique field missing updatedAt timestamp
+
+## 0.1.12
+
+### Patch Changes
+
+- dfdf262: fix tag processor race condition
+
+## 0.1.11
+
+### Patch Changes
+
+- a6ce58a: unique field validation bug fix
+
+## 0.1.10
+
+### Patch Changes
+
+- 5eafbba: feat: support limit mutuals returned
 
 ## 0.1.9
 

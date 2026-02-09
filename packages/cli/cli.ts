@@ -117,7 +117,7 @@ const AllowedEntityTypes = [
   ${allowedEntityEntries.join(',\n  ')}
 ];
 
-const EmailAuthEnabledEntities = [${entityWithEmailAuthEntries.join(', ')}];
+const EmailAuthEnabledEntities: Entity[] = [${entityWithEmailAuthEntries.join(', ')}];
 
 export {
   EntityConfig,
@@ -193,17 +193,16 @@ async function generateHandleFile(
 
     if (
       !routesExport ||
-      (typeof routesExport !== 'function' &&
-        typeof routesExport !== 'object') ||
       routesExport === null ||
-      !(
-        'get' in routesExport &&
-        'post' in routesExport &&
-        'use' in routesExport
-      )
+      (typeof routesExport === 'object' &&
+        !(
+          'get' in routesExport &&
+          'post' in routesExport &&
+          'use' in routesExport
+        ))
     ) {
       throw new Error(
-        `Custom routes file at '${absoluteCustomRoutesPath}' must default export an instance of Hono (or an object with .get, .post, .use methods).`,
+        `Custom routes file at '${absoluteCustomRoutesPath}' must default export an instance of Hono (or an object with .get, .post, .use methods). Or a function that consume the dependency container provided by route handler.`,
       );
     }
 
@@ -239,9 +238,10 @@ export const appHandler = coreFactory.appHandler(${appHandlerPayload});
   return handleOutputPath;
 }
 
-async function generateFiles(): Promise<string> {
-  const configFilePathTS = path.resolve('./monorise.config.ts');
-  const configFilePathJS = path.resolve('./monorise.config.js');
+async function generateFiles(rootPath?: string): Promise<string> {
+  const baseDir = rootPath ? path.resolve(rootPath) : process.cwd();
+  const configFilePathTS = path.join(baseDir, 'monorise.config.ts');
+  const configFilePathJS = path.join(baseDir, 'monorise.config.js');
 
   let configFilePath: string;
   if (fs.existsSync(configFilePathTS)) {
@@ -258,7 +258,7 @@ async function generateFiles(): Promise<string> {
   const monoriseConfigModule = await import(configFilePath);
   const monoriseConfig = monoriseConfigModule.default;
 
-  const configDir = path.resolve(monoriseConfig.configDir);
+  const configDir = path.resolve(projectRoot, monoriseConfig.configDir);
   const monoriseOutputDir = path.join(projectRoot, '.monorise');
 
   fs.mkdirSync(monoriseOutputDir, { recursive: true });
@@ -325,56 +325,56 @@ function addTurbopackConfig(configContent: string): string {
 }
 
 const MONORISE_LOGO = `
-                                                                                  
-                                                                                  
-                                                                                  
-                                     ░░░░░░░                                      
-                                 ░░▒▒▒░░░░░░▒▒▒░                                  
-                               ░▒▒░           ░▒▒░                                
-                             ░▒▒░               ░▒▒░                              
-                            ░▒░                   ░▒▒░                            
-                          ░▒▒░                      ▒▒▒░                          
-                        ░▒░░░▒░                    ░▒░░▒▒░                        
-                      ░▒▒░ ░▒▒▒░                  ░▒▒░  ░▒░░                      
-                    ░▒▒  ░▒▒░ ░▒▒░              ░▒░  ░▒░  ░▒░                     
-                  ░▒▒░  ░▒░  ░▒░░▒▒░░░      ░░▒▒░░▒░  ░▒▒   ░▒░                   
-                ░░▒░  ░▒░   ░▒░  ░▒▒░░▒▒▒▒▒▒░░▒░  ░▒░░  ░▒░   ░▒░                 
-               ░▒░  ░░▒░   ░▒░  ░░░  ░▒░  ░░  ░▒░   ░▒░  ░▒░░  ░░▒░               
-             ░▒░   ░▒░   ░▒░    ░▒   ░░   ░▒░  ░▒░   ░▒░   ░▒░   ░░░░             
-           ░░░   ░░░░   ░░░    ░░    ▒░   ░░░   ░░░   ░░░    ░░░   ░░░░           
-         ░░░   ░░░░    ░░░    ░░░   ░░░    ░░    ░░░    ░░░   ░░░    ░░░░         
-       ░░░    ░░░    ░░░     ░░░    ░░     ░░     ░░░    ░░░    ░░░    ░░░        
-      ░░░   ░░░░    ░░░     ░░░     ░░     ░░░     ░░     ░░░    ░░░     ░░░      
-     ░░    ░░░    ░░░      ░░░     ░░░      ░░     ░░░      ░░░    ░░░    ░░░     
-    ░░    ░░      ░░       ░░      ░░       ░░░     ░░░      ░░░    ░░░░   ░░░    
-                                  ░░░        ░░      ░░░      ░░░     ░░░         
-    ░░░░░▒░░░░░░░░░▒░░░░░░░░░      ░         ░░       ░░░       ░░░     ░░        
-    ░░░                    ░░░░░░░░░         ░░░       ░░░                        
-    ░░░                           ░░░░░░      ░░            ░░░░░▒░░░░░░▒░░░░     
-     ░░░░░░░░░░░░░░░░░                 ░░░░░          ░░░░░░░░            ░░      
-      ░░░░░░░     ░░░░░░░░░░░░░░           ░░░░    ░░░░░                ░▒░       
-        ░░░                   ░░░░░░░         ░░░░░░             ░░░░░░░░         
-          ░░░░░░░░░░░░              ░░░░░░   ░░░░         ░░░░░░░░░░░░░           
-            ░▒▒░░░░░░░░░░░▒▒░░          ░░▒▒▒░░       ░▒▒░░       ░░░░            
-              ░▒░            ░░▒▒░        ░▒░      ░▒▒░         ░░▒░              
-                ░▒░    ░░░░▒▒▒▒▒▒▒▒▒▒░░ ░▒░      ▒▒░        ░░▒▒▒░                
-                 ░▒▒▒▒▒░░░          ░░░▒▒▒▒▒░  ▒▒░      ░▒▒▒▒▒▒░                  
-                   ░▒▒░                     ░▒▒▒▒     ▒▒▒  ▒▒▒                    
-                     ░▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░         ░▒▒▒▒▒░  ░▒▒                      
-                       ▒▒▒          ░░▒▒▒▒▒▒░      ▒▒▒ ░▒▒                        
-                         ▒▒▒               ░▒▒▒▒    ░▒▒▒░                         
-                           ▒▓▓▓▒▒▒▓▓▒▒▒░       ▒▒▒░░▒▒░                           
-                             ▒▓░      ░▒▒▓▓▒░    ▒▓▓░                             
-                              ░▒▓░         ░▒▓▒░▒▓▒                               
-                                ░▒▓▒░       ░▒▓▓▒                                 
-                                   ░▒▒▓▓▓▓▓▓▒▒░                                   
-                                                                                  
-                                                                                  
-                                                                                  
+
+
+
+                                     ░░░░░░░
+                                 ░░▒▒▒░░░░░░▒▒▒░
+                               ░▒▒░           ░▒▒░
+                             ░▒▒░               ░▒▒░
+                            ░▒░                   ░▒▒░
+                          ░▒▒░                      ▒▒▒░
+                        ░▒░░░▒░                    ░▒░░▒▒░
+                      ░▒▒░ ░▒▒▒░                  ░▒▒░  ░▒░░
+                    ░▒▒  ░▒▒░ ░▒▒░              ░▒░  ░▒░  ░▒░
+                  ░▒▒░  ░▒░  ░▒░░▒▒░░░      ░░▒▒░░▒░  ░▒▒   ░▒░
+                ░░▒░  ░▒░   ░▒░  ░▒▒░░▒▒▒▒▒▒░░▒░  ░▒░░  ░▒░   ░▒░
+               ░▒░  ░░▒░   ░▒░  ░░░  ░▒░  ░░  ░▒░   ░▒░  ░▒░░  ░░▒░
+             ░▒░   ░▒░   ░▒░    ░▒   ░░   ░▒░  ░▒░   ░▒░   ░▒░   ░░░░
+           ░░░   ░░░░   ░░░    ░░    ▒░   ░░░   ░░░   ░░░    ░░░   ░░░░
+         ░░░   ░░░░    ░░░    ░░░   ░░░    ░░    ░░░    ░░░   ░░░    ░░░░
+       ░░░    ░░░    ░░░     ░░░    ░░     ░░     ░░░    ░░░    ░░░    ░░░
+      ░░░   ░░░░    ░░░     ░░░     ░░     ░░░     ░░     ░░░    ░░░     ░░░
+     ░░    ░░░    ░░░      ░░░     ░░░      ░░     ░░░      ░░░    ░░░    ░░░
+    ░░    ░░      ░░       ░░      ░░       ░░░     ░░░      ░░░    ░░░░   ░░░
+                                  ░░░        ░░      ░░░      ░░░     ░░░
+    ░░░░░▒░░░░░░░░░▒░░░░░░░░░      ░         ░░       ░░░       ░░░     ░░
+    ░░░                    ░░░░░░░░░         ░░░       ░░░
+    ░░░                           ░░░░░░      ░░            ░░░░░▒░░░░░░▒░░░░
+     ░░░░░░░░░░░░░░░░░                 ░░░░░          ░░░░░░░░            ░░
+      ░░░░░░░     ░░░░░░░░░░░░░░           ░░░░    ░░░░░                ░▒░
+        ░░░                   ░░░░░░░         ░░░░░░             ░░░░░░░░
+          ░░░░░░░░░░░░              ░░░░░░   ░░░░         ░░░░░░░░░░░░░
+            ░▒▒░░░░░░░░░░░▒▒░░          ░░▒▒▒░░       ░▒▒░░       ░░░░
+              ░▒░            ░░▒▒░        ░▒░      ░▒▒░         ░░▒░
+                ░▒░    ░░░░▒▒▒▒▒▒▒▒▒▒░░ ░▒░      ▒▒░        ░░▒▒▒░
+                 ░▒▒▒▒▒░░░          ░░░▒▒▒▒▒░  ▒▒░      ░▒▒▒▒▒▒░
+                   ░▒▒░                     ░▒▒▒▒     ▒▒▒  ▒▒▒
+                     ░▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░         ░▒▒▒▒▒░  ░▒▒
+                       ▒▒▒          ░░▒▒▒▒▒▒░      ▒▒▒ ░▒▒
+                         ▒▒▒               ░▒▒▒▒    ░▒▒▒░
+                           ▒▓▓▓▒▒▒▓▓▒▒▒░       ▒▒▒░░▒▒░
+                             ▒▓░      ░▒▒▓▓▒░    ▒▓▓░
+                              ░▒▓░         ░▒▓▒░▒▓▒
+                                ░▒▓▒░       ░▒▓▓▒
+                                   ░▒▒▓▓▓▓▓▓▒▒░
+
+
+
 `;
 
-async function runInitCommand() {
-  const projectRoot = process.cwd();
+async function runInitCommand(rootPath?: string) {
+  const projectRoot = rootPath ? path.resolve(rootPath) : process.cwd();
   console.log(MONORISE_LOGO);
   console.log(`Initializing Monorise project in ${projectRoot}...`);
 
@@ -496,7 +496,7 @@ export default config;
   console.log('Monorise initialization complete!');
 }
 
-async function runDevCommand(configDir: string) {
+async function runDevCommand(configDir: string, rootPath?: string) {
   console.log(MONORISE_LOGO);
   console.log(`Watching for changes in ${configDir}...`);
   const watcher = chokidar.watch(configDir, {
@@ -520,7 +520,7 @@ async function runDevCommand(configDir: string) {
   watcher.on('add', async (filePath) => {
     console.log(`File ${filePath} has been added. Regenerating...`);
     try {
-      await generateFiles();
+      await generateFiles(rootPath);
     } catch (err) {
       console.error('Regeneration failed:', err);
     }
@@ -529,7 +529,7 @@ async function runDevCommand(configDir: string) {
   watcher.on('change', async (filePath) => {
     console.log(`File ${filePath} has been changed. Regenerating...`);
     try {
-      await generateFiles();
+      await generateFiles(rootPath);
     } catch (err) {
       console.error('Regeneration failed:', err);
     }
@@ -538,7 +538,7 @@ async function runDevCommand(configDir: string) {
   watcher.on('unlink', async (filePath) => {
     console.log(`File ${filePath} has been removed. Regenerating...`);
     try {
-      await generateFiles();
+      await generateFiles(rootPath);
     } catch (err) {
       console.error('Regeneration failed:', err);
     }
@@ -556,25 +556,33 @@ async function runDevCommand(configDir: string) {
   });
 }
 
-async function runBuildCommand() {
+async function runBuildCommand(rootPath?: string) {
   console.log('Starting sst build...');
-  await generateFiles();
+  await generateFiles(rootPath);
 }
 
 async function main() {
   const args = process.argv.slice(2);
   const command = args[0];
 
+  let rootPath: string | undefined;
+  const rootFlagIndex = args.indexOf('--config-root');
+  if (rootFlagIndex > -1 && args[rootFlagIndex + 1]) {
+    rootPath = args[rootFlagIndex + 1];
+  }
+
   try {
     if (command === 'dev') {
-      const configDir = await generateFiles();
-      await runDevCommand(configDir);
+      const configDir = await generateFiles(rootPath);
+      await runDevCommand(configDir, rootPath);
     } else if (command === 'build') {
-      await runBuildCommand();
+      await runBuildCommand(rootPath);
     } else if (command === 'init') {
-      await runInitCommand();
+      await runInitCommand(rootPath);
     } else {
-      console.error('Unknown command. Usage: monorise [dev|build|init]');
+      console.error(
+        'Unknown command. Usage: monorise [dev|build|init] [--config-root <path>]',
+      );
       process.exit(1);
     }
   } catch (err) {

@@ -1,3 +1,4 @@
+import path from 'node:path';
 import {
   ENTITY_REPLICATION_INDEX,
   MUTUAL_REPLICATION_INDEX,
@@ -6,6 +7,7 @@ import {
 type SingleTableArgs = {
   ttl?: string;
   runtime?: sst.aws.FunctionArgs['runtime'];
+  configRoot?: string;
 };
 
 export class SingleTable {
@@ -63,7 +65,10 @@ export class SingleTable {
     this.table.subscribe(
       `${id}-core-replicator`,
       {
-        handler: '.monorise/handle.replicationHandler',
+        handler: path.join(
+          args?.configRoot ?? '',
+          '.monorise/handle.replicationHandler',
+        ),
         timeout: '60 seconds',
         memory: '512 MB',
         runtime: args?.runtime,

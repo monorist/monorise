@@ -23,6 +23,8 @@ export class ListEntitiesByEntityController {
      */
     const querySchema = z.object({
       chainEntityQuery: z.string().optional(),
+      limit: z.coerce.number().optional(),
+      lastKey: z.string().optional(),
     });
     const queryParam = querySchema.parse(c.req.query());
     if (queryParam?.chainEntityQuery) {
@@ -67,10 +69,15 @@ export class ListEntitiesByEntityController {
         byEntityType,
         byEntityId,
         entityType,
+        {
+          limit: queryParam.limit,
+          lastKey: queryParam.lastKey,
+        },
       );
 
       return c.json({
         entities: resp.items,
+        lastKey: resp.lastKey,
       });
     }
   });

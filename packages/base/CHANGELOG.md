@@ -1,5 +1,24 @@
 # @monorise/base
 
+## 3.0.0
+
+### Major Changes
+
+- 70c31c7: Bump to v3
+
+## 2.0.0
+
+### Major Changes
+
+- Bump version
+
+## 1.0.0
+
+### Major Changes
+
+- Release v3.0.0 - Major stable release
+- 54beb03: monorise to support sst v3
+
 ## 1.0.0-dev.0
 
 ### Major Changes
