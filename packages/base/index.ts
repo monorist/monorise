@@ -4,9 +4,9 @@ import {
   Entity,
   EntitySchemaMap,
   MonoriseEntityConfig,
-} from './types/monorise.type.js';
+} from './types/monorise.type';
 
-import { createEntityConfig } from './utils/index.js';
+import { createEntityConfig } from './utils';
 
 export {
   Entity,

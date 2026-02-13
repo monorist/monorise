@@ -4,20 +4,24 @@
   "description": "",
   "packageManager": "npm@10.9.2",
   "scripts": {
-    "build": "npm run clear-dist && turbo run build -- --force && chmod +x packages/cli/dist/cli.js && npm run build:monorise",
+    "build": "npm run clear-dist && turbo run build --force && npm run build:monorise",
     "build:monorise": "cd packages/monorise && npm run build",
-    "dev": "npm run clear-dist && turbo run dev",
-    "clear-dist": "./scripts/clear.sh",
-    "release": "npm run build && npm run changeset -- publish",
-    "version": "npm run changeset -- version",
     "changeset": "npx @changesets/cli",
-    "changeset:dev-start": "npm run changeset -- pre enter dev",
     "changeset:dev-exit": "npm run changeset -- pre exit",
+    "changeset:dev-start": "npm run changeset -- pre enter dev",
+    "clear-dist": "./scripts/clear.sh",
+    "dev": "npm run clear-dist && turbo run dev",
+    "release": "npm run build && npm run changeset -- publish",
     "start:test-env": "./scripts/start-test-env.sh",
-    "test": "npm -w @monorise/core run test"
+    "test": "npm -w @monorise/core run test",
+    "version": "npm run changeset -- version"
   },
-  "files": ["dist"],
-  "workspaces": ["packages/*"],
+  "files": [
+    "dist"
+  ],
+  "workspaces": [
+    "packages/*"
+  ],
   "keywords": [],
   "author": "monorise",
   "license": "MIT",
@@ -25,12 +29,15 @@
     "@biomejs/biome": "^1.9.4",
     "@changesets/cli": "^2.28.1",
     "@tsconfig/node20": "^20.1.4",
+    "@types/aws-lambda": "8.10.160",
     "@types/node": "^22.13.9",
     "tailwindcss": "^4.1.11",
+    "tsup": "^8.5.1",
     "turbo": "^2.4.4",
     "typescript": "^5.1.6"
   },
   "dependencies": {
+    "sst": "3.17.38",
     "zustand": "^4.5.2"
   },
   "type": "module"

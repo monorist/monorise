@@ -269,61 +269,6 @@ async function generateFiles(rootPath?: string): Promise<string> {
   return configDir;
 }
 
-function addTurbopackConfig(configContent: string): string {
-  // Check if it's a simple config object
-  if (
-    configContent.includes('const nextConfig: NextConfig = {') &&
-    configContent.includes('/* config options here */')
-  ) {
-    // Replace the simple config with one that includes turbopack
-    return configContent.replace(
-      'const nextConfig: NextConfig = {\n  /* config options here */\n};',
-      `const nextConfig: NextConfig = {
-  turbopack: {
-    resolveAlias: {
-      'monorise/base': './node_modules/monorise/dist/base/index.js',
-      'monorise/react': './node_modules/monorise/dist/react/index.js',
-      'monorise/core': './node_modules/monorise/dist/core/index.js',
-      'monorise/sst': './node_modules/monorise/dist/sst/index.js',
-    },
-  },
-};`,
-    );
-  }
-
-  // If it's a more complex config, try to add turbopack to existing config
-  if (configContent.includes('const nextConfig: NextConfig = {')) {
-    // Find the closing brace and add turbopack config before it
-    const lines = configContent.split('\n');
-    const configStartIndex = lines.findIndex((line) =>
-      line.includes('const nextConfig: NextConfig = {'),
-    );
-    const configEndIndex = lines.findIndex(
-      (line, index) => index > configStartIndex && line.trim() === '};',
-    );
-
-    if (configStartIndex !== -1 && configEndIndex !== -1) {
-      // Insert turbopack config before the closing brace
-      const turbopackConfig = [
-        '  turbopack: {',
-        '    resolveAlias: {',
-        "      'monorise/base': './node_modules/monorise/dist/base/index.js',",
-        "      'monorise/react': './node_modules/monorise/dist/react/index.js',",
-        "      'monorise/core': './node_modules/monorise/dist/core/index.js',",
-        "      'monorise/sst': './node_modules/monorise/dist/sst/index.js',",
-        '    },',
-        '  },',
-      ];
-
-      lines.splice(configEndIndex, 0, ...turbopackConfig);
-      return lines.join('\n');
-    }
-  }
-
-  // If we can't parse it, return original content
-  return configContent;
-}
-
 const MONORISE_LOGO = `
 
 
@@ -464,33 +409,44 @@ export default config;
     );
   }
 
-  // 4. Configure Next.js if next.config.ts exists
-  const nextConfigPath = path.join(projectRoot, 'next.config.ts');
-  if (fs.existsSync(nextConfigPath)) {
+  // 4. Add tsconfig path alias for .monorise directory
+  const tsconfigPath = path.join(projectRoot, 'tsconfig.json');
+  if (fs.existsSync(tsconfigPath)) {
     try {
-      const nextConfigContent = fs.readFileSync(nextConfigPath, 'utf8');
+      const tsconfigContent = fs.readFileSync(tsconfigPath, 'utf8');
+      const tsconfig = JSON.parse(tsconfigContent);
 
-      // Check if turbopack config already exists
-      if (
-        !nextConfigContent.includes('turbopack') &&
-        !nextConfigContent.includes('resolveAlias')
-      ) {
-        const updatedConfig = addTurbopackConfig(nextConfigContent);
-        fs.writeFileSync(nextConfigPath, updatedConfig);
+      if (!tsconfig.compilerOptions) {
+        tsconfig.compilerOptions = {};
+      }
+      if (!tsconfig.compilerOptions.paths) {
+        tsconfig.compilerOptions.paths = {};
+      }
+
+      const pathKey = '#/monorise/*';
+      const pathValue = ['./.monorise/*'];
+
+      if (!tsconfig.compilerOptions.paths[pathKey]) {
+        tsconfig.compilerOptions.paths[pathKey] = pathValue;
+        fs.writeFileSync(tsconfigPath, JSON.stringify(tsconfig, null, 2));
         console.log(
-          `Updated ${path.relative(projectRoot, nextConfigPath)} with Monorise aliases`,
+          `Added '${pathKey}' path alias in ${path.relative(projectRoot, tsconfigPath)}`,
         );
       } else {
         console.log(
-          `${path.relative(projectRoot, nextConfigPath)} already has Turbopack configuration. Skipping.`,
+          `'${pathKey}' path alias already set in ${path.relative(projectRoot, tsconfigPath)}. Skipping.`,
         );
       }
     } catch (error) {
       console.error(
-        `Error updating ${path.relative(projectRoot, nextConfigPath)}:`,
+        `Error updating ${path.relative(projectRoot, tsconfigPath)}:`,
         error,
       );
     }
+  } else {
+    console.warn(
+      `Warning: ${path.relative(projectRoot, tsconfigPath)} not found. Cannot add path alias.`,
+    );
   }
 
   console.log('Monorise initialization complete!');
