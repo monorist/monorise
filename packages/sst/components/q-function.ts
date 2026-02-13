@@ -11,7 +11,7 @@ interface QFunctionArgs extends sst.aws.FunctionArgs {
 export class QFunction {
   public readonly id: string;
   public readonly queue: sst.aws.Queue;
-  private dlq: sst.aws.Queue;
+  public readonly dlq: sst.aws.Queue;
   private function: sst.aws.Function;
 
   constructor(id: string, args: QFunctionArgs) {
