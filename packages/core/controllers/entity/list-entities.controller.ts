@@ -44,6 +44,7 @@ export class ListEntitiesController {
           data: results.items.map((item) => item.toJSON()),
           totalCount: results.totalCount,
           filteredCount: results.filteredCount,
+          lastKey: undefined as string | undefined,
         });
       }
 
@@ -58,12 +59,12 @@ export class ListEntitiesController {
       return c.json({
         data: results.items.map((item) => item.toJSON()),
         totalCount: results.totalCount,
+        filteredCount: undefined as number | undefined,
         lastKey: results.lastKey,
       });
     } catch (error) {
       console.log({ error, errorContext });
-      c.status(500);
-      return c.json({ message: error });
+      throw error;
     }
   });
 }
