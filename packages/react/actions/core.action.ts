@@ -421,6 +421,72 @@ const initCoreActions = (
       monoriseStore.setState(
         produce((state) => {
           state.entity[entityType].dataMap.set(data.entityId, data);
+
+          // auto-populate tag store based on entity config
+          const tagConfigs = state.config[entityType]?.tags;
+          if (tagConfigs) {
+            for (const tagConfig of tagConfigs) {
+              const { name, processor } = tagConfig;
+              const processorResults = processor(
+                data as CreatedEntity<Entity>,
+              );
+
+              for (const tagKey of Object.keys(state.tag)) {
+                const [tagEntityType, tagName, ...paramParts] =
+                  tagKey.split('/');
+
+                if (
+                  (tagEntityType as unknown as Entity) !== entityType ||
+                  tagName !== name
+                ) {
+                  continue;
+                }
+
+                if (!state.tag[tagKey]?.isFirstFetched) {
+                  continue;
+                }
+
+                // parse params from key
+                const keyParams: Record<string, string> = {};
+                for (const part of paramParts) {
+                  const colonIdx = part.indexOf(':');
+                  if (colonIdx > 0) {
+                    keyParams[part.substring(0, colonIdx)] =
+                      part.substring(colonIdx + 1);
+                  }
+                }
+
+                // skip query-filtered stores (can't match client-side)
+                if (keyParams.query) {
+                  continue;
+                }
+
+                // check if any processor result matches this tag store's params
+                const matches = processorResults.some((result) => {
+                  if (keyParams.group && result.group !== keyParams.group) {
+                    return false;
+                  }
+                  if (
+                    keyParams.start &&
+                    (!result.sortValue || result.sortValue < keyParams.start)
+                  ) {
+                    return false;
+                  }
+                  if (
+                    keyParams.end &&
+                    (!result.sortValue || result.sortValue > keyParams.end)
+                  ) {
+                    return false;
+                  }
+                  return true;
+                });
+
+                if (matches) {
+                  state.tag[tagKey].dataMap.set(data.entityId, data);
+                }
+              }
+            }
+          }
         }),
         undefined,
         `mr/entity/create/${entityType}`,
@@ -493,6 +559,28 @@ const initCoreActions = (
               }
             }
           }
+
+          // update flipped mutual side (entity is the "by" entity)
+          for (const key of Object.keys(state.mutual)) {
+            const [_byEntity, _byId] = key.split('/');
+            if ((_byEntity as unknown as Entity) === entityType && _byId === id) {
+              const newDataMap = new Map(state.mutual[key].dataMap);
+              for (const [entryId, mutual] of newDataMap) {
+                newDataMap.set(entryId, { ...mutual, data: data.data });
+              }
+              state.mutual[key].dataMap = newDataMap;
+            }
+          }
+
+          // update tag store entries
+          for (const tagKey of Object.keys(state.tag)) {
+            const [tagEntityType] = tagKey.split('/');
+            if ((tagEntityType as unknown as Entity) === entityType) {
+              if (state.tag[tagKey]?.dataMap?.has(id)) {
+                state.tag[tagKey].dataMap.set(id, data);
+              }
+            }
+          }
         }),
         undefined,
         `mr/entity/edit/${entityType}/${id}`,
@@ -527,6 +615,14 @@ const initCoreActions = (
             const [_byEntity, _byId, _entityType] = key.split('/');
             if ((_entityType as unknown as Entity) === entityType) {
               state.mutual[key].dataMap.delete(id);
+            }
+          }
+
+          // delete from tag store
+          for (const tagKey of Object.keys(state.tag)) {
+            const [tagEntityType] = tagKey.split('/');
+            if ((tagEntityType as unknown as Entity) === entityType) {
+              state.tag[tagKey]?.dataMap?.delete(id);
             }
           }
         }),
