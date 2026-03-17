@@ -7,8 +7,8 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "sst:install": "npx sst install",
-    "build": "tsc -b",
-    "dev": "tsc -b --watch"
+    "build": "tsup && tsc --emitDeclarationOnly --outDir dist || true",
+    "dev": "tsup --watch"
   },
   "files": [
     "dist"

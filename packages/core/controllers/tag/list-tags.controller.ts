@@ -50,8 +50,7 @@ export class ListTagsController {
       });
     } catch (error) {
       console.log({ error, errorContext });
-      c.status(httpStatus.INTERNAL_SERVER_ERROR);
-      return c.json({ message: error });
+      throw error;
     }
   });
 }

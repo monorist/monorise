@@ -222,7 +222,7 @@ async function generateHandleFile(
   // If customRoutesPath is not provided, routesImportLine remains empty and appHandlerPayload remains `{}`
 
   const combinedContent = `
-import CoreFactory from '@monorise/core';
+import CoreFactory from 'monorise/core';
 import config from './config';
 ${routesImportLine ? `${routesImportLine}\n` : ''}const coreFactory = new CoreFactory(config);
 
@@ -269,8 +269,58 @@ async function generateFiles(rootPath?: string): Promise<string> {
   return configDir;
 }
 
+const MONORISE_LOGO = `
+
+
+
+                                     ░░░░░░░
+                                 ░░▒▒▒░░░░░░▒▒▒░
+                               ░▒▒░           ░▒▒░
+                             ░▒▒░               ░▒▒░
+                            ░▒░                   ░▒▒░
+                          ░▒▒░                      ▒▒▒░
+                        ░▒░░░▒░                    ░▒░░▒▒░
+                      ░▒▒░ ░▒▒▒░                  ░▒▒░  ░▒░░
+                    ░▒▒  ░▒▒░ ░▒▒░              ░▒░  ░▒░  ░▒░
+                  ░▒▒░  ░▒░  ░▒░░▒▒░░░      ░░▒▒░░▒░  ░▒▒   ░▒░
+                ░░▒░  ░▒░   ░▒░  ░▒▒░░▒▒▒▒▒▒░░▒░  ░▒░░  ░▒░   ░▒░
+               ░▒░  ░░▒░   ░▒░  ░░░  ░▒░  ░░  ░▒░   ░▒░  ░▒░░  ░░▒░
+             ░▒░   ░▒░   ░▒░    ░▒   ░░   ░▒░  ░▒░   ░▒░   ░▒░   ░░░░
+           ░░░   ░░░░   ░░░    ░░    ▒░   ░░░   ░░░   ░░░    ░░░   ░░░░
+         ░░░   ░░░░    ░░░    ░░░   ░░░    ░░    ░░░    ░░░   ░░░    ░░░░
+       ░░░    ░░░    ░░░     ░░░    ░░     ░░     ░░░    ░░░    ░░░    ░░░
+      ░░░   ░░░░    ░░░     ░░░     ░░     ░░░     ░░     ░░░    ░░░     ░░░
+     ░░    ░░░    ░░░      ░░░     ░░░      ░░     ░░░      ░░░    ░░░    ░░░
+    ░░    ░░      ░░       ░░      ░░       ░░░     ░░░      ░░░    ░░░░   ░░░
+                                  ░░░        ░░      ░░░      ░░░     ░░░
+    ░░░░░▒░░░░░░░░░▒░░░░░░░░░      ░         ░░       ░░░       ░░░     ░░
+    ░░░                    ░░░░░░░░░         ░░░       ░░░
+    ░░░                           ░░░░░░      ░░            ░░░░░▒░░░░░░▒░░░░
+     ░░░░░░░░░░░░░░░░░                 ░░░░░          ░░░░░░░░            ░░
+      ░░░░░░░     ░░░░░░░░░░░░░░           ░░░░    ░░░░░                ░▒░
+        ░░░                   ░░░░░░░         ░░░░░░             ░░░░░░░░
+          ░░░░░░░░░░░░              ░░░░░░   ░░░░         ░░░░░░░░░░░░░
+            ░▒▒░░░░░░░░░░░▒▒░░          ░░▒▒▒░░       ░▒▒░░       ░░░░
+              ░▒░            ░░▒▒░        ░▒░      ░▒▒░         ░░▒░
+                ░▒░    ░░░░▒▒▒▒▒▒▒▒▒▒░░ ░▒░      ▒▒░        ░░▒▒▒░
+                 ░▒▒▒▒▒░░░          ░░░▒▒▒▒▒░  ▒▒░      ░▒▒▒▒▒▒░
+                   ░▒▒░                     ░▒▒▒▒     ▒▒▒  ▒▒▒
+                     ░▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒░░         ░▒▒▒▒▒░  ░▒▒
+                       ▒▒▒          ░░▒▒▒▒▒▒░      ▒▒▒ ░▒▒
+                         ▒▒▒               ░▒▒▒▒    ░▒▒▒░
+                           ▒▓▓▓▒▒▒▓▓▒▒▒░       ▒▒▒░░▒▒░
+                             ▒▓░      ░▒▒▓▓▒░    ▒▓▓░
+                              ░▒▓░         ░▒▓▒░▒▓▒
+                                ░▒▓▒░       ░▒▓▓▒
+                                   ░▒▒▓▓▓▓▓▓▒▒░
+
+
+
+`;
+
 async function runInitCommand(rootPath?: string) {
   const projectRoot = rootPath ? path.resolve(rootPath) : process.cwd();
+  console.log(MONORISE_LOGO);
   console.log(`Initializing Monorise project in ${projectRoot}...`);
 
   // 1. Create monorise.config.ts
@@ -299,7 +349,7 @@ export default config;
 
   const userEntityTsPath = path.join(monoriseEntitiesDir, 'user.ts');
   const userEntityContent = `
-import { createEntityConfig } from '@monorise/base';
+import { createEntityConfig } from 'monorise/base';
 import { z } from 'zod';
 
 const baseSchema = z
@@ -359,10 +409,51 @@ export default config;
     );
   }
 
+  // 4. Add tsconfig path alias for .monorise directory
+  const tsconfigPath = path.join(projectRoot, 'tsconfig.json');
+  if (fs.existsSync(tsconfigPath)) {
+    try {
+      const tsconfigContent = fs.readFileSync(tsconfigPath, 'utf8');
+      const tsconfig = JSON.parse(tsconfigContent);
+
+      if (!tsconfig.compilerOptions) {
+        tsconfig.compilerOptions = {};
+      }
+      if (!tsconfig.compilerOptions.paths) {
+        tsconfig.compilerOptions.paths = {};
+      }
+
+      const pathKey = '#/monorise/*';
+      const pathValue = ['./.monorise/*'];
+
+      if (!tsconfig.compilerOptions.paths[pathKey]) {
+        tsconfig.compilerOptions.paths[pathKey] = pathValue;
+        fs.writeFileSync(tsconfigPath, JSON.stringify(tsconfig, null, 2));
+        console.log(
+          `Added '${pathKey}' path alias in ${path.relative(projectRoot, tsconfigPath)}`,
+        );
+      } else {
+        console.log(
+          `'${pathKey}' path alias already set in ${path.relative(projectRoot, tsconfigPath)}. Skipping.`,
+        );
+      }
+    } catch (error) {
+      console.error(
+        `Error updating ${path.relative(projectRoot, tsconfigPath)}:`,
+        error,
+      );
+    }
+  } else {
+    console.warn(
+      `Warning: ${path.relative(projectRoot, tsconfigPath)} not found. Cannot add path alias.`,
+    );
+  }
+
   console.log('Monorise initialization complete!');
 }
 
 async function runDevCommand(configDir: string, rootPath?: string) {
+  console.log(MONORISE_LOGO);
   console.log(`Watching for changes in ${configDir}...`);
   const watcher = chokidar.watch(configDir, {
     ignored: (watchedPath: string) => {
