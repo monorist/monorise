@@ -1,6 +1,6 @@
 {
   "name": "monorise",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "description": "Monorise - A unified package for all Monorise functionality",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -48,7 +48,9 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.758.0",
     "@aws-sdk/client-dynamodb-streams": "^3.758.0",
