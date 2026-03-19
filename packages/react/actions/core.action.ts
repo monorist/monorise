@@ -487,6 +487,42 @@ const initCoreActions = (
               }
             }
           }
+
+          // auto-populate mutual store based on entity config
+          const mutualFields =
+            state.config[entityType]?.mutual?.mutualFields;
+          if (mutualFields) {
+            for (const [field, fieldConfig] of Object.entries(mutualFields)) {
+              const byEntityType = fieldConfig.entityType;
+              const ids = (entity as Record<string, any>)[field];
+              if (!Array.isArray(ids)) continue;
+
+              for (const byEntityId of ids) {
+                const mutualKey = getMutualStateKey(
+                  byEntityType,
+                  byEntityId,
+                  entityType,
+                );
+                if (
+                  state.mutual[mutualKey] &&
+                  state.mutual[mutualKey].isFirstFetched
+                ) {
+                  state.mutual[mutualKey].dataMap.set(data.entityId, {
+                    entityId: data.entityId,
+                    entityType,
+                    byEntityId,
+                    byEntityType,
+                    mutualId: '',
+                    data: data.data,
+                    mutualData: {},
+                    createdAt: data.createdAt,
+                    updatedAt: data.updatedAt,
+                    mutualUpdatedAt: data.updatedAt,
+                  });
+                }
+              }
+            }
+          }
         }),
         undefined,
         `mr/entity/create/${entityType}`,
