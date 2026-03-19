@@ -141,6 +141,18 @@ declare module '@monorise/base' {
     ${schemaMapEntries.join('\n    ')}
   }
 }
+
+declare module 'monorise/base' {
+  export enum Entity {
+    ${enumEntries.join(',\n    ')}
+  }
+
+  ${typeEntries.join('\n  ')}
+
+  export interface EntitySchemaMap {
+    ${schemaMapEntries.join('\n    ')}
+  }
+}
 `;
 
   fs.writeFileSync(configOutputPath, configOutputContent);
