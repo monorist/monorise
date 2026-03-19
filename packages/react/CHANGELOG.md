@@ -1,5 +1,11 @@
 # @monorise/react
 
+## 3.0.4-dev.1
+
+### Patch Changes
+
+- 6602dc2: Auto-populate mutual store on createEntity so useMutuals reflects new entities without refresh
+
 ## 3.0.4-dev.0
 
 ### Patch Changes
