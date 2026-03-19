@@ -1,6 +1,6 @@
 {
   "name": "monorise",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Monorise - A unified package for all Monorise functionality",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -40,11 +40,21 @@
   },
   "typesVersions": {
     "*": {
-      "base": ["./dist/base/index.d.ts"],
-      "core": ["./dist/core/index.d.ts"],
-      "react": ["./dist/react/index.d.ts"],
-      "sst": ["./dist/sst/index.d.ts"],
-      "cli": ["./dist/cli/cli.d.ts"]
+      "base": [
+        "./dist/base/index.d.ts"
+      ],
+      "core": [
+        "./dist/core/index.d.ts"
+      ],
+      "react": [
+        "./dist/react/index.d.ts"
+      ],
+      "sst": [
+        "./dist/sst/index.d.ts"
+      ],
+      "cli": [
+        "./dist/cli/cli.d.ts"
+      ]
     }
   },
   "directories": {
