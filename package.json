@@ -29,10 +29,30 @@
     "typescript": "^5.1.6"
   },
   "exports": {
-    "./base": "./dist/base/index.js",
-    "./react": "./dist/react/index.js",
-    "./cli": "./dist/cli/index.js",
-    "./core": "./dist/core/index.js"
+    "./base": {
+      "types": "./dist/base/index.d.ts",
+      "import": "./dist/base/index.js"
+    },
+    "./react": {
+      "types": "./dist/react/index.d.ts",
+      "import": "./dist/react/index.js"
+    },
+    "./cli": {
+      "types": "./dist/cli/index.d.ts",
+      "import": "./dist/cli/index.js"
+    },
+    "./core": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "base": ["./dist/base/index.d.ts"],
+      "react": ["./dist/react/index.d.ts"],
+      "cli": ["./dist/cli/index.d.ts"],
+      "core": ["./dist/core/index.d.ts"]
+    }
   },
   "dependencies": {
     "zustand": "^4.5.2"
