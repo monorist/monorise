@@ -12,7 +12,6 @@
   "changesets": [
     "fix-tag-list-nan-limit",
     "fix-types-versions",
-    "module-augmentation-combined-package",
     "propagate-entity-state"
   ]
 }
