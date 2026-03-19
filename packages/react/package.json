@@ -1,7 +1,8 @@
 {
   "name": "@monorise/react",
-  "version": "3.0.2",
+  "version": "3.0.3",
   "description": "",
+  "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -15,8 +16,8 @@
     "lib": "lib"
   },
   "scripts": {
-    "build": "tsc -b",
-    "dev": "tsc -b --watch"
+    "build": "tsup && tsc --emitDeclarationOnly --outDir dist || true",
+    "dev": "tsup --watch"
   },
   "keywords": [],
   "author": "",
@@ -31,7 +32,7 @@
     "@types/react-dom": "^19"
   },
   "peerDependencies": {
-    "@monorise/base": "^3.0.0",
+    "@monorise/base": "^3.0.1",
     "react": "^18 || ^19",
     "react-dom": "^18 || ^19"
   },

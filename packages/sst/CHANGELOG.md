@@ -1,5 +1,15 @@
 # @monorise/sst
 
+## 3.1.0
+
+### Minor Changes
+
+- e7ca0ff: Add built-in CloudWatch dashboard to MonoriseCore with per-function metrics and DLQ monitoring
+
+### Patch Changes
+
+- 5e8d320: Unified monorise package
+
 ## 3.0.0
 
 ### Major Changes

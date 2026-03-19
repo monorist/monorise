@@ -1,6 +1,6 @@
 {
   "name": "@monorise/cli",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "",
   "type": "module",
   "main": "dist/index.js",
@@ -9,8 +9,8 @@
     "monorise": "dist/cli.js"
   },
   "scripts": {
-    "build": "tsc -b && chmod +x dist/cli.js",
-    "dev": "tsc -b --watch"
+    "build": "tsup && chmod +x dist/cli.js",
+    "dev": "tsup --watch"
   },
   "keywords": [],
   "author": "",

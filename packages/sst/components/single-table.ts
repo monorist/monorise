@@ -13,10 +13,12 @@ type SingleTableArgs = {
 export class SingleTable {
   public readonly id: string;
   public readonly table: sst.aws.Dynamo;
-  private dlq: sst.aws.Queue;
+  public readonly dlq: sst.aws.Queue;
+  public readonly replicatorFunctionName: string;
 
   constructor(id: string, args?: SingleTableArgs) {
     this.id = id;
+    this.replicatorFunctionName = `${$app.stage}-${$app.name}-${id}-core-replicator`;
     this.dlq = new sst.aws.Queue(`${id}-core-replicator-dlq`);
     this.table = new sst.aws.Dynamo(`${id}-core-table`, {
       fields: {
@@ -65,6 +67,7 @@ export class SingleTable {
     this.table.subscribe(
       `${id}-core-replicator`,
       {
+        name: this.replicatorFunctionName,
         handler: path.join(
           args?.configRoot ?? '',
           '.monorise/handle.replicationHandler',

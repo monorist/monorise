@@ -1,5 +1,13 @@
 # @monorise/react
 
+## 3.0.3
+
+### Patch Changes
+
+- 5e8d320: Unified monorise package
+- Updated dependencies [5e8d320]
+  - @monorise/base@3.0.1
+
 ## 3.0.2
 
 ### Patch Changes

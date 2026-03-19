@@ -57,12 +57,9 @@ export class ListEntitiesByEntityController {
           entities: items,
         });
       } catch (err) {
-        c.status(httpStatus.BAD_REQUEST);
-        return c.json({
-          code: 'INVALID_CHAIN_QUERY',
-          message:
-            'Chain query is invalid. Please double check the chainEntityQuery param',
-        });
+        throw new Error(
+          'Chain query is invalid. Please double check the chainEntityQuery param',
+        );
       }
     } else {
       const resp = await this.associateRepository.listEntitiesByEntity(
