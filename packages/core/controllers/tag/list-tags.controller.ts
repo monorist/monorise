@@ -34,7 +34,7 @@ export class ListTagsController {
       const results = await this.tagRepository.listTags({
         entityType,
         tagName,
-        limit: Number(limit),
+        limit: limit ? Number(limit) : undefined,
         options: {
           lastKey,
         },
