@@ -38,6 +38,15 @@
       "types": "./dist/cli/cli.d.ts"
     }
   },
+  "typesVersions": {
+    "*": {
+      "base": ["./dist/base/index.d.ts"],
+      "core": ["./dist/core/index.d.ts"],
+      "react": ["./dist/react/index.d.ts"],
+      "sst": ["./dist/sst/index.d.ts"],
+      "cli": ["./dist/cli/cli.d.ts"]
+    }
+  },
   "directories": {
     "lib": "lib"
   },
