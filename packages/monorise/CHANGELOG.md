@@ -1,5 +1,11 @@
 # monorise
 
+## 0.0.2-dev.1
+
+### Patch Changes
+
+- eeb410d: Add module augmentation for monorise/base combined package to fix type resolution
+
 ## 0.0.2-dev.0
 
 ### Patch Changes
