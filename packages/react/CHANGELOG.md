@@ -1,5 +1,11 @@
 # @monorise/react
 
+## 3.0.4-dev.0
+
+### Patch Changes
+
+- 9ce08cc: Auto-propagate entity state to mutual and tag stores on create, edit, and delete
+
 ## 3.0.3
 
 ### Patch Changes
