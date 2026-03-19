@@ -1,5 +1,11 @@
 # @monorise/core
 
+## 3.0.3
+
+### Patch Changes
+
+- da448be: Fix tag list endpoint crashing when limit query parameter is not provided. `Number(undefined)` produced `NaN` which caused a DynamoDB SerializationException.
+
 ## 3.0.2
 
 ### Patch Changes
