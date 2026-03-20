@@ -222,7 +222,13 @@ export interface MonoriseEntityConfig<
    */
   tags?: {
     name: string;
-    processor: (entity: CreatedEntity<T>) => {
+    processor: (entity: {
+      entityId: string;
+      entityType: string;
+      data: z.infer<z.ZodObject<B>>;
+      createdAt: string;
+      updatedAt: string;
+    }) => {
       group?: string;
       sortValue?: string;
     }[];
