@@ -1,5 +1,11 @@
 # monorise
 
+## 0.0.2-dev.4
+
+### Patch Changes
+
+- d121c21: Rewrite @monorise/\* imports to relative paths in combined package .d.ts files to fix type resolution
+
 ## 0.0.2-dev.3
 
 ### Patch Changes
