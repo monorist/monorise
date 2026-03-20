@@ -15,6 +15,7 @@
     "fix-tag-list-nan-limit",
     "fix-types-versions",
     "module-augmentation-combined-package",
-    "propagate-entity-state"
+    "propagate-entity-state",
+    "rewrite-dts-imports"
   ]
 }
