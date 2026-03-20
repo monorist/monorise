@@ -1567,7 +1567,7 @@ const initCoreActions = (
     const error = useErrorStore(requestKey);
 
     useEffect(() => {
-      if (!isFirstFetched && byEntityType && entityType && byId) {
+      if (byEntityType && entityType && byId && (!isFirstFetched || opts?.forceFetch)) {
         listEntitiesByEntity(
           byEntityType,
           entityType,
