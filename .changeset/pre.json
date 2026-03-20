@@ -13,6 +13,7 @@
     "auto-populate-mutual-store",
     "fix-force-fetch-mutuals",
     "fix-tag-list-nan-limit",
+    "fix-tag-processor-type",
     "fix-types-versions",
     "module-augmentation-combined-package",
     "propagate-entity-state",

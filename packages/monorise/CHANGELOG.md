@@ -1,5 +1,11 @@
 # monorise
 
+## 0.0.2-dev.5
+
+### Patch Changes
+
+- 5d4b618: Fix tag processor type inference to use baseSchema shape instead of CreatedEntity<T>
+
 ## 0.0.2-dev.4
 
 ### Patch Changes

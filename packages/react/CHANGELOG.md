@@ -1,5 +1,12 @@
 # @monorise/react
 
+## 3.0.4-dev.3
+
+### Patch Changes
+
+- Updated dependencies [5d4b618]
+  - @monorise/base@3.0.2-dev.0
+
 ## 3.0.4-dev.2
 
 ### Patch Changes
