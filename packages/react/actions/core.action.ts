@@ -1400,10 +1400,10 @@ const initCoreActions = (
     }, [all, params.all]);
 
     useEffect(() => {
-      if (!isFirstFetched) {
+      if (!isFirstFetched || opts?.forceFetch) {
         listEntities(entityType, { skRange, all }, opts);
       }
-    }, [all, entityType, skRange, opts, isFirstFetched]);
+    }, [all, entityType, skRange, opts, isFirstFetched, opts?.forceFetch]);
 
     useEffect(() => {
       let queryTimeout: NodeJS.Timeout;
@@ -1609,6 +1609,21 @@ const initCoreActions = (
       error,
       isFirstFetched,
       lastKey,
+      refetch: async () => {
+        if (byEntityType && entityType && byId) {
+          return await listEntitiesByEntity(
+            byEntityType,
+            entityType,
+            byId,
+            {
+              ...opts,
+              forceFetch: true,
+              stateKey,
+            },
+            chainEntityQuery,
+          );
+        }
+      },
       ...(lastKey && {
         listMore: () => {
           if (byEntityType && entityType && byId) {

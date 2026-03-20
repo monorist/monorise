@@ -3,4 +3,8 @@
 "monorise": patch
 ---
 
-Fix useMutuals forceFetch option being ignored after initial fetch. The useEffect guard `!isFirstFetched` prevented refetching even when `forceFetch: true` was passed. Now checks forceFetch before the isFirstFetched guard.
+Fix forceFetch option being ignored in useMutuals and useEntities hooks.
+
+- `useMutuals`: The useEffect guard `!isFirstFetched` prevented refetching even when `forceFetch: true` was passed. Now checks `!isFirstFetched || opts?.forceFetch`.
+- `useMutuals`: Added `refetch()` method to match useEntity, useEntities, and useTaggedEntities.
+- `useEntities`: Same `!isFirstFetched` guard fix — now honors `forceFetch` option.
