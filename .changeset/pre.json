@@ -11,6 +11,7 @@
   },
   "changesets": [
     "auto-populate-mutual-store",
+    "fix-force-fetch-mutuals",
     "fix-tag-list-nan-limit",
     "fix-types-versions",
     "module-augmentation-combined-package",
