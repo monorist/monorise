@@ -32,6 +32,62 @@ packages.forEach((pkg) => {
   console.log(`Copied ${pkg} package files`);
 });
 
+// Rewrite @monorise/* imports in .d.ts files to relative paths
+const packageMap = {
+  '@monorise/base': 'base',
+  '@monorise/core': 'core',
+  '@monorise/react': 'react',
+  '@monorise/sst': 'sst',
+  '@monorise/cli': 'cli',
+};
+
+function rewriteImports(dir, currentPkg) {
+  const entries = fs.readdirSync(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    const fullPath = path.join(dir, entry.name);
+    if (entry.isDirectory()) {
+      rewriteImports(fullPath, currentPkg);
+    } else if (entry.name.endsWith('.d.ts')) {
+      let content = fs.readFileSync(fullPath, 'utf-8');
+      let changed = false;
+      for (const [pkg, folder] of Object.entries(packageMap)) {
+        if (folder === currentPkg) continue;
+        const relativePath = path.relative(
+          path.dirname(fullPath),
+          path.join(distDir, folder, 'index'),
+        );
+        const relativeImport = relativePath.startsWith('.')
+          ? relativePath
+          : `./${relativePath}`;
+        const fromRegex = new RegExp(`'${pkg.replace('/', '\\/')}'`, 'g');
+        const importRegex = new RegExp(
+          `import\\("${pkg.replace('/', '\\/')}"\\)`,
+          'g',
+        );
+        if (fromRegex.test(content) || importRegex.test(content)) {
+          content = content.replace(fromRegex, `'${relativeImport}'`);
+          content = content.replace(
+            importRegex,
+            `import("${relativeImport}")`,
+          );
+          changed = true;
+        }
+      }
+      if (changed) {
+        fs.writeFileSync(fullPath, content);
+      }
+    }
+  }
+}
+
+packages.forEach((pkg) => {
+  const targetDir = path.join(distDir, pkg);
+  if (fs.existsSync(targetDir)) {
+    rewriteImports(targetDir, pkg);
+    console.log(`Rewrote @monorise/* imports in ${pkg} .d.ts files`);
+  }
+});
+
 // Create the main index.js file that re-exports everything
 const mainIndexContent = `// Re-export all packages from their respective modules
 export * from './base/index.js';
