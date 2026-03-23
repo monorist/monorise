@@ -1,7 +1,7 @@
 import type { AttributeValue } from '@aws-sdk/client-dynamodb';
 import type { EntitySchemaMap, Entity as EntityType } from '@monorise/base';
 import { ulid } from 'ulid';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import type { DbUtils } from '../data/DbUtils';
 import { Entity, type EntityRepository } from '../data/Entity';
 import { Mutual, type MutualRepository } from '../data/Mutual';

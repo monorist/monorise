@@ -3,7 +3,7 @@ import type {
   Entity as EntityType,
   createEntityConfig,
 } from '@monorise/base';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import type { EntityRepository } from '../data/Entity';
 import { StandardError, StandardErrorCode } from '../errors/standard-error';
 import type { publishEvent as publishEventType } from '../helpers/event';
@@ -57,7 +57,7 @@ export class EntityService {
 
     const parsedEntityPayload = entitySchema.parse(
       entityPayload,
-    ) as EntitySchemaMap[T] & { email: string };
+    ) as unknown as EntitySchemaMap[T] & { email: string };
 
     // TODO: Create entity to accept mutual payload, so that mutual
     // relationship can be formed when creating entity

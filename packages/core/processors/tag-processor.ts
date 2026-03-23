@@ -140,9 +140,7 @@ export const handler =
           );
           errorContext.entity = entity;
 
-          const newTags = await processor(
-            entity as unknown as CreatedEntity<EntityType>,
-          );
+          const newTags = await processor(entity as any);
           errorContext.newTags = newTags;
 
           const diff = compareTags(existingTags, newTags);

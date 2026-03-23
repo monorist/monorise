@@ -462,7 +462,7 @@ const initCoreActions = (
                 }
 
                 // check if any processor result matches this tag store's params
-                const matches = processorResults.some((result) => {
+                const matches = processorResults.some((result: { group?: string; sortValue?: string }) => {
                   if (keyParams.group && result.group !== keyParams.group) {
                     return false;
                   }
@@ -492,7 +492,7 @@ const initCoreActions = (
           const mutualFields =
             state.config[entityType]?.mutual?.mutualFields;
           if (mutualFields) {
-            for (const [field, fieldConfig] of Object.entries(mutualFields)) {
+            for (const [field, fieldConfig] of Object.entries(mutualFields) as [string, { entityType: Entity }][]) {
               const byEntityType = fieldConfig.entityType;
               const ids = (entity as Record<string, any>)[field];
               if (!Array.isArray(ids)) continue;
@@ -602,7 +602,7 @@ const initCoreActions = (
             if ((_byEntity as unknown as Entity) === entityType && _byId === id) {
               const newDataMap = new Map(state.mutual[key].dataMap);
               for (const [entryId, mutual] of newDataMap) {
-                newDataMap.set(entryId, { ...mutual, data: data.data });
+                newDataMap.set(entryId, { ...(mutual as any), data: data.data });
               }
               state.mutual[key].dataMap = newDataMap;
             }

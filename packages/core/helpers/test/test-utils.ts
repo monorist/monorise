@@ -12,7 +12,7 @@ import {
   GetShardIteratorCommand,
 } from '@aws-sdk/client-dynamodb-streams';
 import { ulid } from 'ulid';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import { createEntityConfig } from '../../../base';
 import {
   ENTITY_REPLICATION_INDEX,

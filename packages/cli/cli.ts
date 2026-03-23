@@ -92,7 +92,7 @@ export enum Entity {}
   }
 
   const configOutputContent = `
-import type { z } from 'zod';
+import type { z } from 'zod/v4';
 ${imports.join('\n')}
 
 export enum Entity {
@@ -362,7 +362,7 @@ export default config;
   const userEntityTsPath = path.join(monoriseEntitiesDir, 'user.ts');
   const userEntityContent = `
 import { createEntityConfig } from 'monorise/base';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 
 const baseSchema = z
   .object({

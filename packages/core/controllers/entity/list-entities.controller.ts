@@ -1,6 +1,6 @@
 import type { Entity } from '@monorise/base';
 import { createMiddleware } from 'hono/factory';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import type { EntityRepository } from '../../data/Entity';
 
 const querySchema = z.object({

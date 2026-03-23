@@ -1,7 +1,7 @@
 import type { Entity } from '@monorise/base';
 import { createMiddleware } from 'hono/factory';
 import httpStatus from 'http-status';
-import { z } from 'zod';
+import { z } from 'zod/v4';
 import type { Mutual, MutualRepository } from '../../data/Mutual';
 
 export class ListEntitiesByEntityController {

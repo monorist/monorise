@@ -1,7 +1,7 @@
 import type { Entity } from '@monorise/base';
 import { createMiddleware } from 'hono/factory';
 import httpStatus from 'http-status';
-import type { ZodError } from 'zod';
+import type { ZodError } from 'zod/v4';
 import { StandardError, StandardErrorCode } from '../../errors/standard-error';
 import type { EntityService } from '../../services/entity.service';
 
