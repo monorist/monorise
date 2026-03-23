@@ -16,6 +16,7 @@
     "fix-tag-processor-type",
     "fix-types-versions",
     "module-augmentation-combined-package",
+    "moody-buttons-build",
     "propagate-entity-state",
     "rewrite-dts-imports"
   ]
