@@ -35,11 +35,20 @@ const { entities } = useEntities(Entity.USER);
 
 // Navigate away and come back: returns cached data instantly
 const { entities } = useEntities(Entity.USER);
-
-// Force a fresh fetch
-const { refetch } = useEntities(Entity.USER);
-refetch();
 ```
+
+Two ways to force a fresh fetch:
+
+```ts
+// Option 1: Call refetch() — useful for user-triggered refresh (e.g., pull-to-refresh)
+const { entities, refetch } = useEntities(Entity.USER);
+refetch();
+
+// Option 2: Pass forceFetch option — useful when you always want fresh data on mount
+const { entities } = useEntities(Entity.USER, { forceFetch: true });
+```
+
+The `forceFetch` option works on all data-fetching hooks (`useEntities`, `useEntity`, `useMutuals`, `useTaggedEntities`, etc.).
 
 ## Optimistic updates
 
