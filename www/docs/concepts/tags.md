@@ -1,6 +1,17 @@
 # Tags
 
-A **tag** is a key-value pair used to label and classify entities. Tags offer a flexible way to attach descriptive context — like status, type, region, or priority — and can be structured to support **sorting and filtering**.
+Tags enable **additional access patterns** beyond the default entity list. While every entity can be listed and fetched by ID, tags let you query subsets of entities by group, sorted by a value — without scanning the entire table.
+
+For example, without tags you can only do:
+- List all organisations
+- Get organisation by ID
+
+With tags, you can also do:
+- List all organisations **of type "club"**
+- List all organisations **in a specific country, sorted by creation date**
+- List all orders **with status "pending", sorted by amount**
+
+Tags are powered by a **tag processor** that runs automatically whenever an entity is created or updated, keeping tag indexes in sync.
 
 ## Key characteristics
 
