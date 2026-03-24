@@ -274,18 +274,7 @@ const entityState = useEntityState(Entity.USER);
 | `deleteMutual(byType, entityType, byId, entityId, opts?)` | Delete mutual relationship. |
 | `getMutual(byType, entityType, byId, entityId)` | Fetch single mutual (non-hook). |
 
-### Optimistic update actions
 
-These update the local store immediately without making API calls. Use them for instant UI feedback.
-
-| Action | Description |
-|--------|-------------|
-| `updateLocalEntity(entityType, id, data?)` | Update entity in local store. |
-| `createLocalMutual(byType, entityType, byId, entityId, mutualData, data)` | Add mutual to local store (both sides). |
-| `upsertLocalMutual(byType, entityType, byId, entityId, mutualData, data?)` | Upsert mutual in local store. |
-| `deleteLocalMutual(byType, entityType, byId, entityId)` | Remove mutual from local store (both sides). |
-| `updateLocalTaggedEntity(tagKey, entity)` | Update entity in tag store. |
-| `deleteLocalTaggedEntity(tagKey, entityId)` | Remove entity from tag store. |
 
 ### Auto-propagation
 
