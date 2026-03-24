@@ -1,6 +1,6 @@
 # @monorise/core
 
-## 3.0.3-dev.0
+## 3.0.3
 
 ### Patch Changes
 

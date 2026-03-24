@@ -12,3 +12,7 @@ tsconfig.tsbuildinfo
 
 # sst
 .sst
+
+# vitepress
+www/docs/.vitepress/cache
+www/docs/.vitepress/dist

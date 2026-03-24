@@ -14,13 +14,16 @@
     "release": "npm run build && npm run changeset -- publish",
     "start:test-env": "./scripts/start-test-env.sh",
     "test": "npm -w @monorise/core run test",
+    "docs:dev": "npm -w @monorise/www run docs:dev",
+    "docs:build": "npm -w @monorise/www run docs:build",
     "version": "npm run changeset -- version"
   },
   "files": [
     "dist"
   ],
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "www"
   ],
   "keywords": [],
   "author": "monorise",
