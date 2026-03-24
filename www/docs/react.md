@@ -68,6 +68,43 @@ Optimistic functions use [Immer](https://immerjs.github.io/immer/) for immutable
 
 ## Hooks
 
+All data-fetching hooks accept an optional `opts` parameter (`CommonOptions`) and return a consistent set of properties:
+
+### Common options
+
+```ts
+{
+  forceFetch?: boolean;       // bypass cache and always fetch from API
+  isInterruptive?: boolean;   // show interruptive loading indicator
+  customUrl?: string;         // override the default API URL
+  stateKey?: string;          // custom store state key
+  feedback?: {
+    success?: string;         // toast message on success
+    failure?: string;         // toast message on failure
+    loading?: string;         // toast message while loading
+  };
+}
+```
+
+### Common return properties
+
+Every data-fetching hook returns at least:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `isLoading` | `boolean` | Whether a request is in flight |
+| `isFirstFetched` | `boolean` | Whether data has been fetched at least once |
+| `error` | `ApplicationRequestError \| undefined` | Error from the last request |
+| `requestKey` | `string` | Unique key for this request (useful with `useLoadStore`/`useErrorStore`) |
+| `refetch` | `() => Promise<...>` | Force a fresh fetch from the API |
+
+List hooks additionally return:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `lastKey` | `string \| undefined` | Pagination cursor — present when more data is available |
+| `listMore` | `() => void` | Load next page of results |
+
 ### `useEntities`
 
 Fetch a list of entities with search and pagination.
@@ -76,15 +113,15 @@ Fetch a list of entities with search and pagination.
 const {
   entities,        // CreatedEntity<T>[]
   entitiesMap,     // Map<string, CreatedEntity<T>>
-  isLoading,       // boolean
-  isFirstFetched,  // boolean
-  error,           // ApplicationRequestError | undefined
+  isLoading,
+  isFirstFetched,
+  error,
   searchField,     // { value: string, onChange: (e) => void }
-  lastKey,         // string | undefined (pagination cursor)
-  listMore,        // () => void — load next page
-  refetch,         // () => void — force refresh
-  requestKey,      // string
-} = useEntities(Entity.USER);
+  lastKey,
+  listMore,
+  refetch,
+  requestKey,
+} = useEntities(Entity.USER, opts?);
 ```
 
 The `searchField` helper can be bound directly to an input:
@@ -100,12 +137,12 @@ Fetch a single entity by ID.
 ```ts
 const {
   entity,          // CreatedEntity<T> | undefined
-  isLoading,       // boolean
-  isFirstFetched,  // boolean
-  error,           // ApplicationRequestError | undefined
-  refetch,         // () => Promise<CreatedEntity<T> | undefined>
-  requestKey,      // string
-} = useEntity(Entity.USER, userId);
+  isLoading,
+  isFirstFetched,
+  error,
+  refetch,
+  requestKey,
+} = useEntity(Entity.USER, userId, opts?);
 ```
 
 ### `useEntityByUniqueField`
@@ -113,11 +150,14 @@ const {
 Fetch an entity by a unique field value (e.g., email).
 
 ```ts
-const { entity, isLoading } = useEntityByUniqueField(
-  Entity.USER,
-  'email',
-  'alice@example.com',
-);
+const {
+  entity,          // CreatedEntity<T> | undefined
+  isLoading,
+  isFirstFetched,
+  error,
+  refetch,
+  requestKey,
+} = useEntityByUniqueField(Entity.USER, 'email', 'alice@example.com', opts?);
 ```
 
 ### `useMutuals`
@@ -128,14 +168,14 @@ Fetch entities related to a given entity via mutual relationships.
 const {
   mutuals,         // Mutual<B, T>[]
   mutualsMap,      // Map<string, Mutual<B, T>>
-  isLoading,       // boolean
-  isFirstFetched,  // boolean
-  error,           // ApplicationRequestError | undefined
-  lastKey,         // string | undefined
-  listMore,        // () => void
-  refetch,         // () => Promise<...>
-  requestKey,      // string
-} = useMutuals(Entity.TENANT, Entity.ORGANISATION, tenantId);
+  isLoading,
+  isFirstFetched,
+  error,
+  lastKey,
+  listMore,
+  refetch,
+  requestKey,
+} = useMutuals(Entity.TENANT, Entity.ORGANISATION, tenantId, opts?);
 ```
 
 Each `mutual` object contains:
@@ -160,12 +200,14 @@ Each `mutual` object contains:
 Fetch a single mutual relationship.
 
 ```ts
-const { mutual, isLoading, error } = useMutual(
-  Entity.TENANT,
-  Entity.ORGANISATION,
-  tenantId,
-  organisationId,
-);
+const {
+  mutual,          // Mutual<B, T> | undefined
+  isLoading,
+  isFirstFetched,
+  error,
+  refetch,
+  requestKey,
+} = useMutual(Entity.TENANT, Entity.ORGANISATION, tenantId, organisationId, opts?);
 ```
 
 ### `useTaggedEntities`
@@ -176,13 +218,15 @@ Fetch entities by tag with optional group and sort range filters.
 const {
   entities,        // CreatedEntity<T>[]
   entitiesMap,     // Map<string, CreatedEntity<T>>
-  isLoading,       // boolean
-  isFirstFetched,  // boolean
-  lastKey,         // string | undefined
-  listMore,        // () => Promise<...>
-  refetch,         // () => Promise<...>
-  requestKey,      // string
+  isLoading,
+  isFirstFetched,
+  error,
+  lastKey,
+  listMore,
+  refetch,
+  requestKey,
 } = useTaggedEntities(Entity.ORGANISATION, 'type', {
+  ...opts?,
   params: { group: 'club' },
 });
 ```
