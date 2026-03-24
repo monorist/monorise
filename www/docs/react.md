@@ -244,8 +244,6 @@ const entityState = useEntityState(Entity.USER);
 | Hook | Purpose |
 |------|---------|
 | `useConfig` | Access entity configuration |
-| `useProfile` | Current user profile |
-| `useIsUnauthorized` | Auth status check |
 | `useLoadStore(requestKey)` | Loading state for a specific request |
 | `useErrorStore(requestKey)` | Error state for a specific request |
 | `useModalStore` | Modal open/close state |
