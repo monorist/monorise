@@ -286,30 +286,3 @@ When you call `createEntity`, `editEntity`, or `deleteEntity`, the store automat
 
 This means `useMutuals` and `useTaggedEntities` reflect changes immediately without a manual refetch.
 
-### Auth actions
-
-| Action | Description |
-|--------|-------------|
-| `requestLogin(entityType, email, opts?)` | Trigger login flow |
-| `logout()` | Log out current user |
-| `getProfile(entityType, opts?)` | Fetch user profile |
-
-### UI actions
-
-| Action | Description |
-|--------|-------------|
-| `openModal(name, props?)` | Open a modal by name |
-| `closeModal()` | Close the current modal |
-| `setConfig(config)` | Set entity configuration |
-
----
-
-## Services
-
-| Service | Description |
-|---------|-------------|
-| `store` | Raw Zustand store instance |
-| `axios` | Configured axios instance with auth interceptors |
-| `authService` | Authentication service |
-| `filestoreService` | File upload/storage service |
-| `coreService` | Core entity/mutual/tag API service |
