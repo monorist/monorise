@@ -17,6 +17,66 @@ Do **not** use prejoins when:
 - You can tolerate two sequential API calls
 - The intermediate entities change frequently (high write amplification)
 - The chain is only two hops (a single `useMutuals` call is sufficient)
+- You can add a **direct mutual field** instead (see below)
+
+## Alternative: direct mutual fields
+
+Before reaching for prejoins, consider whether you can simply add a direct mutual relationship. This is often the simpler and more efficient solution.
+
+**Example:** You have three entities — `Tenant`, `Organisation`, and `Member`. A tenant has organisations, and organisations have members. You need to list all members by tenant.
+
+**Without a direct mutual**, you'd need two calls:
+1. Get all organisations for the tenant
+2. For each organisation, get all members
+
+**With prejoins**, monorise would compute `Tenant → Member` automatically — but this adds write overhead every time an organisation or member changes.
+
+**Better approach:** Add `tenantIds` as a mutual field directly on `Member`:
+
+```ts
+const config = createEntityConfig({
+  name: 'member',
+  displayName: 'Member',
+  baseSchema,
+  mutual: {
+    mutualSchema: z
+      .object({
+        organisationIds: z.string().array(),
+        tenantIds: z.string().array(), // direct link to tenant
+      })
+      .partial(),
+    mutualFields: {
+      organisationIds: { entityType: Entity.ORGANISATION },
+      tenantIds: { entityType: Entity.TENANT },
+    },
+  },
+});
+```
+
+When creating a member, pass both IDs:
+
+```ts
+await createEntity(Entity.MEMBER, {
+  name: 'Alice',
+  organisationIds: [organisationId],
+  tenantIds: [tenantId],
+});
+```
+
+Now you can query directly in a single call:
+
+```ts
+// All members for a tenant — no prejoins needed
+const { mutuals: members } = useMutuals(Entity.TENANT, Entity.MEMBER, tenantId);
+```
+
+::: tip
+If you know the relationship at creation time, a direct mutual field is always cheaper and simpler than a prejoin. Reserve prejoins for cases where the relationship is truly derived and cannot be known upfront.
+:::
+
+## When prejoins are necessary
+
+Prejoins are the right choice when the A → C relationship **cannot be established at creation time** — it only emerges from the chain of intermediate relationships. For example, if members are assigned to classes, and classes are assigned to teachers, the teacher-member relationship is purely derived.
 
 ## Example
 
