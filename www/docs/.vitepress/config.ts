@@ -51,6 +51,7 @@ export default defineConfig({
       {
         text: 'Community',
         items: [
+          { text: 'FAQ', link: '/faq' },
           { text: 'Roadmap', link: '/roadmap' },
           { text: 'Contributing', link: '/contributing' },
         ],
