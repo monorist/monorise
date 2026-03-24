@@ -23,6 +23,7 @@ DynamoDB charges per request and per table. A single-table design:
 - **Reduces costs** — fewer tables means fewer indexes to maintain
 - **Guarantees O(1) reads** — every query hits a partition directly, no joins or scans
 - **Simplifies infrastructure** — one table, one stream, one backup policy
+- **Easier capacity planning** — with multiple tables, each has its own read/write capacity that you must provision independently, leading to uneven utilization (some tables over-provisioned, others throttled). A single table consolidates all traffic into one pool, making it straightforward to switch to provisioned mode with predictable, consistent read/write capacity
 
 The downside is complexity in modeling, which is exactly what monorise handles for you.
 
