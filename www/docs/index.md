@@ -4,6 +4,9 @@ layout: home
 hero:
   name: Monorise
   text: DynamoDB Single-Table Toolkit
+  image:
+    src: /logo.png
+    alt: Monorise
   tagline: Type-safe, event-driven data layer for applications built on DynamoDB. Define schemas, get APIs, relationships, and processors automatically.
   actions:
     - theme: brand

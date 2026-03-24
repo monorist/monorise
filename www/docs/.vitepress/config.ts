@@ -7,6 +7,7 @@ export default defineConfig({
   base: '/monorise/',
 
   head: [
+    ['link', { rel: 'icon', href: '/monorise/logo.png' }],
     [
       'style',
       {},
@@ -15,6 +16,8 @@ export default defineConfig({
   ],
 
   themeConfig: {
+    logo: '/logo.png',
+
     nav: [
       { text: 'Guide', link: '/getting-started' },
       { text: 'Concepts', link: '/concepts/' },
