@@ -106,7 +106,7 @@ export default {
   // Directory containing your entity config files
   configDir: './monorise/configs',
 
-  // Hono app instance for custom API routes (mounted at /core/app/*)
+  // (Optional) Hono app instance for custom API routes (mounted at /core/app/*)
   customRoutes: './src/routes',
 };
 ```
@@ -114,7 +114,11 @@ export default {
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `configDir` | `string` | Yes | Path to directory containing entity config `.ts` files |
-| `customRoutes` | `string` | Yes | Path to a Hono app module for custom routes |
+| `customRoutes` | `string` | No | Path to a Hono app module for custom routes |
+
+::: tip
+The CLI auto-detects whether your project uses the combined `monorise` package or scoped `@monorise/*` packages and generates the correct import paths in `.monorise/handle.ts` accordingly.
+:::
 
 ### Entity config directory
 
