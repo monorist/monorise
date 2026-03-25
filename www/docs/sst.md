@@ -72,7 +72,7 @@ bus.subscribe('custom-handler', {
 | `bus` | `sst.aws.Bus` | EventBridge bus for entity lifecycle events |
 | `table` | `SingleTable` | DynamoDB single table with GSIs and replication |
 | `table.table` | `sst.aws.Dynamo` | The underlying DynamoDB table resource |
-| `alarmTopic` | `sst.aws.SnsTopic` | SNS topic for processor DLQ alarms |
+| `alarmTopic` | `sst.aws.SnsTopic` | SNS topic for DLQ alarms — connected to Slack webhook notifications when `slackWebhook` is configured. Reuse this when creating custom `QFunction` processors to get alerts in the same Slack channel |
 
 ### What it provisions
 
