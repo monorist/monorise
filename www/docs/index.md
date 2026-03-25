@@ -15,26 +15,6 @@ hero:
     - theme: alt
       text: View on GitHub
       link: https://github.com/monorist/monorise
-
-features:
-  - icon: "\U0001F5C4\uFE0F"
-    title: Single-Table DynamoDB
-    details: One table, O(1) performance for every query. Monorise handles denormalization and replication automatically.
-  - icon: "\U0001F512"
-    title: Type-Safe Schemas
-    details: Define entities with Zod schemas. Get full TypeScript types across backend and frontend with zero code generation delay.
-  - icon: "\u26A1"
-    title: Event-Driven Processors
-    details: Mutual, tag, and prejoin processors keep denormalized access patterns in sync via EventBridge and SQS.
-  - icon: "\U0001F517"
-    title: Relational Access Patterns
-    details: Entity, Mutual, and Tag concepts give you relational-style queries on DynamoDB without complex hand-written expressions.
-  - icon: "\U0001F4E6"
-    title: Full-Stack SDK
-    details: Backend API (Hono), React hooks with caching, SST v3 infrastructure module — one package covers the entire stack.
-  - icon: "\U0001F6E0\uFE0F"
-    title: CLI Code Generation
-    details: Run monorise dev to watch entity configs and auto-generate handlers, types, and Lambda entry points.
 ---
 
 ## Full-stack in minutes
@@ -122,3 +102,66 @@ export default function MembersPage() {
 :::
 
 That's it — API, DynamoDB, EventBridge, processors, and a type-safe frontend. [Get started →](/getting-started)
+
+## Why Monorise?
+
+<div class="features-grid">
+  <div class="feature">
+    <h3>Single-Table DynamoDB</h3>
+    <p>One table, O(1) performance for every query. Monorise handles denormalization and replication automatically.</p>
+  </div>
+  <div class="feature">
+    <h3>Type-Safe Schemas</h3>
+    <p>Define entities with Zod schemas. Get full TypeScript types across backend and frontend with zero code generation delay.</p>
+  </div>
+  <div class="feature">
+    <h3>Event-Driven Processors</h3>
+    <p>Mutual, tag, and prejoin processors keep denormalized access patterns in sync via EventBridge and SQS.</p>
+  </div>
+  <div class="feature">
+    <h3>Relational Access Patterns</h3>
+    <p>Entity, Mutual, and Tag concepts give you relational-style queries on DynamoDB without complex hand-written expressions.</p>
+  </div>
+  <div class="feature">
+    <h3>Full-Stack SDK</h3>
+    <p>Backend API (Hono), React hooks with caching, SST v3 infrastructure module — one package covers the entire stack.</p>
+  </div>
+  <div class="feature">
+    <h3>CLI Code Generation</h3>
+    <p>Run monorise dev to watch entity configs and auto-generate handlers, types, and Lambda entry points.</p>
+  </div>
+</div>
+
+<style>
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin-top: 24px;
+}
+@media (max-width: 768px) {
+  .features-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.feature {
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 12px;
+  padding: 24px;
+  transition: border-color 0.25s;
+}
+.feature:hover {
+  border-color: var(--vp-c-brand-1);
+}
+.feature h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+}
+.feature p {
+  font-size: 14px;
+  color: var(--vp-c-text-2);
+  margin: 0;
+  line-height: 1.6;
+}
+</style>
