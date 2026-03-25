@@ -2,6 +2,10 @@
 
 The React SDK (`monorise/react`) provides hooks, actions, and services for building frontend applications with monorise. It features built-in caching, optimistic updates, and type-safe data access.
 
+::: warning
+Never point the React SDK directly at the monorise API Gateway. Always proxy through your frontend server using the [edge-auth proxy pattern](/best-practices#always-proxy-api-requests-through-your-server).
+:::
+
 ## Setup
 
 ```ts

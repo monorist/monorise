@@ -200,38 +200,38 @@ export default $config({
     };
   },
   async run() {
-    const { MonoriseCore } = await import('monorise/sst');
+    const { monorise } = await import('monorise/sst');
 
-    const monorise = new MonoriseCore('main', {
+    const { bus, api, table, alarmTopic } = new monorise.module.Core('core', {
       allowOrigins: ['http://localhost:3000'],
     });
 
     // Link to your frontend
     new sst.aws.Nextjs('Web', {
-      link: [monorise.api],
+      link: [api],
     });
   },
 });
 ```
 
-### What `MonoriseCore` creates
+### What `monorise.module.Core` creates
 
 | Resource | Description |
 |----------|-------------|
-| `monorise.api` | API Gateway v2 with CORS, routing to Hono Lambda |
-| `monorise.table` | DynamoDB single table with GSIs and replication indexes |
-| `monorise.bus` | EventBridge bus for entity events |
+| `api` | API Gateway v2 with CORS, routing to Hono Lambda |
+| `table` | DynamoDB single table with GSIs and replication indexes |
+| `bus` | EventBridge bus for entity events |
+| `alarmTopic` | SNS topic for processor error alerts |
 | Mutual processor | SQS + Lambda for mutual relationship sync |
 | Tag processor | SQS + Lambda for tag index sync |
 | Prejoin processor | SQS + Lambda for computed relationship sync |
 | Replication processor | DynamoDB stream + Lambda for denormalized data sync |
-| Alarm topic | SNS topic for processor error alerts |
 | CloudWatch dashboard | Pre-built dashboard with Lambda metrics, DLQ depth, and table stats |
 
 ### Configuration options
 
 ```ts
-new MonoriseCore('main', {
+new monorise.module.Core('core', {
   allowOrigins: ['https://myapp.com'],  // CORS origins
   allowHeaders: ['x-custom-header'],     // Additional CORS headers
   tableTtl: 'expiresAt',                // DynamoDB TTL attribute name
@@ -240,9 +240,11 @@ new MonoriseCore('main', {
 });
 ```
 
+For the full SST SDK reference including `QFunction`, see the [SST SDK](/sst) page.
+
 ### Development
 
-SST's dev mode works seamlessly with monorise. The `MonoriseCore` constructor automatically registers a dev command that runs `monorise dev` in watch mode:
+SST's dev mode works seamlessly with monorise. The `monorise.module.Core` constructor automatically registers a dev command that runs `monorise dev` in watch mode:
 
 ```bash
 npx sst dev
@@ -250,19 +252,14 @@ npx sst dev
 
 This starts your local dev environment with live Lambda functions and auto-regenerating monorise config.
 
+::: warning Before you start building
+Read the [Best Practices](/best-practices) guide first — especially the **edge-auth proxy pattern**. How you connect your frontend to the monorise API Gateway has significant security implications.
+:::
+
 ## Common commands
 
 ```bash
 npx monorise init     # scaffold a new project
 npx monorise dev      # watch mode — regenerates on config changes
 npx monorise build    # one-time build
-```
-
-From a monorepo root:
-
-```bash
-npm run dev            # watch/build workspace packages
-npm run build          # build all packages
-npm run start:test-env # start local test dependencies
-npm run test           # run core package tests
 ```

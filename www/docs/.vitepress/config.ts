@@ -28,7 +28,10 @@ export default defineConfig({
     sidebar: [
       {
         text: 'Getting Started',
-        items: [{ text: 'Introduction', link: '/getting-started' }],
+        items: [
+          { text: 'Introduction', link: '/getting-started' },
+          { text: 'Deploying', link: '/deploying' },
+        ],
       },
       {
         text: 'Core Concepts',
@@ -42,13 +45,21 @@ export default defineConfig({
       },
       {
         text: 'Architecture',
-        items: [{ text: 'Overview & API', link: '/architecture' }],
+        items: [
+          { text: 'Overview & API', link: '/architecture' },
+          { text: 'Custom Routes', link: '/custom-routes' },
+        ],
+      },
+      {
+        text: 'Best Practices',
+        items: [{ text: 'Best Practices', link: '/best-practices' }],
       },
       {
         text: 'SDKs & Packages',
         items: [
           { text: 'Package Map', link: '/packages' },
           { text: 'React SDK', link: '/react' },
+          { text: 'SST SDK', link: '/sst' },
         ],
       },
       {
@@ -60,6 +71,8 @@ export default defineConfig({
         ],
       },
     ],
+
+    outline: [2, 3],
 
     socialLinks: [
       { icon: 'github', link: 'https://github.com/monorist/monorise' },

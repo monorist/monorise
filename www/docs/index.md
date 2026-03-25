@@ -15,24 +15,156 @@ hero:
     - theme: alt
       text: View on GitHub
       link: https://github.com/monorist/monorise
-
-features:
-  - icon: "\U0001F5C4\uFE0F"
-    title: Single-Table DynamoDB
-    details: One table, O(1) performance for every query. Monorise handles denormalization and replication automatically.
-  - icon: "\U0001F512"
-    title: Type-Safe Schemas
-    details: Define entities with Zod schemas. Get full TypeScript types across backend and frontend with zero code generation delay.
-  - icon: "\u26A1"
-    title: Event-Driven Processors
-    details: Mutual, tag, and prejoin processors keep denormalized access patterns in sync via EventBridge and SQS.
-  - icon: "\U0001F517"
-    title: Relational Access Patterns
-    details: Entity, Mutual, and Tag concepts give you relational-style queries on DynamoDB without complex hand-written expressions.
-  - icon: "\U0001F4E6"
-    title: Full-Stack SDK
-    details: Backend API (Hono), React hooks with caching, SST v3 infrastructure module — one package covers the entire stack.
-  - icon: "\U0001F6E0\uFE0F"
-    title: CLI Code Generation
-    details: Run monorise dev to watch entity configs and auto-generate handlers, types, and Lambda entry points.
 ---
+
+## Full-stack in minutes
+
+Define your entities, deploy with SST, and query from React — all type-safe, all from one package.
+
+::: code-group
+
+```ts [sst.config.ts]
+export default $config({
+  app(input) {
+    return { name: 'my-app', home: 'aws' };
+  },
+  async run() {
+    const { monorise } = await import('monorise/sst');
+
+    const { api } = new monorise.module.Core('core', {
+      allowOrigins: ['http://localhost:3000'],
+    });
+
+    new sst.aws.Nextjs('Web', {
+      link: [api],
+    });
+  },
+});
+```
+
+```ts [monorise/configs/member.ts]
+import { createEntityConfig } from 'monorise/base';
+import { z } from 'zod/v4';
+
+const baseSchema = z.object({
+  name: z.string(),
+  email: z.string().email(),
+  role: z.enum(['admin', 'member']),
+}).partial();
+
+const createSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+});
+
+export default createEntityConfig({
+  name: 'member',
+  displayName: 'Member',
+  baseSchema,
+  createSchema,
+  searchableFields: ['name', 'email'],
+  uniqueFields: ['email'],
+  tags: [
+    {
+      name: 'role',
+      processor: (entity) => [{ group: entity.data.role }],
+    },
+  ],
+});
+```
+
+```tsx [app/members/page.tsx]
+import { useEntities, createEntity } from 'monorise/react';
+import { Entity } from '#/monorise/entities';
+
+export default function MembersPage() {
+  const { entities: members, searchField, isLoading } = useEntities(Entity.MEMBER);
+
+  const handleCreate = async () => {
+    await createEntity(Entity.MEMBER, {
+      name: 'Alice',
+      email: 'alice@example.com',
+    });
+  };
+
+  return (
+    <div>
+      <input {...searchField} placeholder="Search members..." />
+      <button onClick={handleCreate}>Add Member</button>
+      {members?.map((m) => (
+        <div key={m.entityId}>{m.data.name} — {m.data.email}</div>
+      ))}
+    </div>
+  );
+}
+```
+
+:::
+
+That's it — API, DynamoDB, EventBridge, processors, and a type-safe frontend. [Get started →](/getting-started)
+
+## Why Monorise?
+
+<div class="features-grid">
+  <div class="feature">
+    <h3><span class="feature-icon">&#x1F5C4;&#xFE0F;</span> Single-Table DynamoDB</h3>
+    <p>One table, O(1) performance for every query. Monorise handles denormalization and replication automatically.</p>
+  </div>
+  <div class="feature">
+    <h3><span class="feature-icon">&#x1F512;</span> Type-Safe Schemas</h3>
+    <p>Define entities with Zod schemas. Get full TypeScript types across backend and frontend with zero code generation delay.</p>
+  </div>
+  <div class="feature">
+    <h3><span class="feature-icon">&#x26A1;</span> Event-Driven Processors</h3>
+    <p>Mutual, tag, and prejoin processors keep denormalized access patterns in sync via EventBridge and SQS.</p>
+  </div>
+  <div class="feature">
+    <h3><span class="feature-icon">&#x1F517;</span> Relational Access Patterns</h3>
+    <p>Entity, Mutual, and Tag concepts give you relational-style queries on DynamoDB without complex hand-written expressions.</p>
+  </div>
+  <div class="feature">
+    <h3><span class="feature-icon">&#x1F4E6;</span> Full-Stack SDK</h3>
+    <p>Backend API (Hono), React hooks with caching, SST v3 infrastructure module — one package covers the entire stack.</p>
+  </div>
+  <div class="feature">
+    <h3><span class="feature-icon">&#x1F6E0;&#xFE0F;</span> Seamless Dev Workflow</h3>
+    <p>Run <code>npx sst dev</code> and everything just works — handlers, types, and Lambda entry points are auto-generated as you edit entity configs.</p>
+  </div>
+</div>
+
+<style>
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin-top: 24px;
+}
+@media (max-width: 768px) {
+  .features-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.feature {
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 12px;
+  padding: 24px;
+  transition: border-color 0.25s;
+}
+.feature:hover {
+  border-color: var(--vp-c-brand-1);
+}
+.feature-icon {
+  margin-right: 8px;
+}
+.feature h3 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+}
+.feature p {
+  font-size: 14px;
+  color: var(--vp-c-text-2);
+  margin: 0;
+  line-height: 1.6;
+}
+</style>
