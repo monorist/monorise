@@ -107,11 +107,21 @@ Now all client-side hooks (`useEntities`, `useMutuals`, etc.) route through your
 
 Don't reuse the same API key across environments. Configure separate keys for development, staging, and production via the `API_KEYS` SST secret:
 
+`API_KEYS` is used by the monorise API Gateway to authenticate incoming requests. `X_API_KEY` is used by your proxy server to attach the key when forwarding requests to the API Gateway.
+
 ```bash
-# Set per-stage secrets
+# API Gateway accepts these keys (array of valid keys)
 npx sst secret set API_KEYS '["dev-key-123"]' --stage dev
 npx sst secret set API_KEYS '["prod-key-abc"]' --stage production
+
+# Proxy server uses this key to call the API Gateway
+npx sst secret set X_API_KEY 'dev-key-123' --stage dev
+npx sst secret set X_API_KEY 'prod-key-abc' --stage production
 ```
+
+::: tip
+`API_KEYS` is an array because you may have multiple valid keys (e.g., for key rotation). `X_API_KEY` is the single key your proxy uses — it must match one of the values in `API_KEYS`.
+:::
 
 ## Keep entity configs focused
 
