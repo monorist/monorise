@@ -107,33 +107,27 @@ That's it — API, DynamoDB, EventBridge, processors, and a type-safe frontend. 
 
 <div class="features-grid">
   <div class="feature">
-    <div class="feature-icon">&#x1F5C4;&#xFE0F;</div>
-    <h3>Single-Table DynamoDB</h3>
+    <h3><span class="feature-icon">&#x1F5C4;&#xFE0F;</span> Single-Table DynamoDB</h3>
     <p>One table, O(1) performance for every query. Monorise handles denormalization and replication automatically.</p>
   </div>
   <div class="feature">
-    <div class="feature-icon">&#x1F512;</div>
-    <h3>Type-Safe Schemas</h3>
+    <h3><span class="feature-icon">&#x1F512;</span> Type-Safe Schemas</h3>
     <p>Define entities with Zod schemas. Get full TypeScript types across backend and frontend with zero code generation delay.</p>
   </div>
   <div class="feature">
-    <div class="feature-icon">&#x26A1;</div>
-    <h3>Event-Driven Processors</h3>
+    <h3><span class="feature-icon">&#x26A1;</span> Event-Driven Processors</h3>
     <p>Mutual, tag, and prejoin processors keep denormalized access patterns in sync via EventBridge and SQS.</p>
   </div>
   <div class="feature">
-    <div class="feature-icon">&#x1F517;</div>
-    <h3>Relational Access Patterns</h3>
+    <h3><span class="feature-icon">&#x1F517;</span> Relational Access Patterns</h3>
     <p>Entity, Mutual, and Tag concepts give you relational-style queries on DynamoDB without complex hand-written expressions.</p>
   </div>
   <div class="feature">
-    <div class="feature-icon">&#x1F4E6;</div>
-    <h3>Full-Stack SDK</h3>
+    <h3><span class="feature-icon">&#x1F4E6;</span> Full-Stack SDK</h3>
     <p>Backend API (Hono), React hooks with caching, SST v3 infrastructure module — one package covers the entire stack.</p>
   </div>
   <div class="feature">
-    <div class="feature-icon">&#x1F6E0;&#xFE0F;</div>
-    <h3>CLI Code Generation</h3>
+    <h3><span class="feature-icon">&#x1F6E0;&#xFE0F;</span> CLI Code Generation</h3>
     <p>Run monorise dev to watch entity configs and auto-generate handlers, types, and Lambda entry points.</p>
   </div>
 </div>
@@ -160,8 +154,7 @@ That's it — API, DynamoDB, EventBridge, processors, and a type-safe frontend. 
   border-color: var(--vp-c-brand-1);
 }
 .feature-icon {
-  font-size: 28px;
-  margin-bottom: 12px;
+  margin-right: 8px;
 }
 .feature h3 {
   font-size: 16px;
