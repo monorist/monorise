@@ -72,6 +72,8 @@ export default defineConfig({
       },
     ],
 
+    outline: [2, 3],
+
     socialLinks: [
       { icon: 'github', link: 'https://github.com/monorist/monorise' },
       { icon: 'discord', link: 'https://discord.gg/9c3ccQkvGj' },
