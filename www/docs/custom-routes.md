@@ -126,30 +126,3 @@ const { data: user } = await axios.post('/core/app/register', {
 The `axios` instance from `monorise/react` automatically tracks loading and error state via `useLoadStore` / `useErrorStore`, and detects 401 responses for auth handling.
 :::
 
-## Authentication
-
-All routes under `/core/*` (including custom routes) are protected by the API key middleware. Requests must include a valid `x-api-key` header matching one of the keys configured in the `API_KEYS` secret.
-
-If you need route-specific auth (e.g., JWT validation), add Hono middleware to your custom routes:
-
-```ts
-export default (container: DependencyContainer) => {
-  const app = new Hono();
-
-  // Public route
-  app.get('/health', (c) => c.json({ status: 'ok' }));
-
-  // Protected route with custom middleware
-  app.use('/admin/*', async (c, next) => {
-    const token = c.req.header('Authorization');
-    // validate token...
-    await next();
-  });
-
-  app.get('/admin/stats', async (c) => {
-    return c.json({ totalUsers: 42 });
-  });
-
-  return app;
-};
-```
