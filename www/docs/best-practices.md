@@ -6,11 +6,9 @@
 
 Instead, proxy requests through your frontend server (e.g., Next.js API routes, Nuxt server routes, or any backend):
 
-```
-Browser → Your Server (Next.js/Nuxt/Express) → Monorise API Gateway
-```
+![Best Security Practice](/best-security-practice.png)
 
-Your server is the only place that holds the API key. The client never sees it.
+The frontend server acts as a **thin proxy layer** — its only job is to authenticate the user and attach the `x-api-key` header before forwarding to monorise. All business logic should live in monorise [custom routes](/custom-routes), not in the proxy layer.
 
 ### Next.js example
 
