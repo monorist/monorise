@@ -42,7 +42,10 @@ export default defineConfig({
       },
       {
         text: 'Architecture',
-        items: [{ text: 'Overview & API', link: '/architecture' }],
+        items: [
+          { text: 'Overview & API', link: '/architecture' },
+          { text: 'Custom Routes', link: '/custom-routes' },
+        ],
       },
       {
         text: 'SDKs & Packages',

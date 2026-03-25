@@ -67,27 +67,9 @@ Failed messages can be replayed from the DLQ once the issue is resolved.
 
 ## Can I add custom API routes?
 
-Yes. Define a Hono app and point to it via `customRoutes` in your `monorise.config.ts`:
+Yes. Define a Hono app and point to it via `customRoutes` in your `monorise.config.ts`. Custom routes are mounted under `/core/app/*` and can access monorise's data layer via the dependency container.
 
-```ts
-// monorise.config.ts
-export default {
-  configDir: './monorise/configs',
-  customRoutes: './src/routes',
-};
-```
-
-```ts
-// src/routes.ts
-import { Hono } from 'hono';
-
-const app = new Hono();
-app.get('/health', (c) => c.json({ status: 'ok' }));
-
-export default app;
-```
-
-Custom routes are mounted under `/core/app/*`.
+See the full [Custom Routes](/custom-routes) guide for setup, examples, and how to access entity services.
 
 ## How do I migrate existing data when schemas change?
 
