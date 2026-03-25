@@ -127,8 +127,8 @@ That's it — API, DynamoDB, EventBridge, processors, and a type-safe frontend. 
     <p>Backend API (Hono), React hooks with caching, SST v3 infrastructure module — one package covers the entire stack.</p>
   </div>
   <div class="feature">
-    <h3><span class="feature-icon">&#x1F6E0;&#xFE0F;</span> Zero-Config Dev Experience</h3>
-    <p>Run <code>npx sst dev</code> and everything just works — handlers, types, and Lambda entry points are auto-generated from your entity configs.</p>
+    <h3><span class="feature-icon">&#x1F6E0;&#xFE0F;</span> Seamless Dev Workflow</h3>
+    <p>Run <code>npx sst dev</code> and everything just works — handlers, types, and Lambda entry points are auto-generated as you edit entity configs.</p>
   </div>
 </div>
 
