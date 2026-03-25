@@ -2,17 +2,32 @@
 
 The SST SDK (`monorise/sst`) provides infrastructure constructs for deploying monorise on AWS using [SST v3](https://sst.dev). It exports two building blocks:
 
-- **`MonoriseCore`** — the main construct that provisions the entire monorise infrastructure
-- **`QFunction`** — a reusable SQS + Lambda + DLQ + alarm pattern for building your own event processors
+- **`monorise.module.Core`** — the main construct that provisions the entire monorise infrastructure
+- **`monorise.block.QFunction`** — a reusable SQS + Lambda + DLQ + alarm pattern for building your own event processors
+
+```ts
+// sst.config.ts
+async run() {
+  const { monorise } = await import('monorise/sst');
+
+  const { bus, api, table, alarmTopic } = new monorise.module.Core('core', {
+    allowOrigins: ['http://localhost:3000'],
+  });
+
+  new monorise.block.QFunction('email', {
+    // ...
+  });
+}
+```
 
 ## MonoriseCore
 
-`MonoriseCore` is a single construct that creates the full monorise runtime infrastructure.
+`monorise.module.Core` is the main construct that creates the full monorise runtime infrastructure.
 
 ```ts
-import { MonoriseCore } from 'monorise/sst';
+const { monorise } = await import('monorise/sst');
 
-const monorise = new MonoriseCore('main', {
+const { bus, api, table, alarmTopic } = new monorise.module.Core('core', {
   allowOrigins: ['http://localhost:3000'],
 });
 ```
@@ -37,27 +52,27 @@ new MonoriseCore(id: string, args?: MonoriseCoreArgs)
 After construction, you can access the created resources to link them to other parts of your stack:
 
 ```ts
-const monorise = new MonoriseCore('main', { ... });
+const { bus, api, table, alarmTopic } = new monorise.module.Core('core', { ... });
 
 // Link the API to a frontend
 new sst.aws.Nextjs('Web', {
-  link: [monorise.api],
+  link: [api],
 });
 
 // Subscribe to the event bus from custom services
-monorise.bus.subscribe('custom-handler', {
+bus.subscribe('custom-handler', {
   handler: 'src/handlers/custom.handler',
-  link: [monorise.table.table],
+  link: [table.table],
 });
 ```
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `monorise.api` | `sst.aws.ApiGatewayV2` | API Gateway with CORS, routes to Hono Lambda |
-| `monorise.bus` | `sst.aws.Bus` | EventBridge bus for entity lifecycle events |
-| `monorise.table` | `SingleTable` | DynamoDB single table with GSIs and replication |
-| `monorise.table.table` | `sst.aws.Dynamo` | The underlying DynamoDB table resource |
-| `monorise.alarmTopic` | `sst.aws.SnsTopic` | SNS topic for processor DLQ alarms |
+| `api` | `sst.aws.ApiGatewayV2` | API Gateway with CORS, routes to Hono Lambda |
+| `bus` | `sst.aws.Bus` | EventBridge bus for entity lifecycle events |
+| `table` | `SingleTable` | DynamoDB single table with GSIs and replication |
+| `table.table` | `sst.aws.Dynamo` | The underlying DynamoDB table resource |
+| `alarmTopic` | `sst.aws.SnsTopic` | SNS topic for processor DLQ alarms |
 
 ### What it provisions
 
@@ -88,24 +103,25 @@ DynamoDB streams are enabled with `new-and-old-images` to power the replication 
 
 ## QFunction
 
-`QFunction` is a reusable construct that pairs an SQS queue with a Lambda function, a Dead Letter Queue, and an optional CloudWatch alarm. Monorise uses it internally for all processors, but you can also use it for your own event-driven workloads.
+`monorise.block.QFunction` is a reusable construct that pairs an SQS queue with a Lambda function, a Dead Letter Queue, and an optional CloudWatch alarm. Monorise uses it internally for all processors, but you can also use it for your own event-driven workloads.
 
 ```ts
-import { QFunction } from 'monorise/sst';
+const { monorise } = await import('monorise/sst');
+const { bus, alarmTopic } = new monorise.module.Core('core', { ... });
 
-const emailProcessor = new QFunction('email', {
+const emailProcessor = new monorise.block.QFunction('email', {
   handler: 'src/handlers/email.handler',
   memory: '256 MB',
   timeout: '30 seconds',
   visibilityTimeout: '30 seconds',
-  alarmTopic: monorise.alarmTopic, // reuse monorise's alarm topic
+  alarmTopic, // reuse monorise's alarm topic
   environment: {
     SMTP_HOST: process.env.SMTP_HOST!,
   },
 });
 
 // Subscribe to events
-monorise.bus.subscribeQueue('email-rule', emailProcessor.queue, {
+bus.subscribeQueue('email-rule', emailProcessor.queue, {
   pattern: {
     source: ['my-app'],
     detailType: ['ORDER_CONFIRMED'],
