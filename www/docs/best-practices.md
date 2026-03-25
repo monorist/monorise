@@ -4,68 +4,82 @@
 
 **Never expose the monorise API Gateway directly to the client.** The API Gateway is protected only by an API key (`x-api-key`), which is a shared secret — if embedded in client-side code, anyone can extract it and manipulate your database directly.
 
-Instead, proxy requests through your frontend server (e.g., Next.js API routes, Nuxt server routes, or any backend):
+Instead, use the **edge-auth proxy pattern** — your frontend server sits between the client and monorise, acting as a thin auth layer:
 
 ![Best Security Practice](/best-security-practice.png)
 
-The frontend server acts as a **thin proxy layer** — its only job is to authenticate the user and attach the `x-api-key` header before forwarding to monorise. All business logic should live in monorise [custom routes](/custom-routes), not in the proxy layer.
+The frontend server is a **thin proxy layer** — its only job is to authenticate the user and attach the `x-api-key` header before forwarding to monorise. All business logic should live in monorise [custom routes](/custom-routes), not in the proxy layer.
 
-### Next.js example
+### Edge-auth proxy pattern with Next.js + SST
 
-Create a catch-all API route that proxies to monorise:
+SST provides seamless Next.js deployment via `sst.aws.Nextjs`. This means your Next.js app already has a server — use its API routes as the proxy layer. No extra infrastructure needed.
+
+**1. Proxy utility** — rewrites client requests to the monorise API Gateway, validates auth, and attaches `x-api-key`:
+
+```ts
+// app/api/proxy-request.ts
+import { type NextRequest, NextResponse } from 'next/server';
+import { Resource } from 'sst';
+import { validateToken } from './validate-token';
+
+function rewriteUrl(requestUrl: string, replacePath?: string) {
+  const path = replacePath
+    ?? requestUrl.replace(/^https?:\/\/[^\/]+(:d+)?\/api\//, '');
+  return `${Resource.CoreApi.url}/${path}`;
+}
+
+export const proxyRequest = async ({
+  req,
+  path,
+  skipAuthentication,
+}: {
+  req: NextRequest;
+  path?: string;
+  skipAuthentication?: boolean;
+}) => {
+  // 1. Validate auth (thin layer — only concern of the proxy)
+  let accountId = '';
+  if (!skipAuthentication) {
+    const token = validateToken(req);
+    if (token instanceof NextResponse) return token; // 401
+    accountId = token.properties.accountId;
+  }
+
+  // 2. Parse body
+  let body: string | undefined;
+  try { body = JSON.stringify(await req.json()); } catch {}
+
+  // 3. Forward to monorise with x-api-key
+  return fetch(rewriteUrl(req.url, path), {
+    method: req.method,
+    body,
+    headers: {
+      'content-type': 'application/json',
+      'account-id': accountId,
+      'x-api-key': Resource.ApiKeys.value,
+    },
+    cache: 'no-store',
+  });
+};
+```
+
+**2. Catch-all API route** — forwards all `/api/*` requests through the proxy:
 
 ```ts
 // app/api/[...proxy]/route.ts
-import { Resource } from 'sst';
+import type { NextRequest } from 'next/server';
+import { proxyRequest } from '../proxy-request';
 
-const API_BASE_URL = Resource.CoreApi.url;
-const API_KEY = process.env.API_KEY;
-
-export async function GET(req: Request) {
-  return proxy(req);
-}
-
-export async function POST(req: Request) {
-  return proxy(req);
-}
-
-export async function PATCH(req: Request) {
-  return proxy(req);
-}
-
-export async function DELETE(req: Request) {
-  return proxy(req);
-}
-
-async function proxy(req: Request) {
-  const url = new URL(req.url);
-  const path = url.pathname.replace('/api', '');
-
-  const response = await fetch(`${API_BASE_URL}${path}${url.search}`, {
-    method: req.method,
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': API_KEY!,
-      // Forward any auth headers from the client
-      ...(req.headers.get('Authorization')
-        ? { Authorization: req.headers.get('Authorization')! }
-        : {}),
-    },
-    body: req.method !== 'GET' ? await req.text() : undefined,
-  });
-
-  return new Response(response.body, {
-    status: response.status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
+export const GET = (req: NextRequest) => proxyRequest({ req });
+export const POST = (req: NextRequest) => proxyRequest({ req });
+export const PATCH = (req: NextRequest) => proxyRequest({ req });
+export const PUT = (req: NextRequest) => proxyRequest({ req });
+export const DELETE = (req: NextRequest) => proxyRequest({ req });
 ```
 
-Then configure `monorise/react` to point at your proxy instead of the API Gateway directly:
+**3. Configure monorise/react** to point at your proxy:
 
 ```ts
-import { setMonoriseOptions } from 'monorise/react';
-
 setMonoriseOptions({
   entityApiBaseUrl: '/api/core/entity',
   mutualApiBaseUrl: '/api/core/mutual',
@@ -73,19 +87,21 @@ setMonoriseOptions({
 });
 ```
 
+Now all client-side hooks (`useEntities`, `useMutuals`, etc.) route through your Next.js server, which validates auth and attaches the API key server-side.
+
 ### Why this matters
 
 | Approach | API key visible to client? | Risk |
 |----------|--------------------------|------|
 | Client → API Gateway directly | Yes (in JS bundle or network tab) | Anyone can create/delete entities |
-| Client → Your Server → API Gateway | No (server-side only) | API key stays secret |
+| Client → Next.js Server → API Gateway | No (server-side only) | API key stays secret |
 
-### Additional benefits of proxying
+### Additional benefits
 
-- **Add your own auth layer** — validate JWTs, session tokens, or OAuth before forwarding to monorise
+- **Auth at the edge** — validate JWTs, session tokens, or OAuth before forwarding to monorise
+- **Inject context** — enrich requests with server-side data (e.g., `account-id` from session)
 - **Rate limiting** — protect against abuse at the proxy layer
-- **Request transformation** — enrich requests with server-side context (e.g., inject `tenantId` from session)
-- **Audit logging** — log all API calls before they reach monorise
+- **Bring your own auth** — the proxy pattern works with any auth provider (OpenAuth, AuthJs, Clerk, etc.) — just swap the `validateToken` implementation
 
 ## Use environment-specific API keys
 
