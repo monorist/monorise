@@ -1,0 +1,23 @@
+{
+  "mode": "exit",
+  "tag": "dev",
+  "initialVersions": {
+    "@monorise/base": "3.0.1",
+    "@monorise/cli": "3.0.1",
+    "@monorise/core": "3.0.2",
+    "monorise": "0.0.1",
+    "@monorise/react": "3.0.3",
+    "@monorise/sst": "3.1.0"
+  },
+  "changesets": [
+    "auto-populate-mutual-store",
+    "fix-force-fetch-mutuals",
+    "fix-tag-list-nan-limit",
+    "fix-tag-processor-type",
+    "fix-types-versions",
+    "module-augmentation-combined-package",
+    "moody-buttons-build",
+    "propagate-entity-state",
+    "rewrite-dts-imports"
+  ]
+}

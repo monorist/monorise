@@ -222,7 +222,7 @@ export interface MonoriseEntityConfig<
    */
   tags?: {
     name: string;
-    processor: (entity: CreatedEntity<T>) => {
+    processor: (entity: { entityId: string; entityType: string; data: Record<string, any>; createdAt: string; updatedAt: string }) => {
       group?: string;
       sortValue?: string;
     }[];

@@ -1,5 +1,17 @@
 # @monorise/cli
 
+## 3.0.2-dev.1
+
+### Patch Changes
+
+- 37193cc: include handle @
+
+## 3.0.2-dev.0
+
+### Patch Changes
+
+- eeb410d: Add module augmentation for monorise/base combined package to fix type resolution
+
 ## 3.0.1
 
 ### Patch Changes

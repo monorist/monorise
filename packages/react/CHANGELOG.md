@@ -1,5 +1,34 @@
 # @monorise/react
 
+## 3.0.4-dev.3
+
+### Patch Changes
+
+- Updated dependencies [5d4b618]
+  - @monorise/base@3.0.2-dev.0
+
+## 3.0.4-dev.2
+
+### Patch Changes
+
+- d3568d3: Fix forceFetch option being ignored in useMutuals and useEntities hooks.
+
+  - `useMutuals`: The useEffect guard `!isFirstFetched` prevented refetching even when `forceFetch: true` was passed. Now checks `!isFirstFetched || opts?.forceFetch`.
+  - `useMutuals`: Added `refetch()` method to match useEntity, useEntities, and useTaggedEntities.
+  - `useEntities`: Same `!isFirstFetched` guard fix — now honors `forceFetch` option.
+
+## 3.0.4-dev.1
+
+### Patch Changes
+
+- 6602dc2: Auto-populate mutual store on createEntity so useMutuals reflects new entities without refresh
+
+## 3.0.4-dev.0
+
+### Patch Changes
+
+- 9ce08cc: Auto-propagate entity state to mutual and tag stores on create, edit, and delete
+
 ## 3.0.3
 
 ### Patch Changes
