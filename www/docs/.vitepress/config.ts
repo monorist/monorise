@@ -49,6 +49,7 @@ export default defineConfig({
         items: [
           { text: 'Package Map', link: '/packages' },
           { text: 'React SDK', link: '/react' },
+          { text: 'SST SDK', link: '/sst' },
         ],
       },
       {
