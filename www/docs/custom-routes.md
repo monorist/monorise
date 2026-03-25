@@ -4,6 +4,10 @@ Monorise provides a full CRUD API out of the box, but most applications need cus
 
 Custom routes are mounted under `/core/app/*` and have access to the same infrastructure (DynamoDB, EventBridge, entity services) as the built-in routes.
 
+::: tip
+Business logic should live in custom routes, not in your frontend proxy layer. See [Best Practices](/best-practices) for the recommended architecture.
+:::
+
 ## Setup
 
 Point `customRoutes` in your `monorise.config.ts` to a file that exports a Hono app:

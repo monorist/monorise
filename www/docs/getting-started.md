@@ -252,6 +252,10 @@ npx sst dev
 
 This starts your local dev environment with live Lambda functions and auto-regenerating monorise config.
 
+::: warning Before you start building
+Read the [Best Practices](/best-practices) guide first — especially the **edge-auth proxy pattern**. How you connect your frontend to the monorise API Gateway has significant security implications.
+:::
+
 ## Common commands
 
 ```bash
