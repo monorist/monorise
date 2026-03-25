@@ -102,6 +102,13 @@ Now all client-side hooks (`useEntities`, `useMutuals`, etc.) route through your
 - **Inject context** — enrich requests with server-side data (e.g., `account-id` from session)
 - **Rate limiting** — protect against abuse at the proxy layer
 - **Bring your own auth** — the proxy pattern works with any auth provider (OpenAuth, AuthJs, Clerk, etc.) — just swap the `validateToken` implementation
+- **Easy backend testing** — since auth lives in the proxy and the API Gateway only checks `x-api-key`, you can test the backend directly using HTTP clients like Postman, VS Code REST Client, or kulala (Neovim) without dealing with auth flows. Just create different environments with the right base URL and API key:
+
+  ```http
+  ### List members
+  GET {{BASE_URL}}/core/entity/member
+  x-api-key: {{X_API_KEY}}
+  ```
 
 ## Use environment-specific API keys
 
