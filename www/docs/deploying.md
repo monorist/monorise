@@ -64,6 +64,7 @@ SST stages let you run completely isolated environments from a single codebase. 
 
 ```bash
 npx sst deploy --stage dev        # dev environment
+npx sst deploy --stage test       # e2e test environment
 npx sst deploy --stage staging    # staging environment
 npx sst deploy --stage production # production environment
 ```
