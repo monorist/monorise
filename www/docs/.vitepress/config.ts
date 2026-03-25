@@ -4,10 +4,10 @@ export default defineConfig({
   title: 'Monorise',
   description:
     'DynamoDB single-table toolkit with type-safe, event-driven architecture',
-  base: '/monorise/',
+  base: '/',
 
   head: [
-    ['link', { rel: 'icon', href: '/monorise/logo.png' }],
+    ['link', { rel: 'icon', href: '/logo.png' }],
     [
       'style',
       {},
