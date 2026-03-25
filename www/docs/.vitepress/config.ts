@@ -48,6 +48,10 @@ export default defineConfig({
         ],
       },
       {
+        text: 'Best Practices',
+        items: [{ text: 'Best Practices', link: '/best-practices' }],
+      },
+      {
         text: 'SDKs & Packages',
         items: [
           { text: 'Package Map', link: '/packages' },
