@@ -11,15 +11,34 @@ monorise.config.ts + entity configs  →  monorise dev/build (CLI)  →  .monori
 - `monorise.config.ts` points to your entity config directory and optional custom routes (Hono).
 - The CLI writes `.monorise/handle.ts` which exports Lambda handlers used by SST (API + processors + replication).
 
-## Runtime flow
+## SST infrastructure
 
-```
-Client → Hono API /core/* → Entity/Mutual/Tag services → DynamoDB single table
-                                        ↓
-                                  EventBridge bus → SQS processors (mutual/tag/prejoin) → DynamoDB
-                                                                                            ↓
-                                                                              DynamoDB stream → Replication processor → DynamoDB
-```
+The `MonoriseCore` SST construct provisions the full runtime infrastructure on AWS:
+
+![Monorise SST Architecture](/monorise-sst.png)
+
+The architecture consists of:
+
+- **API Gateway** — routes HTTP requests to the Hono Lambda handler
+- **DynamoDB single table** — stores all entities, mutuals, tags, and unique fields
+- **EventBridge bus** — publishes entity lifecycle events (created, updated, mutual processed)
+- **Processors** — SQS-backed Lambda functions that react to events and maintain denormalized data
+- **DynamoDB Stream** — triggers the replication processor to keep denormalized copies in sync
+
+### QFunction (processor pattern)
+
+Each processor (mutual, tag, prejoin) uses the **QFunction** pattern — an SQS queue paired with a Lambda function, a Dead Letter Queue for failed messages, and a CloudWatch alarm that notifies via Slack when messages land in the DLQ:
+
+![Monorise QFunction](/monorise-q-function.png)
+
+The flow:
+1. Events arrive in the **SQS queue** from EventBridge
+2. **Lambda** processes the message (e.g., syncs mutual records, recalculates tags)
+3. If processing fails, the message moves to the **DLQ** after retry exhaustion
+4. A **CloudWatch Alarm** fires when the DLQ depth exceeds 0
+5. The alarm sends a notification to **Slack** (if `slackWebhook` is configured)
+
+Failed messages can be redriven from the DLQ once the issue is resolved.
 
 ### Key behaviors
 
