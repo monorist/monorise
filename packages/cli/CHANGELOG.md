@@ -1,5 +1,12 @@
 # @monorise/cli
 
+## 3.0.2
+
+### Patch Changes
+
+- 7a29b6a: Add module augmentation for monorise/base combined package to fix type resolution
+- 7a29b6a: include handle @
+
 ## 3.0.2-dev.1
 
 ### Patch Changes
