@@ -259,12 +259,3 @@ npx monorise init     # scaffold a new project
 npx monorise dev      # watch mode — regenerates on config changes
 npx monorise build    # one-time build
 ```
-
-From a monorepo root:
-
-```bash
-npm run dev            # watch/build workspace packages
-npm run build          # build all packages
-npm run start:test-env # start local test dependencies
-npm run test           # run core package tests
-```
