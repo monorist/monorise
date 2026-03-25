@@ -107,7 +107,7 @@ The monorise CLI auto-detects whether your export is a Hono app or a function, a
 
 ## Calling from the frontend
 
-Custom routes are served under `/core/app/*`. Use the `axios` instance exported from `monorise/react` — it's pre-configured with the correct base URL and auth headers.
+Custom routes are served under `/core/app/*`. Use the `axios` instance exported from `monorise/react` — it's pre-configured with loading/error state management and response interceptors.
 
 ```ts
 import { axios } from 'monorise/react';
@@ -122,31 +122,8 @@ const { data: user } = await axios.post('/core/app/register', {
 });
 ```
 
-Or inside a React component:
-
-```tsx
-import { axios } from 'monorise/react';
-import { useState } from 'react';
-
-export default function RegisterPage() {
-  const [loading, setLoading] = useState(false);
-
-  const handleRegister = async (formData: { name: string; email: string }) => {
-    setLoading(true);
-    try {
-      const { data } = await axios.post('/core/app/register', formData);
-      // handle success
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (/* ... */);
-}
-```
-
 ::: tip
-The `axios` instance from `monorise/react` automatically includes the `x-api-key` header and handles auth interceptors, so you don't need to configure those manually.
+The `axios` instance from `monorise/react` automatically tracks loading and error state via `useLoadStore` / `useErrorStore`, and detects 401 responses for auth handling.
 :::
 
 ## Authentication
