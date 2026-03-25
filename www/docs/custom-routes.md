@@ -105,6 +105,50 @@ The monorise CLI auto-detects whether your export is a Hono app or a function, a
 | `container.eventUtils` | Publish events to EventBridge |
 | `container.config` | Entity configs, allowed types, schemas |
 
+## Calling from the frontend
+
+Custom routes are served under `/core/app/*`. Use the `axios` instance exported from `monorise/react` — it's pre-configured with the correct base URL and auth headers.
+
+```ts
+import { axios } from 'monorise/react';
+
+// GET /core/app/health
+const { data } = await axios.get('/core/app/health');
+
+// POST /core/app/register
+const { data: user } = await axios.post('/core/app/register', {
+  name: 'Alice',
+  email: 'alice@example.com',
+});
+```
+
+Or inside a React component:
+
+```tsx
+import { axios } from 'monorise/react';
+import { useState } from 'react';
+
+export default function RegisterPage() {
+  const [loading, setLoading] = useState(false);
+
+  const handleRegister = async (formData: { name: string; email: string }) => {
+    setLoading(true);
+    try {
+      const { data } = await axios.post('/core/app/register', formData);
+      // handle success
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (/* ... */);
+}
+```
+
+::: tip
+The `axios` instance from `monorise/react` automatically includes the `x-api-key` header and handles auth interceptors, so you don't need to configure those manually.
+:::
+
 ## Authentication
 
 All routes under `/core/*` (including custom routes) are protected by the API key middleware. Requests must include a valid `x-api-key` header matching one of the keys configured in the `API_KEYS` secret.
