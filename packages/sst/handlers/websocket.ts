@@ -24,15 +24,18 @@ const CONN_PREFIX = 'CONN#';
 // Subscription keys
 const SUB_ENTITY_TYPE = 'SUB:ENTITY:'; // SUB:ENTITY:{entityType}
 const SUB_MUTUAL_TYPE = 'SUB:MUTUAL:'; // SUB:MUTUAL:{byEntityType}:{byEntityId}:{mutualEntityType}
+const SUB_EPHEMERAL = 'SUB:EPHEMERAL:'; // SUB:EPHEMERAL:{channel}
 
 interface ClientMessage {
-  action: 'subscribe' | 'unsubscribe' | 'ping';
+  action: 'subscribe' | 'unsubscribe' | 'ephemeral' | 'ping';
   id: string;
   payload: {
     entityType?: string;
     byEntityType?: string;
     byEntityId?: string;
     mutualEntityType?: string;
+    channel?: string;
+    data?: unknown;
   };
 }
 
@@ -44,6 +47,7 @@ interface ServerMessage {
     | 'mutual.created'
     | 'mutual.updated'
     | 'mutual.deleted'
+    | 'ephemeral'
     | 'ack'
     | 'error'
     | 'pong';
@@ -172,7 +176,7 @@ export const $default = async (
   try {
     switch (message.action) {
       case 'subscribe': {
-        const { entityType, byEntityType, byEntityId, mutualEntityType } =
+        const { entityType, byEntityType, byEntityId, mutualEntityType, channel } =
           message.payload;
 
         // Entity type subscription
@@ -210,6 +214,23 @@ export const $default = async (
               },
             }),
           );
+        }
+        // Ephemeral channel subscription
+        else if (channel) {
+          const subKey = `${SUB_EPHEMERAL}${channel}`;
+          await docClient.send(
+            new PutCommand({
+              TableName: tableName,
+              Item: {
+                PK: subKey,
+                SK: `${CONN_PREFIX}${connectionId}`,
+                connectionId,
+                subscriptionType: 'ephemeral',
+                channel,
+                subscribedAt: new Date().toISOString(),
+              },
+            }),
+          );
         } else {
           return { statusCode: 400, body: 'Invalid subscription parameters' };
         }
@@ -232,7 +253,7 @@ export const $default = async (
       }
 
       case 'unsubscribe': {
-        const { entityType, byEntityType, byEntityId, mutualEntityType } =
+        const { entityType, byEntityType, byEntityId, mutualEntityType, channel } =
           message.payload;
 
         if (entityType && !byEntityType) {
@@ -248,6 +269,17 @@ export const $default = async (
           );
         } else if (byEntityType && byEntityId && mutualEntityType) {
           const subKey = `${SUB_MUTUAL_TYPE}${byEntityType}:${byEntityId}:${mutualEntityType}`;
+          await docClient.send(
+            new DeleteCommand({
+              TableName: tableName,
+              Key: {
+                PK: subKey,
+                SK: `${CONN_PREFIX}${connectionId}`,
+              },
+            }),
+          );
+        } else if (channel) {
+          const subKey = `${SUB_EPHEMERAL}${channel}`;
           await docClient.send(
             new DeleteCommand({
               TableName: tableName,
@@ -290,6 +322,44 @@ export const $default = async (
         );
 
         return { statusCode: 200, body: 'Pong' };
+      }
+
+      case 'ephemeral': {
+        const { channel, data } = message.payload;
+        if (!channel) {
+          return { statusCode: 400, body: 'Missing channel' };
+        }
+
+        // Get sender info from connection record
+        const connResult = await docClient.send(
+          new QueryCommand({
+            TableName: tableName,
+            KeyConditionExpression: 'PK = :pk',
+            ExpressionAttributeValues: {
+              ':pk': `${CONN_PREFIX}${connectionId}`,
+            },
+          }),
+        );
+        const senderId = connResult.Items?.[0]?.userId as string | undefined;
+
+        // Broadcast to all subscribers of this channel
+        const subKey = `${SUB_EPHEMERAL}${channel}`;
+        const ephemeralMessage: ServerMessage = {
+          type: 'ephemeral',
+          id: nanoid(),
+          payload: { channel, data, senderId },
+        };
+
+        await broadcastToSubscribers(
+          managementApi,
+          docClient,
+          tableName,
+          subKey,
+          ephemeralMessage,
+          connectionId, // Exclude sender
+        );
+
+        return { statusCode: 200, body: 'Broadcasted' };
       }
 
       default:
@@ -448,6 +518,7 @@ async function broadcastToSubscribers(
   tableName: string,
   subKey: string,
   message: ServerMessage,
+  excludeConnectionId?: string,
 ): Promise<void> {
   const subscribersResult = await docClient.send(
     new QueryCommand({
@@ -462,12 +533,17 @@ async function broadcastToSubscribers(
   const messageData = JSON.stringify(message);
 
   for (const subscriber of subscribersResult.Items) {
-    const connectionId = subscriber.connectionId as string;
+    const subscriberConnectionId = subscriber.connectionId as string;
+
+    // Skip excluded connection (e.g., sender of ephemeral message)
+    if (excludeConnectionId && subscriberConnectionId === excludeConnectionId) {
+      continue;
+    }
 
     try {
       await managementApi.send(
         new PostToConnectionCommand({
-          ConnectionId: connectionId,
+          ConnectionId: subscriberConnectionId,
           Data: messageData,
         }),
       );
@@ -483,7 +559,7 @@ async function broadcastToSubscribers(
             TableName: tableName,
             Key: {
               PK: subKey,
-              SK: `CONN#${connectionId}`,
+              SK: `CONN#${subscriberConnectionId}`,
             },
           }),
         );

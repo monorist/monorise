@@ -227,10 +227,74 @@ export const initWebSocketActions = (monoriseStore: MonoriseStore) => {
     return { mutuals, isSubscribed };
   };
 
+  /**
+   * Subscribe to ephemeral messages on a channel.
+   * Ephemeral messages are not persisted to the database.
+   * Use case: typing indicators, live cursors, presence, etc.
+   */
+  const useEphemeralSocket = <T = unknown>(
+    channel: string | undefined,
+    opts?: {
+      onMessage?: (data: T, senderId?: string) => void;
+    },
+  ): {
+    isSubscribed: boolean;
+    send: (data: T) => void;
+  } => {
+    const [isSubscribed, setIsSubscribed] = useState(false);
+
+    useEffect(() => {
+      if (!globalWsManager || !channel) {
+        setIsSubscribed(false);
+        return;
+      }
+
+      // Subscribe to ephemeral messages on this channel
+      const subKey = globalWsManager.subscribeEphemeral(channel);
+      setIsSubscribed(true);
+
+      // Listen for ephemeral messages
+      const unsubscribeMessage = globalWsManager.onMessage(
+        (msg: ServerMessage) => {
+          if (msg.type === 'ephemeral') {
+            const payload = msg.payload as {
+              channel: string;
+              data: T;
+              senderId?: string;
+            };
+
+            // Only process if it's our channel
+            if (payload.channel !== channel) return;
+
+            // Call the user's onMessage handler
+            opts?.onMessage?.(payload.data, payload.senderId);
+          }
+        },
+      );
+
+      return () => {
+        globalWsManager?.unsubscribeEphemeral(subKey);
+        unsubscribeMessage();
+        setIsSubscribed(false);
+      };
+    }, [channel]);
+
+    const send = useCallback(
+      (data: T) => {
+        if (!globalWsManager || !channel) return;
+        globalWsManager.sendEphemeral(channel, data);
+      },
+      [channel],
+    );
+
+    return { isSubscribed, send };
+  };
+
   return {
     useWebSocketConnection,
     useEntitySocket,
     useMutualSocket,
+    useEphemeralSocket,
     initWebSocket,
     getWebSocketManager,
   };

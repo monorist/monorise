@@ -164,6 +164,7 @@ const {
   useWebSocketConnection,
   useEntitySocket,
   useMutualSocket,
+  useEphemeralSocket,
 } = Monorise;
 
 export {
@@ -223,6 +224,7 @@ export {
   useWebSocketConnection,
   useEntitySocket,
   useMutualSocket,
+  useEphemeralSocket,
   initWebSocket,
   getWebSocketManager,
   WebSocketManager,
