@@ -9,6 +9,12 @@ import {
   initWebSocket,
   getWebSocketManager,
 } from './actions/websocket.action';
+import {
+  WebSocketManager,
+  type ConnectionState,
+  type ClientMessage,
+  type ServerMessage,
+} from './websocket';
 import { initAxiosInterceptor, injectAxiosInterceptor } from './lib/api';
 import {
   getEntityRequestKey,
@@ -158,12 +164,6 @@ const {
   useWebSocketConnection,
   useEntitySocket,
   useMutualSocket,
-  useCreateEntitySocket,
-  useUpdateEntitySocket,
-  useDeleteEntitySocket,
-  useCreateMutualSocket,
-  useUpdateMutualSocket,
-  useDeleteMutualSocket,
 } = Monorise;
 
 export {
@@ -223,14 +223,12 @@ export {
   useWebSocketConnection,
   useEntitySocket,
   useMutualSocket,
-  useCreateEntitySocket,
-  useUpdateEntitySocket,
-  useDeleteEntitySocket,
-  useCreateMutualSocket,
-  useUpdateMutualSocket,
-  useDeleteMutualSocket,
   initWebSocket,
   getWebSocketManager,
+  WebSocketManager,
+  type ConnectionState,
+  type ClientMessage,
+  type ServerMessage,
 };
 
 export default Monorise;

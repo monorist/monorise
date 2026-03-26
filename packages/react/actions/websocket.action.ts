@@ -1,14 +1,14 @@
+import type { CreatedEntity, Entity } from '@monorise/base';
+import { useCallback, useEffect, useState } from 'react';
+import { produce } from 'immer';
+import type { MonoriseStore } from '../store/monorise.store';
 import type {
   ConnectionState,
-  CreatedEntity,
-  Entity,
   ServerMessage,
   WebSocketManager,
-} from '@monorise/core';
-import { useCallback, useEffect, useState } from 'react';
-import type { MonoriseStore } from '../store/monorise.store';
+} from '../websocket';
 
-interface UseWebSocketConnectionReturn {
+export interface UseWebSocketConnectionReturn {
   state: ConnectionState;
   connect: () => void;
   disconnect: () => void;
@@ -71,7 +71,7 @@ export const initWebSocketActions = (monoriseStore: MonoriseStore) => {
       }
 
       // Subscribe to ALL changes of this entity type
-      const subKey = globalWsManager.subscribeEntityType(entityType as string);
+      const subKey = globalWsManager.subscribeEntityType(entityType as unknown as string);
       setIsSubscribed(true);
 
       // Listen for server broadcasts
@@ -89,21 +89,25 @@ export const initWebSocketActions = (monoriseStore: MonoriseStore) => {
             };
 
             // Only process if it's our entity type
-            if (payload.entityType !== entityType) return;
+            if (payload.entityType !== (entityType as unknown as string)) return;
 
             if (msg.type === 'entity.created' || msg.type === 'entity.updated') {
               if (payload.data) {
-                monoriseStore.setState((state) => {
-                  state.entity[entityType].dataMap.set(
-                    payload.entityId,
-                    payload.data!,
-                  );
-                });
+                monoriseStore.setState(
+                  produce((state) => {
+                    state.entity[entityType as unknown as string].dataMap.set(
+                      payload.entityId,
+                      payload.data!,
+                    );
+                  }),
+                );
               }
             } else if (msg.type === 'entity.deleted') {
-              monoriseStore.setState((state) => {
-                state.entity[entityType].dataMap.delete(payload.entityId);
-              });
+              monoriseStore.setState(
+                produce((state) => {
+                  state.entity[entityType as unknown as string].dataMap.delete(payload.entityId);
+                }),
+              );
             }
           }
         },
@@ -150,9 +154,9 @@ export const initWebSocketActions = (monoriseStore: MonoriseStore) => {
 
       // Subscribe to ALL mutuals of this type for the byEntity
       const subKey = globalWsManager.subscribeMutualType(
-        byEntityType as string,
+        byEntityType as unknown as string,
         byEntityId,
-        mutualEntityType as string,
+        mutualEntityType as unknown as string,
       );
       setIsSubscribed(true);
 
@@ -174,9 +178,9 @@ export const initWebSocketActions = (monoriseStore: MonoriseStore) => {
 
             // Only process if it matches our subscription
             if (
-              payload.byEntityType !== byEntityType ||
+              payload.byEntityType !== (byEntityType as unknown as string) ||
               payload.byEntityId !== byEntityId ||
-              payload.mutualEntityType !== mutualEntityType
+              payload.mutualEntityType !== (mutualEntityType as unknown as string)
             ) {
               return;
             }
@@ -186,23 +190,28 @@ export const initWebSocketActions = (monoriseStore: MonoriseStore) => {
               msg.type === 'mutual.updated'
             ) {
               if (payload.data) {
-                monoriseStore.setState((state) => {
-                  if (!state.mutual[mutualKey]) {
-                    state.mutual[mutualKey] = {
-                      dataMap: new Map(),
-                      isFirstFetched: true,
-                    };
-                  }
-                  state.mutual[mutualKey].dataMap.set(
-                    payload.entityId,
-                    payload.data!,
-                  );
-                });
+                monoriseStore.setState(
+                  produce((state) => {
+                    if (!state.mutual[mutualKey]) {
+                      state.mutual[mutualKey] = {
+                        dataMap: new Map(),
+                        isFirstFetched: true,
+                        lastKey: undefined as unknown as string,
+                      };
+                    }
+                    state.mutual[mutualKey].dataMap.set(
+                      payload.entityId,
+                      payload.data!,
+                    );
+                  }),
+                );
               }
             } else if (msg.type === 'mutual.deleted') {
-              monoriseStore.setState((state) => {
-                state.mutual[mutualKey]?.dataMap.delete(payload.entityId);
-              });
+              monoriseStore.setState(
+                produce((state) => {
+                  state.mutual[mutualKey]?.dataMap.delete(payload.entityId);
+                }),
+              );
             }
           }
         },
