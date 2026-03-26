@@ -7,23 +7,26 @@ export type ConnectionState =
   | 'disconnected';
 
 export interface ClientMessage {
-  action: 'subscribe' | 'unsubscribe' | 'mutate' | 'ping';
+  action: 'subscribe' | 'unsubscribe' | 'ping';
   id: string;
   payload: {
+    // Entity subscription: subscribe to all changes of this entity type
     entityType?: string;
-    entityId?: string;
+    // Mutual subscription: subscribe to all mutuals of this type for a byEntity
     byEntityType?: string;
     byEntityId?: string;
-    data?: unknown;
+    mutualEntityType?: string;
   };
 }
 
 export interface ServerMessage {
   type:
-    | 'entity.update'
-    | 'entity.delete'
-    | 'mutual.update'
-    | 'mutual.delete'
+    | 'entity.created'
+    | 'entity.updated'
+    | 'entity.deleted'
+    | 'mutual.created'
+    | 'mutual.updated'
+    | 'mutual.deleted'
     | 'ack'
     | 'error'
     | 'pong';
@@ -34,11 +37,16 @@ export interface ServerMessage {
 type MessageHandler = (message: ServerMessage) => void;
 type ConnectionStateHandler = (state: ConnectionState) => void;
 
-interface Subscription {
+// Entity type subscription: listen to ALL changes of this entity type
+interface EntityTypeSubscription {
   entityType: string;
-  entityId: string;
-  byEntityType?: string;
-  byEntityId?: string;
+}
+
+// Mutual type subscription: listen to ALL mutuals of this type for a byEntity
+interface MutualTypeSubscription {
+  byEntityType: string;
+  byEntityId: string;
+  mutualEntityType: string;
 }
 
 export class WebSocketManager {
@@ -48,16 +56,17 @@ export class WebSocketManager {
   private state: ConnectionState = 'disconnected';
   private reconnectAttempts = 0;
   private maxReconnectAttempts = 10;
-  private reconnectDelay = 1000; // Start with 1s
-  private maxReconnectDelay = 30000; // Max 30s
+  private reconnectDelay = 1000;
+  private maxReconnectDelay = 30000;
   private heartbeatInterval: NodeJS.Timeout | null = null;
   private heartbeatTimeout: NodeJS.Timeout | null = null;
-  private readonly heartbeatIntervalMs = 30000; // 30s
-  private readonly heartbeatTimeoutMs = 10000; // 10s
+  private readonly heartbeatIntervalMs = 30000;
+  private readonly heartbeatTimeoutMs = 10000;
 
   private messageHandlers: Set<MessageHandler> = new Set();
   private stateHandlers: Set<ConnectionStateHandler> = new Set();
-  private subscriptions: Map<string, Subscription> = new Map();
+  private entitySubscriptions: Map<string, EntityTypeSubscription> = new Map();
+  private mutualSubscriptions: Map<string, MutualTypeSubscription> = new Map();
   private pendingMessages: ClientMessage[] = [];
 
   constructor(url: string, token: string) {
@@ -65,16 +74,12 @@ export class WebSocketManager {
     this.token = token;
   }
 
-  // Public API
   connect(): void {
-    if (this.ws?.readyState === WebSocket.OPEN) {
-      return;
-    }
+    if (this.ws?.readyState === WebSocket.OPEN) return;
 
     this.setState('connecting');
 
     try {
-      // Append token as query param
       const urlWithToken = `${this.url}?token=${encodeURIComponent(this.token)}`;
       this.ws = new WebSocket(urlWithToken);
 
@@ -90,7 +95,7 @@ export class WebSocketManager {
 
   disconnect(): void {
     this.stopHeartbeat();
-    this.reconnectAttempts = 0; // Prevent auto-reconnect on manual disconnect
+    this.reconnectAttempts = 0;
 
     if (this.ws) {
       this.ws.close();
@@ -100,25 +105,19 @@ export class WebSocketManager {
     this.setState('disconnected');
   }
 
-  subscribe(subscription: Subscription): string {
-    const subKey = this.getSubscriptionKey(subscription);
+  // Subscribe to ALL changes of an entity type
+  subscribeEntityType(entityType: string): string {
+    const subKey = `entity:${entityType}`;
 
-    // Store subscription locally
-    if (!this.subscriptions.has(subKey)) {
-      this.subscriptions.set(subKey, subscription);
+    if (!this.entitySubscriptions.has(subKey)) {
+      this.entitySubscriptions.set(subKey, { entityType });
     }
 
-    // Send subscribe message if connected
     if (this.state === 'connected') {
       const message: ClientMessage = {
         action: 'subscribe',
         id: nanoid(),
-        payload: {
-          entityType: subscription.entityType,
-          entityId: subscription.entityId,
-          byEntityType: subscription.byEntityType,
-          byEntityId: subscription.byEntityId,
-        },
+        payload: { entityType },
       };
       this.send(message);
     }
@@ -126,22 +125,64 @@ export class WebSocketManager {
     return subKey;
   }
 
-  unsubscribe(subKey: string): void {
-    const subscription = this.subscriptions.get(subKey);
+  unsubscribeEntityType(subKey: string): void {
+    const subscription = this.entitySubscriptions.get(subKey);
     if (!subscription) return;
 
-    this.subscriptions.delete(subKey);
+    this.entitySubscriptions.delete(subKey);
 
-    // Send unsubscribe message if connected
+    if (this.state === 'connected') {
+      const message: ClientMessage = {
+        action: 'unsubscribe',
+        id: nanoid(),
+        payload: { entityType: subscription.entityType },
+      };
+      this.send(message);
+    }
+  }
+
+  // Subscribe to ALL mutuals of a type for a specific byEntity
+  subscribeMutualType(
+    byEntityType: string,
+    byEntityId: string,
+    mutualEntityType: string,
+  ): string {
+    const subKey = `mutual:${byEntityType}:${byEntityId}:${mutualEntityType}`;
+
+    if (!this.mutualSubscriptions.has(subKey)) {
+      this.mutualSubscriptions.set(subKey, {
+        byEntityType,
+        byEntityId,
+        mutualEntityType,
+      });
+    }
+
+    if (this.state === 'connected') {
+      const message: ClientMessage = {
+        action: 'subscribe',
+        id: nanoid(),
+        payload: { byEntityType, byEntityId, mutualEntityType },
+      };
+      this.send(message);
+    }
+
+    return subKey;
+  }
+
+  unsubscribeMutualType(subKey: string): void {
+    const subscription = this.mutualSubscriptions.get(subKey);
+    if (!subscription) return;
+
+    this.mutualSubscriptions.delete(subKey);
+
     if (this.state === 'connected') {
       const message: ClientMessage = {
         action: 'unsubscribe',
         id: nanoid(),
         payload: {
-          entityType: subscription.entityType,
-          entityId: subscription.entityId,
           byEntityType: subscription.byEntityType,
           byEntityId: subscription.byEntityId,
+          mutualEntityType: subscription.mutualEntityType,
         },
       };
       this.send(message);
@@ -152,12 +193,10 @@ export class WebSocketManager {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
     } else {
-      // Queue message for when connection is ready
       this.pendingMessages.push(message);
     }
   }
 
-  // Event handlers
   onMessage(handler: MessageHandler): () => void {
     this.messageHandlers.add(handler);
     return () => this.messageHandlers.delete(handler);
@@ -165,7 +204,6 @@ export class WebSocketManager {
 
   onStateChange(handler: ConnectionStateHandler): () => void {
     this.stateHandlers.add(handler);
-    // Immediately call with current state
     handler(this.state);
     return () => this.stateHandlers.delete(handler);
   }
@@ -174,7 +212,6 @@ export class WebSocketManager {
     return this.state;
   }
 
-  // Private methods
   private setState(newState: ConnectionState): void {
     if (this.state !== newState) {
       this.state = newState;
@@ -187,13 +224,8 @@ export class WebSocketManager {
     this.reconnectAttempts = 0;
     this.reconnectDelay = 1000;
 
-    // Start heartbeat
     this.startHeartbeat();
-
-    // Re-subscribe to all active subscriptions
     this.resubscribeAll();
-
-    // Send any pending messages
     this.flushPendingMessages();
   }
 
@@ -211,20 +243,17 @@ export class WebSocketManager {
 
   private handleError(error: Event): void {
     console.error('WebSocket error:', error);
-    // Error handling is done in handleClose
   }
 
   private handleMessage(event: MessageEvent): void {
     try {
       const message = JSON.parse(event.data) as ServerMessage;
 
-      // Handle pong
       if (message.type === 'pong') {
         this.handlePong();
         return;
       }
 
-      // Notify all message handlers
       this.messageHandlers.forEach((handler) => handler(message));
     } catch (error) {
       console.error('Failed to parse WebSocket message:', error);
@@ -243,16 +272,26 @@ export class WebSocketManager {
   }
 
   private resubscribeAll(): void {
-    for (const subscription of this.subscriptions.values()) {
+    // Re-subscribe entity types
+    for (const { entityType } of this.entitySubscriptions.values()) {
       const message: ClientMessage = {
         action: 'subscribe',
         id: nanoid(),
-        payload: {
-          entityType: subscription.entityType,
-          entityId: subscription.entityId,
-          byEntityType: subscription.byEntityType,
-          byEntityId: subscription.byEntityId,
-        },
+        payload: { entityType },
+      };
+      this.send(message);
+    }
+
+    // Re-subscribe mutual types
+    for (const {
+      byEntityType,
+      byEntityId,
+      mutualEntityType,
+    } of this.mutualSubscriptions.values()) {
+      const message: ClientMessage = {
+        action: 'subscribe',
+        id: nanoid(),
+        payload: { byEntityType, byEntityId, mutualEntityType },
       };
       this.send(message);
     }
@@ -269,7 +308,6 @@ export class WebSocketManager {
 
   private startHeartbeat(): void {
     this.heartbeatInterval = setInterval(() => {
-      // Send ping
       const pingMessage: ClientMessage = {
         action: 'ping',
         id: nanoid(),
@@ -277,7 +315,6 @@ export class WebSocketManager {
       };
       this.send(pingMessage);
 
-      // Set timeout for pong response
       this.heartbeatTimeout = setTimeout(() => {
         console.warn('WebSocket heartbeat timeout - reconnecting');
         this.ws?.close();
@@ -301,12 +338,5 @@ export class WebSocketManager {
       clearTimeout(this.heartbeatTimeout);
       this.heartbeatTimeout = null;
     }
-  }
-
-  private getSubscriptionKey(subscription: Subscription): string {
-    if (subscription.byEntityType && subscription.byEntityId) {
-      return `${subscription.byEntityType}:${subscription.byEntityId}:${subscription.entityType}:${subscription.entityId}`;
-    }
-    return `${subscription.entityType}:${subscription.entityId}`;
   }
 }
