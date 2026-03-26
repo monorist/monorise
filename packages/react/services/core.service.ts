@@ -518,6 +518,8 @@ const initCoreService = (
   return {
     makeEntityService,
     makeMutualService,
+    listEntities,
+    listEntitiesByEntity,
     setOptions,
   };
 };

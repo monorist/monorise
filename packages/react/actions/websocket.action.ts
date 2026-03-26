@@ -1,14 +1,14 @@
+import type { CreatedEntity, Entity } from '@monorise/base';
+import { useEffect, useRef, useState } from 'react';
+import { produce } from 'immer';
+import type { MonoriseStore } from '../store/monorise.store';
 import type {
   ConnectionState,
-  CreatedEntity,
-  Entity,
   ServerMessage,
   WebSocketManager,
-} from '@monorise/core';
-import { useEffect, useRef, useState } from 'react';
-import type { MonoriseStore } from '../store/monorise.store';
+} from '../websocket';
 
-interface UseEntitySocketReturn<T extends Entity> {
+export interface UseEntitySocketReturn<T extends Entity> {
   entities: Map<string, CreatedEntity<T>>;
   isLoading: boolean;
   isFetchingMore: boolean;
@@ -19,7 +19,7 @@ interface UseEntitySocketReturn<T extends Entity> {
   hasMore: boolean;
 }
 
-interface UseMutualSocketReturn<T extends Entity> {
+export interface UseMutualSocketReturn<T extends Entity> {
   mutuals: Map<string, unknown>;
   isLoading: boolean;
   isFetchingMore: boolean;
@@ -36,11 +36,12 @@ let wsEndpoint: string | undefined;
 export const initializeWebSocketManager = (
   WebSocketManagerClass: typeof WebSocketManager,
   endpoint: string,
+  token?: string,
 ) => {
   if (globalWsManager) return globalWsManager;
 
   wsEndpoint = endpoint;
-  globalWsManager = new WebSocketManagerClass(endpoint);
+  globalWsManager = new WebSocketManagerClass(endpoint, token || '');
   globalWsManager.connect();
 
   return globalWsManager;
@@ -99,16 +100,18 @@ export const initWebSocketActions = (
           lastKey: fetchLastKey,
         });
 
-        monoriseStore.setState((state) => {
-          if (type === 'refresh') {
-            state.entity[entityType].dataMap.clear();
-          }
-          for (const entity of result.data) {
-            state.entity[entityType].dataMap.set(entity.entityId, entity);
-          }
-          state.entity[entityType].isFirstFetched = true;
-          state.entity[entityType].lastKey = result.lastKey || null;
-        });
+        monoriseStore.setState(
+          produce((state) => {
+            if (type === 'refresh') {
+              state.entity[entityType as unknown as string].dataMap.clear();
+            }
+            for (const entity of result.data) {
+              state.entity[entityType as unknown as string].dataMap.set(entity.entityId, entity);
+            }
+            state.entity[entityType as unknown as string].isFirstFetched = true;
+            state.entity[entityType as unknown as string].lastKey = result.lastKey;
+          }),
+        );
 
         lastKeyRef.current = result.lastKey;
         setHasMore(!!result.lastKey);
@@ -132,7 +135,7 @@ export const initWebSocketActions = (
         return;
       }
 
-      const subKey = globalWsManager.subscribeEntityType(entityType as string);
+      const subKey = globalWsManager.subscribeEntityType(entityType as unknown as string);
       setIsSubscribed(true);
 
       let wasConnected = false;
@@ -157,21 +160,25 @@ export const initWebSocketActions = (
               data?: CreatedEntity<T>;
             };
 
-            if (payload.entityType !== entityType) return;
+            if (payload.entityType !== (entityType as unknown as string)) return;
 
             if (msg.type === 'entity.created' || msg.type === 'entity.updated') {
               if (payload.data) {
-                monoriseStore.setState((state) => {
-                  state.entity[entityType].dataMap.set(
-                    payload.entityId,
-                    payload.data!,
-                  );
-                });
+                monoriseStore.setState(
+                  produce((state) => {
+                    state.entity[entityType as unknown as string].dataMap.set(
+                      payload.entityId,
+                      payload.data!,
+                    );
+                  }),
+                );
               }
             } else if (msg.type === 'entity.deleted') {
-              monoriseStore.setState((state) => {
-                state.entity[entityType].dataMap.delete(payload.entityId);
-              });
+              monoriseStore.setState(
+                produce((state) => {
+                  state.entity[entityType as unknown as string].dataMap.delete(payload.entityId);
+                }),
+              );
             }
           }
         },
@@ -249,23 +256,25 @@ export const initWebSocketActions = (
           { limit, lastKey: fetchLastKey },
         );
 
-        monoriseStore.setState((state) => {
-          if (!state.mutual[mutualKey]) {
-            state.mutual[mutualKey] = {
-              dataMap: new Map(),
-              isFirstFetched: true,
-              lastKey: null,
-            };
-          }
-          if (type === 'refresh') {
-            state.mutual[mutualKey].dataMap.clear();
-          }
-          for (const entity of result.entities) {
-            const e = entity as any;
-            state.mutual[mutualKey].dataMap.set(e.entityId, entity);
-          }
-          state.mutual[mutualKey].lastKey = result.lastKey || null;
-        });
+        monoriseStore.setState(
+          produce((state) => {
+            if (!state.mutual[mutualKey]) {
+              state.mutual[mutualKey] = {
+                dataMap: new Map(),
+                isFirstFetched: true,
+                lastKey: undefined as unknown as string,
+              };
+            }
+            if (type === 'refresh') {
+              state.mutual[mutualKey].dataMap.clear();
+            }
+            for (const entity of result.entities) {
+              const e = entity as any;
+              state.mutual[mutualKey].dataMap.set(e.entityId, entity);
+            }
+            state.mutual[mutualKey].lastKey = result.lastKey;
+          }),
+        );
 
         lastKeyRef.current = result.lastKey;
         setHasMore(!!result.lastKey);
@@ -296,9 +305,9 @@ export const initWebSocketActions = (
       }
 
       const subKey = globalWsManager.subscribeMutualType(
-        byEntityType as string,
+        byEntityType as unknown as string,
         byEntityId,
-        mutualEntityType as string,
+        mutualEntityType as unknown as string,
       );
       setIsSubscribed(true);
 
@@ -327,9 +336,9 @@ export const initWebSocketActions = (
             };
 
             if (
-              payload.byEntityType !== byEntityType ||
+              payload.byEntityType !== (byEntityType as unknown as string) ||
               payload.byEntityId !== byEntityId ||
-              payload.mutualEntityType !== mutualEntityType
+              payload.mutualEntityType !== (mutualEntityType as unknown as string)
             ) {
               return;
             }
@@ -339,23 +348,28 @@ export const initWebSocketActions = (
               msg.type === 'mutual.updated'
             ) {
               if (payload.data) {
-                monoriseStore.setState((state) => {
-                  if (!state.mutual[mutualKey]) {
-                    state.mutual[mutualKey] = {
-                      dataMap: new Map(),
-                      isFirstFetched: true,
-                    };
-                  }
-                  state.mutual[mutualKey].dataMap.set(
-                    payload.entityId,
-                    payload.data!,
-                  );
-                });
+                monoriseStore.setState(
+                  produce((state) => {
+                    if (!state.mutual[mutualKey]) {
+                      state.mutual[mutualKey] = {
+                        dataMap: new Map(),
+                        isFirstFetched: true,
+                        lastKey: undefined as unknown as string,
+                      };
+                    }
+                    state.mutual[mutualKey].dataMap.set(
+                      payload.entityId,
+                      payload.data!,
+                    );
+                  }),
+                );
               }
             } else if (msg.type === 'mutual.deleted') {
-              monoriseStore.setState((state) => {
-                state.mutual[mutualKey]?.dataMap.delete(payload.entityId);
-              });
+              monoriseStore.setState(
+                produce((state) => {
+                  state.mutual[mutualKey]?.dataMap.delete(payload.entityId);
+                }),
+              );
             }
           }
         },
