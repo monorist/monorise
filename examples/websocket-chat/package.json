@@ -1,0 +1,25 @@
+{
+  "name": "websocket-chat",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "sst dev",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "react": "^19",
+    "react-dom": "^19",
+    "@monorise/react": "workspace:*",
+    "@monorise/core": "workspace:*",
+    "@monorise/base": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^4",
+    "typescript": "^5",
+    "vite": "^6",
+    "@monorise/sst": "workspace:*"
+  }
+}

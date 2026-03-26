@@ -6,8 +6,7 @@ import { initConfigActions } from './actions/config.action';
 import { initCoreActions } from './actions/core.action';
 import {
   initWebSocketActions,
-  initWebSocket,
-  getWebSocketManager,
+  initializeWebSocketManager,
 } from './actions/websocket.action';
 import {
   WebSocketManager,
@@ -63,7 +62,27 @@ const initMonorise = () => {
 
   const authActions = initAuthActions(store, authService);
   const coreActions = initCoreActions(store, appActions, coreService);
-  const websocketActions = initWebSocketActions(store);
+  const websocketActions = initWebSocketActions(store, {
+    listEntities: async (entityType, params) => {
+      const response = await coreService.listEntities(entityType, params);
+      return {
+        data: response.data.data,
+        lastKey: response.data.lastKey,
+      };
+    },
+    listEntitiesByEntity: async (byEntityType, byEntityId, entityType, params) => {
+      const response = await coreService.listEntitiesByEntity(
+        byEntityType,
+        entityType,
+        byEntityId,
+        { params },
+      );
+      return {
+        entities: response.data.entities,
+        lastKey: response.data.lastKey,
+      };
+    },
+  });
 
   const axiosInterceptor = injectAxiosInterceptor(
     appActions,
@@ -160,7 +179,6 @@ const {
   getEntity,
   updateLocalTaggedEntity,
   deleteLocalTaggedEntity,
-  useWebSocketConnection,
   useEntitySocket,
   useMutualSocket,
   useEphemeralSocket,
@@ -219,12 +237,9 @@ export {
   getEntity,
   updateLocalTaggedEntity,
   deleteLocalTaggedEntity,
-  useWebSocketConnection,
   useEntitySocket,
   useMutualSocket,
-  useEphemeralSocket,
-  initWebSocket,
-  getWebSocketManager,
+  initializeWebSocketManager,
   WebSocketManager,
   type ConnectionState,
   type ClientMessage,
