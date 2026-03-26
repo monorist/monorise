@@ -1,8 +1,5 @@
 import { useState, useCallback } from 'react'
-import Monorise, { 
-  useCreateEntitySocket,
-  useCreateMutualSocket
-} from '@monorise/react'
+import Monorise from '@monorise/react'
 import { DEMO_USERS } from '../lib/monorise'
 
 interface MessageInputProps {
@@ -15,38 +12,29 @@ export function MessageInput({ channelId, currentUserId }: MessageInputProps) {
   
   const currentUser = DEMO_USERS.find(u => u.userId === currentUserId)
   
-  // Create message with optimistic updates
-  const { 
-    mutate: createMessage, 
-    isPending, 
-    isOptimistic 
-  } = useCreateEntitySocket('message')
-  
+  // Create message via HTTP (with existing optimistic update)
+  const { createEntity } = Monorise
   // Create mutual relationship (message -> channel)
-  const {
-    mutate: createMutual,
-  } = useCreateMutualSocket()
+  const { createMutual } = Monorise
 
-  const handleSend = useCallback(() => {
+  const handleSend = useCallback(async () => {
     if (!message.trim() || !currentUser) return
 
-    const messageData = {
+    // Create the message entity via HTTP
+    const { data: newMessage } = await createEntity('message', {
       content: message.trim(),
       channelId,
       authorId: currentUserId,
       authorName: currentUser.name,
+    })
+
+    // Create mutual relationship between channel and message
+    if (newMessage) {
+      await createMutual('channel', 'message', channelId, newMessage.entityId)
     }
 
-    // Create the message entity
-    createMessage(messageData)
-    
-    // Note: In a real implementation, we'd need to:
-    // 1. Get the created message ID back
-    // 2. Create the mutual relationship between channel and message
-    // For this demo, the broadcast handler will handle message delivery
-
     setMessage('')
-  }, [message, channelId, currentUserId, currentUser, createMessage])
+  }, [message, channelId, currentUserId, currentUser, createEntity, createMutual])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -64,14 +52,13 @@ export function MessageInput({ channelId, currentUserId }: MessageInputProps) {
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
-          disabled={isPending}
         />
         <button 
           onClick={handleSend} 
-          disabled={!message.trim() || isPending}
+          disabled={!message.trim()}
           className="send-btn"
         >
-          {isOptimistic ? '...' : '➤'}
+          ➤
         </button>
       </div>
     </div>

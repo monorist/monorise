@@ -1,7 +1,6 @@
 import { useState, useCallback } from 'react'
 import Monorise, { 
   useEntities, 
-  useCreateEntitySocket,
   useEntitySocket,
   useWebSocketConnection 
 } from '@monorise/react'
@@ -24,24 +23,22 @@ export function ChannelList({
   // Use WebSocket connection hook
   const { state: wsState } = useWebSocketConnection()
   
-  // List all channels
+  // List all channels via HTTP
   const { entities: channels, isLoading } = useEntities('channel', { all: true })
   
-  // Subscribe to channel updates via WebSocket
-  channels?.forEach(channel => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    useEntitySocket('channel', channel.entityId)
-  })
+  // Subscribe to ALL channel changes via WebSocket
+  // This receives real-time updates when any channel is created/updated/deleted
+  useEntitySocket('channel')
   
-  // Create channel with optimistic updates
-  const { mutate: createChannel, isPending, isOptimistic } = useCreateEntitySocket('channel')
+  // Create channel via HTTP (with existing optimistic update)
+  const { createEntity } = Monorise
 
-  const handleCreateChannel = useCallback(() => {
+  const handleCreateChannel = useCallback(async () => {
     if (!newChannelName.trim()) return
     
     const currentUser = DEMO_USERS.find(u => u.userId === currentUserId)
     
-    createChannel({
+    await createEntity('channel', {
       name: newChannelName.trim(),
       description: `Created by ${currentUser?.name}`,
       createdBy: currentUserId,
@@ -49,7 +46,7 @@ export function ChannelList({
     
     setNewChannelName('')
     setIsCreating(false)
-  }, [newChannelName, currentUserId, createChannel])
+  }, [newChannelName, currentUserId, createEntity])
 
   const getConnectionStatus = () => {
     switch (wsState) {
@@ -71,7 +68,7 @@ export function ChannelList({
       {isLoading && <div className="loading">Loading channels...</div>}
       
       <div className="channels">
-        {channels?.map(channel => (
+        {Array.from(channels?.values() || []).map(channel => (
           <button
             key={channel.entityId}
             className={`channel-item ${selectedChannelId === channel.entityId ? 'active' : ''}`}
@@ -79,7 +76,6 @@ export function ChannelList({
           >
             <span className="channel-icon">#</span>
             <span className="channel-name">{channel.data.name}</span>
-            {channel.isOptimistic && <span className="optimistic-badge">syncing...</span>}
           </button>
         ))}
       </div>
@@ -95,8 +91,8 @@ export function ChannelList({
             autoFocus
           />
           <div className="form-buttons">
-            <button onClick={handleCreateChannel} disabled={isPending}>
-              {isOptimistic ? 'Creating...' : 'Create'}
+            <button onClick={handleCreateChannel}>
+              Create
             </button>
             <button onClick={() => setIsCreating(false)}>Cancel</button>
           </div>
