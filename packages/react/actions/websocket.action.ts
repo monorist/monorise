@@ -1,56 +1,69 @@
-import type { CreatedEntity, Entity } from '@monorise/base';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { produce } from 'immer';
-import type { MonoriseStore } from '../store/monorise.store';
 import type {
   ConnectionState,
+  CreatedEntity,
+  Entity,
   ServerMessage,
   WebSocketManager,
-} from '../websocket';
+} from '@monorise/core';
+import { useCallback, useEffect, useState } from 'react';
+import type { MonoriseStore } from '../store/monorise.store';
 
-export interface UseEntitySocketReturn<T extends Entity> {
-  entities: CreatedEntity<T>[];
-  isLoading: boolean;
-  isFetchingMore: boolean;
-  isSubscribed: boolean;
-  error: Error | null;
-  isRefreshing: boolean;
-  fetchMore: () => Promise<void>;
-  hasMore: boolean;
+interface UseWebSocketConnectionReturn {
+  state: ConnectionState;
+  connect: () => void;
+  disconnect: () => void;
 }
 
-export interface UseMutualSocketReturn<T extends Entity> {
-  mutuals: unknown[];
-  isLoading: boolean;
-  isFetchingMore: boolean;
-  isSubscribed: boolean;
-  error: Error | null;
-  isRefreshing: boolean;
-  fetchMore: () => Promise<void>;
-  hasMore: boolean;
+interface UseEntitySocketOptions {
+  /** Number of records to fetch initially. Set to 0 to skip initial fetch. Default: 20 */
+  limit?: number;
+  /** Skip initial HTTP fetch. Useful if you already have the data. Default: false */
+  skipInitialFetch?: boolean;
 }
 
+interface UseEntitySocketReturn<T extends Entity> {
+  entities: Map<string, CreatedEntity<T>>;
+  isLoading: boolean;
+  isSubscribed: boolean;
+  error: Error | null;
+  /** Fetch more entities (pagination) */
+  fetchMore: () => Promise<void>;
+  /** Refetch from beginning */
+  refetch: () => Promise<void>;
+}
+
+interface UseMutualSocketOptions {
+  /** Number of records to fetch initially. Set to 0 to skip initial fetch. Default: 20 */
+  limit?: number;
+  /** Skip initial HTTP fetch. Useful if you already have the data. Default: false */
+  skipInitialFetch?: boolean;
+}
+
+interface UseMutualSocketReturn<T extends Entity> {
+  mutuals: Map<string, unknown>; // Mutual<B, T>
+  isLoading: boolean;
+  isSubscribed: boolean;
+  error: Error | null;
+  /** Fetch more mutuals (pagination) */
+  fetchMore: () => Promise<void>;
+  /** Refetch from beginning */
+  refetch: () => Promise<void>;
+}
+
+// Global WebSocket manager instance (singleton)
 let globalWsManager: WebSocketManager | null = null;
-let wsEndpoint: string | undefined;
 
-export const initializeWebSocketManager = (
-  WebSocketManagerClass: typeof WebSocketManager,
-  endpoint: string,
-  token?: string,
-) => {
-  if (globalWsManager) return globalWsManager;
+export const initWebSocket = (wsManager: WebSocketManager) => {
+  globalWsManager = wsManager;
+};
 
-  wsEndpoint = endpoint;
-  globalWsManager = new WebSocketManagerClass(endpoint, token || '');
-  globalWsManager.connect();
-
+export const getWebSocketManager = (): WebSocketManager | null => {
   return globalWsManager;
 };
 
-export const getWebSocketManager = () => globalWsManager;
-
 export const initWebSocketActions = (
   monoriseStore: MonoriseStore,
+  // Need access to HTTP actions for initial fetch
   httpActions: {
     listEntities: <T extends Entity>(
       entityType: T,
@@ -64,88 +77,97 @@ export const initWebSocketActions = (
     ) => Promise<{ entities: unknown[]; lastKey?: string }>;
   },
 ) => {
+  const useWebSocketConnection = (): UseWebSocketConnectionReturn => {
+    const [state, setState] = useState<ConnectionState>('disconnected');
+
+    useEffect(() => {
+      if (!globalWsManager) return;
+      const unsubscribe = globalWsManager.onStateChange(setState);
+      return unsubscribe;
+    }, []);
+
+    const connect = useCallback(() => {
+      globalWsManager?.connect();
+    }, []);
+
+    const disconnect = useCallback(() => {
+      globalWsManager?.disconnect();
+    }, []);
+
+    return { state, connect, disconnect };
+  };
+
+  /**
+   * Subscribe to ALL changes of an entity type.
+   * Fetches initial data via HTTP, then listens for real-time updates via WebSocket.
+   */
   const useEntitySocket = <T extends Entity>(
     entityType: T,
-    opts: { limit?: number; skipInitialFetch?: boolean } = {},
+    opts: UseEntitySocketOptions = {},
   ): UseEntitySocketReturn<T> => {
     const { limit = 20, skipInitialFetch = false } = opts;
     const [isLoading, setIsLoading] = useState(!skipInitialFetch);
-    const [isFetchingMore, setIsFetchingMore] = useState(false);
-    const [isRefreshing, setIsRefreshing] = useState(false);
     const [isSubscribed, setIsSubscribed] = useState(false);
     const [error, setError] = useState<Error | null>(null);
-    const [hasMore, setHasMore] = useState(true);
-    const lastKeyRef = useRef<string | undefined>(undefined);
-    const isFirstFetchRef = useRef(true);
+    const [lastKey, setLastKey] = useState<string | undefined>();
 
+    // Get current entities from store
     const entities = monoriseStore((state) => {
       const entityState = state.entity[entityType];
-      return Array.from(entityState?.dataMap?.values() || []);
+      return entityState?.dataMap || new Map();
     });
 
-    const fetchData = async (type: 'initial' | 'more' | 'refresh') => {
-      if (type === 'more') {
-        setIsFetchingMore(true);
-      } else if (type === 'refresh') {
-        setIsRefreshing(true);
-      } else {
-        setIsLoading(true);
-      }
-      setError(null);
-
-      try {
-        const fetchLastKey = type === 'refresh' ? undefined : lastKeyRef.current;
-        const result = await httpActions.listEntities(entityType, {
-          limit,
-          lastKey: fetchLastKey,
-        });
-
-        monoriseStore.setState(
-          produce((state) => {
-            if (type === 'refresh') {
-              state.entity[entityType as unknown as string].dataMap.clear();
-            }
-            for (const entity of result.data) {
-              state.entity[entityType as unknown as string].dataMap.set(entity.entityId, entity);
-            }
-            state.entity[entityType as unknown as string].isFirstFetched = true;
-            state.entity[entityType as unknown as string].lastKey = result.lastKey;
-          }),
-        );
-
-        lastKeyRef.current = result.lastKey;
-        setHasMore(!!result.lastKey);
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to fetch'));
-      } finally {
-        setIsLoading(false);
-        setIsFetchingMore(false);
-        setIsRefreshing(false);
-      }
-    };
-
+    // Initial fetch via HTTP
     useEffect(() => {
       if (skipInitialFetch) return;
-      fetchData('initial');
+
+      let cancelled = false;
+
+      const fetchInitial = async () => {
+        setIsLoading(true);
+        setError(null);
+
+        try {
+          const result = await httpActions.listEntities(entityType, { limit });
+          if (cancelled) return;
+
+          // Store in Zustand
+          monoriseStore.setState((state) => {
+            for (const entity of result.data) {
+              state.entity[entityType].dataMap.set(entity.entityId, entity);
+            }
+            state.entity[entityType].isFirstFetched = true;
+            state.entity[entityType].lastKey = result.lastKey || null;
+          });
+
+          setLastKey(result.lastKey);
+        } catch (err) {
+          if (!cancelled) {
+            setError(err instanceof Error ? err : new Error('Failed to fetch'));
+          }
+        } finally {
+          if (!cancelled) {
+            setIsLoading(false);
+          }
+        }
+      };
+
+      fetchInitial();
+
+      return () => {
+        cancelled = true;
+      };
     }, [entityType, limit, skipInitialFetch]);
 
+    // Subscribe to WebSocket for real-time updates
     useEffect(() => {
       if (!globalWsManager) {
         setIsSubscribed(false);
         return;
       }
 
-      const subKey = globalWsManager.subscribeEntityType(entityType as unknown as string);
+      const subKey = globalWsManager.subscribeEntityType(entityType as string);
       setIsSubscribed(true);
-
-      let wasConnected = false;
-      const unsubscribeState = globalWsManager.onStateChange((state) => {
-        if (state === 'connected' && wasConnected === false && !isFirstFetchRef.current) {
-          fetchData('refresh');
-        }
-        wasConnected = state === 'connected';
-        isFirstFetchRef.current = false;
-      });
 
       const unsubscribeMessage = globalWsManager.onMessage(
         (msg: ServerMessage) => {
@@ -160,32 +182,21 @@ export const initWebSocketActions = (
               data?: CreatedEntity<T>;
             };
 
-            if (payload.entityType !== (entityType as unknown as string)) return;
+            if (payload.entityType !== entityType) return;
 
             if (msg.type === 'entity.created' || msg.type === 'entity.updated') {
               if (payload.data) {
-                monoriseStore.setState(
-                  produce((state) => {
-                    const key = entityType as unknown as string;
-                    if (!state.entity[key]) {
-                      state.entity[key] = { dataMap: new Map(), isFirstFetched: false, lastKey: undefined };
-                    }
-                    state.entity[key].dataMap.set(
-                      payload.entityId,
-                      payload.data!,
-                    );
-                  }),
-                );
+                monoriseStore.setState((state) => {
+                  state.entity[entityType].dataMap.set(
+                    payload.entityId,
+                    payload.data!,
+                  );
+                });
               }
             } else if (msg.type === 'entity.deleted') {
-              monoriseStore.setState(
-                produce((state) => {
-                  const key = entityType as unknown as string;
-                  if (state.entity[key]?.dataMap) {
-                    state.entity[key].dataMap.delete(payload.entityId);
-                  }
-                }),
-              );
+              monoriseStore.setState((state) => {
+                state.entity[entityType].dataMap.delete(payload.entityId);
+              });
             }
           }
         },
@@ -193,118 +204,151 @@ export const initWebSocketActions = (
 
       return () => {
         globalWsManager?.unsubscribeEntityType(subKey);
-        unsubscribeState();
         unsubscribeMessage();
         setIsSubscribed(false);
       };
     }, [entityType]);
 
-    const fetchMore = async () => {
-      if (!hasMore || isFetchingMore) return;
-      await fetchData('more');
-    };
+    // Fetch more (pagination)
+    const fetchMore = useCallback(async () => {
+      if (!lastKey) return;
 
-    return {
-      entities,
-      isLoading,
-      isFetchingMore,
-      isSubscribed,
-      error,
-      isRefreshing,
-      fetchMore,
-      hasMore,
-    };
+      setIsLoading(true);
+      setError(null);
+
+      try {
+        const result = await httpActions.listEntities(entityType, {
+          limit,
+          lastKey,
+        });
+
+        monoriseStore.setState((state) => {
+          for (const entity of result.data) {
+            state.entity[entityType].dataMap.set(entity.entityId, entity);
+          }
+          state.entity[entityType].lastKey = result.lastKey || null;
+        });
+
+        setLastKey(result.lastKey);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to fetch more'));
+      } finally {
+        setIsLoading(false);
+      }
+    }, [entityType, limit, lastKey]);
+
+    // Refetch from beginning
+    const refetch = useCallback(async () => {
+      setIsLoading(true);
+      setError(null);
+      setLastKey(undefined);
+
+      try {
+        const result = await httpActions.listEntities(entityType, { limit });
+
+        monoriseStore.setState((state) => {
+          // Clear and refill
+          state.entity[entityType].dataMap.clear();
+          for (const entity of result.data) {
+            state.entity[entityType].dataMap.set(entity.entityId, entity);
+          }
+          state.entity[entityType].lastKey = result.lastKey || null;
+        });
+
+        setLastKey(result.lastKey);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to refetch'));
+      } finally {
+        setIsLoading(false);
+      }
+    }, [entityType, limit]);
+
+    return { entities, isLoading, isSubscribed, error, fetchMore, refetch };
   };
 
+  /**
+   * Subscribe to ALL mutuals of a type for a specific byEntity.
+   * Fetches initial data via HTTP, then listens for real-time updates via WebSocket.
+   */
   const useMutualSocket = <B extends Entity, T extends Entity>(
     byEntityType: B,
     byEntityId: string | undefined,
     mutualEntityType: T,
-    opts: { limit?: number; skipInitialFetch?: boolean } = {},
+    opts: UseMutualSocketOptions = {},
   ): UseMutualSocketReturn<T> => {
     const { limit = 20, skipInitialFetch = false } = opts;
     const [isLoading, setIsLoading] = useState(
       !skipInitialFetch && !!byEntityId,
     );
-    const [isFetchingMore, setIsFetchingMore] = useState(false);
-    const [isRefreshing, setIsRefreshing] = useState(false);
     const [isSubscribed, setIsSubscribed] = useState(false);
     const [error, setError] = useState<Error | null>(null);
-    const [hasMore, setHasMore] = useState(true);
-    const lastKeyRef = useRef<string | undefined>(undefined);
-    const isFirstFetchRef = useRef(true);
+    const [lastKey, setLastKey] = useState<string | undefined>();
 
     const mutualKey = byEntityId
       ? `${byEntityType}/${byEntityId}/${mutualEntityType}`
       : '';
 
     const mutuals = monoriseStore((state) => {
-      return Array.from(state.mutual[mutualKey]?.dataMap?.values() || []);
+      return state.mutual[mutualKey]?.dataMap || new Map();
     });
 
-    const fetchData = async (type: 'initial' | 'more' | 'refresh') => {
-      if (!byEntityId) return;
-
-      if (type === 'more') {
-        setIsFetchingMore(true);
-      } else if (type === 'refresh') {
-        setIsRefreshing(true);
-      } else {
-        setIsLoading(true);
-      }
-      setError(null);
-
-      try {
-        const fetchLastKey = type === 'refresh' ? undefined : lastKeyRef.current;
-        const result = await httpActions.listEntitiesByEntity(
-          byEntityType,
-          byEntityId,
-          mutualEntityType,
-          { limit, lastKey: fetchLastKey },
-        );
-
-        monoriseStore.setState(
-          produce((state) => {
-            if (!state.mutual[mutualKey]) {
-              state.mutual[mutualKey] = {
-                dataMap: new Map(),
-                isFirstFetched: true,
-                lastKey: undefined as unknown as string,
-              };
-            }
-            if (type === 'refresh') {
-              state.mutual[mutualKey].dataMap.clear();
-            }
-            for (const entity of result.entities) {
-              const e = entity as any;
-              state.mutual[mutualKey].dataMap.set(e.entityId, entity);
-            }
-            state.mutual[mutualKey].lastKey = result.lastKey;
-          }),
-        );
-
-        lastKeyRef.current = result.lastKey;
-        setHasMore(!!result.lastKey);
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to fetch'));
-      } finally {
-        setIsLoading(false);
-        setIsFetchingMore(false);
-        setIsRefreshing(false);
-      }
-    };
-
+    // Initial fetch via HTTP
     useEffect(() => {
       if (skipInitialFetch || !byEntityId) {
         setIsLoading(false);
         return;
       }
-      lastKeyRef.current = undefined;
-      setHasMore(true);
-      isFirstFetchRef.current = true;
-      fetchData('initial');
+
+      let cancelled = false;
+
+      const fetchInitial = async () => {
+        setIsLoading(true);
+        setError(null);
+
+        try {
+          const result = await httpActions.listEntitiesByEntity(
+            byEntityType,
+            byEntityId,
+            mutualEntityType,
+            { limit },
+          );
+          if (cancelled) return;
+
+          // Store in Zustand
+          monoriseStore.setState((state) => {
+            if (!state.mutual[mutualKey]) {
+              state.mutual[mutualKey] = {
+                dataMap: new Map(),
+                isFirstFetched: true,
+                lastKey: result.lastKey || null,
+              };
+            }
+            for (const entity of result.entities) {
+              const e = entity as any;
+              state.mutual[mutualKey].dataMap.set(e.entityId, entity);
+            }
+          });
+
+          setLastKey(result.lastKey);
+        } catch (err) {
+          if (!cancelled) {
+            setError(err instanceof Error ? err : new Error('Failed to fetch'));
+          }
+        } finally {
+          if (!cancelled) {
+            setIsLoading(false);
+          }
+        }
+      };
+
+      fetchInitial();
+
+      return () => {
+        cancelled = true;
+      };
     }, [byEntityType, byEntityId, mutualEntityType, limit, skipInitialFetch]);
 
+    // Subscribe to WebSocket for real-time updates
     useEffect(() => {
       if (!globalWsManager || !byEntityId) {
         setIsSubscribed(false);
@@ -312,20 +356,11 @@ export const initWebSocketActions = (
       }
 
       const subKey = globalWsManager.subscribeMutualType(
-        byEntityType as unknown as string,
+        byEntityType as string,
         byEntityId,
-        mutualEntityType as unknown as string,
+        mutualEntityType as string,
       );
       setIsSubscribed(true);
-
-      let wasConnected = false;
-      const unsubscribeState = globalWsManager.onStateChange((state) => {
-        if (state === 'connected' && wasConnected === false && !isFirstFetchRef.current) {
-          fetchData('refresh');
-        }
-        wasConnected = state === 'connected';
-        isFirstFetchRef.current = false;
-      });
 
       const unsubscribeMessage = globalWsManager.onMessage(
         (msg: ServerMessage) => {
@@ -343,9 +378,9 @@ export const initWebSocketActions = (
             };
 
             if (
-              payload.byEntityType !== (byEntityType as unknown as string) ||
+              payload.byEntityType !== byEntityType ||
               payload.byEntityId !== byEntityId ||
-              payload.mutualEntityType !== (mutualEntityType as unknown as string)
+              payload.mutualEntityType !== mutualEntityType
             ) {
               return;
             }
@@ -355,28 +390,23 @@ export const initWebSocketActions = (
               msg.type === 'mutual.updated'
             ) {
               if (payload.data) {
-                monoriseStore.setState(
-                  produce((state) => {
-                    if (!state.mutual[mutualKey]) {
-                      state.mutual[mutualKey] = {
-                        dataMap: new Map(),
-                        isFirstFetched: true,
-                        lastKey: undefined as unknown as string,
-                      };
-                    }
-                    state.mutual[mutualKey].dataMap.set(
-                      payload.entityId,
-                      payload.data!,
-                    );
-                  }),
-                );
+                monoriseStore.setState((state) => {
+                  if (!state.mutual[mutualKey]) {
+                    state.mutual[mutualKey] = {
+                      dataMap: new Map(),
+                      isFirstFetched: true,
+                    };
+                  }
+                  state.mutual[mutualKey].dataMap.set(
+                    payload.entityId,
+                    payload.data!,
+                  );
+                });
               }
             } else if (msg.type === 'mutual.deleted') {
-              monoriseStore.setState(
-                produce((state) => {
-                  state.mutual[mutualKey]?.dataMap.delete(payload.entityId);
-                }),
-              );
+              monoriseStore.setState((state) => {
+                state.mutual[mutualKey]?.dataMap.delete(payload.entityId);
+              });
             }
           }
         },
@@ -384,85 +414,90 @@ export const initWebSocketActions = (
 
       return () => {
         globalWsManager?.unsubscribeMutualType(subKey);
-        unsubscribeState();
         unsubscribeMessage();
         setIsSubscribed(false);
       };
     }, [byEntityType, byEntityId, mutualEntityType, mutualKey]);
 
-    const fetchMore = async () => {
-      if (!hasMore || isFetchingMore) return;
-      await fetchData('more');
-    };
+    // Fetch more (pagination)
+    const fetchMore = useCallback(async () => {
+      if (!lastKey || !byEntityId) return;
 
-    return {
-      mutuals,
-      isLoading,
-      isFetchingMore,
-      isSubscribed,
-      error,
-      isRefreshing,
-      fetchMore,
-      hasMore,
-    };
-  };
+      setIsLoading(true);
+      setError(null);
 
-  const useEphemeralSocket = <T = unknown>(
-    channel: string | undefined,
-    opts?: {
-      onMessage?: (data: T, senderId?: string) => void;
-    },
-  ): {
-    isSubscribed: boolean;
-    send: (data: T) => void;
-  } => {
-    const [isSubscribed, setIsSubscribed] = useState(false);
+      try {
+        const result = await httpActions.listEntitiesByEntity(
+          byEntityType,
+          byEntityId,
+          mutualEntityType,
+          { limit, lastKey },
+        );
 
-    useEffect(() => {
-      if (!globalWsManager || !channel) {
-        setIsSubscribed(false);
-        return;
-      }
-
-      const subKey = globalWsManager.subscribeEphemeral(channel);
-      setIsSubscribed(true);
-
-      const unsubscribeMessage = globalWsManager.onMessage(
-        (msg: ServerMessage) => {
-          if (msg.type === 'ephemeral') {
-            const payload = msg.payload as {
-              channel: string;
-              data: T;
-              senderId?: string;
-            };
-            if (payload.channel !== channel) return;
-            opts?.onMessage?.(payload.data, payload.senderId);
+        monoriseStore.setState((state) => {
+          if (!state.mutual[mutualKey]) {
+            state.mutual[mutualKey] = { dataMap: new Map(), isFirstFetched: true };
           }
-        },
-      );
+          for (const entity of result.entities) {
+            const e = entity as any;
+            state.mutual[mutualKey].dataMap.set(e.entityId, entity);
+          }
+          state.mutual[mutualKey].lastKey = result.lastKey || null;
+        });
 
-      return () => {
-        globalWsManager?.unsubscribeEphemeral(subKey);
-        unsubscribeMessage();
-        setIsSubscribed(false);
-      };
-    }, [channel]);
+        setLastKey(result.lastKey);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to fetch more'));
+      } finally {
+        setIsLoading(false);
+      }
+    }, [byEntityType, byEntityId, mutualEntityType, limit, lastKey]);
 
-    const send = useCallback(
-      (data: T) => {
-        if (!globalWsManager || !channel) return;
-        globalWsManager.sendEphemeral(channel, data);
-      },
-      [channel],
-    );
+    // Refetch from beginning
+    const refetch = useCallback(async () => {
+      if (!byEntityId) return;
 
-    return { isSubscribed, send };
+      setIsLoading(true);
+      setError(null);
+      setLastKey(undefined);
+
+      try {
+        const result = await httpActions.listEntitiesByEntity(
+          byEntityType,
+          byEntityId,
+          mutualEntityType,
+          { limit },
+        );
+
+        monoriseStore.setState((state) => {
+          if (!state.mutual[mutualKey]) {
+            state.mutual[mutualKey] = { dataMap: new Map(), isFirstFetched: true };
+          }
+          state.mutual[mutualKey].dataMap.clear();
+          for (const entity of result.entities) {
+            const e = entity as any;
+            state.mutual[mutualKey].dataMap.set(e.entityId, entity);
+          }
+          state.mutual[mutualKey].lastKey = result.lastKey || null;
+        });
+
+        setLastKey(result.lastKey);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to refetch'));
+      } finally {
+        setIsLoading(false);
+      }
+    }, [byEntityType, byEntityId, mutualEntityType, limit]);
+
+    return { mutuals, isLoading, isSubscribed, error, fetchMore, refetch };
   };
 
   return {
+    useWebSocketConnection,
     useEntitySocket,
     useMutualSocket,
-    useEphemeralSocket,
+    initWebSocket,
+    getWebSocketManager,
   };
 };
 
