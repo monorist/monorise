@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Monorise, { 
   useMutualSocket,
+  useEphemeralSocket,
 } from '@monorise/react'
 
 interface ChatWindowProps {
@@ -19,8 +20,16 @@ interface Message {
   createdAt: string
 }
 
+interface TypingEvent {
+  type: 'typing' | 'stopped'
+  userId: string
+  userName: string
+  channelId: string
+}
+
 export function ChatWindow({ channelId, currentUserId }: ChatWindowProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [typingUsers, setTypingUsers] = useState<Map<string, { name: string; timeout: NodeJS.Timeout }>>(new Map())
   
   const { entity: channel } = Monorise.useEntity('channel', channelId)
   
@@ -34,9 +43,55 @@ export function ChatWindow({ channelId, currentUserId }: ChatWindowProps) {
     hasMore
   } = useMutualSocket('channel', channelId, 'message', { limit: 30 })
 
+  // Listen for typing indicators
+  useEphemeralSocket<TypingEvent>(`channel:${channelId}:typing`, {
+    onMessage: (data) => {
+      // Don't show typing indicator for current user
+      if (data.userId === currentUserId) return
+      
+      if (data.type === 'typing') {
+        setTypingUsers(prev => {
+          const next = new Map(prev)
+          // Clear existing timeout if any
+          const existing = next.get(data.userId)
+          if (existing?.timeout) {
+            clearTimeout(existing.timeout)
+          }
+          // Set new timeout to remove typing indicator after 3 seconds
+          const timeout = setTimeout(() => {
+            setTypingUsers(p => {
+              const n = new Map(p)
+              n.delete(data.userId)
+              return n
+            })
+          }, 3000)
+          next.set(data.userId, { name: data.userName, timeout })
+          return next
+        })
+      } else if (data.type === 'stopped') {
+        setTypingUsers(prev => {
+          const next = new Map(prev)
+          const existing = next.get(data.userId)
+          if (existing?.timeout) {
+            clearTimeout(existing.timeout)
+          }
+          next.delete(data.userId)
+          return next
+        })
+      }
+    }
+  })
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      typingUsers.forEach(({ timeout }) => clearTimeout(timeout))
+    }
+  }, [])
 
   const formatTime = (timestamp: string) => {
     return new Date(timestamp).toLocaleTimeString([], { 
@@ -46,6 +101,17 @@ export function ChatWindow({ channelId, currentUserId }: ChatWindowProps) {
   }
 
   const isCurrentUser = (authorId: string) => authorId === currentUserId
+
+  // Format typing indicator text
+  const getTypingText = () => {
+    const users = Array.from(typingUsers.values())
+    if (users.length === 0) return null
+    if (users.length === 1) return `${users[0].name} is typing...`
+    if (users.length === 2) return `${users[0].name} and ${users[1].name} are typing...`
+    return `${users[0].name} and ${users.length - 1} others are typing...`
+  }
+
+  const typingText = getTypingText()
 
   return (
     <div className="chat-window">
@@ -99,6 +165,17 @@ export function ChatWindow({ channelId, currentUserId }: ChatWindowProps) {
         })}
         <div ref={messagesEndRef} />
       </div>
+
+      {typingText && (
+        <div className="typing-indicator">
+          <span className="typing-dots">
+            <span></span>
+            <span></span>
+            <span></span>
+          </span>
+          <span className="typing-text">{typingText}</span>
+        </div>
+      )}
     </div>
   )
 }
