@@ -7,13 +7,14 @@ export type ConnectionState =
   | 'disconnected';
 
 export interface ClientMessage {
-  action: 'subscribe' | 'unsubscribe' | 'mutate' | 'ping';
+  action: 'subscribe' | 'unsubscribe' | 'ephemeral' | 'ping';
   id: string;
   payload: {
     entityType?: string;
     entityId?: string;
     byEntityType?: string;
     byEntityId?: string;
+    channel?: string;
     data?: unknown;
   };
 }
@@ -26,6 +27,7 @@ export interface ServerMessage {
     | 'mutual.created'
     | 'mutual.updated'
     | 'mutual.deleted'
+    | 'ephemeral'
     | 'ack'
     | 'error'
     | 'pong';
@@ -60,6 +62,7 @@ export class WebSocketManager {
   private messageHandlers: Set<MessageHandler> = new Set();
   private stateHandlers: Set<ConnectionStateHandler> = new Set();
   private subscriptions: Map<string, Subscription> = new Map();
+  private ephemeralSubscriptions: Map<string, string> = new Map(); // subKey -> channel
   private pendingMessages: ClientMessage[] = [];
 
   constructor(url: string, token: string) {
@@ -206,6 +209,51 @@ export class WebSocketManager {
     this.unsubscribe(subKey);
   }
 
+  // Ephemeral channel subscriptions (for typing indicators, live cursors, etc.)
+  subscribeEphemeral(channel: string): string {
+    const subKey = `ephemeral:${channel}`;
+
+    if (!this.ephemeralSubscriptions.has(subKey)) {
+      this.ephemeralSubscriptions.set(subKey, channel);
+    }
+
+    if (this.state === 'connected') {
+      const message: ClientMessage = {
+        action: 'subscribe',
+        id: nanoid(),
+        payload: { channel },
+      };
+      this.send(message);
+    }
+
+    return subKey;
+  }
+
+  unsubscribeEphemeral(subKey: string): void {
+    const channel = this.ephemeralSubscriptions.get(subKey);
+    if (!channel) return;
+
+    this.ephemeralSubscriptions.delete(subKey);
+
+    if (this.state === 'connected') {
+      const message: ClientMessage = {
+        action: 'unsubscribe',
+        id: nanoid(),
+        payload: { channel },
+      };
+      this.send(message);
+    }
+  }
+
+  sendEphemeral(channel: string, data: unknown): void {
+    const message: ClientMessage = {
+      action: 'ephemeral',
+      id: nanoid(),
+      payload: { channel, data },
+    };
+    this.send(message);
+  }
+
   // Private methods
   private setState(newState: ConnectionState): void {
     if (this.state !== newState) {
@@ -275,6 +323,7 @@ export class WebSocketManager {
   }
 
   private resubscribeAll(): void {
+    // Re-subscribe entity/mutual subscriptions
     for (const subscription of this.subscriptions.values()) {
       const message: ClientMessage = {
         action: 'subscribe',
@@ -285,6 +334,16 @@ export class WebSocketManager {
           byEntityType: subscription.byEntityType,
           byEntityId: subscription.byEntityId,
         },
+      };
+      this.send(message);
+    }
+
+    // Re-subscribe ephemeral channels
+    for (const channel of this.ephemeralSubscriptions.values()) {
+      const message: ClientMessage = {
+        action: 'subscribe',
+        id: nanoid(),
+        payload: { channel },
       };
       this.send(message);
     }

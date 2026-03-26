@@ -181,6 +181,7 @@ const {
   deleteLocalTaggedEntity,
   useEntitySocket,
   useMutualSocket,
+  useEphemeralSocket,
 } = Monorise;
 
 export {
