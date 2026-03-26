@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react'
 import Monorise, { 
-  useMutuals,
   useMutualSocket,
 } from '@monorise/react'
 
@@ -23,20 +22,19 @@ interface Message {
 export function ChatWindow({ channelId, currentUserId }: ChatWindowProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   
-  // Get channel data via HTTP
   const { entity: channel } = Monorise.useEntity('channel', channelId)
   
-  // List messages in this channel via HTTP (initial load)
-  const { mutuals, isLoading, isFirstFetched } = useMutuals('channel', 'message', channelId)
-  
-  // Subscribe to ALL message changes in this channel via WebSocket
-  // This receives real-time updates when any message is created/updated/deleted
-  useMutualSocket('channel', channelId, 'message')
+  // Hook handles initial fetch + WebSocket subscription
+  const { 
+    mutuals: messages, 
+    isLoading, 
+    isSubscribed,
+    fetchMore 
+  } = useMutualSocket('channel', channelId, 'message', { limit: 30 })
 
-  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [mutuals])
+  }, [messages])
 
   const formatTime = (timestamp: string) => {
     return new Date(timestamp).toLocaleTimeString([], { 
@@ -51,21 +49,30 @@ export function ChatWindow({ channelId, currentUserId }: ChatWindowProps) {
     <div className="chat-window">
       <div className="chat-header">
         <h2># {channel?.data.name || 'Loading...'}</h2>
-        <span className="channel-description">{channel?.data.description}</span>
+        <span className="channel-description">
+          {channel?.data.description}
+          {isSubscribed && ' • Live'}
+        </span>
       </div>
       
       <div className="messages">
-        {isLoading && !isFirstFetched && (
+        {isLoading && (
           <div className="loading-messages">Loading messages...</div>
         )}
         
-        {mutuals?.length === 0 && isFirstFetched && (
+        {!isLoading && messages.size > 0 && (
+          <button className="load-more-btn" onClick={fetchMore}>
+            Load More Messages
+          </button>
+        )}
+        
+        {messages?.size === 0 && !isLoading && (
           <div className="no-messages">
             No messages yet. Start the conversation!
           </div>
         )}
         
-        {mutuals?.map((mutual: any) => {
+        {Array.from(messages?.values() || []).map((mutual: any) => {
           const message = mutual as Message
           const isMe = isCurrentUser(message.data.authorId)
           
