@@ -5,7 +5,7 @@ import type {
   ServerMessage,
   WebSocketManager,
 } from '@monorise/core';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { MonoriseStore } from '../store/monorise.store';
 
 interface UseWebSocketConnectionReturn {
@@ -15,7 +15,7 @@ interface UseWebSocketConnectionReturn {
 }
 
 interface UseEntitySocketOptions {
-  /** Number of records to fetch initially. Set to 0 to skip initial fetch. Default: 20 */
+  /** Number of records to fetch initially. Default: 20 */
   limit?: number;
   /** Skip initial HTTP fetch. Useful if you already have the data. Default: false */
   skipInitialFetch?: boolean;
@@ -24,16 +24,19 @@ interface UseEntitySocketOptions {
 interface UseEntitySocketReturn<T extends Entity> {
   entities: Map<string, CreatedEntity<T>>;
   isLoading: boolean;
+  isFetchingMore: boolean;
   isSubscribed: boolean;
   error: Error | null;
+  /** Whether data is stale and being refreshed after reconnect */
+  isRefreshing: boolean;
   /** Fetch more entities (pagination) */
   fetchMore: () => Promise<void>;
-  /** Refetch from beginning */
-  refetch: () => Promise<void>;
+  /** Has more pages to fetch */
+  hasMore: boolean;
 }
 
 interface UseMutualSocketOptions {
-  /** Number of records to fetch initially. Set to 0 to skip initial fetch. Default: 20 */
+  /** Number of records to fetch initially. Default: 20 */
   limit?: number;
   /** Skip initial HTTP fetch. Useful if you already have the data. Default: false */
   skipInitialFetch?: boolean;
@@ -42,12 +45,14 @@ interface UseMutualSocketOptions {
 interface UseMutualSocketReturn<T extends Entity> {
   mutuals: Map<string, unknown>; // Mutual<B, T>
   isLoading: boolean;
+  isFetchingMore: boolean;
   isSubscribed: boolean;
   error: Error | null;
+  isRefreshing: boolean;
   /** Fetch more mutuals (pagination) */
   fetchMore: () => Promise<void>;
-  /** Refetch from beginning */
-  refetch: () => Promise<void>;
+  /** Has more pages to fetch */
+  hasMore: boolean;
 }
 
 // Global WebSocket manager instance (singleton)
@@ -63,7 +68,6 @@ export const getWebSocketManager = (): WebSocketManager | null => {
 
 export const initWebSocketActions = (
   monoriseStore: MonoriseStore,
-  // Need access to HTTP actions for initial fetch
   httpActions: {
     listEntities: <T extends Entity>(
       entityType: T,
@@ -86,20 +90,23 @@ export const initWebSocketActions = (
       return unsubscribe;
     }, []);
 
-    const connect = useCallback(() => {
+    const connect = () => {
       globalWsManager?.connect();
-    }, []);
+    };
 
-    const disconnect = useCallback(() => {
+    const disconnect = () => {
       globalWsManager?.disconnect();
-    }, []);
+    };
 
     return { state, connect, disconnect };
   };
 
   /**
    * Subscribe to ALL changes of an entity type.
-   * Fetches initial data via HTTP, then listens for real-time updates via WebSocket.
+   * Automatically handles:
+   - Initial fetch via HTTP
+   - Real-time updates via WebSocket
+   - Auto-refetch on reconnect after disconnect
    */
   const useEntitySocket = <T extends Entity>(
     entityType: T,
@@ -107,9 +114,13 @@ export const initWebSocketActions = (
   ): UseEntitySocketReturn<T> => {
     const { limit = 20, skipInitialFetch = false } = opts;
     const [isLoading, setIsLoading] = useState(!skipInitialFetch);
+    const [isFetchingMore, setIsFetchingMore] = useState(false);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const [isSubscribed, setIsSubscribed] = useState(false);
     const [error, setError] = useState<Error | null>(null);
-    const [lastKey, setLastKey] = useState<string | undefined>();
+    const [hasMore, setHasMore] = useState(true);
+    const lastKeyRef = useRef<string | undefined>(undefined);
+    const isFirstFetchRef = useRef(true);
 
     // Get current entities from store
     const entities = monoriseStore((state) => {
@@ -117,49 +128,54 @@ export const initWebSocketActions = (
       return entityState?.dataMap || new Map();
     });
 
-    // Initial fetch via HTTP
+    // Fetch function (initial, more, or refresh)
+    const fetchData = async (type: 'initial' | 'more' | 'refresh') => {
+      if (type === 'more') {
+        setIsFetchingMore(true);
+      } else if (type === 'refresh') {
+        setIsRefreshing(true);
+      } else {
+        setIsLoading(true);
+      }
+      setError(null);
+
+      try {
+        const fetchLastKey = type === 'refresh' ? undefined : lastKeyRef.current;
+        const result = await httpActions.listEntities(entityType, {
+          limit,
+          lastKey: fetchLastKey,
+        });
+
+        monoriseStore.setState((state) => {
+          if (type === 'refresh') {
+            // Clear and replace on refresh
+            state.entity[entityType].dataMap.clear();
+          }
+          for (const entity of result.data) {
+            state.entity[entityType].dataMap.set(entity.entityId, entity);
+          }
+          state.entity[entityType].isFirstFetched = true;
+          state.entity[entityType].lastKey = result.lastKey || null;
+        });
+
+        lastKeyRef.current = result.lastKey;
+        setHasMore(!!result.lastKey);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to fetch'));
+      } finally {
+        setIsLoading(false);
+        setIsFetchingMore(false);
+        setIsRefreshing(false);
+      }
+    };
+
+    // Initial fetch
     useEffect(() => {
       if (skipInitialFetch) return;
-
-      let cancelled = false;
-
-      const fetchInitial = async () => {
-        setIsLoading(true);
-        setError(null);
-
-        try {
-          const result = await httpActions.listEntities(entityType, { limit });
-          if (cancelled) return;
-
-          // Store in Zustand
-          monoriseStore.setState((state) => {
-            for (const entity of result.data) {
-              state.entity[entityType].dataMap.set(entity.entityId, entity);
-            }
-            state.entity[entityType].isFirstFetched = true;
-            state.entity[entityType].lastKey = result.lastKey || null;
-          });
-
-          setLastKey(result.lastKey);
-        } catch (err) {
-          if (!cancelled) {
-            setError(err instanceof Error ? err : new Error('Failed to fetch'));
-          }
-        } finally {
-          if (!cancelled) {
-            setIsLoading(false);
-          }
-        }
-      };
-
-      fetchInitial();
-
-      return () => {
-        cancelled = true;
-      };
+      fetchData('initial');
     }, [entityType, limit, skipInitialFetch]);
 
-    // Subscribe to WebSocket for real-time updates
+    // Subscribe to WebSocket and handle auto-refetch on reconnect
     useEffect(() => {
       if (!globalWsManager) {
         setIsSubscribed(false);
@@ -169,6 +185,18 @@ export const initWebSocketActions = (
       const subKey = globalWsManager.subscribeEntityType(entityType as string);
       setIsSubscribed(true);
 
+      // Listen for connection state changes to detect reconnect
+      let wasConnected = false;
+      const unsubscribeState = globalWsManager.onStateChange((state) => {
+        if (state === 'connected' && wasConnected === false && !isFirstFetchRef.current) {
+          // Reconnected after being disconnected - auto refetch to catch up
+          fetchData('refresh');
+        }
+        wasConnected = state === 'connected';
+        isFirstFetchRef.current = false;
+      });
+
+      // Listen for server broadcasts
       const unsubscribeMessage = globalWsManager.onMessage(
         (msg: ServerMessage) => {
           if (
@@ -204,71 +232,33 @@ export const initWebSocketActions = (
 
       return () => {
         globalWsManager?.unsubscribeEntityType(subKey);
+        unsubscribeState();
         unsubscribeMessage();
         setIsSubscribed(false);
       };
     }, [entityType]);
 
     // Fetch more (pagination)
-    const fetchMore = useCallback(async () => {
-      if (!lastKey) return;
+    const fetchMore = async () => {
+      if (!hasMore || isFetchingMore) return;
+      await fetchData('more');
+    };
 
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const result = await httpActions.listEntities(entityType, {
-          limit,
-          lastKey,
-        });
-
-        monoriseStore.setState((state) => {
-          for (const entity of result.data) {
-            state.entity[entityType].dataMap.set(entity.entityId, entity);
-          }
-          state.entity[entityType].lastKey = result.lastKey || null;
-        });
-
-        setLastKey(result.lastKey);
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to fetch more'));
-      } finally {
-        setIsLoading(false);
-      }
-    }, [entityType, limit, lastKey]);
-
-    // Refetch from beginning
-    const refetch = useCallback(async () => {
-      setIsLoading(true);
-      setError(null);
-      setLastKey(undefined);
-
-      try {
-        const result = await httpActions.listEntities(entityType, { limit });
-
-        monoriseStore.setState((state) => {
-          // Clear and refill
-          state.entity[entityType].dataMap.clear();
-          for (const entity of result.data) {
-            state.entity[entityType].dataMap.set(entity.entityId, entity);
-          }
-          state.entity[entityType].lastKey = result.lastKey || null;
-        });
-
-        setLastKey(result.lastKey);
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to refetch'));
-      } finally {
-        setIsLoading(false);
-      }
-    }, [entityType, limit]);
-
-    return { entities, isLoading, isSubscribed, error, fetchMore, refetch };
+    return {
+      entities,
+      isLoading,
+      isFetchingMore,
+      isSubscribed,
+      error,
+      isRefreshing,
+      fetchMore,
+      hasMore,
+    };
   };
 
   /**
    * Subscribe to ALL mutuals of a type for a specific byEntity.
-   * Fetches initial data via HTTP, then listens for real-time updates via WebSocket.
+   * Automatically handles initial fetch, real-time updates, and auto-refetch on reconnect.
    */
   const useMutualSocket = <B extends Entity, T extends Entity>(
     byEntityType: B,
@@ -280,9 +270,13 @@ export const initWebSocketActions = (
     const [isLoading, setIsLoading] = useState(
       !skipInitialFetch && !!byEntityId,
     );
+    const [isFetchingMore, setIsFetchingMore] = useState(false);
+    const [isRefreshing, setIsRefreshing] = useState(false);
     const [isSubscribed, setIsSubscribed] = useState(false);
     const [error, setError] = useState<Error | null>(null);
-    const [lastKey, setLastKey] = useState<string | undefined>();
+    const [hasMore, setHasMore] = useState(true);
+    const lastKeyRef = useRef<string | undefined>(undefined);
+    const isFirstFetchRef = useRef(true);
 
     const mutualKey = byEntityId
       ? `${byEntityType}/${byEntityId}/${mutualEntityType}`
@@ -292,63 +286,70 @@ export const initWebSocketActions = (
       return state.mutual[mutualKey]?.dataMap || new Map();
     });
 
-    // Initial fetch via HTTP
+    // Fetch function
+    const fetchData = async (type: 'initial' | 'more' | 'refresh') => {
+      if (!byEntityId) return;
+
+      if (type === 'more') {
+        setIsFetchingMore(true);
+      } else if (type === 'refresh') {
+        setIsRefreshing(true);
+      } else {
+        setIsLoading(true);
+      }
+      setError(null);
+
+      try {
+        const fetchLastKey = type === 'refresh' ? undefined : lastKeyRef.current;
+        const result = await httpActions.listEntitiesByEntity(
+          byEntityType,
+          byEntityId,
+          mutualEntityType,
+          { limit, lastKey: fetchLastKey },
+        );
+
+        monoriseStore.setState((state) => {
+          if (!state.mutual[mutualKey]) {
+            state.mutual[mutualKey] = {
+              dataMap: new Map(),
+              isFirstFetched: true,
+              lastKey: null,
+            };
+          }
+          if (type === 'refresh') {
+            state.mutual[mutualKey].dataMap.clear();
+          }
+          for (const entity of result.entities) {
+            const e = entity as any;
+            state.mutual[mutualKey].dataMap.set(e.entityId, entity);
+          }
+          state.mutual[mutualKey].lastKey = result.lastKey || null;
+        });
+
+        lastKeyRef.current = result.lastKey;
+        setHasMore(!!result.lastKey);
+      } catch (err) {
+        setError(err instanceof Error ? err : new Error('Failed to fetch'));
+      } finally {
+        setIsLoading(false);
+        setIsFetchingMore(false);
+        setIsRefreshing(false);
+      }
+    };
+
+    // Initial fetch
     useEffect(() => {
       if (skipInitialFetch || !byEntityId) {
         setIsLoading(false);
         return;
       }
-
-      let cancelled = false;
-
-      const fetchInitial = async () => {
-        setIsLoading(true);
-        setError(null);
-
-        try {
-          const result = await httpActions.listEntitiesByEntity(
-            byEntityType,
-            byEntityId,
-            mutualEntityType,
-            { limit },
-          );
-          if (cancelled) return;
-
-          // Store in Zustand
-          monoriseStore.setState((state) => {
-            if (!state.mutual[mutualKey]) {
-              state.mutual[mutualKey] = {
-                dataMap: new Map(),
-                isFirstFetched: true,
-                lastKey: result.lastKey || null,
-              };
-            }
-            for (const entity of result.entities) {
-              const e = entity as any;
-              state.mutual[mutualKey].dataMap.set(e.entityId, entity);
-            }
-          });
-
-          setLastKey(result.lastKey);
-        } catch (err) {
-          if (!cancelled) {
-            setError(err instanceof Error ? err : new Error('Failed to fetch'));
-          }
-        } finally {
-          if (!cancelled) {
-            setIsLoading(false);
-          }
-        }
-      };
-
-      fetchInitial();
-
-      return () => {
-        cancelled = true;
-      };
+      lastKeyRef.current = undefined;
+      setHasMore(true);
+      isFirstFetchRef.current = true;
+      fetchData('initial');
     }, [byEntityType, byEntityId, mutualEntityType, limit, skipInitialFetch]);
 
-    // Subscribe to WebSocket for real-time updates
+    // Subscribe and handle auto-refetch
     useEffect(() => {
       if (!globalWsManager || !byEntityId) {
         setIsSubscribed(false);
@@ -362,6 +363,17 @@ export const initWebSocketActions = (
       );
       setIsSubscribed(true);
 
+      // Track connection for auto-refetch
+      let wasConnected = false;
+      const unsubscribeState = globalWsManager.onStateChange((state) => {
+        if (state === 'connected' && wasConnected === false && !isFirstFetchRef.current) {
+          fetchData('refresh');
+        }
+        wasConnected = state === 'connected';
+        isFirstFetchRef.current = false;
+      });
+
+      // Listen for server broadcasts
       const unsubscribeMessage = globalWsManager.onMessage(
         (msg: ServerMessage) => {
           if (
@@ -414,82 +426,28 @@ export const initWebSocketActions = (
 
       return () => {
         globalWsManager?.unsubscribeMutualType(subKey);
+        unsubscribeState();
         unsubscribeMessage();
         setIsSubscribed(false);
       };
     }, [byEntityType, byEntityId, mutualEntityType, mutualKey]);
 
-    // Fetch more (pagination)
-    const fetchMore = useCallback(async () => {
-      if (!lastKey || !byEntityId) return;
+    // Fetch more
+    const fetchMore = async () => {
+      if (!hasMore || isFetchingMore) return;
+      await fetchData('more');
+    };
 
-      setIsLoading(true);
-      setError(null);
-
-      try {
-        const result = await httpActions.listEntitiesByEntity(
-          byEntityType,
-          byEntityId,
-          mutualEntityType,
-          { limit, lastKey },
-        );
-
-        monoriseStore.setState((state) => {
-          if (!state.mutual[mutualKey]) {
-            state.mutual[mutualKey] = { dataMap: new Map(), isFirstFetched: true };
-          }
-          for (const entity of result.entities) {
-            const e = entity as any;
-            state.mutual[mutualKey].dataMap.set(e.entityId, entity);
-          }
-          state.mutual[mutualKey].lastKey = result.lastKey || null;
-        });
-
-        setLastKey(result.lastKey);
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to fetch more'));
-      } finally {
-        setIsLoading(false);
-      }
-    }, [byEntityType, byEntityId, mutualEntityType, limit, lastKey]);
-
-    // Refetch from beginning
-    const refetch = useCallback(async () => {
-      if (!byEntityId) return;
-
-      setIsLoading(true);
-      setError(null);
-      setLastKey(undefined);
-
-      try {
-        const result = await httpActions.listEntitiesByEntity(
-          byEntityType,
-          byEntityId,
-          mutualEntityType,
-          { limit },
-        );
-
-        monoriseStore.setState((state) => {
-          if (!state.mutual[mutualKey]) {
-            state.mutual[mutualKey] = { dataMap: new Map(), isFirstFetched: true };
-          }
-          state.mutual[mutualKey].dataMap.clear();
-          for (const entity of result.entities) {
-            const e = entity as any;
-            state.mutual[mutualKey].dataMap.set(e.entityId, entity);
-          }
-          state.mutual[mutualKey].lastKey = result.lastKey || null;
-        });
-
-        setLastKey(result.lastKey);
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error('Failed to refetch'));
-      } finally {
-        setIsLoading(false);
-      }
-    }, [byEntityType, byEntityId, mutualEntityType, limit]);
-
-    return { mutuals, isLoading, isSubscribed, error, fetchMore, refetch };
+    return {
+      mutuals,
+      isLoading,
+      isFetchingMore,
+      isSubscribed,
+      error,
+      isRefreshing,
+      fetchMore,
+      hasMore,
+    };
   };
 
   return {
