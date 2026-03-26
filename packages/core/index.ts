@@ -14,14 +14,7 @@ import { handler as tagProcessor } from './processors/tag-processor';
 import { DependencyContainer } from './services/DependencyContainer';
 import { EntityService } from './services/entity.service';
 import { MutualService } from './services/mutual.service';
-import {
-  WebSocketManager,
-  OptimisticEngine,
-  type ConnectionState,
-  type ClientMessage,
-  type ServerMessage,
-  type OptimisticOperation,
-} from './websocket';
+
 
 class CoreFactory {
   public setupCommonRoutes: ReturnType<typeof setupCommonRoutes>;
@@ -72,12 +65,6 @@ export {
   DependencyContainer,
   StandardError,
   StandardErrorCode,
-  WebSocketManager,
-  OptimisticEngine,
-  type ConnectionState,
-  type ClientMessage,
-  type ServerMessage,
-  type OptimisticOperation,
 };
 
 export default CoreFactory;
