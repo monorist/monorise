@@ -24,12 +24,14 @@ export function ChatWindow({ channelId, currentUserId }: ChatWindowProps) {
   
   const { entity: channel } = Monorise.useEntity('channel', channelId)
   
-  // Hook handles initial fetch + WebSocket subscription
+  // Hook handles: initial fetch + real-time updates + auto-refetch on reconnect
   const { 
     mutuals: messages, 
     isLoading, 
+    isRefreshing,
     isSubscribed,
-    fetchMore 
+    fetchMore,
+    hasMore
   } = useMutualSocket('channel', channelId, 'message', { limit: 30 })
 
   useEffect(() => {
@@ -51,7 +53,8 @@ export function ChatWindow({ channelId, currentUserId }: ChatWindowProps) {
         <h2># {channel?.data.name || 'Loading...'}</h2>
         <span className="channel-description">
           {channel?.data.description}
-          {isSubscribed && ' • Live'}
+          {isSubscribed && ' • live'}
+          {isRefreshing && ' (syncing...) '}
         </span>
       </div>
       
@@ -60,7 +63,7 @@ export function ChatWindow({ channelId, currentUserId }: ChatWindowProps) {
           <div className="loading-messages">Loading messages...</div>
         )}
         
-        {!isLoading && messages.size > 0 && (
+        {!isLoading && hasMore && (
           <button className="load-more-btn" onClick={fetchMore}>
             Load More Messages
           </button>

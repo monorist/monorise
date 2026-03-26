@@ -21,12 +21,14 @@ export function ChannelList({
   
   const { state: wsState } = useWebSocketConnection()
   
-  // Hook handles initial fetch + WebSocket subscription
+  // Hook handles: initial fetch + real-time updates + auto-refetch on reconnect
   const { 
     entities: channels, 
     isLoading,
+    isRefreshing,  // Shows when auto-refetching after reconnect
     isSubscribed,
-    fetchMore 
+    fetchMore,
+    hasMore
   } = useEntitySocket('channel', { limit: 20 })
   
   const { createEntity } = Monorise
@@ -48,11 +50,11 @@ export function ChannelList({
 
   const getConnectionStatus = () => {
     switch (wsState) {
-      case 'connected': return '🟢 Connected'
-      case 'connecting': return '🟡 Connecting...'
-      case 'reconnecting': return '🟠 Reconnecting...'
-      case 'disconnected': return '🔴 Disconnected'
-      default: return '⚪ Unknown'
+      case 'connected': return '🟢'
+      case 'connecting': return '🟡'
+      case 'reconnecting': return '🟠'
+      case 'disconnected': return '🔴'
+      default: return '⚪'
     }
   }
 
@@ -60,9 +62,10 @@ export function ChannelList({
     <div className="channel-list">
       <div className="channel-header">
         <h3>Channels</h3>
-        <span className="connection-status">
+        <span className="connection-status" title={wsState}>
           {getConnectionStatus()}
-          {isSubscribed && ' (live)'}
+          {isSubscribed && ' live'}
+          {isRefreshing && ' (syncing...)'}
         </span>
       </div>
       
@@ -81,9 +84,11 @@ export function ChannelList({
         ))}
       </div>
 
-      <button className="load-more-btn" onClick={fetchMore}>
-        Load More
-      </button>
+      {hasMore && (
+        <button className="load-more-btn" onClick={fetchMore}>
+          Load More
+        </button>
+      )}
       
       {isCreating ? (
         <div className="create-channel-form">
