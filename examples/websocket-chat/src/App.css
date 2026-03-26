@@ -411,3 +411,78 @@ body {
 ::-webkit-scrollbar-thumb:hover {
   background: #5a5f68;
 }
+/* Previous CSS content... */
+
+.send-btn:disabled {
+  background: #4a4f58;
+  cursor: not-allowed;
+}
+
+/* Typing Indicator */
+.typing-indicator {
+  padding: 8px 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #1a1d21;
+  border-top: 1px solid #2d3139;
+  min-height: 36px;
+}
+
+.typing-dots {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+}
+
+.typing-dots span {
+  width: 6px;
+  height: 6px;
+  background: #9ca3af;
+  border-radius: 50%;
+  animation: typingBounce 1.4s infinite ease-in-out both;
+}
+
+.typing-dots span:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.typing-dots span:nth-child(2) {
+  animation-delay: -0.16s;
+}
+
+@keyframes typingBounce {
+  0%, 80%, 100% {
+    transform: scale(0.6);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.typing-text {
+  font-size: 13px;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #4a4f58;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #5a5f68;
+}
