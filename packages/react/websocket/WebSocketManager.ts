@@ -20,10 +20,12 @@ export interface ClientMessage {
 
 export interface ServerMessage {
   type:
-    | 'entity.update'
-    | 'entity.delete'
-    | 'mutual.update'
-    | 'mutual.delete'
+    | 'entity.created'
+    | 'entity.updated'
+    | 'entity.deleted'
+    | 'mutual.created'
+    | 'mutual.updated'
+    | 'mutual.deleted'
     | 'ack'
     | 'error'
     | 'pong';
@@ -172,6 +174,36 @@ export class WebSocketManager {
 
   getState(): ConnectionState {
     return this.state;
+  }
+
+  // Convenience methods for entity type subscriptions
+  subscribeEntityType(entityType: string): string {
+    return this.subscribe({
+      entityType,
+      entityId: '*',
+    });
+  }
+
+  unsubscribeEntityType(subKey: string): void {
+    this.unsubscribe(subKey);
+  }
+
+  // Convenience methods for mutual subscriptions
+  subscribeMutualType(
+    byEntityType: string,
+    byEntityId: string,
+    entityType: string,
+  ): string {
+    return this.subscribe({
+      entityType,
+      entityId: '*',
+      byEntityType,
+      byEntityId,
+    });
+  }
+
+  unsubscribeMutualType(subKey: string): void {
+    this.unsubscribe(subKey);
   }
 
   // Private methods

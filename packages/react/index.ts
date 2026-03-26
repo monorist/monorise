@@ -8,6 +8,12 @@ import {
   initWebSocketActions,
   initializeWebSocketManager,
 } from './actions/websocket.action';
+import {
+  WebSocketManager,
+  type ConnectionState,
+  type ClientMessage,
+  type ServerMessage,
+} from './websocket';
 import { initAxiosInterceptor, injectAxiosInterceptor } from './lib/api';
 import {
   getEntityRequestKey,
@@ -56,7 +62,27 @@ const initMonorise = () => {
 
   const authActions = initAuthActions(store, authService);
   const coreActions = initCoreActions(store, appActions, coreService);
-  const websocketActions = initWebSocketActions(store);
+  const websocketActions = initWebSocketActions(store, {
+    listEntities: async (entityType, params) => {
+      const response = await coreService.listEntities(entityType, params);
+      return {
+        data: response.data.data,
+        lastKey: response.data.lastKey,
+      };
+    },
+    listEntitiesByEntity: async (byEntityType, byEntityId, entityType, params) => {
+      const response = await coreService.listEntitiesByEntity(
+        byEntityType,
+        entityType,
+        byEntityId,
+        { params },
+      );
+      return {
+        entities: response.data.entities,
+        lastKey: response.data.lastKey,
+      };
+    },
+  });
 
   const axiosInterceptor = injectAxiosInterceptor(
     appActions,
@@ -213,6 +239,10 @@ export {
   useEntitySocket,
   useMutualSocket,
   initializeWebSocketManager,
+  WebSocketManager,
+  type ConnectionState,
+  type ClientMessage,
+  type ServerMessage,
 };
 
 export default Monorise;
