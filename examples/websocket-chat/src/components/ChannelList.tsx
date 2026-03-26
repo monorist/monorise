@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react'
 import Monorise, { 
-  useEntities, 
   useEntitySocket,
   useWebSocketConnection 
 } from '@monorise/react'
@@ -20,17 +19,16 @@ export function ChannelList({
   const [newChannelName, setNewChannelName] = useState('')
   const [isCreating, setIsCreating] = useState(false)
   
-  // Use WebSocket connection hook
   const { state: wsState } = useWebSocketConnection()
   
-  // List all channels via HTTP
-  const { entities: channels, isLoading } = useEntities('channel', { all: true })
+  // Hook handles initial fetch + WebSocket subscription
+  const { 
+    entities: channels, 
+    isLoading,
+    isSubscribed,
+    fetchMore 
+  } = useEntitySocket('channel', { limit: 20 })
   
-  // Subscribe to ALL channel changes via WebSocket
-  // This receives real-time updates when any channel is created/updated/deleted
-  useEntitySocket('channel')
-  
-  // Create channel via HTTP (with existing optimistic update)
   const { createEntity } = Monorise
 
   const handleCreateChannel = useCallback(async () => {
@@ -62,7 +60,10 @@ export function ChannelList({
     <div className="channel-list">
       <div className="channel-header">
         <h3>Channels</h3>
-        <span className="connection-status">{getConnectionStatus()}</span>
+        <span className="connection-status">
+          {getConnectionStatus()}
+          {isSubscribed && ' (live)'}
+        </span>
       </div>
       
       {isLoading && <div className="loading">Loading channels...</div>}
@@ -79,6 +80,10 @@ export function ChannelList({
           </button>
         ))}
       </div>
+
+      <button className="load-more-btn" onClick={fetchMore}>
+        Load More
+      </button>
       
       {isCreating ? (
         <div className="create-channel-form">
@@ -91,9 +96,7 @@ export function ChannelList({
             autoFocus
           />
           <div className="form-buttons">
-            <button onClick={handleCreateChannel}>
-              Create
-            </button>
+            <button onClick={handleCreateChannel}>Create</button>
             <button onClick={() => setIsCreating(false)}>Cancel</button>
           </div>
         </div>
