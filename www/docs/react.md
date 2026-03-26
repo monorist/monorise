@@ -254,6 +254,20 @@ const entityState = useEntityState(Entity.USER);
 
 ---
 
+## Real-time / WebSocket
+
+For real-time updates and ephemeral messaging, see the [WebSocket documentation](/websocket).
+
+```ts
+// Real-time entity updates
+const { entities, isSubscribed } = useEntitySocket('message')
+
+// Typing indicators
+const { send } = useEphemeralSocket('channel:123:typing')
+```
+
+---
+
 ## Actions
 
 ### Entity actions
