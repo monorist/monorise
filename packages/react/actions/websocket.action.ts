@@ -8,63 +8,45 @@ import type {
 import { useEffect, useRef, useState } from 'react';
 import type { MonoriseStore } from '../store/monorise.store';
 
-interface UseWebSocketConnectionReturn {
-  state: ConnectionState;
-  connect: () => void;
-  disconnect: () => void;
-}
-
-interface UseEntitySocketOptions {
-  /** Number of records to fetch initially. Default: 20 */
-  limit?: number;
-  /** Skip initial HTTP fetch. Useful if you already have the data. Default: false */
-  skipInitialFetch?: boolean;
-}
-
 interface UseEntitySocketReturn<T extends Entity> {
   entities: Map<string, CreatedEntity<T>>;
   isLoading: boolean;
   isFetchingMore: boolean;
   isSubscribed: boolean;
   error: Error | null;
-  /** Whether data is stale and being refreshed after reconnect */
   isRefreshing: boolean;
-  /** Fetch more entities (pagination) */
   fetchMore: () => Promise<void>;
-  /** Has more pages to fetch */
   hasMore: boolean;
 }
 
-interface UseMutualSocketOptions {
-  /** Number of records to fetch initially. Default: 20 */
-  limit?: number;
-  /** Skip initial HTTP fetch. Useful if you already have the data. Default: false */
-  skipInitialFetch?: boolean;
-}
-
 interface UseMutualSocketReturn<T extends Entity> {
-  mutuals: Map<string, unknown>; // Mutual<B, T>
+  mutuals: Map<string, unknown>;
   isLoading: boolean;
   isFetchingMore: boolean;
   isSubscribed: boolean;
   error: Error | null;
   isRefreshing: boolean;
-  /** Fetch more mutuals (pagination) */
   fetchMore: () => Promise<void>;
-  /** Has more pages to fetch */
   hasMore: boolean;
 }
 
-// Global WebSocket manager instance (singleton)
 let globalWsManager: WebSocketManager | null = null;
+let wsEndpoint: string | undefined;
 
-export const initWebSocket = (wsManager: WebSocketManager) => {
-  globalWsManager = wsManager;
-};
+export const initializeWebSocketManager = (
+  WebSocketManagerClass: typeof WebSocketManager,
+  endpoint: string,
+) => {
+  if (globalWsManager) return globalWsManager;
 
-export const getWebSocketManager = (): WebSocketManager | null => {
+  wsEndpoint = endpoint;
+  globalWsManager = new WebSocketManagerClass(endpoint);
+  globalWsManager.connect();
+
   return globalWsManager;
 };
+
+export const getWebSocketManager = () => globalWsManager;
 
 export const initWebSocketActions = (
   monoriseStore: MonoriseStore,
@@ -81,36 +63,9 @@ export const initWebSocketActions = (
     ) => Promise<{ entities: unknown[]; lastKey?: string }>;
   },
 ) => {
-  const useWebSocketConnection = (): UseWebSocketConnectionReturn => {
-    const [state, setState] = useState<ConnectionState>('disconnected');
-
-    useEffect(() => {
-      if (!globalWsManager) return;
-      const unsubscribe = globalWsManager.onStateChange(setState);
-      return unsubscribe;
-    }, []);
-
-    const connect = () => {
-      globalWsManager?.connect();
-    };
-
-    const disconnect = () => {
-      globalWsManager?.disconnect();
-    };
-
-    return { state, connect, disconnect };
-  };
-
-  /**
-   * Subscribe to ALL changes of an entity type.
-   * Automatically handles:
-   - Initial fetch via HTTP
-   - Real-time updates via WebSocket
-   - Auto-refetch on reconnect after disconnect
-   */
   const useEntitySocket = <T extends Entity>(
     entityType: T,
-    opts: UseEntitySocketOptions = {},
+    opts: { limit?: number; skipInitialFetch?: boolean } = {},
   ): UseEntitySocketReturn<T> => {
     const { limit = 20, skipInitialFetch = false } = opts;
     const [isLoading, setIsLoading] = useState(!skipInitialFetch);
@@ -122,13 +77,11 @@ export const initWebSocketActions = (
     const lastKeyRef = useRef<string | undefined>(undefined);
     const isFirstFetchRef = useRef(true);
 
-    // Get current entities from store
     const entities = monoriseStore((state) => {
       const entityState = state.entity[entityType];
       return entityState?.dataMap || new Map();
     });
 
-    // Fetch function (initial, more, or refresh)
     const fetchData = async (type: 'initial' | 'more' | 'refresh') => {
       if (type === 'more') {
         setIsFetchingMore(true);
@@ -148,7 +101,6 @@ export const initWebSocketActions = (
 
         monoriseStore.setState((state) => {
           if (type === 'refresh') {
-            // Clear and replace on refresh
             state.entity[entityType].dataMap.clear();
           }
           for (const entity of result.data) {
@@ -169,13 +121,11 @@ export const initWebSocketActions = (
       }
     };
 
-    // Initial fetch
     useEffect(() => {
       if (skipInitialFetch) return;
       fetchData('initial');
     }, [entityType, limit, skipInitialFetch]);
 
-    // Subscribe to WebSocket and handle auto-refetch on reconnect
     useEffect(() => {
       if (!globalWsManager) {
         setIsSubscribed(false);
@@ -185,18 +135,15 @@ export const initWebSocketActions = (
       const subKey = globalWsManager.subscribeEntityType(entityType as string);
       setIsSubscribed(true);
 
-      // Listen for connection state changes to detect reconnect
       let wasConnected = false;
       const unsubscribeState = globalWsManager.onStateChange((state) => {
         if (state === 'connected' && wasConnected === false && !isFirstFetchRef.current) {
-          // Reconnected after being disconnected - auto refetch to catch up
           fetchData('refresh');
         }
         wasConnected = state === 'connected';
         isFirstFetchRef.current = false;
       });
 
-      // Listen for server broadcasts
       const unsubscribeMessage = globalWsManager.onMessage(
         (msg: ServerMessage) => {
           if (
@@ -238,7 +185,6 @@ export const initWebSocketActions = (
       };
     }, [entityType]);
 
-    // Fetch more (pagination)
     const fetchMore = async () => {
       if (!hasMore || isFetchingMore) return;
       await fetchData('more');
@@ -256,15 +202,11 @@ export const initWebSocketActions = (
     };
   };
 
-  /**
-   * Subscribe to ALL mutuals of a type for a specific byEntity.
-   * Automatically handles initial fetch, real-time updates, and auto-refetch on reconnect.
-   */
   const useMutualSocket = <B extends Entity, T extends Entity>(
     byEntityType: B,
     byEntityId: string | undefined,
     mutualEntityType: T,
-    opts: UseMutualSocketOptions = {},
+    opts: { limit?: number; skipInitialFetch?: boolean } = {},
   ): UseMutualSocketReturn<T> => {
     const { limit = 20, skipInitialFetch = false } = opts;
     const [isLoading, setIsLoading] = useState(
@@ -286,7 +228,6 @@ export const initWebSocketActions = (
       return state.mutual[mutualKey]?.dataMap || new Map();
     });
 
-    // Fetch function
     const fetchData = async (type: 'initial' | 'more' | 'refresh') => {
       if (!byEntityId) return;
 
@@ -337,7 +278,6 @@ export const initWebSocketActions = (
       }
     };
 
-    // Initial fetch
     useEffect(() => {
       if (skipInitialFetch || !byEntityId) {
         setIsLoading(false);
@@ -349,7 +289,6 @@ export const initWebSocketActions = (
       fetchData('initial');
     }, [byEntityType, byEntityId, mutualEntityType, limit, skipInitialFetch]);
 
-    // Subscribe and handle auto-refetch
     useEffect(() => {
       if (!globalWsManager || !byEntityId) {
         setIsSubscribed(false);
@@ -363,7 +302,6 @@ export const initWebSocketActions = (
       );
       setIsSubscribed(true);
 
-      // Track connection for auto-refetch
       let wasConnected = false;
       const unsubscribeState = globalWsManager.onStateChange((state) => {
         if (state === 'connected' && wasConnected === false && !isFirstFetchRef.current) {
@@ -373,7 +311,6 @@ export const initWebSocketActions = (
         isFirstFetchRef.current = false;
       });
 
-      // Listen for server broadcasts
       const unsubscribeMessage = globalWsManager.onMessage(
         (msg: ServerMessage) => {
           if (
@@ -432,7 +369,6 @@ export const initWebSocketActions = (
       };
     }, [byEntityType, byEntityId, mutualEntityType, mutualKey]);
 
-    // Fetch more
     const fetchMore = async () => {
       if (!hasMore || isFetchingMore) return;
       await fetchData('more');
@@ -451,11 +387,8 @@ export const initWebSocketActions = (
   };
 
   return {
-    useWebSocketConnection,
     useEntitySocket,
     useMutualSocket,
-    initWebSocket,
-    getWebSocketManager,
   };
 };
 

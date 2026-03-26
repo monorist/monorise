@@ -16,11 +16,9 @@ import { EntityService } from './services/entity.service';
 import { MutualService } from './services/mutual.service';
 import {
   WebSocketManager,
-  OptimisticEngine,
   type ConnectionState,
   type ClientMessage,
   type ServerMessage,
-  type OptimisticOperation,
 } from './websocket';
 
 class CoreFactory {
@@ -73,11 +71,9 @@ export {
   StandardError,
   StandardErrorCode,
   WebSocketManager,
-  OptimisticEngine,
   type ConnectionState,
   type ClientMessage,
   type ServerMessage,
-  type OptimisticOperation,
 };
 
 export default CoreFactory;

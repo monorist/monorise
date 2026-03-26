@@ -6,8 +6,7 @@ import { initConfigActions } from './actions/config.action';
 import { initCoreActions } from './actions/core.action';
 import {
   initWebSocketActions,
-  initWebSocket,
-  getWebSocketManager,
+  initializeWebSocketManager,
 } from './actions/websocket.action';
 import { initAxiosInterceptor, injectAxiosInterceptor } from './lib/api';
 import {
@@ -154,15 +153,8 @@ const {
   getEntity,
   updateLocalTaggedEntity,
   deleteLocalTaggedEntity,
-  useWebSocketConnection,
   useEntitySocket,
   useMutualSocket,
-  useCreateEntitySocket,
-  useUpdateEntitySocket,
-  useDeleteEntitySocket,
-  useCreateMutualSocket,
-  useUpdateMutualSocket,
-  useDeleteMutualSocket,
 } = Monorise;
 
 export {
@@ -218,17 +210,9 @@ export {
   getEntity,
   updateLocalTaggedEntity,
   deleteLocalTaggedEntity,
-  useWebSocketConnection,
   useEntitySocket,
   useMutualSocket,
-  useCreateEntitySocket,
-  useUpdateEntitySocket,
-  useDeleteEntitySocket,
-  useCreateMutualSocket,
-  useUpdateMutualSocket,
-  useDeleteMutualSocket,
-  initWebSocket,
-  getWebSocketManager,
+  initializeWebSocketManager,
 };
 
 export default Monorise;
