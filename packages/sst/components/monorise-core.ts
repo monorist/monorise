@@ -1,15 +1,40 @@
 import path from 'node:path';
 import { EVENT, SOURCE } from '../constants/event';
 import { createFunctionWidgets } from './dashboard';
-import { QFunction } from './q-function';
-import { SingleTable } from './single-table';
+import { QFunction, QFunctionArgs } from './q-function';
+import { SingleTable, SingleTableArgs } from './single-table';
 
-type MonoriseCoreArgs = {
+export type FunctionConfig = {
+  /** Function memory size */
+  memory?: sst.aws.FunctionArgs['memory'];
+  /** Function timeout */
+  timeout?: sst.aws.FunctionArgs['timeout'];
+  /** Provisioned and reserved concurrency configuration */
+  concurrency?: sst.aws.FunctionArgs['concurrency'];
+  /** Enable function versioning (required for provisioned concurrency) */
+  versioning?: sst.aws.FunctionArgs['versioning'];
+  /** Transform the underlying function resource */
+  transform?: sst.aws.FunctionArgs['transform'];
+};
+
+export type MonoriseCoreArgs = {
   tableTtl?: string;
   slackWebhook?: string;
   allowHeaders?: string[];
   allowOrigins?: string[];
   configRoot?: string;
+  /** Table billing mode and capacity configuration */
+  tableBillingMode?: SingleTableArgs['billingMode'];
+  tableReadCapacity?: SingleTableArgs['readCapacity'];
+  tableWriteCapacity?: SingleTableArgs['writeCapacity'];
+  tableTransform?: SingleTableArgs['transform'];
+  /** API handler function configuration */
+  apiConfig?: FunctionConfig;
+  /** Processor functions configuration (mutual, tag, tree) */
+  processorConfig?: FunctionConfig;
+  /** Replicator function configuration */
+  replicatorConfig?: SingleTableArgs['replicatorConfig'];
+  replicatorTransform?: SingleTableArgs['replicatorTransform'];
 };
 
 export class MonoriseCore {
@@ -53,11 +78,21 @@ export class MonoriseCore {
       ttl: args?.tableTtl,
       runtime,
       configRoot: args?.configRoot,
+      billingMode: args?.tableBillingMode,
+      readCapacity: args?.tableReadCapacity,
+      writeCapacity: args?.tableWriteCapacity,
+      transform: args?.tableTransform,
+      replicatorConfig: args?.replicatorConfig,
+      replicatorTransform: args?.replicatorTransform,
     });
 
     const secretApiKeys = new sst.Secret('API_KEYS', '["secret1", "secret2"]');
 
     const appHandlerName = `${$app.stage}-${$app.name}-${id}-app-handler`;
+    
+    // Build API handler configuration
+    const apiHandlerConfig = this.buildApiHandlerConfig(args?.apiConfig);
+    
     this.api.route('ANY /core/{proxy+}', {
       name: appHandlerName,
       handler: `${dotMonorisePath}/handle.appHandler`,
@@ -67,6 +102,7 @@ export class MonoriseCore {
         CORE_TABLE: this.table.table.name,
         CORE_EVENT_BUS: this.bus.name,
       },
+      ...apiHandlerConfig,
     });
 
     this.alarmTopic = new sst.aws.SnsTopic(`${id}-monorise-dlq-alarm-topic`);
@@ -83,40 +119,46 @@ export class MonoriseCore {
     const tagProcessorName = `${$app.stage}-${$app.name}-${id}-tag-processor`;
     const treeProcessorName = `${$app.stage}-${$app.name}-${id}-tree-processor`;
 
+    // Build processor configuration
+    const processorConfig = this.buildProcessorConfig(args?.processorConfig);
+
     const mutualProcessor = new QFunction('mutual', {
       name: mutualProcessorName,
       handler: `${dotMonorisePath}/handle.mutualHandler`,
-      memory: '512 MB',
-      timeout: '30 seconds',
+      memory: processorConfig.memory ?? '512 MB',
+      timeout: processorConfig.timeout ?? '30 seconds',
       visibilityTimeout: '30 seconds',
       alarmTopic: this.alarmTopic,
       runtime,
       environment,
       link: [this.table.table, this.bus],
+      ...processorConfig,
     });
 
     const tagProcessor = new QFunction('tag', {
       name: tagProcessorName,
       handler: `${dotMonorisePath}/handle.tagHandler`,
-      memory: '512 MB',
-      timeout: '30 seconds',
+      memory: processorConfig.memory ?? '512 MB',
+      timeout: processorConfig.timeout ?? '30 seconds',
       visibilityTimeout: '30 seconds',
       alarmTopic: this.alarmTopic,
       runtime,
       environment,
       link: [this.table.table],
+      ...processorConfig,
     });
 
     const treeProcessor = new QFunction('tree', {
       name: treeProcessorName,
       handler: `${dotMonorisePath}/handle.treeHandler`,
-      memory: '512 MB',
-      timeout: '30 seconds',
+      memory: processorConfig.memory ?? '512 MB',
+      timeout: processorConfig.timeout ?? '30 seconds',
       visibilityTimeout: '30 seconds',
       alarmTopic: this.alarmTopic,
       runtime,
       environment,
       link: [this.table.table],
+      ...processorConfig,
     });
 
     this.bus.subscribeQueue(`${id}-mutual-queue-rule`, mutualProcessor.queue, {
@@ -216,5 +258,33 @@ export class MonoriseCore {
         },
       ),
     });
+  }
+
+  private buildApiHandlerConfig(
+    config?: FunctionConfig,
+  ): Partial<sst.aws.FunctionArgs> {
+    if (!config) return {};
+
+    return {
+      memory: config.memory,
+      timeout: config.timeout,
+      concurrency: config.concurrency,
+      versioning: config.versioning,
+      transform: config.transform,
+    };
+  }
+
+  private buildProcessorConfig(
+    config?: FunctionConfig,
+  ): Partial<QFunctionArgs> {
+    if (!config) return {};
+
+    return {
+      memory: config.memory,
+      timeout: config.timeout,
+      concurrency: config.concurrency,
+      versioning: config.versioning,
+      transform: config.transform,
+    };
   }
 }
