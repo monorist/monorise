@@ -1,10 +1,14 @@
 import type { DurationMinutes } from '../.sst/platform/src/components/duration';
 import type { Input } from '../.sst/platform/src/components/input';
 
-interface QFunctionArgs extends sst.aws.FunctionArgs {
+export interface QFunctionArgs extends sst.aws.FunctionArgs {
+  /** Visibility timeout for the queue */
   visibilityTimeout?: sst.aws.QueueArgs['visibilityTimeout'];
+  /** Maximum batching window in minutes */
   maxBatchingWindow?: Input<DurationMinutes>;
+  /** Number of records to batch per invocation */
   batchSize?: number;
+  /** SNS topic for DLQ alarms */
   alarmTopic?: sst.aws.SnsTopic;
 }
 
@@ -72,5 +76,16 @@ export class QFunction {
         },
       );
     }
+  }
+
+  /**
+   * Get the underlying function resource
+   */
+  public get nodes() {
+    return {
+      function: this.function,
+      queue: this.queue,
+      dlq: this.dlq,
+    };
   }
 }
