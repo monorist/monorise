@@ -4,6 +4,11 @@ import { initAppActions } from './actions/app.action';
 import { initAuthActions } from './actions/auth.action';
 import { initConfigActions } from './actions/config.action';
 import { initCoreActions } from './actions/core.action';
+import {
+  initWebSocketActions,
+  initWebSocket,
+  getWebSocketManager,
+} from './actions/websocket.action';
 import { initAxiosInterceptor, injectAxiosInterceptor } from './lib/api';
 import {
   getEntityRequestKey,
@@ -52,6 +57,7 @@ const initMonorise = () => {
 
   const authActions = initAuthActions(store, authService);
   const coreActions = initCoreActions(store, appActions, coreService);
+  const websocketActions = initWebSocketActions(store);
 
   const axiosInterceptor = injectAxiosInterceptor(
     appActions,
@@ -93,6 +99,7 @@ const initMonorise = () => {
     ...appActions,
     ...authActions,
     ...coreActions,
+    ...websocketActions,
   };
 };
 
@@ -148,6 +155,15 @@ const {
   getEntity,
   updateLocalTaggedEntity,
   deleteLocalTaggedEntity,
+  useWebSocketConnection,
+  useEntitySocket,
+  useMutualSocket,
+  useCreateEntitySocket,
+  useUpdateEntitySocket,
+  useDeleteEntitySocket,
+  useCreateMutualSocket,
+  useUpdateMutualSocket,
+  useDeleteMutualSocket,
 } = Monorise;
 
 export {
@@ -204,6 +220,17 @@ export {
   getEntity,
   updateLocalTaggedEntity,
   deleteLocalTaggedEntity,
+  useWebSocketConnection,
+  useEntitySocket,
+  useMutualSocket,
+  useCreateEntitySocket,
+  useUpdateEntitySocket,
+  useDeleteEntitySocket,
+  useCreateMutualSocket,
+  useUpdateMutualSocket,
+  useDeleteMutualSocket,
+  initWebSocket,
+  getWebSocketManager,
 };
 
 export default Monorise;
