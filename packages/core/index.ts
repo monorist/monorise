@@ -15,6 +15,7 @@ import { DependencyContainer } from './services/DependencyContainer';
 import { EntityService } from './services/entity.service';
 import { MutualService } from './services/mutual.service';
 
+
 class CoreFactory {
   public setupCommonRoutes: ReturnType<typeof setupCommonRoutes>;
   public mutualProcessor: ReturnType<typeof mutualProcessor>;
