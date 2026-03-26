@@ -7,7 +7,7 @@ export type ConnectionState =
   | 'disconnected';
 
 export interface ClientMessage {
-  action: 'subscribe' | 'unsubscribe' | 'ping';
+  action: 'subscribe' | 'unsubscribe' | 'ephemeral' | 'ping';
   id: string;
   payload: {
     // Entity subscription: subscribe to all changes of this entity type
@@ -16,6 +16,10 @@ export interface ClientMessage {
     byEntityType?: string;
     byEntityId?: string;
     mutualEntityType?: string;
+    // Ephemeral channel
+    channel?: string;
+    // Ephemeral message data
+    data?: unknown;
   };
 }
 
@@ -27,6 +31,7 @@ export interface ServerMessage {
     | 'mutual.created'
     | 'mutual.updated'
     | 'mutual.deleted'
+    | 'ephemeral'
     | 'ack'
     | 'error'
     | 'pong';
@@ -49,6 +54,11 @@ interface MutualTypeSubscription {
   mutualEntityType: string;
 }
 
+// Ephemeral channel subscription: listen to ephemeral messages on this channel
+interface EphemeralSubscription {
+  channel: string;
+}
+
 export class WebSocketManager {
   private ws: WebSocket | null = null;
   private url: string;
@@ -67,6 +77,7 @@ export class WebSocketManager {
   private stateHandlers: Set<ConnectionStateHandler> = new Set();
   private entitySubscriptions: Map<string, EntityTypeSubscription> = new Map();
   private mutualSubscriptions: Map<string, MutualTypeSubscription> = new Map();
+  private ephemeralSubscriptions: Map<string, EphemeralSubscription> = new Map();
   private pendingMessages: ClientMessage[] = [];
 
   constructor(url: string, token: string) {
@@ -189,6 +200,52 @@ export class WebSocketManager {
     }
   }
 
+  // Subscribe to ephemeral messages on a channel
+  subscribeEphemeral(channel: string): string {
+    const subKey = `ephemeral:${channel}`;
+
+    if (!this.ephemeralSubscriptions.has(subKey)) {
+      this.ephemeralSubscriptions.set(subKey, { channel });
+    }
+
+    if (this.state === 'connected') {
+      const message: ClientMessage = {
+        action: 'subscribe',
+        id: nanoid(),
+        payload: { channel },
+      };
+      this.send(message);
+    }
+
+    return subKey;
+  }
+
+  unsubscribeEphemeral(subKey: string): void {
+    const subscription = this.ephemeralSubscriptions.get(subKey);
+    if (!subscription) return;
+
+    this.ephemeralSubscriptions.delete(subKey);
+
+    if (this.state === 'connected') {
+      const message: ClientMessage = {
+        action: 'unsubscribe',
+        id: nanoid(),
+        payload: { channel: subscription.channel },
+      };
+      this.send(message);
+    }
+  }
+
+  // Send an ephemeral message to a channel
+  sendEphemeral(channel: string, data: unknown): void {
+    const message: ClientMessage = {
+      action: 'ephemeral',
+      id: nanoid(),
+      payload: { channel, data },
+    };
+    this.send(message);
+  }
+
   send(message: ClientMessage): void {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
@@ -292,6 +349,16 @@ export class WebSocketManager {
         action: 'subscribe',
         id: nanoid(),
         payload: { byEntityType, byEntityId, mutualEntityType },
+      };
+      this.send(message);
+    }
+
+    // Re-subscribe ephemeral channels
+    for (const { channel } of this.ephemeralSubscriptions.values()) {
+      const message: ClientMessage = {
+        action: 'subscribe',
+        id: nanoid(),
+        payload: { channel },
       };
       this.send(message);
     }
