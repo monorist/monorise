@@ -31,3 +31,4 @@ import { WebSocketManager } from '@monorise/react'
 - `useWebSocketConnection()`: Monitor connection state
 - `useEntitySocket(entityType)`: Subscribe to entity type changes
 - `useMutualSocket(byEntityType, byEntityId, mutualEntityType)`: Subscribe to mutual relationship changes
+- `useEphemeralSocket(channel)`: Ephemeral messaging for typing indicators, live cursors, presence
