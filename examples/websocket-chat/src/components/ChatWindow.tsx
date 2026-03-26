@@ -2,9 +2,7 @@ import { useEffect, useRef } from 'react'
 import Monorise, { 
   useMutuals,
   useMutualSocket,
-  useEntitySocket
 } from '@monorise/react'
-import { DEMO_USERS } from '../lib/monorise'
 
 interface ChatWindowProps {
   channelId: string
@@ -20,28 +18,20 @@ interface Message {
     authorName: string
   }
   createdAt: string
-  isOptimistic?: boolean
 }
 
 export function ChatWindow({ channelId, currentUserId }: ChatWindowProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   
-  // Subscribe to channel updates
-  useEntitySocket('channel', channelId)
-  
-  // Get channel data
+  // Get channel data via HTTP
   const { entity: channel } = Monorise.useEntity('channel', channelId)
   
-  // List messages in this channel using mutuals
+  // List messages in this channel via HTTP (initial load)
   const { mutuals, isLoading, isFirstFetched } = useMutuals('channel', 'message', channelId)
   
-  // Subscribe to message updates via WebSocket
-  mutuals?.forEach((mutual: any) => {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    useMutualSocket('channel', channelId, 'message', mutual.entityId)
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    useEntitySocket('message', mutual.entityId)
-  })
+  // Subscribe to ALL message changes in this channel via WebSocket
+  // This receives real-time updates when any message is created/updated/deleted
+  useMutualSocket('channel', channelId, 'message')
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -82,7 +72,7 @@ export function ChatWindow({ channelId, currentUserId }: ChatWindowProps) {
           return (
             <div 
               key={message.entityId} 
-              className={`message ${isMe ? 'own-message' : ''} ${message.isOptimistic ? 'optimistic' : ''}`}
+              className={`message ${isMe ? 'own-message' : ''}`}
             >
               <div className="message-avatar">
                 {message.data.authorName.charAt(0).toUpperCase()}
@@ -91,9 +81,6 @@ export function ChatWindow({ channelId, currentUserId }: ChatWindowProps) {
                 <div className="message-header">
                   <span className="message-author">{message.data.authorName}</span>
                   <span className="message-time">{formatTime(message.createdAt)}</span>
-                  {message.isOptimistic && (
-                    <span className="syncing-indicator">⏳ syncing...</span>
-                  )}
                 </div>
                 <div className="message-text">{message.data.content}</div>
               </div>
