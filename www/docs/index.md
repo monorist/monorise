@@ -111,12 +111,12 @@ That's it — API, DynamoDB, EventBridge, processors, and a type-safe frontend. 
     <p>One table, O(1) performance for every query. Monorise handles denormalization and replication automatically.</p>
   </div>
   <div class="feature">
-    <h3><span class="feature-icon">&#x1F512;</span> Type-Safe Schemas</h3>
-    <p>Define entities with Zod schemas. Get full TypeScript types across backend and frontend with zero code generation delay.</p>
+    <h3><span class="feature-icon">&#x1F504;</span> Zero Schema Drift</h3>
+    <p>One Zod config drives your entire stack. Edit &rarr; save &rarr; types regenerate instantly. DB, backend, and frontend stay perfectly in sync.</p>
   </div>
   <div class="feature">
-    <h3><span class="feature-icon">&#x26A1;</span> Event-Driven Processors</h3>
-    <p>Mutual, tag, and prejoin processors keep denormalized access patterns in sync via EventBridge and SQS.</p>
+    <h3><span class="feature-icon">&#x1F680;</span> Ship in Hours, Not Weeks</h3>
+    <p>From <code>git init</code> to production API in minutes. No migration scripts. No access pattern spreadsheets. No 2am GSI regrets.</p>
   </div>
   <div class="feature">
     <h3><span class="feature-icon">&#x1F517;</span> Relational Access Patterns</h3>
@@ -129,6 +129,10 @@ That's it — API, DynamoDB, EventBridge, processors, and a type-safe frontend. 
   <div class="feature">
     <h3><span class="feature-icon">&#x1F6E0;&#xFE0F;</span> Seamless Dev Workflow</h3>
     <p>Run <code>npx sst dev</code> and everything just works — handlers, types, and Lambda entry points are auto-generated as you edit entity configs.</p>
+  </div>
+  <div class="feature">
+    <h3><span class="feature-icon">&#x1F9E0;</span> Token-Efficient Development</h3>
+    <p>No re-implementing CRUD boilerplate or DynamoDB patterns. One config gives you API, types, and processors — less code, fewer tokens, faster shipping.</p>
   </div>
 </div>
 
