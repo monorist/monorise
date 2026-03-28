@@ -7,9 +7,6 @@ import { EntityConfig } from '#/monorise/entities';
 Monorise.config({
   modals: {},
   entityConfig: EntityConfig as Record<Entity, MonoriseEntityConfig>,
-  entityBaseUrl: '/api',
-  mutualBaseUrl: '/api',
-  tagBaseUrl: '/api',
 });
 
 const GlobalInitializer = () => {

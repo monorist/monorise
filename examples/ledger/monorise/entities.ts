@@ -1,1 +1,1 @@
-export { Entity, EntityConfig, FormSchema } from '#/monorise/config';
+export { Entity, EntityConfig, FormSchema } from '../.monorise/config';

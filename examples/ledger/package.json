@@ -11,7 +11,7 @@
     "services/*"
   ],
   "dependencies": {
-    "monorise": "latest",
+    "monorise": "^0.0.4",
     "sst": "3.17.38",
     "zod": "^3.25.67"
   },
