@@ -145,7 +145,7 @@ const initCoreActions = (
     try {
       const { data: result } = await entityService.listEntities(
         {
-          limit: 20,
+          limit: opts.limit ?? 20,
           lastKey,
         },
         opts,
@@ -1476,6 +1476,7 @@ const initCoreActions = (
 
         await listMoreEntities(entityType, {
           ...opts,
+          limit: limit ?? opts.limit,
           forceFetch: true,
         });
       },
