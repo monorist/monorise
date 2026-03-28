@@ -58,7 +58,8 @@ const initCoreActions = (
     params: {
       skRange?: { start: string; end: string };
       all?: boolean;
-    } = {},
+      limit?: number;
+    } = { limit: 20 },
     opts: CommonOptions = {},
   ) => {
     const store = monoriseStore.getState();
@@ -86,7 +87,7 @@ const initCoreActions = (
     try {
       const { data: result } = await entityService.listEntities(
         {
-          ...(params?.all ? {} : { limit: 20 }),
+          ...(params?.all ? {} : { limit: params?.limit }),
           start: skRange?.start,
           end: skRange?.end,
         },
@@ -1352,7 +1353,8 @@ const initCoreActions = (
         end: string;
       };
       all?: boolean;
-    } = {},
+      limit?: number;
+    } = { limit: 20 },
     opts: CommonOptions & { searchInterval?: number } = {},
   ): {
     isLoading: boolean;
@@ -1380,6 +1382,7 @@ const initCoreActions = (
     const [query, setQuery] = useState<string>('');
     const [skRange, setBetween] = useState(params.skRange);
     const [all, setAll] = useState(params.all);
+    const [limit, setLimit] = useState(params.limit);
     const [isSearching, setIsSearching] = useState(false);
     const isLoading = isListing || isSearching;
 
@@ -1400,10 +1403,16 @@ const initCoreActions = (
     }, [all, params.all]);
 
     useEffect(() => {
-      if (!isFirstFetched || opts?.forceFetch) {
-        listEntities(entityType, { skRange, all }, opts);
+      if (params?.limit !== limit) {
+        setLimit(params.limit);
       }
-    }, [all, entityType, skRange, opts, isFirstFetched, opts?.forceFetch]);
+    }, [limit, params.limit]);
+
+    useEffect(() => {
+      if (!isFirstFetched || opts?.forceFetch) {
+        listEntities(entityType, { skRange, all, limit }, opts);
+      }
+    }, [all, entityType, skRange, opts, isFirstFetched, opts?.forceFetch, limit]);
 
     useEffect(() => {
       let queryTimeout: NodeJS.Timeout;
@@ -1476,7 +1485,7 @@ const initCoreActions = (
 
         await listMoreEntities(entityType, {
           ...opts,
-          limit: limit ?? opts.limit,
+          limit,
           forceFetch: true,
         });
       },
@@ -1543,6 +1552,7 @@ const initCoreActions = (
     isFirstFetched?: boolean;
     lastKey?: string;
     listMore?: () => void;
+    refetch?: () => Promise<any>;
   } => {
     const stateKey = getMutualStateKey(
       byEntityType,
