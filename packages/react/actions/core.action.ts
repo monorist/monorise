@@ -58,6 +58,7 @@ const initCoreActions = (
     params: {
       skRange?: { start: string; end: string };
       all?: boolean;
+      limit?: number;
     } = {},
     opts: CommonOptions = {},
   ) => {
@@ -86,7 +87,7 @@ const initCoreActions = (
     try {
       const { data: result } = await entityService.listEntities(
         {
-          ...(params?.all ? {} : { limit: 20 }),
+          ...(params?.all ? {} : { limit: params?.limit ?? 20 }),
           start: skRange?.start,
           end: skRange?.end,
         },
@@ -1352,6 +1353,7 @@ const initCoreActions = (
         end: string;
       };
       all?: boolean;
+      limit?: number;
     } = {},
     opts: CommonOptions & { searchInterval?: number } = {},
   ): {
@@ -1401,9 +1403,9 @@ const initCoreActions = (
 
     useEffect(() => {
       if (!isFirstFetched || opts?.forceFetch) {
-        listEntities(entityType, { skRange, all }, opts);
+        listEntities(entityType, { skRange, all, limit: params.limit }, opts);
       }
-    }, [all, entityType, skRange, opts, isFirstFetched, opts?.forceFetch]);
+    }, [all, entityType, skRange, opts, isFirstFetched, opts?.forceFetch, params.limit]);
 
     useEffect(() => {
       let queryTimeout: NodeJS.Timeout;
