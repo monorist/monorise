@@ -5,24 +5,7 @@ import 'tsconfig-paths/register.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import chokidar from 'chokidar';
-
-/**
- * Detects whether the combined 'monorise' package is installed by walking up
- * the directory tree. This handles monorepo setups where dependencies are
- * hoisted to the root node_modules.
- */
-function detectCombinedPackage(startDir: string): boolean {
-  let dir = startDir;
-  while (true) {
-    if (fs.existsSync(path.join(dir, 'node_modules', 'monorise'))) {
-      return true;
-    }
-    const parent = path.dirname(dir);
-    if (parent === dir) break; // reached filesystem root
-    dir = parent;
-  }
-  return false;
-}
+import { detectCombinedPackage } from './commands/utils/detect-package';
 
 function kebabToCamel(str: string): string {
   return str.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
