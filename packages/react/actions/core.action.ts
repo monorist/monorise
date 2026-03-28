@@ -1552,6 +1552,7 @@ const initCoreActions = (
     isFirstFetched?: boolean;
     lastKey?: string;
     listMore?: () => void;
+    refetch?: () => Promise<any>;
   } => {
     const stateKey = getMutualStateKey(
       byEntityType,
