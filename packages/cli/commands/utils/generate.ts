@@ -1,6 +1,24 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+/**
+ * Detects whether the combined 'monorise' package is installed by walking up
+ * the directory tree. This handles monorepo setups where dependencies are
+ * hoisted to the root node_modules.
+ */
+function detectCombinedPackage(startDir: string): boolean {
+  let dir = startDir;
+  while (true) {
+    if (fs.existsSync(path.join(dir, 'node_modules', 'monorise'))) {
+      return true;
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break; // reached filesystem root
+    dir = parent;
+  }
+  return false;
+}
+
 function kebabToCamel(str: string): string {
   return str.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
 }
@@ -214,8 +232,11 @@ async function generateHandleFile(
   );
   relativePathToRoutes = relativePathToRoutes.replace(/\.(ts|js|mjs|cjs)$/, '');
 
+  const usesCombinedPackage = detectCombinedPackage(projectRoot);
+  const coreImportPath = usesCombinedPackage ? 'monorise/core' : '@monorise/core';
+
   const combinedContent = `
-import { AppHandler, CoreFactory } from '@monorise/core';
+import { AppHandler, CoreFactory } from '${coreImportPath}';
 import config from './config';
 import routes from '${relativePathToRoutes}';
 
