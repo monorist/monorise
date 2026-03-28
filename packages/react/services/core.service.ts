@@ -52,6 +52,7 @@ export type CommonOptions = Partial<AxiosRequestConfig> & {
   stateKey?: string;
   forceFetch?: boolean;
   noData?: boolean;
+  limit?: number;
   requestKey?: string;
   onError?: (error: ApplicationRequestError | Error) => void;
   limit?: number;
