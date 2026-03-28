@@ -1,7 +1,6 @@
 ---
 "@monorise/react": patch
-"@monorise/core": patch
 "monorise": patch
 ---
 
-Fix limit param in listEntities and useEntities - limit was not passed through from params, always defaulting to 20. Also fix NaN limit in list-entities controller when limit query param is not provided.
+Add limit param support to useEntities, with useState for stable tracking. Default params to { limit: 20 }. listMore respects the same limit. Add limit to CommonOptions for useMutuals and listMoreEntities.
