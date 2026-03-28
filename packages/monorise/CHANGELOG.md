@@ -1,5 +1,11 @@
 # monorise
 
+## 0.0.3
+
+### Patch Changes
+
+- eb14403: Add limit support to CommonOptions, listMoreEntities, and useEntities listMore for consistent pagination
+
 ## 0.0.2
 
 ### Patch Changes

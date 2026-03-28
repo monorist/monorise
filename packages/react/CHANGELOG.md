@@ -1,5 +1,11 @@
 # @monorise/react
 
+## 3.0.5
+
+### Patch Changes
+
+- eb14403: Add limit support to CommonOptions, listMoreEntities, and useEntities listMore for consistent pagination
+
 ## 3.0.4
 
 ### Patch Changes
