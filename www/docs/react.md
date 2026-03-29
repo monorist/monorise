@@ -272,7 +272,7 @@ const entityState = useEntityState(Entity.USER);
 | Action | Description |
 |--------|-------------|
 | `createEntity(entityType, data, opts?)` | Create entity on server. Returns `{ data }` or `{ error }`. |
-| `editEntity(entityType, id, data, opts?)` | Partial update entity. Returns `{ data }` or `{ error }`. |
+| `editEntity(entityType, id, data, opts?)` | Partial update entity (sets fields to exact values). For incrementing/decrementing numbers, use [`adjustEntity`](#adjustentity) instead. Returns `{ data }` or `{ error }`. |
 | `adjustEntity(entityType, id, adjustments, opts?)` | Safely increment/decrement numeric fields. Returns `{ data }` or `{ error }`. |
 | `upsertEntity(entityType, id, data, opts?)` | Insert or full replace. Returns `{ data }` or `{ error }`. |
 | `deleteEntity(entityType, id, opts?)` | Delete entity. Returns `{ data }` or `{ error }`. |
