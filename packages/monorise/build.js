@@ -49,7 +49,7 @@ function rewriteImports(dir, currentPkg) {
       rewriteImports(fullPath, currentPkg);
     } else if (entry.name.endsWith('.d.ts')) {
       let content = fs.readFileSync(fullPath, 'utf-8');
-      let changed = false;
+      const original = content;
       for (const [pkg, folder] of Object.entries(packageMap)) {
         if (folder === currentPkg) continue;
         const relativePath = path.relative(
@@ -59,21 +59,19 @@ function rewriteImports(dir, currentPkg) {
         const relativeImport = relativePath.startsWith('.')
           ? relativePath
           : `./${relativePath}`;
-        const fromRegex = new RegExp(`'${pkg.replace('/', '\\/')}'`, 'g');
-        const importRegex = new RegExp(
-          `import\\("${pkg.replace('/', '\\/')}"\\)`,
-          'g',
+        const escapedPkg = pkg.replace('/', '\\/');
+        // Match both single and double quoted from/import patterns
+        // e.g. from '@monorise/base', from "@monorise/base", import("@monorise/base")
+        content = content.replace(
+          new RegExp(`'${escapedPkg}'`, 'g'),
+          `'${relativeImport}'`,
         );
-        if (fromRegex.test(content) || importRegex.test(content)) {
-          content = content.replace(fromRegex, `'${relativeImport}'`);
-          content = content.replace(
-            importRegex,
-            `import("${relativeImport}")`,
-          );
-          changed = true;
-        }
+        content = content.replace(
+          new RegExp(`"${escapedPkg}"`, 'g'),
+          `"${relativeImport}"`,
+        );
       }
-      if (changed) {
+      if (content !== original) {
         fs.writeFileSync(fullPath, content);
       }
     }

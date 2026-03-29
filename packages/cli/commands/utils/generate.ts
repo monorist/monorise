@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { detectCombinedPackage } from './detect-package';
 
 function kebabToCamel(str: string): string {
   return str.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
@@ -214,8 +215,11 @@ async function generateHandleFile(
   );
   relativePathToRoutes = relativePathToRoutes.replace(/\.(ts|js|mjs|cjs)$/, '');
 
+  const usesCombinedPackage = detectCombinedPackage(projectRoot);
+  const coreImportPath = usesCombinedPackage ? 'monorise/core' : '@monorise/core';
+
   const combinedContent = `
-import { AppHandler, CoreFactory } from '@monorise/core';
+import { AppHandler, CoreFactory } from '${coreImportPath}';
 import config from './config';
 import routes from '${relativePathToRoutes}';
 
