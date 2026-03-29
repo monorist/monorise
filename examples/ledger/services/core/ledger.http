@@ -1,0 +1,99 @@
+@BASE_URL = http://localhost:3000/api
+@API_BASE = https://your-api-gateway-url.amazonaws.com
+@X_API_KEY = secret1
+
+### ─── Merchants ───
+
+### Create merchant
+POST {{API_BASE}}/core/entity/merchant
+x-api-key: {{X_API_KEY}}
+Content-Type: application/json
+
+{
+  "name": "Coffee House",
+  "category": "food-beverage",
+  "contactEmail": "hello@coffeehouse.com"
+}
+
+### Create another merchant
+POST {{API_BASE}}/core/entity/merchant
+x-api-key: {{X_API_KEY}}
+Content-Type: application/json
+
+{
+  "name": "Tech Store",
+  "category": "electronics",
+  "contactEmail": "support@techstore.com"
+}
+
+### ─── Buyers ───
+
+### Create buyer
+POST {{API_BASE}}/core/entity/buyer
+x-api-key: {{X_API_KEY}}
+Content-Type: application/json
+
+{
+  "name": "Alice",
+  "email": "alice@example.com"
+}
+
+### ─── Transactions ───
+
+### Create a sale transaction
+POST {{API_BASE}}/core/entity/transaction
+x-api-key: {{X_API_KEY}}
+Content-Type: application/json
+
+{
+  "amount": 5000,
+  "type": "sale",
+  "description": "Latte and croissant",
+  "transactionDate": "2025-03-15T10:30:00.000Z",
+  "status": "completed",
+  "merchantId": "{{merchantId}}",
+  "buyerId": "{{buyerId}}",
+  "merchantIds": ["{{merchantId}}"],
+  "buyerIds": ["{{buyerId}}"]
+}
+
+### Create a refund transaction
+POST {{API_BASE}}/core/entity/transaction
+x-api-key: {{X_API_KEY}}
+Content-Type: application/json
+
+{
+  "amount": 2000,
+  "type": "refund",
+  "description": "Wrong order refund",
+  "transactionDate": "2025-03-16T14:00:00.000Z",
+  "status": "completed",
+  "merchantId": "{{merchantId}}",
+  "buyerId": "{{buyerId}}",
+  "merchantIds": ["{{merchantId}}"],
+  "buyerIds": ["{{buyerId}}"]
+}
+
+### ─── Tag Queries ───
+
+### All transactions by date range
+GET {{API_BASE}}/core/tag/transaction/date?start=2025-03-01&end=2025-03-31
+x-api-key: {{X_API_KEY}}
+
+### Transactions by merchant + date range
+GET {{API_BASE}}/core/tag/transaction/merchant-date?group={{merchantId}}&start=2025-03-01&end=2025-03-31
+x-api-key: {{X_API_KEY}}
+
+### Transactions by buyer + date range
+GET {{API_BASE}}/core/tag/transaction/buyer-date?group={{buyerId}}&start=2025-03-01&end=2025-03-31
+x-api-key: {{X_API_KEY}}
+
+### Transactions by type
+GET {{API_BASE}}/core/tag/transaction/type?group=sale
+x-api-key: {{X_API_KEY}}
+
+### ─── Custom Aggregation ───
+
+### Summary for date range
+GET {{API_BASE}}/core/app/summary?start=2025-03-01&end=2025-03-31
+x-api-key: {{X_API_KEY}}
