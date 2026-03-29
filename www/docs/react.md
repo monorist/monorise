@@ -279,6 +279,25 @@ const entityState = useEntityState(Entity.USER);
 | `getEntity(entityType, id)` | Fetch single entity (non-hook). |
 | `listMoreEntities(entityType, opts?)` | Load next page of entities. |
 
+### `editEntity`
+
+Partially update an entity by setting fields to exact values.
+
+```ts
+import { editEntity } from 'monorise/react';
+
+await editEntity(Entity.USER, userId, {
+  name: 'Alice Smith',
+  role: 'admin',
+});
+```
+
+Only the fields you pass are updated — other fields remain unchanged. The updated entity propagates to mutual and tag stores automatically.
+
+::: tip
+If you need to increment or decrement a numeric field (e.g., a counter or running total), use [`adjustEntity`](#adjustentity) instead. `editEntity` sets the field to the value you provide, which can cause data loss if multiple updates happen concurrently.
+:::
+
 ### `adjustEntity`
 
 Safely increment or decrement numeric fields on an entity. Unlike `editEntity` which sets a field to a specific value, `adjustEntity` adds or subtracts a delta — meaning multiple concurrent adjustments never overwrite each other.
