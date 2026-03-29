@@ -12,14 +12,17 @@ import {
 } from '#/components/ui/select';
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card';
 import { Button } from '#/components/ui/button';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '#/components/ui/tabs';
 import DateRangeFilter, {
   getDefaultDateRange,
+  monthToStartDate,
+  monthToEndDate,
+  formatMonthLabel,
 } from '#/components/date-range-filter';
 import TransactionTable from '#/components/transaction-table';
 import TransactionSummary from '#/components/transaction-summary';
 import RevenueChart from '#/components/revenue-chart';
 
-type ViewMode = 'list' | 'chart';
 type Granularity = 'daily' | 'monthly';
 
 export default function MerchantsPage() {
@@ -27,19 +30,22 @@ export default function MerchantsPage() {
   const [selectedMerchant, setSelectedMerchant] = useState<string>('');
   const [start, setStart] = useState(defaults.start);
   const [end, setEnd] = useState(defaults.end);
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [tab, setTab] = useState('list');
   const [granularity, setGranularity] = useState<Granularity>('monthly');
 
   const { entities: merchants, isLoading: merchantsLoading } =
     useEntities(Entity.MERCHANT);
   useEntities(Entity.BUYER, { all: true });
 
+  const endDisabled = tab === 'chart' && granularity === 'daily';
+  const effectiveEnd = endDisabled ? start : end;
+
   const { entities: transactions, isLoading: txnLoading } =
     useTaggedEntities(Entity.TRANSACTION, 'merchant-date', {
       params: {
         ...(selectedMerchant ? { group: selectedMerchant } : {}),
-        start,
-        end,
+        start: monthToStartDate(start),
+        end: monthToEndDate(effectiveEnd),
       },
     });
 
@@ -88,6 +94,7 @@ export default function MerchantsPage() {
               end={end}
               onStartChange={setStart}
               onEndChange={setEnd}
+              endDisabled={endDisabled}
             />
           </div>
         </CardContent>
@@ -95,67 +102,79 @@ export default function MerchantsPage() {
 
       {selectedMerchant ? (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">
-              {getMerchantName(selectedMerchant)}
-              {transactions && ` — ${transactions.length} transactions`}
-            </h2>
-            <div className="flex items-center gap-2">
-              {viewMode === 'chart' && (
-                <div className="flex rounded-md border">
-                  <Button
-                    variant={granularity === 'daily' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setGranularity('daily')}
-                    className="rounded-r-none"
-                  >
-                    Daily
-                  </Button>
-                  <Button
-                    variant={granularity === 'monthly' ? 'default' : 'ghost'}
-                    size="sm"
-                    onClick={() => setGranularity('monthly')}
-                    className="rounded-l-none"
-                  >
-                    Monthly
-                  </Button>
-                </div>
-              )}
-              <div className="flex rounded-md border">
-                <Button
-                  variant={viewMode === 'list' ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => setViewMode('list')}
-                  className="rounded-r-none"
-                >
-                  List
-                </Button>
-                <Button
-                  variant={viewMode === 'chart' ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => setViewMode('chart')}
-                  className="rounded-l-none"
-                >
-                  Chart
-                </Button>
-              </div>
-            </div>
-          </div>
+          <h2 className="text-lg font-semibold">
+            {getMerchantName(selectedMerchant)}
+            {transactions && ` — ${transactions.length} transactions`}
+          </h2>
 
           <TransactionSummary transactions={transactions ?? []} />
 
-          {viewMode === 'list' ? (
-            <TransactionTable
-              transactions={transactions ?? []}
-              isLoading={txnLoading}
-              showMerchant={false}
-            />
-          ) : (
-            <RevenueChart
-              transactions={transactions ?? []}
-              granularity={granularity}
-            />
-          )}
+          <Tabs value={tab} onValueChange={setTab}>
+            <TabsList>
+              <TabsTrigger value="list">List</TabsTrigger>
+              <TabsTrigger value="chart">Chart</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="list">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">
+                    Transactions from {formatMonthLabel(start)} to{' '}
+                    {formatMonthLabel(end)}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <TransactionTable
+                    transactions={transactions ?? []}
+                    isLoading={txnLoading}
+                    showMerchant={false}
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="chart">
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base">
+                      {granularity === 'daily'
+                        ? `Daily transactions at ${formatMonthLabel(start)}`
+                        : `Monthly transactions from ${formatMonthLabel(start)} to ${formatMonthLabel(end)}`}
+                    </CardTitle>
+                    <div className="flex rounded-md border">
+                      <Button
+                        variant={granularity === 'daily' ? 'default' : 'ghost'}
+                        size="sm"
+                        onClick={() => setGranularity('daily')}
+                        className="rounded-r-none"
+                      >
+                        Daily
+                      </Button>
+                      <Button
+                        variant={
+                          granularity === 'monthly' ? 'default' : 'ghost'
+                        }
+                        size="sm"
+                        onClick={() => setGranularity('monthly')}
+                        className="rounded-l-none"
+                      >
+                        Monthly
+                      </Button>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <RevenueChart
+                    transactions={transactions ?? []}
+                    granularity={granularity}
+                    startMonth={start}
+                    endMonth={effectiveEnd}
+                  />
+                </CardContent>
+              </Card>
+            </TabsContent>
+          </Tabs>
         </div>
       ) : (
         <p className="py-8 text-center text-sm text-muted-foreground">

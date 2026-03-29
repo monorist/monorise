@@ -5,9 +5,9 @@ import { usePathname } from 'next/navigation';
 import { cn } from '#/lib/utils';
 
 const navItems = [
+  { label: 'Home', href: '/' },
   { label: 'Merchants', href: '/merchants' },
   { label: 'Buyers', href: '/buyers' },
-  { label: 'Transactions', href: '/transactions' },
 ];
 
 export default function DashboardLayout({
@@ -21,7 +21,7 @@ export default function DashboardLayout({
     <div className="min-h-screen">
       <header className="border-b bg-white">
         <div className="mx-auto flex h-14 max-w-6xl items-center gap-8 px-6">
-          <Link href="/transactions" className="text-lg font-bold">
+          <Link href="/" className="text-lg font-bold">
             Ledger
           </Link>
           <nav className="flex gap-1">

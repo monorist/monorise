@@ -1,16 +1,35 @@
 'use client';
 
-import { Input } from '#/components/ui/input';
 import { Label } from '#/components/ui/label';
 
 export function getDefaultDateRange() {
   const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), 1);
-  const end = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
   return {
-    start: start.toISOString().split('T')[0],
-    end: end.toISOString().split('T')[0],
+    start: `${sixMonthsAgo.getFullYear()}-${String(sixMonthsAgo.getMonth() + 1).padStart(2, '0')}`,
+    end: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`,
   };
+}
+
+// Convert YYYY-MM to first day of month for API
+export function monthToStartDate(month: string) {
+  return `${month}-01`;
+}
+
+// Convert YYYY-MM to last day of month for API
+export function monthToEndDate(month: string) {
+  const [year, m] = month.split('-').map(Number);
+  const lastDay = new Date(year, m, 0).getDate();
+  return `${month}-${String(lastDay).padStart(2, '0')}`;
+}
+
+export function formatMonthLabel(month: string) {
+  const [year, m] = month.split('-');
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+  ];
+  return `${monthNames[parseInt(m) - 1]} ${year}`;
 }
 
 export default function DateRangeFilter({
@@ -18,32 +37,35 @@ export default function DateRangeFilter({
   end,
   onStartChange,
   onEndChange,
+  endDisabled = false,
 }: {
-  start: string;
-  end: string;
+  start: string; // YYYY-MM
+  end: string; // YYYY-MM
   onStartChange: (v: string) => void;
   onEndChange: (v: string) => void;
+  endDisabled?: boolean;
 }) {
   return (
     <div className="flex items-end gap-3">
       <div className="space-y-1.5">
-        <Label htmlFor="start">Start date</Label>
-        <Input
+        <Label htmlFor="start">Start month</Label>
+        <input
           id="start"
-          type="date"
+          type="month"
           value={start}
           onChange={(e) => onStartChange(e.target.value)}
-          className="w-40"
+          className="rounded-md border border-input bg-background px-3 py-2 text-sm"
         />
       </div>
       <div className="space-y-1.5">
-        <Label htmlFor="end">End date</Label>
-        <Input
+        <Label htmlFor="end">End month</Label>
+        <input
           id="end"
-          type="date"
+          type="month"
           value={end}
           onChange={(e) => onEndChange(e.target.value)}
-          className="w-40"
+          disabled={endDisabled}
+          className="rounded-md border border-input bg-background px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50"
         />
       </div>
     </div>
