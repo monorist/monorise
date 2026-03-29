@@ -1,6 +1,6 @@
 {
   "name": "monorise",
-  "version": "0.0.2",
+  "version": "0.0.3-dev.0",
   "description": "Monorise - A unified package for all Monorise functionality",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
