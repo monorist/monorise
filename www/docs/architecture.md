@@ -62,6 +62,7 @@ The default Hono API exposes the following routes under `/core`. All entity rout
 | `PUT` | `/entity/:entityType/:entityId` | Upsert entity (full replacement) |
 | `PATCH` | `/entity/:entityType/:entityId` | Update entity (partial) |
 | `DELETE` | `/entity/:entityType/:entityId` | Delete entity |
+| `POST` | `/entity/:entityType/:entityId/adjust` | Atomic numeric adjustment (body: `{ field: delta }`) |
 
 ### Mutual endpoints
 

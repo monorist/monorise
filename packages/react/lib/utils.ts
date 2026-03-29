@@ -45,7 +45,7 @@ export const getUniqueFieldStateKey = (
 };
 
 export const getEntityRequestKey = (
-  mode: 'create' | 'upsert' | 'edit' | 'delete' | 'get' | 'list' | 'search',
+  mode: 'create' | 'upsert' | 'edit' | 'adjust' | 'delete' | 'get' | 'list' | 'search',
   entityType: Entity,
   entityId?: string,
 ) => {

@@ -16,6 +16,7 @@ import { GetEntityByUniqueFieldValueController } from '../controllers/entity/get
 import { GetEntityController } from '../controllers/entity/get-entity.controller';
 import { ListEntitiesController } from '../controllers/entity/list-entities.controller';
 import { UpdateEntityController } from '../controllers/entity/update-entity.controller';
+import { AdjustEntityController } from '../controllers/entity/adjust-entity.controller';
 import { UpsertEntityController } from '../controllers/entity/upsert-entity.controller';
 import { CreateMutualController } from '../controllers/mutual/create-mutual.controller';
 import { DeleteMutualController } from '../controllers/mutual/delete-mutual.controller';
@@ -190,6 +191,13 @@ export class DependencyContainer {
   get updateEntityController(): UpdateEntityController {
     return this.createCachedInstance(
       UpdateEntityController,
+      this.entityService,
+    );
+  }
+
+  get adjustEntityController(): AdjustEntityController {
+    return this.createCachedInstance(
+      AdjustEntityController,
       this.entityService,
     );
   }

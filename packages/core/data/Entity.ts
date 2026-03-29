@@ -707,6 +707,31 @@ export class EntityRepository extends Repository {
     }
   }
 
+  async adjustEntity<T extends EntityType>(
+    entityType: T,
+    entityId: string,
+    adjustments: Record<string, number>,
+  ): Promise<Entity<T>> {
+    const entity = new Entity(entityType, entityId);
+    const { UpdateExpression, ExpressionAttributeNames, ExpressionAttributeValues } =
+      this.toAdjustUpdate(adjustments);
+
+    const updatedAtExpression = ', #updatedAt = :updatedAt';
+    ExpressionAttributeNames['#updatedAt'] = 'updatedAt';
+    ExpressionAttributeValues[':updatedAt'] = { S: new Date().toISOString() };
+
+    const resp = await this.dynamodbClient.updateItem({
+      TableName: this.TABLE_NAME,
+      Key: entity.keys(),
+      UpdateExpression: UpdateExpression + updatedAtExpression,
+      ExpressionAttributeNames,
+      ExpressionAttributeValues,
+      ReturnValues: 'ALL_NEW',
+    });
+
+    return Entity.fromItem<T>(resp.Attributes);
+  }
+
   async deleteEntity<T extends EntityType>(
     entityType: T,
     entityId: string,

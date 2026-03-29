@@ -9,6 +9,10 @@ export interface EntitySchemaMap {
 export type DraftEntity<T extends Entity = Entity> =
   T extends keyof EntitySchemaMap ? EntitySchemaMap[T] : never;
 
+export type NumericFields<T> = {
+  [K in keyof T as T[K] extends number ? K : never]?: number;
+};
+
 export type CreatedEntity<T extends Entity = Entity> = {
   entityId: string;
   entityType: string;

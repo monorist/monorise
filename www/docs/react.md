@@ -272,11 +272,62 @@ const entityState = useEntityState(Entity.USER);
 | Action | Description |
 |--------|-------------|
 | `createEntity(entityType, data, opts?)` | Create entity on server. Returns `{ data }` or `{ error }`. |
-| `editEntity(entityType, id, data, opts?)` | Partial update entity. Returns `{ data }` or `{ error }`. |
+| `editEntity(entityType, id, data, opts?)` | Partial update entity (sets fields to exact values). For incrementing/decrementing numbers, use [`adjustEntity`](#adjustentity) instead. Returns `{ data }` or `{ error }`. |
+| `adjustEntity(entityType, id, adjustments, opts?)` | Safely increment/decrement numeric fields. Returns `{ data }` or `{ error }`. |
 | `upsertEntity(entityType, id, data, opts?)` | Insert or full replace. Returns `{ data }` or `{ error }`. |
 | `deleteEntity(entityType, id, opts?)` | Delete entity. Returns `{ data }` or `{ error }`. |
 | `getEntity(entityType, id)` | Fetch single entity (non-hook). |
 | `listMoreEntities(entityType, opts?)` | Load next page of entities. |
+
+### `editEntity`
+
+Partially update an entity by setting fields to exact values.
+
+```ts
+import { editEntity } from 'monorise/react';
+
+await editEntity(Entity.USER, userId, {
+  name: 'Alice Smith',
+  role: 'admin',
+});
+```
+
+Only the fields you pass are updated — other fields remain unchanged. The updated entity propagates to mutual and tag stores automatically.
+
+::: tip
+If you need to increment or decrement a numeric field (e.g., a counter or running total), use [`adjustEntity`](#adjustentity) instead. `editEntity` sets the field to the value you provide, which can cause data loss if multiple updates happen concurrently.
+:::
+
+### `adjustEntity`
+
+Safely increment or decrement numeric fields on an entity. Unlike `editEntity` which sets a field to a specific value, `adjustEntity` adds or subtracts a delta — meaning multiple concurrent adjustments never overwrite each other.
+
+**Why not `editEntity`?** Imagine two requests try to increment a counter from 100 at the same time:
+- With `editEntity`: both read 100, both write 101. You lose one increment.
+- With `adjustEntity`: both send "+1". The result is 102. No data loss.
+
+Use `adjustEntity` for counters, running totals, scores, or any field that multiple sources update concurrently.
+
+```ts
+import { adjustEntity } from 'monorise/react';
+
+// Increment sales by $50.00 and count by 1
+await adjustEntity(Entity.MONTHLY_SUMMARY, summaryId, {
+  totalSales: 5000,
+  count: 1,
+});
+
+// Decrement (use negative values)
+await adjustEntity(Entity.MONTHLY_SUMMARY, summaryId, {
+  totalRefunds: -2000,
+});
+```
+
+**Type safety**: Only accepts numeric fields from the entity schema. Passing a string field results in a TypeScript error.
+
+**Optimistic update**: The local store is updated immediately with the delta before the API responds. Once the server responds, the store reconciles with the actual values.
+
+**Event publishing**: Publishes `ENTITY_UPDATED` event, so tag and replication processors keep denormalized data in sync — same as `editEntity`.
 
 ### Mutual actions
 

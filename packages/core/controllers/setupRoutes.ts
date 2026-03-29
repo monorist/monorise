@@ -45,6 +45,10 @@ export const setupCommonRoutes = (container: DependencyContainer): Hono => {
     '/entity/:entityType/unique/:uniqueField/:uniqueFieldValue',
     container.getEntityByUniqueFieldController.controller,
   );
+  app.post(
+    '/entity/:entityType/:entityId/adjust',
+    container.adjustEntityController.controller,
+  );
   app.get(
     '/entity/:entityType/:entityId',
     container.getEntityController.controller,

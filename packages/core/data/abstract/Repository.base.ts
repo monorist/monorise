@@ -89,4 +89,39 @@ export abstract class Repository {
 
     return updateAttributes;
   }
+
+  toAdjustUpdate(
+    adjustments: Record<string, number>,
+    prefix = 'data',
+  ): {
+    UpdateExpression: string;
+    ExpressionAttributeNames: Record<string, string>;
+    ExpressionAttributeValues: Record<string, AttributeValue>;
+  } {
+    const parts: string[] = [];
+    const expressionAttributeNames: Record<string, string> = {};
+    const expressionAttributeValues: Record<string, unknown> = {};
+
+    expressionAttributeNames[`#${prefix}`] = prefix;
+
+    for (const field of Object.keys(adjustments)) {
+      const namePlaceholder = `#${field}`;
+      const valuePlaceholder = `:${field}`;
+
+      parts.push(
+        `#${prefix}.${namePlaceholder} = if_not_exists(#${prefix}.${namePlaceholder}, :zero) + ${valuePlaceholder}`,
+      );
+
+      expressionAttributeNames[namePlaceholder] = field;
+      expressionAttributeValues[valuePlaceholder] = adjustments[field];
+    }
+
+    expressionAttributeValues[':zero'] = 0;
+
+    return {
+      UpdateExpression: `SET ${parts.join(', ')}`,
+      ExpressionAttributeNames: expressionAttributeNames,
+      ExpressionAttributeValues: marshall(expressionAttributeValues),
+    };
+  }
 }

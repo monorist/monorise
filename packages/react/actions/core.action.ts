@@ -631,6 +631,84 @@ const initCoreActions = (
     }
   };
 
+  const adjustEntity = async <T extends Entity>(
+    entityType: T,
+    id: string,
+    adjustments: Record<string, number>,
+    opts: CommonOptions = {},
+  ) => {
+    const entityService = makeEntityService(entityType);
+    const onError = opts.onError ?? defaultOnError;
+
+    // Optimistically apply delta to local store
+    monoriseStore.setState(
+      produce((state) => {
+        const entity = state.entity[entityType]?.dataMap?.get(id);
+        if (entity) {
+          for (const [field, delta] of Object.entries(adjustments)) {
+            entity.data[field] = (entity.data[field] ?? 0) + delta;
+          }
+        }
+      }),
+      undefined,
+      `mr/entity/adjust/${entityType}/${id}`,
+    );
+
+    try {
+      const { data } = await entityService.adjustEntity(id, adjustments, opts);
+
+      // Reconcile with server response
+      monoriseStore.setState(
+        produce((state) => {
+          state.entity[entityType].dataMap.set(data.entityId, data);
+
+          // Propagate to mutual stores (same as editEntity)
+          for (const key of Object.keys(state.mutual)) {
+            const [_byEntity, _byId, _entityType] = key.split('/');
+            if ((_entityType as unknown as Entity) === entityType) {
+              const mutual = state.mutual[key].dataMap.get(id);
+              if (mutual) {
+                state.mutual[key].dataMap = new Map(
+                  state.mutual[key].dataMap,
+                ).set(id, { ...(mutual as any), data: data.data });
+              }
+            }
+          }
+
+          for (const key of Object.keys(state.mutual)) {
+            const [_byEntity, _byId] = key.split('/');
+            if ((_byEntity as unknown as Entity) === entityType && _byId === id) {
+              const newDataMap = new Map(state.mutual[key].dataMap);
+              for (const [entryId, mutual] of newDataMap) {
+                newDataMap.set(entryId, { ...(mutual as any), data: data.data });
+              }
+              state.mutual[key].dataMap = newDataMap;
+            }
+          }
+
+          // Propagate to tag stores
+          for (const tagKey of Object.keys(state.tag)) {
+            const [tagEntityType] = tagKey.split('/');
+            if ((tagEntityType as unknown as Entity) === entityType) {
+              if (state.tag[tagKey]?.dataMap?.has(id)) {
+                state.tag[tagKey].dataMap.set(id, data);
+              }
+            }
+          }
+        }),
+        undefined,
+        `mr/entity/adjust-reconcile/${entityType}/${id}`,
+      );
+
+      return { data };
+    } catch (err) {
+      const error: Error & { originalError?: unknown } =
+        err instanceof Error ? err : new Error('Unknown error occurred');
+      onError(error);
+      return { error };
+    }
+  };
+
   const deleteEntity = async <T extends Entity>(
     entityType: T,
     id: string,
@@ -1780,6 +1858,7 @@ const initCoreActions = (
     upsertEntity,
     getEntity,
     editEntity,
+    adjustEntity,
     deleteEntity,
     getMutual,
     updateLocalEntity,
