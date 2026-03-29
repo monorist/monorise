@@ -273,7 +273,7 @@ const entityState = useEntityState(Entity.USER);
 |--------|-------------|
 | `createEntity(entityType, data, opts?)` | Create entity on server. Returns `{ data }` or `{ error }`. |
 | `editEntity(entityType, id, data, opts?)` | Partial update entity. Returns `{ data }` or `{ error }`. |
-| `adjustEntity(entityType, id, adjustments, opts?)` | Atomic numeric adjustment. Race-condition safe. Returns `{ data }` or `{ error }`. |
+| `adjustEntity(entityType, id, adjustments, opts?)` | Safely increment/decrement numeric fields. Returns `{ data }` or `{ error }`. |
 | `upsertEntity(entityType, id, data, opts?)` | Insert or full replace. Returns `{ data }` or `{ error }`. |
 | `deleteEntity(entityType, id, opts?)` | Delete entity. Returns `{ data }` or `{ error }`. |
 | `getEntity(entityType, id)` | Fetch single entity (non-hook). |
@@ -281,7 +281,13 @@ const entityState = useEntityState(Entity.USER);
 
 ### `adjustEntity`
 
-Atomically adjust numeric fields on an entity. Uses DynamoDB's native arithmetic (`SET field = field + delta`) — safe for concurrent writes with no read-modify-write race conditions.
+Safely increment or decrement numeric fields on an entity. Unlike `editEntity` which sets a field to a specific value, `adjustEntity` adds or subtracts a delta — meaning multiple concurrent adjustments never overwrite each other.
+
+**Why not `editEntity`?** Imagine two requests try to increment a counter from 100 at the same time:
+- With `editEntity`: both read 100, both write 101. You lose one increment.
+- With `adjustEntity`: both send "+1". The result is 102. No data loss.
+
+Use `adjustEntity` for counters, running totals, scores, or any field that multiple sources update concurrently.
 
 ```ts
 import { adjustEntity } from 'monorise/react';
@@ -302,7 +308,7 @@ await adjustEntity(Entity.MONTHLY_SUMMARY, summaryId, {
 
 **Optimistic update**: The local store is updated immediately with the delta before the API responds. Once the server responds, the store reconciles with the actual values.
 
-**Event publishing**: Publishes `ENTITY_UPDATED` event, triggering tag and replication processors to keep denormalized data in sync.
+**Event publishing**: Publishes `ENTITY_UPDATED` event, so tag and replication processors keep denormalized data in sync — same as `editEntity`.
 
 ### Mutual actions
 
