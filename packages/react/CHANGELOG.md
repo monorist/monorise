@@ -1,5 +1,17 @@
 # @monorise/react
 
+## 3.0.6
+
+### Patch Changes
+
+- ca13559: Add limit param support to useEntities, with useState for stable tracking. Default params to { limit: 20 }. listMore respects the same limit. Add limit to CommonOptions for useMutuals and listMoreEntities.
+
+## 3.0.5
+
+### Patch Changes
+
+- eb14403: Add limit support to CommonOptions, listMoreEntities, and useEntities listMore for consistent pagination
+
 ## 3.0.4
 
 ### Patch Changes

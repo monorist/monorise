@@ -1,9 +1,17 @@
 # monorise
 
-## 0.0.3-dev.0
+## 0.0.4
 
 ### Patch Changes
 
+- ca13559: Add limit param support to useEntities, with useState for stable tracking. Default params to { limit: 20 }. listMore respects the same limit. Add limit to CommonOptions for useMutuals and listMoreEntities.
+- 9692fa3: Fix NaN limit in list-entities controller when limit query param is not provided
+
+## 0.0.3
+
+### Patch Changes
+
+- eb14403: Add limit support to CommonOptions, listMoreEntities, and useEntities listMore for consistent pagination
 - b59075f: Fix combined package DTS rewriting and CLI monorepo detection
 
   - build.js: Fix regex that missed rewriting some `@monorise/*` imports in `.d.ts` files (global regex `lastIndex` bug + missing double-quote patterns)

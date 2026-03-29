@@ -80,6 +80,7 @@ All data-fetching hooks accept an optional `opts` parameter (`CommonOptions`) an
 {
   forceFetch?: boolean;       // bypass cache and always fetch from API
   isInterruptive?: boolean;   // show interruptive loading indicator
+  limit?: number;             // max results per page (default: 20)
   customUrl?: string;         // override the default API URL
   stateKey?: string;          // custom store state key
   feedback?: {
@@ -125,7 +126,17 @@ const {
   listMore,
   refetch,
   requestKey,
-} = useEntities(Entity.USER, opts?);
+} = useEntities(Entity.USER, { limit: 100 }, opts?);
+```
+
+The second argument accepts `{ limit?, all?, skRange? }`. The `limit` controls how many entities are fetched per page (default: 20). `listMore` respects the same limit.
+
+```ts
+// Fetch all entities (no limit)
+const { entities } = useEntities(Entity.USER, { all: true });
+
+// Fetch with custom page size
+const { entities, listMore } = useEntities(Entity.USER, { limit: 50 });
 ```
 
 The `searchField` helper can be bound directly to an input:

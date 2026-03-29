@@ -1,5 +1,11 @@
 # @monorise/core
 
+## 3.0.4
+
+### Patch Changes
+
+- 9692fa3: Fix NaN limit in list-entities controller when limit query param is not provided
+
 ## 3.0.3
 
 ## 3.0.3

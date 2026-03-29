@@ -50,7 +50,7 @@ export class ListEntitiesController {
 
       const results = await this.entityRepository.listEntities({
         entityType,
-        limit: Number(limit),
+        limit: limit ? Number(limit) : undefined,
         options: {
           lastKey,
         },
