@@ -61,6 +61,10 @@ export const setupCommonRoutes = (container: DependencyContainer): Hono => {
     '/entity/:entityType/:entityId',
     container.deleteEntityController.controller,
   );
+  app.post(
+    '/entity/:entityType/:entityId/adjust',
+    container.adjustEntityController.controller,
+  );
 
   /*
    * Tag endpoint

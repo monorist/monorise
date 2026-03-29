@@ -95,6 +95,37 @@ export class EntityService {
     return entity;
   };
 
+  adjustEntity = async <T extends EntityType>({
+    entityType,
+    entityId,
+    adjustments,
+    accountId,
+  }: {
+    entityType: T;
+    entityId: string;
+    adjustments: Record<string, number>;
+    accountId?: string;
+  }) => {
+    const entity = await this.entityRepository.adjustEntity(
+      entityType,
+      entityId,
+      adjustments,
+    );
+
+    await this.publishEvent({
+      event: EVENT.CORE.ENTITY_UPDATED,
+      payload: {
+        entityType,
+        entityId,
+        data: entity.data,
+        updatedByAccountId: accountId,
+        publishedAt: entity.updatedAt || new Date().toISOString(),
+      },
+    });
+
+    return entity;
+  };
+
   updateEntity = async <T extends EntityType>({
     entityType,
     entityId,

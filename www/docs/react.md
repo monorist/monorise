@@ -273,10 +273,36 @@ const entityState = useEntityState(Entity.USER);
 |--------|-------------|
 | `createEntity(entityType, data, opts?)` | Create entity on server. Returns `{ data }` or `{ error }`. |
 | `editEntity(entityType, id, data, opts?)` | Partial update entity. Returns `{ data }` or `{ error }`. |
+| `adjustEntity(entityType, id, adjustments, opts?)` | Atomic numeric adjustment. Race-condition safe. Returns `{ data }` or `{ error }`. |
 | `upsertEntity(entityType, id, data, opts?)` | Insert or full replace. Returns `{ data }` or `{ error }`. |
 | `deleteEntity(entityType, id, opts?)` | Delete entity. Returns `{ data }` or `{ error }`. |
 | `getEntity(entityType, id)` | Fetch single entity (non-hook). |
 | `listMoreEntities(entityType, opts?)` | Load next page of entities. |
+
+### `adjustEntity`
+
+Atomically adjust numeric fields on an entity. Uses DynamoDB's native arithmetic (`SET field = field + delta`) — safe for concurrent writes with no read-modify-write race conditions.
+
+```ts
+import { adjustEntity } from 'monorise/react';
+
+// Increment sales by $50.00 and count by 1
+await adjustEntity(Entity.MONTHLY_SUMMARY, summaryId, {
+  totalSales: 5000,
+  count: 1,
+});
+
+// Decrement (use negative values)
+await adjustEntity(Entity.MONTHLY_SUMMARY, summaryId, {
+  totalRefunds: -2000,
+});
+```
+
+**Type safety**: Only accepts numeric fields from the entity schema. Passing a string field results in a TypeScript error.
+
+**Optimistic update**: The local store is updated immediately with the delta before the API responds. Once the server responds, the store reconciles with the actual values.
+
+**Event publishing**: Publishes `ENTITY_UPDATED` event, triggering tag and replication processors to keep denormalized data in sync.
 
 ### Mutual actions
 
