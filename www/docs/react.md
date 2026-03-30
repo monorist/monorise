@@ -325,7 +325,33 @@ await adjustEntity(Entity.MONTHLY_SUMMARY, summaryId, {
 
 **Type safety**: Only accepts numeric fields from the entity schema. Passing a string field results in a TypeScript error.
 
-**Optimistic update**: The local store is updated immediately with the delta before the API responds. Once the server responds, the store reconciles with the actual values.
+**No optimistic update**: Unlike `editEntity`, the local cache is only updated after the server confirms success. This is because adjustments may fail (constraint violations) or produce different results than expected (concurrent adjustments).
+
+**Constraints**: Define `adjustmentConstraints` in your entity config to enforce bounds. If an adjustment would violate a constraint, the operation is rejected and the entity is automatically refetched to get the latest state.
+
+```ts
+// Entity config
+const config = createEntityConfig({
+  name: 'wallet',
+  baseSchema,
+  adjustmentConstraints: {
+    balance: { min: 0 },             // balance cannot go below 0
+    credits: { min: 0, max: 10000 }, // credits must stay between 0 and 10,000
+  },
+});
+
+// This succeeds (balance: 100 → 70)
+await adjustEntity(Entity.WALLET, id, { balance: -30 });
+
+// This fails with ADJUSTMENT_CONSTRAINT_VIOLATED (70 - 80 = -10 < 0)
+const { error } = await adjustEntity(Entity.WALLET, id, { balance: -80 });
+if (error) {
+  // entity is automatically refetched with latest state
+  // show "Insufficient balance" to user
+}
+```
+
+Constraints are enforced at the database level — they cannot be bypassed by the frontend.
 
 **Event publishing**: Publishes `ENTITY_UPDATED` event, so tag and replication processors keep denormalized data in sync — same as `editEntity`.
 

@@ -37,13 +37,22 @@ export class AdjustEntityController {
 
       c.status(httpStatus.OK);
       return c.json(entity.toJSON());
-    } catch (err) {
+    } catch (err: any) {
       if (
         err instanceof StandardError &&
         err.code === StandardErrorCode.ENTITY_IS_UNDEFINED
       ) {
         c.status(httpStatus.NOT_FOUND);
         return c.json({ ...err.toJSON() });
+      }
+
+      // DynamoDB ConditionalCheckFailedException — constraint violated
+      if (err?.name === 'ConditionalCheckFailedException' || err?.__type?.includes('ConditionalCheckFailed')) {
+        c.status(httpStatus.CONFLICT);
+        return c.json({
+          code: 'ADJUSTMENT_CONSTRAINT_VIOLATED',
+          message: 'Adjustment would violate entity constraints',
+        });
       }
 
       console.log('====ADJUST_ENTITY_CONTROLLER_ERROR', err);

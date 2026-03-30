@@ -106,10 +106,13 @@ export class EntityService {
     adjustments: Record<string, number>;
     accountId?: string;
   }) => {
+    const constraints = this.EntityConfig[entityType]?.adjustmentConstraints;
+
     const entity = await this.entityRepository.adjustEntity(
       entityType,
       entityId,
       adjustments,
+      constraints,
     );
 
     await this.publishEvent({

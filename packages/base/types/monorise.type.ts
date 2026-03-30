@@ -231,4 +231,26 @@ export interface MonoriseEntityConfig<
       sortValue?: string;
     }[];
   }[];
+
+  /**
+   * @description (Optional) Constraints for `adjustEntity` operations.
+   * When adjusting numeric fields, these constraints are enforced at the database level.
+   * If an adjustment would violate a constraint, the operation is rejected.
+   *
+   * @example
+   * ```ts
+   * {
+   *   adjustmentConstraints: {
+   *     balance: { min: 0 },           // balance cannot go below 0
+   *     credits: { min: 0, max: 10000 }, // credits must stay between 0 and 10000
+   *   }
+   * }
+   * ```
+   */
+  adjustmentConstraints?: {
+    [fieldName: string]: {
+      min?: number;
+      max?: number;
+    };
+  };
 }

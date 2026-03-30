@@ -640,29 +640,15 @@ const initCoreActions = (
     const entityService = makeEntityService(entityType);
     const onError = opts.onError ?? defaultOnError;
 
-    // Optimistically apply delta to local store
-    monoriseStore.setState(
-      produce((state) => {
-        const entity = state.entity[entityType]?.dataMap?.get(id);
-        if (entity) {
-          for (const [field, delta] of Object.entries(adjustments)) {
-            entity.data[field] = (entity.data[field] ?? 0) + delta;
-          }
-        }
-      }),
-      undefined,
-      `mr/entity/adjust/${entityType}/${id}`,
-    );
-
     try {
       const { data } = await entityService.adjustEntity(id, adjustments, opts);
 
-      // Reconcile with server response
+      // Update local store with server response
       monoriseStore.setState(
         produce((state) => {
           state.entity[entityType].dataMap.set(data.entityId, data);
 
-          // Propagate to mutual stores (same as editEntity)
+          // Propagate to mutual stores
           for (const key of Object.keys(state.mutual)) {
             const [_byEntity, _byId, _entityType] = key.split('/');
             if ((_entityType as unknown as Entity) === entityType) {
@@ -697,11 +683,16 @@ const initCoreActions = (
           }
         }),
         undefined,
-        `mr/entity/adjust-reconcile/${entityType}/${id}`,
+        `mr/entity/adjust/${entityType}/${id}`,
       );
 
       return { data };
-    } catch (err) {
+    } catch (err: any) {
+      // Constraint violated — refetch entity to get latest state
+      if (err?.response?.status === 409) {
+        await getEntity(entityType, id, { forceFetch: true });
+      }
+
       const error: Error & { originalError?: unknown } =
         err instanceof Error ? err : new Error('Unknown error occurred');
       onError(error);

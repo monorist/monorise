@@ -92,13 +92,16 @@ export abstract class Repository {
 
   toAdjustUpdate(
     adjustments: Record<string, number>,
+    constraints?: { [field: string]: { min?: number; max?: number } },
     prefix = 'data',
   ): {
     UpdateExpression: string;
+    ConditionExpression?: string;
     ExpressionAttributeNames: Record<string, string>;
     ExpressionAttributeValues: Record<string, AttributeValue>;
   } {
     const parts: string[] = [];
+    const conditionParts: string[] = [];
     const expressionAttributeNames: Record<string, string> = {};
     const expressionAttributeValues: Record<string, unknown> = {};
 
@@ -107,19 +110,40 @@ export abstract class Repository {
     for (const field of Object.keys(adjustments)) {
       const namePlaceholder = `#${field}`;
       const valuePlaceholder = `:${field}`;
+      const fieldExpr = `if_not_exists(#${prefix}.${namePlaceholder}, :zero)`;
 
       parts.push(
-        `#${prefix}.${namePlaceholder} = if_not_exists(#${prefix}.${namePlaceholder}, :zero) + ${valuePlaceholder}`,
+        `#${prefix}.${namePlaceholder} = ${fieldExpr} + ${valuePlaceholder}`,
       );
 
       expressionAttributeNames[namePlaceholder] = field;
       expressionAttributeValues[valuePlaceholder] = adjustments[field];
+
+      // Build constraint conditions
+      if (constraints?.[field]) {
+        const constraint = constraints[field];
+        const adjustedExpr = `${fieldExpr} + ${valuePlaceholder}`;
+
+        if (constraint.min !== undefined) {
+          const minPlaceholder = `:${field}_min`;
+          conditionParts.push(`${adjustedExpr} >= ${minPlaceholder}`);
+          expressionAttributeValues[minPlaceholder] = constraint.min;
+        }
+        if (constraint.max !== undefined) {
+          const maxPlaceholder = `:${field}_max`;
+          conditionParts.push(`${adjustedExpr} <= ${maxPlaceholder}`);
+          expressionAttributeValues[maxPlaceholder] = constraint.max;
+        }
+      }
     }
 
     expressionAttributeValues[':zero'] = 0;
 
     return {
       UpdateExpression: `SET ${parts.join(', ')}`,
+      ...(conditionParts.length > 0 && {
+        ConditionExpression: conditionParts.join(' AND '),
+      }),
       ExpressionAttributeNames: expressionAttributeNames,
       ExpressionAttributeValues: marshall(expressionAttributeValues),
     };

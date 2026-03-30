@@ -711,10 +711,11 @@ export class EntityRepository extends Repository {
     entityType: T,
     entityId: string,
     adjustments: Record<string, number>,
+    constraints?: { [field: string]: { min?: number; max?: number } },
   ): Promise<Entity<T>> {
     const entity = new Entity(entityType, entityId);
-    const { UpdateExpression, ExpressionAttributeNames, ExpressionAttributeValues } =
-      this.toAdjustUpdate(adjustments);
+    const { UpdateExpression, ConditionExpression, ExpressionAttributeNames, ExpressionAttributeValues } =
+      this.toAdjustUpdate(adjustments, constraints);
 
     const updatedAtExpression = ', #updatedAt = :updatedAt';
     ExpressionAttributeNames['#updatedAt'] = 'updatedAt';
@@ -724,6 +725,7 @@ export class EntityRepository extends Repository {
       TableName: this.TABLE_NAME,
       Key: entity.keys(),
       UpdateExpression: UpdateExpression + updatedAtExpression,
+      ...(ConditionExpression && { ConditionExpression }),
       ExpressionAttributeNames,
       ExpressionAttributeValues,
       ReturnValues: 'ALL_NEW',
