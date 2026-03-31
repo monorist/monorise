@@ -711,7 +711,7 @@ export class EntityRepository extends Repository {
     entityType: T,
     entityId: string,
     adjustments: Record<string, number>,
-    constraints?: { [field: string]: { min?: number; max?: number } },
+    constraints?: { [field: string]: { min?: number; max?: number; minField?: string; maxField?: string } },
   ): Promise<Entity<T>> {
     const entity = new Entity(entityType, entityId);
     const { UpdateExpression, ConditionExpression, ExpressionAttributeNames, ExpressionAttributeValues } =

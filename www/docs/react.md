@@ -335,8 +335,9 @@ const config = createEntityConfig({
   name: 'wallet',
   baseSchema,
   adjustmentConstraints: {
-    balance: { min: 0 },             // balance cannot go below 0
-    credits: { min: 0, max: 10000 }, // credits must stay between 0 and 10,000
+    // Static: same for all wallets
+    balance: { min: 0 },
+    credits: { min: 0, max: 10000 },
   },
 });
 
@@ -350,6 +351,29 @@ if (error) {
   // show "Insufficient balance" to user
 }
 ```
+
+**Dynamic constraints** — use `minField`/`maxField` to read the constraint value from the entity's own data. This lets each entity instance have different limits:
+
+```ts
+const config = createEntityConfig({
+  name: 'wallet',
+  baseSchema: z.object({
+    balance: z.number(),
+    minBalance: z.number(), // each wallet stores its own minimum
+  }).partial(),
+  adjustmentConstraints: {
+    balance: { minField: 'minBalance' },
+  },
+});
+
+// Wallet A: can go down to $0
+createEntity(Entity.WALLET, { balance: 10000, minBalance: 0 });
+
+// Wallet B: must keep at least $10
+createEntity(Entity.WALLET, { balance: 10000, minBalance: 1000 });
+```
+
+`minField`/`maxField` only accept numeric field names from the schema — TypeScript will reject non-numeric fields.
 
 Constraints are enforced at the database level — they cannot be bypassed by the frontend.
 

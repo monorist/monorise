@@ -241,16 +241,31 @@ export interface MonoriseEntityConfig<
    * ```ts
    * {
    *   adjustmentConstraints: {
-   *     balance: { min: 0 },           // balance cannot go below 0
-   *     credits: { min: 0, max: 10000 }, // credits must stay between 0 and 10000
+   *     // Static: same for all entities of this type
+   *     balance: { min: 0 },
+   *     credits: { min: 0, max: 10000 },
+   *
+   *     // Dynamic: reads constraint value from entity's own data
+   *     balance: { minField: 'minBalance' },
+   *     credits: { min: 0, maxField: 'creditLimit' },
    *   }
    * }
    * ```
    */
   adjustmentConstraints?: {
     [fieldName: string]: {
+      /** Static minimum value */
       min?: number;
+      /** Static maximum value */
       max?: number;
+      /** Field name on the entity whose value is used as the minimum (must be a numeric field) */
+      minField?: keyof {
+        [K in keyof B as B[K] extends z.ZodNumber | z.ZodOptional<z.ZodNumber> ? K : never]: K;
+      };
+      /** Field name on the entity whose value is used as the maximum (must be a numeric field) */
+      maxField?: keyof {
+        [K in keyof B as B[K] extends z.ZodNumber | z.ZodOptional<z.ZodNumber> ? K : never]: K;
+      };
     };
   };
 }

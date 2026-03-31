@@ -92,7 +92,14 @@ export abstract class Repository {
 
   toAdjustUpdate(
     adjustments: Record<string, number>,
-    constraints?: { [field: string]: { min?: number; max?: number } },
+    constraints?: {
+      [field: string]: {
+        min?: number;
+        max?: number;
+        minField?: string;
+        maxField?: string;
+      };
+    },
     prefix = 'data',
   ): {
     UpdateExpression: string;
@@ -124,15 +131,33 @@ export abstract class Repository {
         const constraint = constraints[field];
         const adjustedExpr = `${fieldExpr} + ${valuePlaceholder}`;
 
+        // Static min
         if (constraint.min !== undefined) {
           const minPlaceholder = `:${field}_min`;
           conditionParts.push(`${adjustedExpr} >= ${minPlaceholder}`);
           expressionAttributeValues[minPlaceholder] = constraint.min;
         }
+        // Dynamic min — read from entity's own field
+        if (constraint.minField) {
+          const minFieldPlaceholder = `#${constraint.minField}`;
+          expressionAttributeNames[minFieldPlaceholder] = constraint.minField;
+          conditionParts.push(
+            `${adjustedExpr} >= if_not_exists(#${prefix}.${minFieldPlaceholder}, :zero)`,
+          );
+        }
+        // Static max
         if (constraint.max !== undefined) {
           const maxPlaceholder = `:${field}_max`;
           conditionParts.push(`${adjustedExpr} <= ${maxPlaceholder}`);
           expressionAttributeValues[maxPlaceholder] = constraint.max;
+        }
+        // Dynamic max — read from entity's own field
+        if (constraint.maxField) {
+          const maxFieldPlaceholder = `#${constraint.maxField}`;
+          expressionAttributeNames[maxFieldPlaceholder] = constraint.maxField;
+          conditionParts.push(
+            `${adjustedExpr} <= #${prefix}.${maxFieldPlaceholder}`,
+          );
         }
       }
     }
