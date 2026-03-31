@@ -3,4 +3,5 @@ export enum Entity {
   BUYER = 'buyer',
   TRANSACTION = 'transaction',
   MONTHLY_SUMMARY = 'monthly-summary',
+  WALLET = 'wallet',
 }

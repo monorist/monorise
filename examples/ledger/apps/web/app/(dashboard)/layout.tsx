@@ -8,6 +8,7 @@ const navItems = [
   { label: 'Home', href: '/' },
   { label: 'Merchants', href: '/merchants' },
   { label: 'Buyers', href: '/buyers' },
+  { label: 'Wallet', href: '/wallet' },
 ];
 
 export default function DashboardLayout({
