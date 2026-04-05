@@ -767,9 +767,15 @@ export class EntityRepository extends Repository {
 
     for (const item of results.items) {
       const searchTerm = (searchableFields ?? [])
-        .map((field) =>
-          (item.data as Record<string, any>)[field]?.toLowerCase(),
-        )
+        .map((field) => {
+          const value = (item.data as Record<string, unknown>)[field];
+          if (Array.isArray(value)) {
+            return value
+              .map((v) => String(v).replace(/[-_]/g, ' ').toLowerCase())
+              .join(' ');
+          }
+          return String(value ?? '').replace(/[-_]/g, ' ').toLowerCase();
+        })
         .join(' ');
       const isMatched = queryRegex.test(searchTerm);
       if (isMatched) {
