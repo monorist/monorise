@@ -126,38 +126,31 @@ export abstract class Repository {
       expressionAttributeNames[namePlaceholder] = field;
       expressionAttributeValues[valuePlaceholder] = adjustments[field];
 
-      // Build constraint conditions
+      // Build constraint conditions using pre-computed thresholds.
+      // ConditionExpression checks the current value against the threshold.
+      // UpdateExpression applies the delta. Both in a single atomic UpdateItem.
+      //
+      // For min with negative delta: currentValue >= (min + abs(delta))
+      // For max with positive delta: currentValue <= (max - delta)
+      //
+      // For dynamic minField/maxField: the service layer reads the entity's
+      // field value first, then passes it as a resolved static constraint.
       if (constraints?.[field]) {
         const constraint = constraints[field];
-        const adjustedExpr = `${fieldExpr} + ${valuePlaceholder}`;
+        const delta = adjustments[field];
+        const currentFieldExpr = `if_not_exists(#${prefix}.${namePlaceholder}, :zero)`;
 
-        // Static min
-        if (constraint.min !== undefined) {
-          const minPlaceholder = `:${field}_min`;
-          conditionParts.push(`${adjustedExpr} >= ${minPlaceholder}`);
-          expressionAttributeValues[minPlaceholder] = constraint.min;
+        // Static min — only check when decrementing
+        if (constraint.min !== undefined && delta < 0) {
+          const thresholdPlaceholder = `:${field}_min_threshold`;
+          conditionParts.push(`${currentFieldExpr} >= ${thresholdPlaceholder}`);
+          expressionAttributeValues[thresholdPlaceholder] = constraint.min - delta; // min + abs(delta)
         }
-        // Dynamic min — read from entity's own field
-        if (constraint.minField) {
-          const minFieldPlaceholder = `#${constraint.minField}`;
-          expressionAttributeNames[minFieldPlaceholder] = constraint.minField;
-          conditionParts.push(
-            `${adjustedExpr} >= if_not_exists(#${prefix}.${minFieldPlaceholder}, :zero)`,
-          );
-        }
-        // Static max
-        if (constraint.max !== undefined) {
-          const maxPlaceholder = `:${field}_max`;
-          conditionParts.push(`${adjustedExpr} <= ${maxPlaceholder}`);
-          expressionAttributeValues[maxPlaceholder] = constraint.max;
-        }
-        // Dynamic max — read from entity's own field
-        if (constraint.maxField) {
-          const maxFieldPlaceholder = `#${constraint.maxField}`;
-          expressionAttributeNames[maxFieldPlaceholder] = constraint.maxField;
-          conditionParts.push(
-            `${adjustedExpr} <= #${prefix}.${maxFieldPlaceholder}`,
-          );
+        // Static max — only check when incrementing
+        if (constraint.max !== undefined && delta > 0) {
+          const thresholdPlaceholder = `:${field}_max_threshold`;
+          conditionParts.push(`${currentFieldExpr} <= ${thresholdPlaceholder}`);
+          expressionAttributeValues[thresholdPlaceholder] = constraint.max - delta;
         }
       }
     }

@@ -106,13 +106,34 @@ export class EntityService {
     adjustments: Record<string, number>;
     accountId?: string;
   }) => {
-    const constraints = this.EntityConfig[entityType]?.adjustmentConstraints;
+    const rawConstraints = this.EntityConfig[entityType]?.adjustmentConstraints;
+
+    // Resolve dynamic minField/maxField to static values
+    let resolvedConstraints = rawConstraints;
+    if (rawConstraints) {
+      const hasDynamicFields = Object.values(rawConstraints).some(
+        (c: any) => c.minField || c.maxField,
+      );
+      if (hasDynamicFields) {
+        const currentEntity = await this.entityRepository.getEntity(entityType, entityId);
+        const data = currentEntity?.data ?? {};
+        resolvedConstraints = {};
+        for (const [field, constraint] of Object.entries(rawConstraints)) {
+          const resolved: { min?: number; max?: number } = {};
+          if ((constraint as any).min !== undefined) resolved.min = (constraint as any).min;
+          if ((constraint as any).max !== undefined) resolved.max = (constraint as any).max;
+          if ((constraint as any).minField) resolved.min = data[(constraint as any).minField] ?? 0;
+          if ((constraint as any).maxField) resolved.max = data[(constraint as any).maxField] ?? Number.MAX_SAFE_INTEGER;
+          resolvedConstraints[field] = resolved;
+        }
+      }
+    }
 
     const entity = await this.entityRepository.adjustEntity(
       entityType,
       entityId,
       adjustments,
-      constraints,
+      resolvedConstraints as any,
     );
 
     await this.publishEvent({
