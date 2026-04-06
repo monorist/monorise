@@ -237,6 +237,7 @@ async function generateHandleFile(
   // Detect whether the consumer uses the combined 'monorise' package or scoped '@monorise/*' packages
   const usesCombinedPackage = detectCombinedPackage(projectRoot);
   const coreImportPath = usesCombinedPackage ? 'monorise/core' : '@monorise/core';
+  const sstImportPath = usesCombinedPackage ? 'monorise/sst' : '@monorise/sst';
 
   const combinedContent = `
 import CoreFactory from '${coreImportPath}';
@@ -248,6 +249,9 @@ export const mutualHandler = coreFactory.mutualProcessor;
 export const tagHandler = coreFactory.tagProcessor;
 export const treeHandler = coreFactory.prejoinProcessor;
 export const appHandler = coreFactory.appHandler(${appHandlerPayload});
+
+// WebSocket handlers (re-exported for SST to resolve)
+export { wsConnect, wsDisconnect, wsDefault, wsBroadcast } from '${sstImportPath}';
 `;
   fs.writeFileSync(handleOutputPath, combinedContent);
   console.log('Successfully generated handle.ts!');
