@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import {
+  useEntities,
   useEntity,
   createEntity,
   adjustEntity,
@@ -13,22 +14,20 @@ import { Input } from '#/components/ui/input';
 import { Label } from '#/components/ui/label';
 import { Badge } from '#/components/ui/badge';
 
-const DEMO_WALLET_ID = 'demo-wallet';
-
 function formatCurrency(cents: number) {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
 export default function WalletPage() {
-  const { entity: wallet, isLoading, refetch } = useEntity(
-    Entity.WALLET,
-    DEMO_WALLET_ID,
-  );
+  const { entities: wallets, isLoading } = useEntities(Entity.WALLET);
   const [amount, setAmount] = useState('');
   const [log, setLog] = useState<
     { action: string; amount: number; result: string; time: string }[]
   >([]);
   const [processing, setProcessing] = useState(false);
+
+  const wallet = wallets?.[0];
+  const walletId = wallet?.entityId;
 
   const addLog = (action: string, amount: number, result: string) => {
     setLog((prev) => [
@@ -44,19 +43,19 @@ export default function WalletPage() {
       balance: 10000, // $100.00
     } as any, { isInterruptive: false });
     if (error) {
-      addLog('create', 10000, 'Failed — wallet may already exist');
+      addLog('create', 10000, 'Failed');
     } else {
       addLog('create', 10000, `Created with ${formatCurrency(10000)}`);
     }
-    await refetch();
     setProcessing(false);
   };
 
   const handleAdjust = async (delta: number) => {
+    if (!walletId) return;
     setProcessing(true);
     const { data, error } = await adjustEntity(
       Entity.WALLET,
-      DEMO_WALLET_ID,
+      walletId,
       { balance: delta },
       { isInterruptive: false },
     );
@@ -127,13 +126,6 @@ export default function WalletPage() {
                   variant="destructive"
                 >
                   Withdraw
-                </Button>
-                <Button
-                  onClick={() => refetch()}
-                  variant="outline"
-                  disabled={processing}
-                >
-                  Refresh
                 </Button>
               </div>
             </div>
