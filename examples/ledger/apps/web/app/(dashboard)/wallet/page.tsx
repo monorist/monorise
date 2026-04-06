@@ -2,8 +2,7 @@
 
 import { useState } from 'react';
 import {
-  useEntities,
-  useEntityState,
+  useEntity,
   createEntity,
   adjustEntity,
 } from 'monorise/react';
@@ -14,26 +13,19 @@ import { Input } from '#/components/ui/input';
 import { Label } from '#/components/ui/label';
 import { Badge } from '#/components/ui/badge';
 
+const WALLET_ID = 'demo-wallet';
+
 function formatCurrency(cents: number) {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
 export default function WalletPage() {
-  // useEntities to trigger initial fetch
-  const { isLoading } = useEntities(Entity.WALLET);
-  // useEntityState for live reactivity to store changes
-  const walletState = useEntityState(Entity.WALLET);
+  const { entity: wallet, isLoading } = useEntity(Entity.WALLET, WALLET_ID);
   const [amount, setAmount] = useState('');
   const [log, setLog] = useState<
     { action: string; amount: number; result: string; time: string }[]
   >([]);
   const [processing, setProcessing] = useState(false);
-
-  const wallets = walletState?.dataMap
-    ? Array.from(walletState.dataMap.values())
-    : [];
-  const wallet = wallets[0];
-  const walletId = wallet?.entityId;
 
   const addLog = (action: string, amount: number, result: string) => {
     setLog((prev) => [
@@ -44,12 +36,13 @@ export default function WalletPage() {
 
   const handleCreate = async () => {
     setProcessing(true);
-    const { data, error } = await createEntity(Entity.WALLET, {
-      name: 'Demo Wallet',
-      balance: 10000,
-    } as any, { isInterruptive: false });
+    const { data, error } = await createEntity(
+      Entity.WALLET,
+      { name: 'Demo Wallet', balance: 10000 } as any,
+      { entityId: WALLET_ID, isInterruptive: false },
+    );
     if (error) {
-      addLog('create', 10000, 'Failed');
+      addLog('create', 10000, 'Failed — wallet may already exist');
     } else {
       addLog('create', 10000, `Created with ${formatCurrency(10000)}`);
     }
@@ -57,11 +50,10 @@ export default function WalletPage() {
   };
 
   const handleAdjust = async (delta: number) => {
-    if (!walletId) return;
     setProcessing(true);
     const { data, error } = await adjustEntity(
       Entity.WALLET,
-      walletId,
+      WALLET_ID,
       { balance: delta },
       { isInterruptive: false },
     );
