@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import {
   useEntities,
-  useEntity,
+  useEntityState,
   createEntity,
   adjustEntity,
 } from 'monorise/react';
@@ -19,14 +19,20 @@ function formatCurrency(cents: number) {
 }
 
 export default function WalletPage() {
-  const { entities: wallets, isLoading } = useEntities(Entity.WALLET);
+  // useEntities to trigger initial fetch
+  const { isLoading } = useEntities(Entity.WALLET);
+  // useEntityState for live reactivity to store changes
+  const walletState = useEntityState(Entity.WALLET);
   const [amount, setAmount] = useState('');
   const [log, setLog] = useState<
     { action: string; amount: number; result: string; time: string }[]
   >([]);
   const [processing, setProcessing] = useState(false);
 
-  const wallet = wallets?.[0];
+  const wallets = walletState?.dataMap
+    ? Array.from(walletState.dataMap.values())
+    : [];
+  const wallet = wallets[0];
   const walletId = wallet?.entityId;
 
   const addLog = (action: string, amount: number, result: string) => {
@@ -40,7 +46,7 @@ export default function WalletPage() {
     setProcessing(true);
     const { data, error } = await createEntity(Entity.WALLET, {
       name: 'Demo Wallet',
-      balance: 10000, // $100.00
+      balance: 10000,
     } as any, { isInterruptive: false });
     if (error) {
       addLog('create', 10000, 'Failed');
@@ -87,7 +93,6 @@ export default function WalletPage() {
         </p>
       </div>
 
-      {/* Balance Card */}
       <Card>
         <CardHeader>
           <CardTitle>Balance</CardTitle>
@@ -142,7 +147,6 @@ export default function WalletPage() {
         </CardContent>
       </Card>
 
-      {/* Activity Log */}
       {log.length > 0 && (
         <Card>
           <CardHeader>
@@ -190,7 +194,6 @@ export default function WalletPage() {
         </Card>
       )}
 
-      {/* Testing Instructions */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">
