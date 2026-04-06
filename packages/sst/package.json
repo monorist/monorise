@@ -16,6 +16,11 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "dependencies": {
+    "@aws-sdk/client-apigatewaymanagementapi": "^3.758.0",
+    "@aws-sdk/lib-dynamodb": "^3.758.0",
+    "nanoid": "^5.1.3"
+  },
   "peerDependencies": {
     "sst": "^3.16.3"
   },

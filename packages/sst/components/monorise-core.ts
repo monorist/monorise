@@ -168,6 +168,12 @@ export class MonoriseCore {
       const memory = args.webSocket.handler?.memory ?? '512 MB';
       const timeout = args.webSocket.handler?.timeout ?? '30 seconds';
 
+      // Resolve websocket handler path relative to this package
+      const wsHandlerPath = path.join(
+        path.dirname(new URL(import.meta.url).pathname),
+        '../handlers/websocket',
+      );
+
       // WebSocket API Gateway
       this.websocket = new sst.aws.ApiGatewayWebSocket(`${id}-websocket`, {});
 
@@ -179,7 +185,7 @@ export class MonoriseCore {
 
       // $connect handler
       const connectHandler = new sst.aws.Function(`${id}-ws-connect`, {
-        handler: 'packages/sst/handlers/websocket.connect',
+        handler: `${wsHandlerPath}.connect`,
         runtime,
         memory,
         timeout,
@@ -189,7 +195,7 @@ export class MonoriseCore {
 
       // $disconnect handler
       const disconnectHandler = new sst.aws.Function(`${id}-ws-disconnect`, {
-        handler: 'packages/sst/handlers/websocket.disconnect',
+        handler: `${wsHandlerPath}.disconnect`,
         runtime,
         memory,
         timeout,
@@ -199,7 +205,7 @@ export class MonoriseCore {
 
       // $default handler
       const defaultHandler = new sst.aws.Function(`${id}-ws-default`, {
-        handler: 'packages/sst/handlers/websocket.default',
+        handler: `${wsHandlerPath}.default`,
         runtime,
         memory,
         timeout,
@@ -217,7 +223,7 @@ export class MonoriseCore {
         `${id}-ws-broadcast`,
         {
           name: `${$app.stage}-${$app.name}-${id}-ws-broadcast`,
-          handler: 'packages/sst/handlers/websocket.broadcast',
+          handler: `${wsHandlerPath}.broadcast`,
           runtime,
           memory: '1024 MB',
           timeout: '60 seconds',
