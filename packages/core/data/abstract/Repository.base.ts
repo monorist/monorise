@@ -138,18 +138,21 @@ export abstract class Repository {
       if (constraints?.[field]) {
         const constraint = constraints[field];
         const delta = adjustments[field];
-        const currentFieldExpr = `if_not_exists(#${prefix}.${namePlaceholder}, :zero)`;
+        const currentFieldRef = `#${prefix}.${namePlaceholder}`;
 
         // Static min — only check when decrementing
+        // Condition: currentValue >= min + abs(delta)
+        // If field doesn't exist, condition fails (safe — can't withdraw from nothing)
         if (constraint.min !== undefined && delta < 0) {
           const thresholdPlaceholder = `:${field}_min_threshold`;
-          conditionParts.push(`${currentFieldExpr} >= ${thresholdPlaceholder}`);
-          expressionAttributeValues[thresholdPlaceholder] = constraint.min - delta; // min + abs(delta)
+          conditionParts.push(`${currentFieldRef} >= ${thresholdPlaceholder}`);
+          expressionAttributeValues[thresholdPlaceholder] = constraint.min - delta;
         }
         // Static max — only check when incrementing
+        // Condition: currentValue <= max - delta
         if (constraint.max !== undefined && delta > 0) {
           const thresholdPlaceholder = `:${field}_max_threshold`;
-          conditionParts.push(`${currentFieldExpr} <= ${thresholdPlaceholder}`);
+          conditionParts.push(`${currentFieldRef} <= ${thresholdPlaceholder}`);
           expressionAttributeValues[thresholdPlaceholder] = constraint.max - delta;
         }
       }
