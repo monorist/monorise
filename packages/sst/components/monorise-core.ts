@@ -168,11 +168,8 @@ export class MonoriseCore {
       const memory = args.webSocket.handler?.memory ?? '512 MB';
       const timeout = args.webSocket.handler?.timeout ?? '30 seconds';
 
-      // Resolve websocket handler path relative to this package
-      const wsHandlerPath = path.join(
-        path.dirname(new URL(import.meta.url).pathname),
-        '../handlers/websocket',
-      );
+      // Resolve websocket handler path from node_modules
+      const wsHandlerPath = 'node_modules/@monorise/sst/handlers/websocket';
 
       // WebSocket API Gateway
       this.websocket = new sst.aws.ApiGatewayWebSocket(`${id}-websocket`, {});
