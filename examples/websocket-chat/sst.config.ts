@@ -3,37 +3,31 @@
 export default $config({
   app(input) {
     return {
-      name: "websocket-chat",
-      removal: input?.stage === "production" ? "retain" : "remove",
-      protect: ["production"].includes(input?.stage),
-      home: "aws",
+      name: 'websocket-chat',
+      removal: input?.stage === 'production' ? 'retain' : 'remove',
+      home: 'aws',
     };
   },
   async run() {
-    const { monorise } = await import('@monorise/sst');
+    const { monorise } = await import('monorise/sst');
 
-    // Create core monorise infrastructure with WebSocket enabled
     const core = new monorise.module.Core('app', {
       webSocket: { enabled: true },
+      allowOrigins: ['http://localhost:3000'],
     });
 
-    // Static site for the chat UI
-    const site = new sst.aws.StaticSite("chat-ui", {
-      path: ".",
-      build: {
-        command: "npm run build",
-        output: "dist",
-      },
+    new sst.aws.Nextjs('chat-ui', {
+      path: 'apps/chat',
+      link: [core.api],
       environment: {
-        VITE_API_URL: core.api.url,
-        VITE_WS_URL: core.websocket?.endpoint || '',
+        API_BASE_URL: core.api.url,
+        NEXT_PUBLIC_WS_URL: core.websocket?.endpoint || '',
       },
     });
 
     return {
       api: core.api.url,
       websocket: core.websocket?.endpoint,
-      site: site.url,
     };
   },
 });

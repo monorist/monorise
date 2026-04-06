@@ -240,6 +240,7 @@ export {
   deleteLocalTaggedEntity,
   useEntitySocket,
   useMutualSocket,
+  useEphemeralSocket,
   initializeWebSocketManager,
   WebSocketManager,
   type ConnectionState,

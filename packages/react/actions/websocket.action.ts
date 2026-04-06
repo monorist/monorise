@@ -1,5 +1,5 @@
 import type { CreatedEntity, Entity } from '@monorise/base';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { produce } from 'immer';
 import type { MonoriseStore } from '../store/monorise.store';
 import type {

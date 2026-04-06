@@ -22,5 +22,9 @@
   },
   "devDependencies": {
     "@types/aws-lambda": "8.10.149"
+  },
+  "dependencies": {
+    "@aws-sdk/client-apigatewaymanagementapi": "^3.1024.0",
+    "@aws-sdk/lib-dynamodb": "^3.1024.0"
   }
 }

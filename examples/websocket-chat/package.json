@@ -3,23 +3,17 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "sst dev",
-    "build": "vite build",
-    "preview": "vite preview"
+    "dev": "sst dev"
   },
+  "workspaces": [
+    "apps/*"
+  ],
   "dependencies": {
-    "react": "^19",
-    "react-dom": "^19",
-    "@monorise/react": "workspace:*",
-    "@monorise/core": "workspace:*",
-    "@monorise/base": "workspace:*"
+    "monorise": "file:../../packages/monorise/monorise-0.0.2.tgz",
+    "sst": "3.17.38",
+    "zod": "^3.25.67"
   },
   "devDependencies": {
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "@vitejs/plugin-react": "^4",
-    "typescript": "^5",
-    "vite": "^6",
-    "@monorise/sst": "workspace:*"
+    "typescript": "^5"
   }
 }
