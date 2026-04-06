@@ -55,6 +55,7 @@ export type CommonOptions = Partial<AxiosRequestConfig> & {
   limit?: number;
   requestKey?: string;
   onError?: (error: ApplicationRequestError | Error) => void;
+  entityId?: string;
 };
 
 const initCoreService = (
@@ -167,7 +168,7 @@ const initCoreService = (
     const entityConfig = monoriseStore.getState().config;
     return axios.post<CreatedEntity<T>>(
       opts.customUrl || `${entityApiBaseUrl}/${entityType}`,
-      values,
+      { ...values, ...(opts.entityId && { entityId: opts.entityId }) },
       {
         requestKey:
           opts.requestKey || getEntityRequestKey('create', entityType),
