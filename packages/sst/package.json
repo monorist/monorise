@@ -11,7 +11,8 @@
     "dev": "tsup --watch"
   },
   "files": [
-    "dist"
+    "dist",
+    "handlers"
   ],
   "keywords": [],
   "author": "",
