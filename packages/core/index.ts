@@ -11,6 +11,12 @@ import { handler as mutualProcessor } from './processors/mutual-processor';
 import { handler as prejoinProcessor } from './processors/prejoin-processor';
 import { handler as replicationProcessor } from './processors/replication-processor';
 import { handler as tagProcessor } from './processors/tag-processor';
+import {
+  connect as wsConnect,
+  disconnect as wsDisconnect,
+  $default as wsDefault,
+  broadcast as wsBroadcast,
+} from './processors/websocket-processor';
 import { DependencyContainer } from './services/DependencyContainer';
 import { EntityService } from './services/entity.service';
 import { MutualService } from './services/mutual.service';
@@ -65,6 +71,10 @@ export {
   DependencyContainer,
   StandardError,
   StandardErrorCode,
+  wsConnect,
+  wsDisconnect,
+  wsDefault,
+  wsBroadcast,
 };
 
 export default CoreFactory;

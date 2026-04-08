@@ -173,8 +173,7 @@ export class MonoriseCore {
 
       const wsEnvironment = {
         CORE_TABLE: this.table.table.name,
-        WEBSOCKET_API_ID: this.websocket.id,
-        WEBSOCKET_API_ENDPOINT: this.websocket.endpoint,
+        WEBSOCKET_MANAGEMENT_ENDPOINT: this.websocket.managementEndpoint,
       };
 
       // $connect handler
