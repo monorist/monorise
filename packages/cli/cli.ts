@@ -251,7 +251,7 @@ export const treeHandler = coreFactory.prejoinProcessor;
 export const appHandler = coreFactory.appHandler(${appHandlerPayload});
 
 // WebSocket handlers (re-exported for SST to resolve)
-export { wsConnect, wsDisconnect, wsDefault, wsBroadcast } from '${sstImportPath}';
+export { wsConnect, wsDisconnect, wsDefault, wsBroadcast } from '${coreImportPath}';
 `;
   fs.writeFileSync(handleOutputPath, combinedContent);
   console.log('Successfully generated handle.ts!');
