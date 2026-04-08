@@ -9,7 +9,7 @@ import type {
 } from '../websocket';
 
 export interface UseEntitySocketReturn<T extends Entity> {
-  entities: Map<string, CreatedEntity<T>>;
+  entities: CreatedEntity<T>[];
   isLoading: boolean;
   isFetchingMore: boolean;
   isSubscribed: boolean;
@@ -20,7 +20,7 @@ export interface UseEntitySocketReturn<T extends Entity> {
 }
 
 export interface UseMutualSocketReturn<T extends Entity> {
-  mutuals: Map<string, unknown>;
+  mutuals: unknown[];
   isLoading: boolean;
   isFetchingMore: boolean;
   isSubscribed: boolean;
@@ -80,7 +80,7 @@ export const initWebSocketActions = (
 
     const entities = monoriseStore((state) => {
       const entityState = state.entity[entityType];
-      return entityState?.dataMap || new Map();
+      return Array.from(entityState?.dataMap?.values() || []);
     });
 
     const fetchData = async (type: 'initial' | 'more' | 'refresh') => {
@@ -166,7 +166,11 @@ export const initWebSocketActions = (
               if (payload.data) {
                 monoriseStore.setState(
                   produce((state) => {
-                    state.entity[entityType as unknown as string].dataMap.set(
+                    const key = entityType as unknown as string;
+                    if (!state.entity[key]) {
+                      state.entity[key] = { dataMap: new Map(), isFirstFetched: false, lastKey: undefined };
+                    }
+                    state.entity[key].dataMap.set(
                       payload.entityId,
                       payload.data!,
                     );
@@ -176,7 +180,10 @@ export const initWebSocketActions = (
             } else if (msg.type === 'entity.deleted') {
               monoriseStore.setState(
                 produce((state) => {
-                  state.entity[entityType as unknown as string].dataMap.delete(payload.entityId);
+                  const key = entityType as unknown as string;
+                  if (state.entity[key]?.dataMap) {
+                    state.entity[key].dataMap.delete(payload.entityId);
+                  }
                 }),
               );
             }
@@ -232,7 +239,7 @@ export const initWebSocketActions = (
       : '';
 
     const mutuals = monoriseStore((state) => {
-      return state.mutual[mutualKey]?.dataMap || new Map();
+      return Array.from(state.mutual[mutualKey]?.dataMap?.values() || []);
     });
 
     const fetchData = async (type: 'initial' | 'more' | 'refresh') => {
@@ -400,9 +407,62 @@ export const initWebSocketActions = (
     };
   };
 
+  const useEphemeralSocket = <T = unknown>(
+    channel: string | undefined,
+    opts?: {
+      onMessage?: (data: T, senderId?: string) => void;
+    },
+  ): {
+    isSubscribed: boolean;
+    send: (data: T) => void;
+  } => {
+    const [isSubscribed, setIsSubscribed] = useState(false);
+
+    useEffect(() => {
+      if (!globalWsManager || !channel) {
+        setIsSubscribed(false);
+        return;
+      }
+
+      const subKey = globalWsManager.subscribeEphemeral(channel);
+      setIsSubscribed(true);
+
+      const unsubscribeMessage = globalWsManager.onMessage(
+        (msg: ServerMessage) => {
+          if (msg.type === 'ephemeral') {
+            const payload = msg.payload as {
+              channel: string;
+              data: T;
+              senderId?: string;
+            };
+            if (payload.channel !== channel) return;
+            opts?.onMessage?.(payload.data, payload.senderId);
+          }
+        },
+      );
+
+      return () => {
+        globalWsManager?.unsubscribeEphemeral(subKey);
+        unsubscribeMessage();
+        setIsSubscribed(false);
+      };
+    }, [channel]);
+
+    const send = useCallback(
+      (data: T) => {
+        if (!globalWsManager || !channel) return;
+        globalWsManager.sendEphemeral(channel, data);
+      },
+      [channel],
+    );
+
+    return { isSubscribed, send };
+  };
+
   return {
     useEntitySocket,
     useMutualSocket,
+    useEphemeralSocket,
   };
 };
 

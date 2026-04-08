@@ -79,6 +79,7 @@
     "chokidar": "^4.0.3",
     "http-status": "^1.8.1",
     "immer": "^10.1.1",
+    "monorise": "file:monorise-0.0.2.tgz",
     "nanoid": "^5.1.3",
     "tsconfig-paths": "^4.2.0",
     "tsx": "^4.19.3",
@@ -87,7 +88,6 @@
   },
   "peerDependencies": {
     "@tabler/icons-react": "^3.30.0",
-    "zod": "^3.25.67",
     "hono": "^4.7.10",
     "react": "^19",
     "react-dom": "^19",
