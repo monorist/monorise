@@ -9,6 +9,7 @@ import {
   initializeWebSocketManager,
   WebSocketManager,
   useMutualSocket,
+  useEntitySocket,
   useEphemeralSocket,
 } from 'monorise/react';
 import { Entity } from '#/monorise/entities';
@@ -29,14 +30,13 @@ export default function ChatPage() {
 
   const handleUserSelect = useCallback((userId: string) => {
     setCurrentUserId(userId);
-    let wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'wss://tpnmh97fna.execute-api.ap-southeast-1.amazonaws.com';
-    // Strip /$default route suffix if present
-    wsUrl = wsUrl.replace(/\/\$default$/, '');
+    let wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'wss://tpnmh97fna.execute-api.ap-southeast-1.amazonaws.com/$default';
     console.log('WebSocket URL:', wsUrl);
     if (wsUrl) {
       initializeWebSocketManager(
         WebSocketManager,
-        `${wsUrl}?token=${userId}`,
+        wsUrl,
+        userId,
       );
     } else {
       console.warn('NEXT_PUBLIC_WS_URL not set — WebSocket disabled');
@@ -96,7 +96,7 @@ export default function ChatPage() {
         </div>
 
         {/* Main */}
-        <div className="flex flex-1 flex-col">
+        <div className="flex min-h-0 flex-1 flex-col">
           {selectedChannelId ? (
             <>
               <ChatWindow
@@ -128,7 +128,7 @@ function ChannelList({
   selectedChannelId: string | null;
   onSelectChannel: (id: string) => void;
 }) {
-  const { entities: channels, isLoading } = useEntities(Entity.CHANNEL);
+  const { entities: channels, isLoading } = useEntitySocket(Entity.CHANNEL);
   const [newName, setNewName] = useState('');
   const [creating, setCreating] = useState(false);
 
@@ -153,7 +153,7 @@ function ChannelList({
         {isLoading && (
           <div className="p-3 text-sm text-gray-400">Loading...</div>
         )}
-        {channels?.map((ch) => (
+        {channels?.map((ch: any) => (
           <button
             key={ch.entityId}
             onClick={() => onSelectChannel(ch.entityId)}
@@ -263,8 +263,8 @@ function ChatWindow({
         : null;
 
   return (
-    <div className="flex flex-1 flex-col">
-      <div className="border-b px-4 py-3">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="shrink-0 border-b px-4 py-3">
         <div className="font-semibold">
           # {channel?.data?.name || 'Loading...'}
         </div>
@@ -272,14 +272,16 @@ function ChatWindow({
           {channel?.data?.description}
         </div>
       </div>
-      <div className="flex-1 overflow-auto p-4">
+      <div className="min-h-0 flex-1 overflow-auto p-4">
         {isLoading && <div className="text-sm text-gray-400">Loading messages...</div>}
-        {messages?.size === 0 && !isLoading && (
+        {messages?.length === 0 && !isLoading && (
           <div className="text-sm text-gray-400">
             No messages yet. Start the conversation!
           </div>
         )}
-        {Array.from(messages?.values() || []).map((m: any) => {
+        {[...(messages || [])].sort((a: any, b: any) =>
+          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+        ).map((m: any) => {
           const isMe = m.data?.authorId === currentUserId;
           return (
             <div key={m.entityId} className={`mb-3 flex ${isMe ? 'justify-end' : ''}`}>

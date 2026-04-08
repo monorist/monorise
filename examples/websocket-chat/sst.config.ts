@@ -21,7 +21,7 @@ export default $config({
       link: [core.api],
       environment: {
         API_BASE_URL: core.api.url,
-        NEXT_PUBLIC_WS_URL: core.websocket?.endpoint || '',
+        NEXT_PUBLIC_WS_URL: core.websocket?.url || '',
       },
     });
 
