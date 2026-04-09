@@ -28,10 +28,12 @@ const dynamodbClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamodbClient);
 
 const CONN_PREFIX = 'CONN#';
+const TICKET_PREFIX = 'TICKET#';
 // Subscription keys
 const SUB_ENTITY_TYPE = 'SUB:ENTITY:'; // SUB:ENTITY:{entityType}
 const SUB_MUTUAL_TYPE = 'SUB:MUTUAL:'; // SUB:MUTUAL:{byEntityType}:{byEntityId}:{mutualEntityType}
 const SUB_EPHEMERAL = 'SUB:EPHEMERAL:'; // SUB:EPHEMERAL:{channel}
+const SUB_FEED = 'SUB:FEED:'; // SUB:FEED:{entityType}:{entityId}
 
 interface ClientMessage {
   action: 'subscribe' | 'unsubscribe' | 'ephemeral' | 'ping';
@@ -67,7 +69,59 @@ const getTableName = () => process.env.CORE_TABLE || '';
 const getWsEndpoint = () => process.env.WEBSOCKET_MANAGEMENT_ENDPOINT || '';
 
 /**
+ * Validate a ticket and return its data, then delete it (one-time use).
+ */
+const validateTicket = async (
+  ticket: string,
+  tableName: string,
+): Promise<{
+  entityType: string;
+  entityId: string;
+  feedTypes: string[];
+} | null> => {
+  const result = await docClient.send(
+    new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: 'PK = :pk',
+      ExpressionAttributeValues: {
+        ':pk': `${TICKET_PREFIX}${ticket}`,
+      },
+      ConsistentRead: true,
+    }),
+  );
+
+  const item = result.Items?.[0];
+  if (!item) return null;
+
+  // Check expiry
+  const expiresAt = item.expiresAt as number;
+  if (expiresAt && expiresAt < Math.floor(Date.now() / 1000)) {
+    return null;
+  }
+
+  // Delete ticket (one-time use)
+  await docClient.send(
+    new DeleteCommand({
+      TableName: tableName,
+      Key: {
+        PK: `${TICKET_PREFIX}${ticket}`,
+        SK: 'META',
+      },
+    }),
+  );
+
+  return {
+    entityType: item.entityType as string,
+    entityId: item.entityId as string,
+    feedTypes: (item.feedTypes as string[]) || [],
+  };
+};
+
+/**
  * $connect handler
+ * Supports two auth modes:
+ * - ticket: ?ticket=abc123 (issued via /ws/ticket/:entityType/:entityId)
+ * - token: ?token=userId (simplified direct auth)
  */
 export const connect = async (
   event: WebSocketConnectEvent,
@@ -77,23 +131,41 @@ export const connect = async (
     return { statusCode: 400, body: 'Missing connection ID' };
   }
 
+  const tableName = getTableName();
+  const ttl = Math.floor(Date.now() / 1000) + 2 * 60 * 60;
+
+  const ticket = event.queryStringParameters?.ticket;
   const token =
     event.queryStringParameters?.token ||
     event.headers?.authorization ||
     event.headers?.Authorization;
 
-  if (!token) {
+  if (!ticket && !token) {
     return { statusCode: 401, body: 'Unauthorized' };
   }
 
-  // TODO: Validate token and extract userId/workspaceId
-  const userId = token; // Simplified for now
-  const workspaceId = 'default';
-
-  const tableName = getTableName();
-  const ttl = Math.floor(Date.now() / 1000) + 2 * 60 * 60;
-
   try {
+    let userId: string;
+    let feedEntityType: string | undefined;
+    let feedEntityId: string | undefined;
+    let feedTypes: string[] | undefined;
+
+    if (ticket) {
+      // Ticket-based auth (entity feed)
+      const ticketData = await validateTicket(ticket, tableName);
+      if (!ticketData) {
+        return { statusCode: 401, body: 'Invalid or expired ticket' };
+      }
+      userId = ticketData.entityId;
+      feedEntityType = ticketData.entityType;
+      feedEntityId = ticketData.entityId;
+      feedTypes = ticketData.feedTypes;
+    } else {
+      // Token-based auth (simple/direct)
+      userId = token!;
+    }
+
+    // Store connection record
     await docClient.send(
       new PutCommand({
         TableName: tableName,
@@ -101,17 +173,40 @@ export const connect = async (
           PK: `${CONN_PREFIX}${connectionId}`,
           SK: 'META',
           userId,
-          workspaceId,
           connectionId,
           connectedAt: new Date().toISOString(),
           ttl,
+          ...(feedEntityType && { feedEntityType }),
+          ...(feedEntityId && { feedEntityId }),
+          ...(feedTypes && { feedTypes }),
         },
       }),
     );
 
+    // If ticket-based, auto-subscribe to feed
+    if (feedEntityType && feedEntityId && feedTypes) {
+      const feedSubKey = `${SUB_FEED}${feedEntityType}:${feedEntityId}`;
+      await docClient.send(
+        new PutCommand({
+          TableName: tableName,
+          Item: {
+            PK: feedSubKey,
+            SK: `${CONN_PREFIX}${connectionId}`,
+            connectionId,
+            subscriptionType: 'feed',
+            feedEntityType,
+            feedEntityId,
+            feedTypes,
+            subscribedAt: new Date().toISOString(),
+            ttl,
+          },
+        }),
+      );
+    }
+
     return { statusCode: 200, body: 'Connected' };
   } catch (error) {
-    console.error('Error storing connection:', error);
+    console.error('Error in $connect:', error);
     return { statusCode: 500, body: 'Failed to connect' };
   }
 };
