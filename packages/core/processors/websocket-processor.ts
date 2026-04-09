@@ -9,7 +9,6 @@ import {
   DynamoDBDocumentClient,
   PutCommand,
   QueryCommand,
-  UpdateCommand,
 } from '@aws-sdk/lib-dynamodb';
 import type {
   APIGatewayProxyResultV2,
@@ -17,7 +16,8 @@ import type {
   DynamoDBStreamEvent,
   DynamoDBStreamHandler,
 } from 'aws-lambda';
-import { nanoid } from 'nanoid';
+import { ulid } from 'ulid';
+import { ENTITY_REPLICATION_INDEX } from '../configs/service.config';
 
 // $connect event includes query params and headers, but the base WebSocket type doesn't model them
 type WebSocketConnectEvent = APIGatewayProxyWebsocketEventV2 & {
@@ -31,10 +31,11 @@ const docClient = DynamoDBDocumentClient.from(dynamodbClient);
 const CONN_PREFIX = 'CONN#';
 const TICKET_PREFIX = 'TICKET#';
 // Subscription keys
-const SUB_ENTITY_TYPE = 'SUB:ENTITY:'; // SUB:ENTITY:{entityType}
-const SUB_MUTUAL_TYPE = 'SUB:MUTUAL:'; // SUB:MUTUAL:{byEntityType}:{byEntityId}:{mutualEntityType}
-const SUB_EPHEMERAL = 'SUB:EPHEMERAL:'; // SUB:EPHEMERAL:{channel}
-const SUB_FEED = 'SUB:FEED:'; // SUB:FEED:{entityType}:{entityId}
+const SUB_ENTITY_TYPE = 'SUB#ENTITY#'; // SUB#ENTITY#{entityType}
+const SUB_MUTUAL_TYPE = 'SUB#MUTUAL#'; // SUB#MUTUAL#{byEntityType}#{byEntityId}#{entityType}
+const SUB_EPHEMERAL = 'SUB#EPHEMERAL#'; // SUB#EPHEMERAL#{channel}
+const SUB_FEED = 'SUB#FEED#'; // SUB#FEED#{entityType}#{entityId}
+const METADATA_SK = '#METADATA#';
 
 interface ClientMessage {
   action: 'subscribe' | 'unsubscribe' | 'ephemeral' | 'ping';
@@ -67,30 +68,6 @@ interface ServerMessage {
 
 const getTableName = () => process.env.CORE_TABLE || '';
 
-/**
- * Track a subscription key on the connection record for cleanup on disconnect.
- */
-const trackSubscription = async (
-  tableName: string,
-  connectionId: string,
-  subKey: string,
-) => {
-  await docClient.send(
-    new UpdateCommand({
-      TableName: tableName,
-      Key: {
-        PK: `${CONN_PREFIX}${connectionId}`,
-        SK: 'META',
-      },
-      UpdateExpression:
-        'SET subscriptionKeys = list_append(if_not_exists(subscriptionKeys, :empty), :subKey)',
-      ExpressionAttributeValues: {
-        ':empty': [],
-        ':subKey': [subKey],
-      },
-    }),
-  ).catch(() => {}); // Best-effort tracking
-};
 
 const getWsEndpoint = () => process.env.WEBSOCKET_MANAGEMENT_ENDPOINT || '';
 
@@ -131,7 +108,7 @@ const validateTicket = async (
       TableName: tableName,
       Key: {
         PK: `${TICKET_PREFIX}${ticket}`,
-        SK: 'META',
+        SK: METADATA_SK,
       },
     }),
   );
@@ -158,7 +135,7 @@ export const connect = async (
   }
 
   const tableName = getTableName();
-  const ttl = Math.floor(Date.now() / 1000) + 2 * 60 * 60;
+  const expiresAt = Math.floor(Date.now() / 1000) + 2 * 60 * 60;
 
   const ticket = event.queryStringParameters?.ticket;
   const token =
@@ -171,9 +148,8 @@ export const connect = async (
   }
 
   try {
-    let userId: string;
-    let feedEntityType: string | undefined;
-    let feedEntityId: string | undefined;
+    let entityType: string | undefined;
+    let entityId: string | undefined;
     let feedTypes: string[] | undefined;
 
     if (ticket) {
@@ -182,13 +158,12 @@ export const connect = async (
       if (!ticketData) {
         return { statusCode: 401, body: 'Invalid or expired ticket' };
       }
-      userId = ticketData.entityId;
-      feedEntityType = ticketData.entityType;
-      feedEntityId = ticketData.entityId;
+      entityType = ticketData.entityType;
+      entityId = ticketData.entityId;
       feedTypes = ticketData.feedTypes;
     } else {
-      // Token-based auth (simple/direct)
-      userId = token!;
+      // Token-based auth (simple/direct) — token is treated as entityId
+      entityId = token!;
     }
 
     // Store connection record
@@ -197,34 +172,34 @@ export const connect = async (
         TableName: tableName,
         Item: {
           PK: `${CONN_PREFIX}${connectionId}`,
-          SK: 'META',
-          userId,
+          SK: METADATA_SK,
           connectionId,
+          ...(entityType && { entityType }),
+          ...(entityId && { entityId }),
           connectedAt: new Date().toISOString(),
-          ttl,
-          ...(feedEntityType && { feedEntityType }),
-          ...(feedEntityId && { feedEntityId }),
-          ...(feedTypes && { feedTypes }),
+          expiresAt,
         },
       }),
     );
 
     // If ticket-based, auto-subscribe to feed
-    if (feedEntityType && feedEntityId && feedTypes) {
-      const feedSubKey = `${SUB_FEED}${feedEntityType}:${feedEntityId}`;
+    if (entityType && entityId && feedTypes) {
+      const feedSubKey = `${SUB_FEED}${entityType}#${entityId}`;
       await docClient.send(
         new PutCommand({
           TableName: tableName,
           Item: {
             PK: feedSubKey,
             SK: `${CONN_PREFIX}${connectionId}`,
+            R1PK: `${CONN_PREFIX}${connectionId}`,
+            R1SK: feedSubKey,
             connectionId,
             subscriptionType: 'feed',
-            feedEntityType,
-            feedEntityId,
+            entityType,
+            entityId,
             feedTypes,
             subscribedAt: new Date().toISOString(),
-            ttl,
+            expiresAt,
           },
         }),
       );
@@ -253,51 +228,36 @@ export const disconnect = async (
 
   try {
     // Read connection record to find associated subscriptions
-    const connResult = await docClient.send(
+    // Query R1 GSI to find all subscription records for this connection
+    const subscriptionsResult = await docClient.send(
       new QueryCommand({
         TableName: tableName,
-        KeyConditionExpression: 'PK = :pk',
+        IndexName: ENTITY_REPLICATION_INDEX,
+        KeyConditionExpression: 'R1PK = :r1pk',
         ExpressionAttributeValues: {
-          ':pk': `${CONN_PREFIX}${connectionId}`,
+          ':r1pk': `${CONN_PREFIX}${connectionId}`,
         },
       }),
     );
 
-    const connItem = connResult.Items?.[0];
-    const subscriptionKeys = (connItem?.subscriptionKeys as string[]) || [];
-
     const deletePromises: Promise<any>[] = [];
 
-    // Delete all tracked subscription records
-    for (const subKey of subscriptionKeys) {
-      deletePromises.push(
-        docClient.send(
-          new DeleteCommand({
-            TableName: tableName,
-            Key: {
-              PK: subKey,
-              SK: `${CONN_PREFIX}${connectionId}`,
-            },
-          }),
-        ).catch(() => {}),
-      );
-    }
-
-    // Delete feed subscription if present
-    const feedEntityType = connItem?.feedEntityType as string | undefined;
-    const feedEntityId = connItem?.feedEntityId as string | undefined;
-    if (feedEntityType && feedEntityId) {
-      deletePromises.push(
-        docClient.send(
-          new DeleteCommand({
-            TableName: tableName,
-            Key: {
-              PK: `${SUB_FEED}${feedEntityType}:${feedEntityId}`,
-              SK: `${CONN_PREFIX}${connectionId}`,
-            },
-          }),
-        ).catch(() => {}),
-      );
+    // Delete all subscription records found via R1 GSI
+    if (subscriptionsResult.Items?.length) {
+      for (const item of subscriptionsResult.Items) {
+        const pk = item.PK as string;
+        const sk = item.SK as string;
+        if (pk && sk) {
+          deletePromises.push(
+            docClient.send(
+              new DeleteCommand({
+                TableName: tableName,
+                Key: { PK: pk, SK: sk },
+              }),
+            ).catch(() => {}),
+          );
+        }
+      }
     }
 
     // Delete connection record
@@ -307,7 +267,7 @@ export const disconnect = async (
           TableName: tableName,
           Key: {
             PK: `${CONN_PREFIX}${connectionId}`,
-            SK: 'META',
+            SK: METADATA_SK,
           },
         }),
       ),
@@ -361,6 +321,8 @@ export const $default = async (
               Item: {
                 PK: subKey,
                 SK: `${CONN_PREFIX}${connectionId}`,
+                R1PK: `${CONN_PREFIX}${connectionId}`,
+                R1SK: subKey,
                 connectionId,
                 subscriptionType: 'entity-type',
                 entityType,
@@ -368,27 +330,29 @@ export const $default = async (
               },
             }),
           );
-          await trackSubscription(tableName, connectionId, subKey);
+
         }
         // Mutual type subscription
         else if (byEntityType && byEntityId && mutualEntityType) {
-          const subKey = `${SUB_MUTUAL_TYPE}${byEntityType}:${byEntityId}:${mutualEntityType}`;
+          const subKey = `${SUB_MUTUAL_TYPE}${byEntityType}#${byEntityId}#${mutualEntityType}`;
           await docClient.send(
             new PutCommand({
               TableName: tableName,
               Item: {
                 PK: subKey,
                 SK: `${CONN_PREFIX}${connectionId}`,
+                R1PK: `${CONN_PREFIX}${connectionId}`,
+                R1SK: subKey,
                 connectionId,
                 subscriptionType: 'mutual-type',
                 byEntityType,
                 byEntityId,
-                mutualEntityType,
+                entityType: mutualEntityType,
                 subscribedAt: new Date().toISOString(),
               },
             }),
           );
-          await trackSubscription(tableName, connectionId, subKey);
+
         }
         // Ephemeral channel subscription
         else if (channel) {
@@ -399,6 +363,8 @@ export const $default = async (
               Item: {
                 PK: subKey,
                 SK: `${CONN_PREFIX}${connectionId}`,
+                R1PK: `${CONN_PREFIX}${connectionId}`,
+                R1SK: subKey,
                 connectionId,
                 subscriptionType: 'ephemeral',
                 channel,
@@ -406,7 +372,7 @@ export const $default = async (
               },
             }),
           );
-          await trackSubscription(tableName, connectionId, subKey);
+
         } else {
           return { statusCode: 400, body: 'Invalid subscription parameters' };
         }
@@ -444,7 +410,7 @@ export const $default = async (
             }),
           );
         } else if (byEntityType && byEntityId && mutualEntityType) {
-          const subKey = `${SUB_MUTUAL_TYPE}${byEntityType}:${byEntityId}:${mutualEntityType}`;
+          const subKey = `${SUB_MUTUAL_TYPE}${byEntityType}#${byEntityId}#${mutualEntityType}`;
           await docClient.send(
             new DeleteCommand({
               TableName: tableName,
@@ -516,13 +482,13 @@ export const $default = async (
             },
           }),
         );
-        const senderId = connResult.Items?.[0]?.userId as string | undefined;
+        const senderId = connResult.Items?.[0]?.entityId as string | undefined;
 
         // Broadcast to all subscribers of this channel
         const subKey = `${SUB_EPHEMERAL}${channel}`;
         const ephemeralMessage: ServerMessage = {
           type: 'ephemeral',
-          id: nanoid(),
+          id: ulid(),
           payload: { channel, data, senderId },
         };
 
@@ -600,7 +566,7 @@ export const broadcast: DynamoDBStreamHandler = async (
 
     const entityType = pkParts[0];
     const entityId = pkParts[1];
-    const isMutual = !sk.startsWith('META') && sk.includes('#');
+    const isMutual = !sk.startsWith('#METADATA#') && sk.includes('#');
 
     try {
       if (isMutual) {
@@ -609,7 +575,7 @@ export const broadcast: DynamoDBStreamHandler = async (
         const mutualEntityType = skParts[0];
         const byEntityId = entityId; // The PK contains the byEntityId for mutuals
 
-        const subKey = `${SUB_MUTUAL_TYPE}${entityType}:${byEntityId}:${mutualEntityType}`;
+        const subKey = `${SUB_MUTUAL_TYPE}${entityType}#${byEntityId}#${mutualEntityType}`;
 
         const subscribersResult = await docClient.send(
           new QueryCommand({
@@ -629,7 +595,7 @@ export const broadcast: DynamoDBStreamHandler = async (
 
         const message: ServerMessage = {
           type: eventType,
-          id: nanoid(),
+          id: ulid(),
           payload: {
             byEntityType: entityType,
             byEntityId,
@@ -668,7 +634,7 @@ export const broadcast: DynamoDBStreamHandler = async (
 
         const message: ServerMessage = {
           type: eventType,
-          id: nanoid(),
+          id: ulid(),
           payload: {
             entityType,
             entityId,
@@ -695,7 +661,7 @@ export const broadcast: DynamoDBStreamHandler = async (
         isMutual
           ? {
               type: (isInsert ? 'mutual.created' : isModify ? 'mutual.updated' : 'mutual.deleted') as ServerMessage['type'],
-              id: nanoid(),
+              id: ulid(),
               payload: {
                 byEntityType: entityType,
                 byEntityId: entityId,
@@ -706,7 +672,7 @@ export const broadcast: DynamoDBStreamHandler = async (
             }
           : {
               type: (isInsert ? 'entity.created' : isModify ? 'entity.updated' : 'entity.deleted') as ServerMessage['type'],
-              id: nanoid(),
+              id: ulid(),
               payload: {
                 entityType,
                 entityId,
@@ -815,7 +781,7 @@ async function broadcastToFeedSubscribers(
 
   for (const item of mutualsResult.Items) {
     const sk = item.SK as string;
-    if (!sk || sk === 'META' || sk.startsWith('#')) continue;
+    if (!sk || sk === '#METADATA#' || sk.startsWith('#')) continue;
 
     // SK format: entityType#entityId
     const skParts = (sk as string).split('#');
@@ -834,7 +800,7 @@ async function broadcastToFeedSubscribers(
 
   for (const connEntity of connectedEntities) {
     const [entityType, entityId] = connEntity.split(':');
-    const feedSubKey = `${SUB_FEED}${entityType}:${entityId}`;
+    const feedSubKey = `${SUB_FEED}${entityType}#${entityId}`;
 
     const feedSubsResult = await docClient.send(
       new QueryCommand({
