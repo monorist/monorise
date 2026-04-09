@@ -6,7 +6,7 @@ import { initConfigActions } from './actions/config.action';
 import { initCoreActions } from './actions/core.action';
 import {
   initWebSocketActions,
-  initWebSocket,
+  initializeWebSocketManager,
   getWebSocketManager,
 } from './actions/websocket.action';
 import {
@@ -160,10 +160,10 @@ const {
   getEntity,
   updateLocalTaggedEntity,
   deleteLocalTaggedEntity,
-  useWebSocketConnection,
   useEntitySocket,
   useMutualSocket,
   useEphemeralSocket,
+  useEntityFeed,
 } = Monorise;
 
 export {
@@ -219,11 +219,11 @@ export {
   getEntity,
   updateLocalTaggedEntity,
   deleteLocalTaggedEntity,
-  useWebSocketConnection,
   useEntitySocket,
   useMutualSocket,
   useEphemeralSocket,
-  initWebSocket,
+  useEntityFeed,
+  initializeWebSocketManager,
   getWebSocketManager,
   WebSocketManager,
   type ConnectionState,

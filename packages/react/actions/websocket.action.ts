@@ -30,6 +30,17 @@ export interface UseMutualSocketReturn<T extends Entity> {
   hasMore: boolean;
 }
 
+export interface UseEntityFeedOptions {
+  entityType: Entity;
+  entityId: string;
+  ticketEndpoint?: string;
+}
+
+export interface UseEntityFeedReturn {
+  isConnected: boolean;
+  error: { code: string; message: string } | null;
+}
+
 let globalWsManager: WebSocketManager | null = null;
 let wsEndpoint: string | undefined;
 
@@ -51,7 +62,7 @@ export const getWebSocketManager = () => globalWsManager;
 
 export const initWebSocketActions = (
   monoriseStore: MonoriseStore,
-  httpActions: {
+  httpActions?: {
     listEntities: <T extends Entity>(
       entityType: T,
       params?: { limit?: number; lastKey?: string },
@@ -95,7 +106,7 @@ export const initWebSocketActions = (
 
       try {
         const fetchLastKey = type === 'refresh' ? undefined : lastKeyRef.current;
-        const result = await httpActions.listEntities(entityType, {
+        const result = await httpActions!.listEntities(entityType, {
           limit,
           lastKey: fetchLastKey,
         });
@@ -256,7 +267,7 @@ export const initWebSocketActions = (
 
       try {
         const fetchLastKey = type === 'refresh' ? undefined : lastKeyRef.current;
-        const result = await httpActions.listEntitiesByEntity(
+        const result = await httpActions!.listEntitiesByEntity(
           byEntityType,
           byEntityId,
           mutualEntityType,
@@ -459,10 +470,206 @@ export const initWebSocketActions = (
     return { isSubscribed, send };
   };
 
+  /**
+   * Subscribe to an entity's real-time feed.
+   *
+   * Fetches a ticket (via ticketEndpoint or default monorise route through catch-all proxy),
+   * establishes a WebSocket connection, and auto-updates entity/mutual stores.
+   * Handles ticket refresh and auto-resync on reconnect.
+   *
+   * @example
+   * ```tsx
+   * // Internal app (uses catch-all proxy)
+   * useEntityFeed({ entityType: Entity.USER, entityId: userId });
+   *
+   * // Client-facing app (custom auth endpoint)
+   * useEntityFeed({ entityType: Entity.USER, entityId: userId, ticketEndpoint: '/api/ws/ticket' });
+   * ```
+   */
+  const useEntityFeed = (opts: UseEntityFeedOptions): UseEntityFeedReturn => {
+    const { entityType, entityId, ticketEndpoint } = opts;
+    const [isConnected, setIsConnected] = useState(false);
+    const [error, setError] = useState<{ code: string; message: string } | null>(null);
+    const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const wsManagerRef = useRef<WebSocketManager | null>(null);
+    const isMountedRef = useRef(true);
+
+    const fetchTicket = useCallback(async () => {
+      try {
+        const url = ticketEndpoint
+          || `/api/core/ws/ticket/${entityType}/${entityId}`;
+
+        const fetchOpts: RequestInit = {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        };
+
+        // Only send body for custom endpoints (default route gets params from URL)
+        if (ticketEndpoint) {
+          fetchOpts.body = JSON.stringify({ entityType, entityId });
+        }
+
+        const response = await fetch(url, fetchOpts);
+
+        if (response.status === 401 || response.status === 403) {
+          return { error: { code: 'TICKET_UNAUTHORIZED', message: 'Unauthorized' } };
+        }
+
+        if (!response.ok) {
+          return { error: { code: 'TICKET_FAILED', message: `HTTP ${response.status}` } };
+        }
+
+        const data = await response.json();
+        return { data: data as { ticket: string; wsUrl: string; expiresIn: number } };
+      } catch (err) {
+        return { error: { code: 'TICKET_FAILED', message: (err as Error).message } };
+      }
+    }, [entityType, entityId, ticketEndpoint]);
+
+    const connectWithTicket = useCallback(async () => {
+      const result = await fetchTicket();
+
+      if (!isMountedRef.current) return;
+
+      if (result.error) {
+        setError(result.error);
+        setIsConnected(false);
+        return;
+      }
+
+      setError(null);
+      const { ticket, wsUrl, expiresIn } = result.data!;
+
+      // Disconnect existing connection if any
+      if (wsManagerRef.current) {
+        wsManagerRef.current.disconnect();
+      }
+
+      // Use the WebSocketManager class from the module scope
+      // Import dynamically to avoid circular deps
+      const { WebSocketManager: WsManagerClass } = await import('../websocket');
+
+      const manager = new WsManagerClass(wsUrl, ticket);
+      wsManagerRef.current = manager;
+
+      // Also set as global so other hooks (useMutualSocket etc.) can use it
+      globalWsManager = manager;
+
+      manager.onStateChange((state: ConnectionState) => {
+        if (!isMountedRef.current) return;
+
+        if (state === 'connected') {
+          setIsConnected(true);
+          setError(null);
+        } else if (state === 'disconnected') {
+          setIsConnected(false);
+        }
+      });
+
+      // Route feed messages into stores
+      manager.onMessage((msg: ServerMessage) => {
+        if (!isMountedRef.current) return;
+
+        if (msg.type === 'entity.created' || msg.type === 'entity.updated') {
+          const payload = msg.payload as {
+            entityType: string;
+            entityId: string;
+            data?: any;
+          };
+          if (payload.data) {
+            monoriseStore.setState(
+              produce((state) => {
+                const key = payload.entityType;
+                if (!state.entity[key]) {
+                  state.entity[key] = { dataMap: new Map(), isFirstFetched: false, lastKey: undefined };
+                }
+                state.entity[key].dataMap.set(payload.entityId, payload.data);
+              }),
+            );
+          }
+        } else if (msg.type === 'entity.deleted') {
+          const payload = msg.payload as { entityType: string; entityId: string };
+          monoriseStore.setState(
+            produce((state) => {
+              state.entity[payload.entityType]?.dataMap?.delete(payload.entityId);
+            }),
+          );
+        } else if (msg.type === 'mutual.created' || msg.type === 'mutual.updated') {
+          const payload = msg.payload as {
+            byEntityType: string;
+            byEntityId: string;
+            mutualEntityType: string;
+            entityId: string;
+            data?: any;
+          };
+          if (payload.data) {
+            const mutualKey = `${payload.byEntityType}/${payload.byEntityId}/${payload.mutualEntityType}`;
+            monoriseStore.setState(
+              produce((state) => {
+                if (!state.mutual[mutualKey]) {
+                  state.mutual[mutualKey] = { dataMap: new Map(), isFirstFetched: false, lastKey: undefined };
+                }
+                state.mutual[mutualKey].dataMap.set(payload.entityId, payload.data);
+              }),
+            );
+          }
+        } else if (msg.type === 'mutual.deleted') {
+          const payload = msg.payload as {
+            byEntityType: string;
+            byEntityId: string;
+            mutualEntityType: string;
+            entityId: string;
+          };
+          const mutualKey = `${payload.byEntityType}/${payload.byEntityId}/${payload.mutualEntityType}`;
+          monoriseStore.setState(
+            produce((state) => {
+              state.mutual[mutualKey]?.dataMap?.delete(payload.entityId);
+            }),
+          );
+        }
+      });
+
+      manager.connect();
+
+      // Schedule proactive ticket refresh
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
+      const refreshMs = Math.max((expiresIn - 120) * 1000, 60000); // refresh 2 min before expiry, minimum 1 min
+      refreshTimerRef.current = setTimeout(() => {
+        if (isMountedRef.current) {
+          connectWithTicket();
+        }
+      }, refreshMs);
+    }, [fetchTicket]);
+
+    useEffect(() => {
+      isMountedRef.current = true;
+
+      if (entityId) {
+        connectWithTicket();
+      }
+
+      return () => {
+        isMountedRef.current = false;
+        if (refreshTimerRef.current) {
+          clearTimeout(refreshTimerRef.current);
+        }
+        if (wsManagerRef.current) {
+          wsManagerRef.current.disconnect();
+          wsManagerRef.current = null;
+        }
+      };
+    }, [entityType, entityId, connectWithTicket]);
+
+    return { isConnected, error };
+  };
+
   return {
     useEntitySocket,
     useMutualSocket,
     useEphemeralSocket,
+    useEntityFeed,
   };
 };
 
