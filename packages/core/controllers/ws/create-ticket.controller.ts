@@ -1,11 +1,12 @@
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import { marshall } from '@aws-sdk/util-dynamodb';
 import { createMiddleware } from 'hono/factory';
-import { nanoid } from 'nanoid';
+import { ulid } from 'ulid';
 import { CORE_TABLE } from '../../configs/service.config';
 import type { DependencyContainer } from '../../services/DependencyContainer';
 
 const TICKET_PREFIX = 'TICKET#';
+const METADATA_SK = '#METADATA#';
 const TICKET_TTL_SECONDS = 30 * 60; // 30 minutes
 
 export class CreateTicketController {
@@ -37,7 +38,7 @@ export class CreateTicketController {
       }
     }
 
-    const ticket = nanoid(32);
+    const ticket = ulid();
     const now = Math.floor(Date.now() / 1000);
     const expiresAt = now + TICKET_TTL_SECONDS;
 
@@ -48,7 +49,7 @@ export class CreateTicketController {
       TableName: tableName,
       Item: marshall({
         PK: `${TICKET_PREFIX}${ticket}`,
-        SK: 'META',
+        SK: METADATA_SK,
         entityType,
         entityId,
         feedTypes,
