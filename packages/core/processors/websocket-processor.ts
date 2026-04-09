@@ -9,6 +9,7 @@ import {
   DynamoDBDocumentClient,
   PutCommand,
   QueryCommand,
+  UpdateCommand,
 } from '@aws-sdk/lib-dynamodb';
 import type {
   APIGatewayProxyResultV2,
@@ -65,6 +66,31 @@ interface ServerMessage {
 }
 
 const getTableName = () => process.env.CORE_TABLE || '';
+
+/**
+ * Track a subscription key on the connection record for cleanup on disconnect.
+ */
+const trackSubscription = async (
+  tableName: string,
+  connectionId: string,
+  subKey: string,
+) => {
+  await docClient.send(
+    new UpdateCommand({
+      TableName: tableName,
+      Key: {
+        PK: `${CONN_PREFIX}${connectionId}`,
+        SK: 'META',
+      },
+      UpdateExpression:
+        'SET subscriptionKeys = list_append(if_not_exists(subscriptionKeys, :empty), :subKey)',
+      ExpressionAttributeValues: {
+        ':empty': [],
+        ':subKey': [subKey],
+      },
+    }),
+  ).catch(() => {}); // Best-effort tracking
+};
 
 const getWsEndpoint = () => process.env.WEBSOCKET_MANAGEMENT_ENDPOINT || '';
 
@@ -213,6 +239,7 @@ export const connect = async (
 
 /**
  * $disconnect handler
+ * Cleans up connection record and all associated subscription records.
  */
 export const disconnect = async (
   event: APIGatewayProxyWebsocketEventV2,
@@ -225,19 +252,68 @@ export const disconnect = async (
   const tableName = getTableName();
 
   try {
-    // Delete connection record
-    await docClient.send(
-      new DeleteCommand({
+    // Read connection record to find associated subscriptions
+    const connResult = await docClient.send(
+      new QueryCommand({
         TableName: tableName,
-        Key: {
-          PK: `${CONN_PREFIX}${connectionId}`,
-          SK: 'META',
+        KeyConditionExpression: 'PK = :pk',
+        ExpressionAttributeValues: {
+          ':pk': `${CONN_PREFIX}${connectionId}`,
         },
       }),
     );
 
-    // Note: Subscriptions are automatically cleaned up via DynamoDB Stream
-    // when connection records are deleted
+    const connItem = connResult.Items?.[0];
+    const subscriptionKeys = (connItem?.subscriptionKeys as string[]) || [];
+
+    const deletePromises: Promise<any>[] = [];
+
+    // Delete all tracked subscription records
+    for (const subKey of subscriptionKeys) {
+      deletePromises.push(
+        docClient.send(
+          new DeleteCommand({
+            TableName: tableName,
+            Key: {
+              PK: subKey,
+              SK: `${CONN_PREFIX}${connectionId}`,
+            },
+          }),
+        ).catch(() => {}),
+      );
+    }
+
+    // Delete feed subscription if present
+    const feedEntityType = connItem?.feedEntityType as string | undefined;
+    const feedEntityId = connItem?.feedEntityId as string | undefined;
+    if (feedEntityType && feedEntityId) {
+      deletePromises.push(
+        docClient.send(
+          new DeleteCommand({
+            TableName: tableName,
+            Key: {
+              PK: `${SUB_FEED}${feedEntityType}:${feedEntityId}`,
+              SK: `${CONN_PREFIX}${connectionId}`,
+            },
+          }),
+        ).catch(() => {}),
+      );
+    }
+
+    // Delete connection record
+    deletePromises.push(
+      docClient.send(
+        new DeleteCommand({
+          TableName: tableName,
+          Key: {
+            PK: `${CONN_PREFIX}${connectionId}`,
+            SK: 'META',
+          },
+        }),
+      ),
+    );
+
+    await Promise.all(deletePromises);
 
     return { statusCode: 200, body: 'Disconnected' };
   } catch (error) {
@@ -292,6 +368,7 @@ export const $default = async (
               },
             }),
           );
+          await trackSubscription(tableName, connectionId, subKey);
         }
         // Mutual type subscription
         else if (byEntityType && byEntityId && mutualEntityType) {
@@ -311,6 +388,7 @@ export const $default = async (
               },
             }),
           );
+          await trackSubscription(tableName, connectionId, subKey);
         }
         // Ephemeral channel subscription
         else if (channel) {
@@ -328,6 +406,7 @@ export const $default = async (
               },
             }),
           );
+          await trackSubscription(tableName, connectionId, subKey);
         } else {
           return { statusCode: 400, body: 'Invalid subscription parameters' };
         }
