@@ -537,6 +537,7 @@ export const broadcast: DynamoDBStreamHandler = async (
             TableName: tableName,
             KeyConditionExpression: 'PK = :pk',
             ExpressionAttributeValues: { ':pk': subKey },
+            ConsistentRead: true,
           }),
         );
 
@@ -575,6 +576,7 @@ export const broadcast: DynamoDBStreamHandler = async (
             TableName: tableName,
             KeyConditionExpression: 'PK = :pk',
             ExpressionAttributeValues: { ':pk': subKey },
+            ConsistentRead: true,
           }),
         );
 
@@ -603,6 +605,36 @@ export const broadcast: DynamoDBStreamHandler = async (
           message,
         );
       }
+      // Feed broadcast: resolve feed subscribers connected to this entity
+      await broadcastToFeedSubscribers(
+        managementApi,
+        docClient,
+        tableName,
+        entityType,
+        entityId,
+        isMutual ? sk.split('#')[0] : entityType, // the changed entity type
+        isMutual
+          ? {
+              type: (isInsert ? 'mutual.created' : isModify ? 'mutual.updated' : 'mutual.deleted') as ServerMessage['type'],
+              id: nanoid(),
+              payload: {
+                byEntityType: entityType,
+                byEntityId: entityId,
+                mutualEntityType: sk.split('#')[0],
+                entityId: sk.split('#')[1],
+                data: isRemove ? undefined : unmarshall(image as Record<string, any>),
+              },
+            }
+          : {
+              type: (isInsert ? 'entity.created' : isModify ? 'entity.updated' : 'entity.deleted') as ServerMessage['type'],
+              id: nanoid(),
+              payload: {
+                entityType,
+                entityId,
+                data: isRemove ? undefined : unmarshall(image as Record<string, any>),
+              },
+            },
+      );
     } catch (error) {
       console.error('Error broadcasting:', error);
     }
@@ -622,6 +654,7 @@ async function broadcastToSubscribers(
       TableName: tableName,
       KeyConditionExpression: 'PK = :pk',
       ExpressionAttributeValues: { ':pk': subKey },
+      ConsistentRead: true,
     }),
   );
 
@@ -660,6 +693,115 @@ async function broadcastToSubscribers(
             },
           }),
         );
+      }
+    }
+  }
+}
+
+/**
+ * Resolve feed subscribers affected by a change to entityType:entityId.
+ *
+ * For a mutual change in channel:A, we need to find all entities (e.g., users)
+ * that have a mutual relationship with channel:A, then check if they have
+ * a feed subscription that includes the changed entity type.
+ *
+ * For an entity change to channel:A, we check if any feed subscriber
+ * directly has channel:A as their feed entity.
+ */
+async function broadcastToFeedSubscribers(
+  managementApi: ApiGatewayManagementApiClient,
+  docClient: DynamoDBDocumentClient,
+  tableName: string,
+  byEntityType: string,
+  byEntityId: string,
+  changedEntityType: string,
+  message: ServerMessage,
+): Promise<void> {
+  // Step 1: Find all entities connected to byEntityType:byEntityId via mutuals
+  // Query the main table: PK = byEntityType#byEntityId, SK != META (mutual records)
+  const pk = `${byEntityType}#${byEntityId}`;
+  const mutualsResult = await docClient.send(
+    new QueryCommand({
+      TableName: tableName,
+      KeyConditionExpression: 'PK = :pk',
+      ExpressionAttributeValues: { ':pk': pk },
+      ConsistentRead: true,
+    }),
+  );
+
+  if (!mutualsResult.Items?.length) return;
+
+  // Collect unique connected entities (the "other side" of the mutual)
+  const connectedEntities = new Set<string>();
+
+  for (const item of mutualsResult.Items) {
+    const sk = item.SK as string;
+    if (!sk || sk === 'META' || sk.startsWith('#')) continue;
+
+    // SK format: entityType#entityId
+    const skParts = (sk as string).split('#');
+    if (skParts.length >= 2) {
+      const connEntityType = skParts[0];
+      const connEntityId = skParts[1];
+      connectedEntities.add(`${connEntityType}:${connEntityId}`);
+    }
+  }
+
+  // Also check the entity itself as a feed subscriber
+  connectedEntities.add(`${byEntityType}:${byEntityId}`);
+
+  // Step 2: For each connected entity, check if they have a feed subscription
+  const sentConnections = new Set<string>();
+
+  for (const connEntity of connectedEntities) {
+    const [entityType, entityId] = connEntity.split(':');
+    const feedSubKey = `${SUB_FEED}${entityType}:${entityId}`;
+
+    const feedSubsResult = await docClient.send(
+      new QueryCommand({
+        TableName: tableName,
+        KeyConditionExpression: 'PK = :pk',
+        ExpressionAttributeValues: { ':pk': feedSubKey },
+        ConsistentRead: true,
+      }),
+    );
+
+    if (!feedSubsResult.Items?.length) continue;
+
+    for (const feedSub of feedSubsResult.Items) {
+      const feedTypes = feedSub.feedTypes as string[] | undefined;
+      const connectionId = feedSub.connectionId as string;
+
+      // Check if the changed entity type is in the feed's allowed types
+      if (feedTypes && !feedTypes.includes(changedEntityType)) continue;
+
+      // Avoid sending duplicate messages to the same connection
+      if (sentConnections.has(connectionId)) continue;
+      sentConnections.add(connectionId);
+
+      try {
+        await managementApi.send(
+          new PostToConnectionCommand({
+            ConnectionId: connectionId,
+            Data: JSON.stringify(message),
+          }),
+        );
+      } catch (error: unknown) {
+        if (
+          error instanceof Error &&
+          (error.message?.includes('GoneException') ||
+            error.message?.includes('410'))
+        ) {
+          await docClient.send(
+            new DeleteCommand({
+              TableName: tableName,
+              Key: {
+                PK: feedSubKey,
+                SK: `${CONN_PREFIX}${connectionId}`,
+              },
+            }),
+          );
+        }
       }
     }
   }
