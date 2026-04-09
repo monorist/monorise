@@ -288,3 +288,18 @@ When you call `createEntity`, `editEntity`, or `deleteEntity`, the store automat
 
 This means `useMutuals` and `useTaggedEntities` reflect changes immediately without a manual refetch.
 
+---
+
+## WebSocket Hooks
+
+Monorise provides WebSocket hooks for real-time updates. These are documented in detail on the [WebSocket](/websocket) page.
+
+| Hook | Purpose |
+|------|---------|
+| `useEntityFeed(opts)` | Graph-aware real-time feed for an entity — recommended for most apps |
+| `useEntitySocket(entityType, opts?)` | Subscribe to all CRUD events for an entity type |
+| `useMutualSocket(byType, byId, entityType, opts?)` | Subscribe to mutual changes for a specific entity pair |
+| `useEphemeralSocket(channel, opts?)` | Non-persisted messages (typing indicators, presence) |
+
+The feed hook auto-updates the same stores that `useEntities` and `useMutuals` read from — no new API to learn.
+
