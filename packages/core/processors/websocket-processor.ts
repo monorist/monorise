@@ -621,7 +621,7 @@ export const broadcast: DynamoDBStreamHandler = async (
         isMutual
           ? {
               type: (isInsert ? 'mutual.created' : isModify ? 'mutual.updated' : 'mutual.deleted') as ServerMessage['type'],
-              id: nanoid(),
+              id: ulid(),
               payload: {
                 byEntityType: entityType,
                 byEntityId: entityId,
@@ -632,7 +632,7 @@ export const broadcast: DynamoDBStreamHandler = async (
             }
           : {
               type: (isInsert ? 'entity.created' : isModify ? 'entity.updated' : 'entity.deleted') as ServerMessage['type'],
-              id: nanoid(),
+              id: ulid(),
               payload: {
                 entityType,
                 entityId,
@@ -741,7 +741,7 @@ async function broadcastToFeedSubscribers(
 
   for (const item of mutualsResult.Items) {
     const sk = item.SK as string;
-    if (!sk || sk === 'META' || sk.startsWith('#')) continue;
+    if (!sk || sk === '#METADATA#' || sk.startsWith('#')) continue;
 
     // SK format: entityType#entityId
     const skParts = (sk as string).split('#');
@@ -760,7 +760,7 @@ async function broadcastToFeedSubscribers(
 
   for (const connEntity of connectedEntities) {
     const [entityType, entityId] = connEntity.split(':');
-    const feedSubKey = `${SUB_FEED}${entityType}:${entityId}`;
+    const feedSubKey = `${SUB_FEED}${entityType}#${entityId}`;
 
     const feedSubsResult = await docClient.send(
       new QueryCommand({
