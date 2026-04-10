@@ -17,6 +17,7 @@ import type {
   DynamoDBStreamHandler,
 } from 'aws-lambda';
 import { ulid } from 'ulid';
+import { ENTITY_REPLICATION_INDEX } from '../configs/service.config';
 
 // $connect event includes query params and headers, but the base WebSocket type doesn't model them
 type WebSocketConnectEvent = APIGatewayProxyWebsocketEventV2 & {
@@ -66,6 +67,7 @@ interface ServerMessage {
 }
 
 const getTableName = () => process.env.CORE_TABLE || '';
+
 
 const getWsEndpoint = () => process.env.WEBSOCKET_MANAGEMENT_ENDPOINT || '';
 
@@ -212,6 +214,7 @@ export const connect = async (
 
 /**
  * $disconnect handler
+ * Cleans up connection record and all associated subscription records.
  */
 export const disconnect = async (
   event: APIGatewayProxyWebsocketEventV2,
@@ -224,19 +227,53 @@ export const disconnect = async (
   const tableName = getTableName();
 
   try {
-    // Delete connection record
-    await docClient.send(
-      new DeleteCommand({
+    // Read connection record to find associated subscriptions
+    // Query R1 GSI to find all subscription records for this connection
+    const subscriptionsResult = await docClient.send(
+      new QueryCommand({
         TableName: tableName,
-        Key: {
-          PK: `${CONN_PREFIX}${connectionId}`,
-          SK: METADATA_SK,
+        IndexName: ENTITY_REPLICATION_INDEX,
+        KeyConditionExpression: 'R1PK = :r1pk',
+        ExpressionAttributeValues: {
+          ':r1pk': `${CONN_PREFIX}${connectionId}`,
         },
       }),
     );
 
-    // Note: Subscriptions are automatically cleaned up via DynamoDB Stream
-    // when connection records are deleted
+    const deletePromises: Promise<any>[] = [];
+
+    // Delete all subscription records found via R1 GSI
+    if (subscriptionsResult.Items?.length) {
+      for (const item of subscriptionsResult.Items) {
+        const pk = item.PK as string;
+        const sk = item.SK as string;
+        if (pk && sk) {
+          deletePromises.push(
+            docClient.send(
+              new DeleteCommand({
+                TableName: tableName,
+                Key: { PK: pk, SK: sk },
+              }),
+            ).catch(() => {}),
+          );
+        }
+      }
+    }
+
+    // Delete connection record
+    deletePromises.push(
+      docClient.send(
+        new DeleteCommand({
+          TableName: tableName,
+          Key: {
+            PK: `${CONN_PREFIX}${connectionId}`,
+            SK: METADATA_SK,
+          },
+        }),
+      ),
+    );
+
+    await Promise.all(deletePromises);
 
     return { statusCode: 200, body: 'Disconnected' };
   } catch (error) {
@@ -293,6 +330,7 @@ export const $default = async (
               },
             }),
           );
+
         }
         // Mutual type subscription
         else if (byEntityType && byEntityId && mutualEntityType) {
@@ -314,6 +352,7 @@ export const $default = async (
               },
             }),
           );
+
         }
         // Ephemeral channel subscription
         else if (channel) {
@@ -333,6 +372,7 @@ export const $default = async (
               },
             }),
           );
+
         } else {
           return { statusCode: 400, body: 'Invalid subscription parameters' };
         }
@@ -497,8 +537,10 @@ export const $default = async (
 export const broadcast: DynamoDBStreamHandler = async (
   event: DynamoDBStreamEvent,
 ) => {
+  console.log('[WS_BROADCAST] Handler invoked, records:', event.Records.length);
   const tableName = getTableName();
   const wsEndpoint = getWsEndpoint();
+  console.log('[WS_BROADCAST] table:', tableName, 'wsEndpoint:', wsEndpoint);
   const managementApi = new ApiGatewayManagementApiClient({
     endpoint: wsEndpoint,
   });
@@ -518,8 +560,10 @@ export const broadcast: DynamoDBStreamHandler = async (
     const pk = image.PK?.S || '';
     const sk = image.SK?.S || '';
 
-    // Skip connection/subscription records
-    if (pk.startsWith('CONN#') || pk.startsWith('SUB:')) continue;
+    // Skip connection/subscription/ticket records
+    if (pk.startsWith('CONN#') || pk.startsWith('SUB#') || pk.startsWith('SUB:') || pk.startsWith('TICKET#') || pk.startsWith('LIST#') || pk.startsWith('MUTUAL#') || pk.startsWith('UNIQUE#') || pk.startsWith('EMAIL#')) continue;
+
+    console.log('[WS_BROADCAST] Processing record PK:', pk, 'SK:', sk);
 
     const pkParts = pk.split('#');
     if (pkParts.length < 2) continue;
@@ -546,32 +590,32 @@ export const broadcast: DynamoDBStreamHandler = async (
           }),
         );
 
-        if (!subscribersResult.Items?.length) continue;
+        if (subscribersResult.Items?.length) {
+          let eventType: ServerMessage['type'];
+          if (isInsert) eventType = 'mutual.created';
+          else if (isModify) eventType = 'mutual.updated';
+          else eventType = 'mutual.deleted';
 
-        let eventType: ServerMessage['type'];
-        if (isInsert) eventType = 'mutual.created';
-        else if (isModify) eventType = 'mutual.updated';
-        else eventType = 'mutual.deleted';
+          const message: ServerMessage = {
+            type: eventType,
+            id: ulid(),
+            payload: {
+              byEntityType: entityType,
+              byEntityId,
+              mutualEntityType,
+              entityId: skParts[1],
+              data: isRemove ? undefined : unmarshall(image as Record<string, any>),
+            },
+          };
 
-        const message: ServerMessage = {
-          type: eventType,
-          id: ulid(),
-          payload: {
-            byEntityType: entityType,
-            byEntityId,
-            mutualEntityType,
-            entityId: skParts[1],
-            data: isRemove ? undefined : unmarshall(image as Record<string, any>),
-          },
-        };
-
-        await broadcastToSubscribers(
-          managementApi,
-          docClient,
-          tableName,
-          subKey,
-          message,
-        );
+          await broadcastToSubscribers(
+            managementApi,
+            docClient,
+            tableName,
+            subKey,
+            message,
+          );
+        }
       } else {
         // Entity type broadcast
         const subKey = `${SUB_ENTITY_TYPE}${entityType}`;
@@ -585,30 +629,30 @@ export const broadcast: DynamoDBStreamHandler = async (
           }),
         );
 
-        if (!subscribersResult.Items?.length) continue;
+        if (subscribersResult.Items?.length) {
+          let eventType: ServerMessage['type'];
+          if (isInsert) eventType = 'entity.created';
+          else if (isModify) eventType = 'entity.updated';
+          else eventType = 'entity.deleted';
 
-        let eventType: ServerMessage['type'];
-        if (isInsert) eventType = 'entity.created';
-        else if (isModify) eventType = 'entity.updated';
-        else eventType = 'entity.deleted';
+          const message: ServerMessage = {
+            type: eventType,
+            id: ulid(),
+            payload: {
+              entityType,
+              entityId,
+              data: isRemove ? undefined : unmarshall(image as Record<string, any>),
+            },
+          };
 
-        const message: ServerMessage = {
-          type: eventType,
-          id: ulid(),
-          payload: {
-            entityType,
-            entityId,
-            data: isRemove ? undefined : unmarshall(image as Record<string, any>),
-          },
-        };
-
-        await broadcastToSubscribers(
-          managementApi,
-          docClient,
-          tableName,
-          subKey,
-          message,
-        );
+          await broadcastToSubscribers(
+            managementApi,
+            docClient,
+            tableName,
+            subKey,
+            message,
+          );
+        }
       }
       // Feed broadcast: resolve feed subscribers connected to this entity
       await broadcastToFeedSubscribers(
@@ -734,6 +778,8 @@ async function broadcastToFeedSubscribers(
     }),
   );
 
+  console.log('[FEED_BROADCAST] Query PK:', pk, 'found items:', mutualsResult.Items?.length || 0);
+
   if (!mutualsResult.Items?.length) return;
 
   // Collect unique connected entities (the "other side" of the mutual)
@@ -741,6 +787,7 @@ async function broadcastToFeedSubscribers(
 
   for (const item of mutualsResult.Items) {
     const sk = item.SK as string;
+    console.log('[FEED_BROADCAST] Item SK:', sk);
     if (!sk || sk === '#METADATA#' || sk.startsWith('#')) continue;
 
     // SK format: entityType#entityId
@@ -754,6 +801,9 @@ async function broadcastToFeedSubscribers(
 
   // Also check the entity itself as a feed subscriber
   connectedEntities.add(`${byEntityType}:${byEntityId}`);
+
+  console.log('[FEED_BROADCAST] Connected entities:', Array.from(connectedEntities));
+  console.log('[FEED_BROADCAST] Changed entity type:', changedEntityType);
 
   // Step 2: For each connected entity, check if they have a feed subscription
   const sentConnections = new Set<string>();
@@ -771,11 +821,14 @@ async function broadcastToFeedSubscribers(
       }),
     );
 
+    console.log('[FEED_BROADCAST] Feed sub query:', feedSubKey, 'found:', feedSubsResult.Items?.length || 0);
+
     if (!feedSubsResult.Items?.length) continue;
 
     for (const feedSub of feedSubsResult.Items) {
       const feedTypes = feedSub.feedTypes as string[] | undefined;
       const connectionId = feedSub.connectionId as string;
+      console.log('[FEED_BROADCAST] Feed sub:', { connectionId, feedTypes, changedEntityType, pass: !feedTypes || feedTypes.includes(changedEntityType) });
 
       // Check if the changed entity type is in the feed's allowed types
       if (feedTypes && !feedTypes.includes(changedEntityType)) continue;
