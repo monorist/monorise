@@ -537,8 +537,10 @@ export const $default = async (
 export const broadcast: DynamoDBStreamHandler = async (
   event: DynamoDBStreamEvent,
 ) => {
+  console.log('[WS_BROADCAST] Handler invoked, records:', event.Records.length);
   const tableName = getTableName();
   const wsEndpoint = getWsEndpoint();
+  console.log('[WS_BROADCAST] table:', tableName, 'wsEndpoint:', wsEndpoint);
   const managementApi = new ApiGatewayManagementApiClient({
     endpoint: wsEndpoint,
   });
@@ -558,8 +560,10 @@ export const broadcast: DynamoDBStreamHandler = async (
     const pk = image.PK?.S || '';
     const sk = image.SK?.S || '';
 
-    // Skip connection/subscription records
-    if (pk.startsWith('CONN#') || pk.startsWith('SUB:')) continue;
+    // Skip connection/subscription/ticket records
+    if (pk.startsWith('CONN#') || pk.startsWith('SUB#') || pk.startsWith('SUB:') || pk.startsWith('TICKET#') || pk.startsWith('LIST#') || pk.startsWith('MUTUAL#') || pk.startsWith('UNIQUE#') || pk.startsWith('EMAIL#')) continue;
+
+    console.log('[WS_BROADCAST] Processing record PK:', pk, 'SK:', sk);
 
     const pkParts = pk.split('#');
     if (pkParts.length < 2) continue;
@@ -586,32 +590,32 @@ export const broadcast: DynamoDBStreamHandler = async (
           }),
         );
 
-        if (!subscribersResult.Items?.length) continue;
+        if (subscribersResult.Items?.length) {
+          let eventType: ServerMessage['type'];
+          if (isInsert) eventType = 'mutual.created';
+          else if (isModify) eventType = 'mutual.updated';
+          else eventType = 'mutual.deleted';
 
-        let eventType: ServerMessage['type'];
-        if (isInsert) eventType = 'mutual.created';
-        else if (isModify) eventType = 'mutual.updated';
-        else eventType = 'mutual.deleted';
+          const message: ServerMessage = {
+            type: eventType,
+            id: ulid(),
+            payload: {
+              byEntityType: entityType,
+              byEntityId,
+              mutualEntityType,
+              entityId: skParts[1],
+              data: isRemove ? undefined : unmarshall(image as Record<string, any>),
+            },
+          };
 
-        const message: ServerMessage = {
-          type: eventType,
-          id: ulid(),
-          payload: {
-            byEntityType: entityType,
-            byEntityId,
-            mutualEntityType,
-            entityId: skParts[1],
-            data: isRemove ? undefined : unmarshall(image as Record<string, any>),
-          },
-        };
-
-        await broadcastToSubscribers(
-          managementApi,
-          docClient,
-          tableName,
-          subKey,
-          message,
-        );
+          await broadcastToSubscribers(
+            managementApi,
+            docClient,
+            tableName,
+            subKey,
+            message,
+          );
+        }
       } else {
         // Entity type broadcast
         const subKey = `${SUB_ENTITY_TYPE}${entityType}`;
@@ -625,30 +629,30 @@ export const broadcast: DynamoDBStreamHandler = async (
           }),
         );
 
-        if (!subscribersResult.Items?.length) continue;
+        if (subscribersResult.Items?.length) {
+          let eventType: ServerMessage['type'];
+          if (isInsert) eventType = 'entity.created';
+          else if (isModify) eventType = 'entity.updated';
+          else eventType = 'entity.deleted';
 
-        let eventType: ServerMessage['type'];
-        if (isInsert) eventType = 'entity.created';
-        else if (isModify) eventType = 'entity.updated';
-        else eventType = 'entity.deleted';
+          const message: ServerMessage = {
+            type: eventType,
+            id: ulid(),
+            payload: {
+              entityType,
+              entityId,
+              data: isRemove ? undefined : unmarshall(image as Record<string, any>),
+            },
+          };
 
-        const message: ServerMessage = {
-          type: eventType,
-          id: ulid(),
-          payload: {
-            entityType,
-            entityId,
-            data: isRemove ? undefined : unmarshall(image as Record<string, any>),
-          },
-        };
-
-        await broadcastToSubscribers(
-          managementApi,
-          docClient,
-          tableName,
-          subKey,
-          message,
-        );
+          await broadcastToSubscribers(
+            managementApi,
+            docClient,
+            tableName,
+            subKey,
+            message,
+          );
+        }
       }
       // Feed broadcast: resolve feed subscribers connected to this entity
       await broadcastToFeedSubscribers(
@@ -774,6 +778,8 @@ async function broadcastToFeedSubscribers(
     }),
   );
 
+  console.log('[FEED_BROADCAST] Query PK:', pk, 'found items:', mutualsResult.Items?.length || 0);
+
   if (!mutualsResult.Items?.length) return;
 
   // Collect unique connected entities (the "other side" of the mutual)
@@ -781,6 +787,7 @@ async function broadcastToFeedSubscribers(
 
   for (const item of mutualsResult.Items) {
     const sk = item.SK as string;
+    console.log('[FEED_BROADCAST] Item SK:', sk);
     if (!sk || sk === '#METADATA#' || sk.startsWith('#')) continue;
 
     // SK format: entityType#entityId
@@ -794,6 +801,9 @@ async function broadcastToFeedSubscribers(
 
   // Also check the entity itself as a feed subscriber
   connectedEntities.add(`${byEntityType}:${byEntityId}`);
+
+  console.log('[FEED_BROADCAST] Connected entities:', Array.from(connectedEntities));
+  console.log('[FEED_BROADCAST] Changed entity type:', changedEntityType);
 
   // Step 2: For each connected entity, check if they have a feed subscription
   const sentConnections = new Set<string>();
@@ -811,11 +821,14 @@ async function broadcastToFeedSubscribers(
       }),
     );
 
+    console.log('[FEED_BROADCAST] Feed sub query:', feedSubKey, 'found:', feedSubsResult.Items?.length || 0);
+
     if (!feedSubsResult.Items?.length) continue;
 
     for (const feedSub of feedSubsResult.Items) {
       const feedTypes = feedSub.feedTypes as string[] | undefined;
       const connectionId = feedSub.connectionId as string;
+      console.log('[FEED_BROADCAST] Feed sub:', { connectionId, feedTypes, changedEntityType, pass: !feedTypes || feedTypes.includes(changedEntityType) });
 
       // Check if the changed entity type is in the feed's allowed types
       if (feedTypes && !feedTypes.includes(changedEntityType)) continue;
