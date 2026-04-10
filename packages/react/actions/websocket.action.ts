@@ -493,6 +493,7 @@ export const initWebSocketActions = (
     const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
     const wsManagerRef = useRef<WebSocketManager | null>(null);
     const isMountedRef = useRef(true);
+    const connectingRef = useRef(false);
 
     const fetchTicket = useCallback(async () => {
       try {
@@ -527,41 +528,67 @@ export const initWebSocketActions = (
     }, [entityType, entityId, ticketEndpoint]);
 
     const connectWithTicket = useCallback(async () => {
-      const result = await fetchTicket();
+      if (connectingRef.current) return;
+      connectingRef.current = true;
 
-      if (!isMountedRef.current) return;
+      // Retry ticket fetch with backoff
+      let result: Awaited<ReturnType<typeof fetchTicket>> | null = null;
+      const maxRetries = 3;
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        result = await fetchTicket();
 
-      if (result.error) {
-        setError(result.error);
+        if (!isMountedRef.current) {
+          connectingRef.current = false;
+          return;
+        }
+
+        if (!result.error) break;
+
+        // Don't retry auth errors
+        if (result.error.code === 'TICKET_UNAUTHORIZED') break;
+
+        if (attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+          if (!isMountedRef.current) {
+            connectingRef.current = false;
+            return;
+          }
+        }
+      }
+
+      if (result!.error) {
+        setError(result!.error);
         setIsConnected(false);
+        connectingRef.current = false;
         return;
       }
 
       setError(null);
-      const { ticket, wsUrl, expiresIn } = result.data!;
-
-      // Disconnect existing connection if any
+      const { ticket, wsUrl, expiresIn } = result!.data!;
+      // Disconnect existing connection
       if (wsManagerRef.current) {
         wsManagerRef.current.disconnect();
       }
 
-      // Use the WebSocketManager class from the module scope
-      // Import dynamically to avoid circular deps
       const { WebSocketManager: WsManagerClass } = await import('../websocket');
 
-      const manager = new WsManagerClass(wsUrl, ticket);
+      const wsUrlWithTicket = `${wsUrl}?ticket=${encodeURIComponent(ticket)}`;
+      const manager = new WsManagerClass(wsUrlWithTicket, '');
+      manager.disableAutoReconnect = true;
       wsManagerRef.current = manager;
-
-      // Also set as global so other hooks (useMutualSocket etc.) can use it
       globalWsManager = manager;
 
       manager.onStateChange((state: ConnectionState) => {
         if (!isMountedRef.current) return;
+        // Ignore events from old managers (stale callbacks)
+        if (wsManagerRef.current !== manager) return;
 
         if (state === 'connected') {
+          connectingRef.current = false;
           setIsConnected(true);
           setError(null);
         } else if (state === 'disconnected') {
+          connectingRef.current = false;
           setIsConnected(false);
         }
       });
@@ -638,20 +665,41 @@ export const initWebSocketActions = (
       const refreshMs = Math.max((expiresIn - 120) * 1000, 60000); // refresh 2 min before expiry, minimum 1 min
       refreshTimerRef.current = setTimeout(() => {
         if (isMountedRef.current) {
-          connectWithTicket();
+          connectRef.current();
         }
       }, refreshMs);
     }, [fetchTicket]);
+
+    const connectRef = useRef(connectWithTicket);
+    connectRef.current = connectWithTicket;
 
     useEffect(() => {
       isMountedRef.current = true;
 
       if (entityId) {
-        connectWithTicket();
+        connectRef.current();
       }
+
+      // Detect wake from sleep using periodic check
+      // visibilitychange doesn't reliably fire on laptop sleep
+      let lastCheckTime = Date.now();
+      const sleepCheckInterval = setInterval(() => {
+        const now = Date.now();
+        const elapsed = now - lastCheckTime;
+        lastCheckTime = now;
+
+        // If >30s elapsed since last check, device was likely asleep
+        if (elapsed > 30000 && wsManagerRef.current) {
+          wsManagerRef.current.disconnect();
+          wsManagerRef.current = null;
+          connectingRef.current = false;
+          connectRef.current();
+        }
+      }, 5000);
 
       return () => {
         isMountedRef.current = false;
+        clearInterval(sleepCheckInterval);
         if (refreshTimerRef.current) {
           clearTimeout(refreshTimerRef.current);
         }
@@ -660,7 +708,7 @@ export const initWebSocketActions = (
           wsManagerRef.current = null;
         }
       };
-    }, [entityType, entityId, connectWithTicket]);
+    }, [entityType, entityId]);
 
     return { isConnected, error };
   };
