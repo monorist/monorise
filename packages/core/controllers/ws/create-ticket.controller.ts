@@ -26,16 +26,31 @@ export class CreateTicketController {
       // No body or invalid JSON — use default (all mutual types)
     }
 
-    // If no feedTypes specified, resolve all mutual types from entity config
+    // If no feedTypes specified, resolve all reachable entity types from config
+    // Traverses the mutual graph transitively: user → channel → message
     if (!feedTypes || feedTypes.length === 0) {
-      const entityConfig = this.container.config.EntityConfig[entityType as any];
-      if (entityConfig?.mutual?.mutualFields) {
-        feedTypes = Object.values(entityConfig.mutual.mutualFields).map(
-          (field: any) => field.entityType,
-        );
-      } else {
-        feedTypes = [];
+      const allConfigs = this.container.config.EntityConfig;
+      const visited = new Set<string>();
+      const queue: string[] = [entityType];
+
+      while (queue.length > 0) {
+        const current = queue.shift()!;
+        if (visited.has(current)) continue;
+        visited.add(current);
+
+        const config = allConfigs[current as any];
+        if (config?.mutual?.mutualFields) {
+          for (const field of Object.values(config.mutual.mutualFields) as any[]) {
+            if (!visited.has(field.entityType)) {
+              queue.push(field.entityType);
+            }
+          }
+        }
       }
+
+      // Remove the root entity itself — feedTypes is about related types
+      visited.delete(entityType);
+      feedTypes = Array.from(visited);
     }
 
     const ticket = ulid();
