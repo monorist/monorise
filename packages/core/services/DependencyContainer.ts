@@ -26,6 +26,7 @@ import { EntityService } from './entity.service';
 import { MutualService } from './mutual.service';
 
 import { ListTagsController } from '../controllers/tag/list-tags.controller';
+import { CreateTicketController } from '../controllers/ws/create-ticket.controller';
 import { EntityServiceLifeCycle } from './entity-service-lifecycle';
 
 export class DependencyContainer {
@@ -238,5 +239,9 @@ export class DependencyContainer {
 
   get listTagsController(): ListTagsController {
     return this.createCachedInstance(ListTagsController, this.tagRepository);
+  }
+
+  get createTicketController(): CreateTicketController {
+    return this.createCachedInstance(CreateTicketController, this);
   }
 }

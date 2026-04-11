@@ -70,16 +70,12 @@ export class MonoriseCore {
     const secretApiKeys = new sst.Secret('API_KEYS', '["secret1", "secret2"]');
 
     const appHandlerName = `${$app.stage}-${$app.name}-${id}-app-handler`;
-    this.api.route('ANY /core/{proxy+}', {
-      name: appHandlerName,
-      handler: `${dotMonorisePath}/handle.appHandler`,
-      link: [this.table.table, this.bus, secretApiKeys],
-      environment: {
-        API_KEYS: secretApiKeys.value,
-        CORE_TABLE: this.table.table.name,
-        CORE_EVENT_BUS: this.bus.name,
-      },
-    });
+    const appHandlerEnvironment: Record<string, any> = {
+      API_KEYS: secretApiKeys.value,
+      CORE_TABLE: this.table.table.name,
+      CORE_EVENT_BUS: this.bus.name,
+    };
+    const appHandlerLinks: any[] = [this.table.table, this.bus, secretApiKeys];
 
     this.alarmTopic = new sst.aws.SnsTopic(`${id}-monorise-dlq-alarm-topic`);
 
@@ -234,6 +230,19 @@ export class MonoriseCore {
         },
       );
     }
+
+    // Add WebSocket URL to app handler if WebSocket is enabled
+    if (this.websocket) {
+      appHandlerEnvironment.WEBSOCKET_URL = this.websocket.url;
+      appHandlerLinks.push(this.websocket);
+    }
+
+    this.api.route('ANY /core/{proxy+}', {
+      name: appHandlerName,
+      handler: `${dotMonorisePath}/handle.appHandler`,
+      link: appHandlerLinks,
+      environment: appHandlerEnvironment,
+    });
 
     /**
      * CloudWatch Dashboard
