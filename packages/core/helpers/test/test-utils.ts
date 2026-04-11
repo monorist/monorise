@@ -27,6 +27,7 @@ export enum MockEntityType {
   PRODUCT = 'product',
   ADMIN = 'admin',
   COURSE = 'course',
+  WALLET = 'wallet',
 }
 
 // --- Configuration ---
@@ -95,6 +96,19 @@ export const createMockEntityConfig = () => ({
     name: MockEntityType.COURSE,
     displayName: 'Course',
     baseSchema: z.object({}), // Empty schema for placeholder
+  }),
+  [MockEntityType.WALLET]: createEntityConfig({
+    name: MockEntityType.WALLET,
+    displayName: 'Wallet',
+    baseSchema: z
+      .object({
+        balance: z.number(),
+        credits: z.number(),
+        minBalance: z.number(),
+        creditLimit: z.number(),
+        score: z.number(),
+      })
+      .partial(),
   }),
 });
 
