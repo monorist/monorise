@@ -494,6 +494,8 @@ export const initWebSocketActions = (
     const wsManagerRef = useRef<WebSocketManager | null>(null);
     const isMountedRef = useRef(true);
     const connectingRef = useRef(false);
+    const reconnectCountRef = useRef(0);
+    const lastConnectedAtRef = useRef(0);
 
     const fetchTicket = useCallback(async () => {
       try {
@@ -585,11 +587,26 @@ export const initWebSocketActions = (
 
         if (state === 'connected') {
           connectingRef.current = false;
+          reconnectCountRef.current = 0;
+          lastConnectedAtRef.current = Date.now();
           setIsConnected(true);
           setError(null);
         } else if (state === 'disconnected') {
           connectingRef.current = false;
           setIsConnected(false);
+
+          // Only auto-reconnect if we were connected for >5s (stable connection)
+          // and haven't exceeded max reconnect attempts
+          const wasStable = Date.now() - lastConnectedAtRef.current > 5000;
+          if (wasStable && reconnectCountRef.current < 5) {
+            reconnectCountRef.current++;
+            const delay = 2000 * Math.pow(2, reconnectCountRef.current - 1);
+            setTimeout(() => {
+              if (isMountedRef.current && !connectingRef.current) {
+                connectRef.current();
+              }
+            }, delay);
+          }
         }
       });
 
@@ -681,25 +698,35 @@ export const initWebSocketActions = (
       }
 
       // Detect wake from sleep using periodic check
-      // visibilitychange doesn't reliably fire on laptop sleep
       let lastCheckTime = Date.now();
       const sleepCheckInterval = setInterval(() => {
         const now = Date.now();
         const elapsed = now - lastCheckTime;
         lastCheckTime = now;
 
-        // If >30s elapsed since last check, device was likely asleep
         if (elapsed > 30000 && wsManagerRef.current) {
           wsManagerRef.current.disconnect();
           wsManagerRef.current = null;
           connectingRef.current = false;
+          reconnectCountRef.current = 0;
           connectRef.current();
         }
       }, 5000);
 
+      // Reconnect when network comes back online
+      const handleOnline = () => {
+        if (!isMountedRef.current) return;
+        if (wsManagerRef.current?.getState() === 'connected') return;
+        if (connectingRef.current) return;
+        reconnectCountRef.current = 0;
+        connectRef.current();
+      };
+      window.addEventListener('online', handleOnline);
+
       return () => {
         isMountedRef.current = false;
         clearInterval(sleepCheckInterval);
+        window.removeEventListener('online', handleOnline);
         if (refreshTimerRef.current) {
           clearTimeout(refreshTimerRef.current);
         }
