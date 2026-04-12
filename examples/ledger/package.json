@@ -11,7 +11,7 @@
     "services/*"
   ],
   "dependencies": {
-    "monorise": "file:../../packages/monorise/monorise-0.0.4.tgz",
+    "monorise": "^0.1.0",
     "sst": "3.17.38",
     "zod": "^3.25.67"
   },
