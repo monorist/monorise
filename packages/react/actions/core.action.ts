@@ -631,6 +631,75 @@ const initCoreActions = (
     }
   };
 
+  const adjustEntity = async <T extends Entity>(
+    entityType: T,
+    id: string,
+    adjustments: Record<string, number>,
+    opts: CommonOptions = {},
+  ) => {
+    const entityService = makeEntityService(entityType);
+    const onError = opts.onError ?? defaultOnError;
+
+    try {
+      const { data } = await entityService.adjustEntity(id, adjustments, opts);
+
+      // Update local store with server response
+      monoriseStore.setState(
+        produce((state) => {
+          state.entity[entityType].dataMap.set(data.entityId, data);
+
+          // Propagate to mutual stores
+          for (const key of Object.keys(state.mutual)) {
+            const [_byEntity, _byId, _entityType] = key.split('/');
+            if ((_entityType as unknown as Entity) === entityType) {
+              const mutual = state.mutual[key].dataMap.get(id);
+              if (mutual) {
+                state.mutual[key].dataMap = new Map(
+                  state.mutual[key].dataMap,
+                ).set(id, { ...(mutual as any), data: data.data });
+              }
+            }
+          }
+
+          for (const key of Object.keys(state.mutual)) {
+            const [_byEntity, _byId] = key.split('/');
+            if ((_byEntity as unknown as Entity) === entityType && _byId === id) {
+              const newDataMap = new Map(state.mutual[key].dataMap);
+              for (const [entryId, mutual] of newDataMap) {
+                newDataMap.set(entryId, { ...(mutual as any), data: data.data });
+              }
+              state.mutual[key].dataMap = newDataMap;
+            }
+          }
+
+          // Propagate to tag stores
+          for (const tagKey of Object.keys(state.tag)) {
+            const [tagEntityType] = tagKey.split('/');
+            if ((tagEntityType as unknown as Entity) === entityType) {
+              if (state.tag[tagKey]?.dataMap?.has(id)) {
+                state.tag[tagKey].dataMap.set(id, data);
+              }
+            }
+          }
+        }),
+        undefined,
+        `mr/entity/adjust/${entityType}/${id}`,
+      );
+
+      return { data };
+    } catch (err: any) {
+      // Constraint violated — refetch entity to get latest state
+      if (err?.response?.status === 409) {
+        await getEntity(entityType, id, { forceFetch: true });
+      }
+
+      const error: Error & { originalError?: unknown } =
+        err instanceof Error ? err : new Error('Unknown error occurred');
+      onError(error);
+      return { error };
+    }
+  };
+
   const deleteEntity = async <T extends Entity>(
     entityType: T,
     id: string,
@@ -1780,6 +1849,7 @@ const initCoreActions = (
     upsertEntity,
     getEntity,
     editEntity,
+    adjustEntity,
     deleteEntity,
     getMutual,
     updateLocalEntity,

@@ -89,4 +89,84 @@ export abstract class Repository {
 
     return updateAttributes;
   }
+
+  toAdjustUpdate(
+    adjustments: Record<string, number>,
+    constraints?: {
+      [field: string]: {
+        min?: number;
+        max?: number;
+        minField?: string;
+        maxField?: string;
+      };
+    },
+    prefix = 'data',
+  ): {
+    UpdateExpression: string;
+    ConditionExpression?: string;
+    ExpressionAttributeNames: Record<string, string>;
+    ExpressionAttributeValues: Record<string, AttributeValue>;
+  } {
+    const parts: string[] = [];
+    const conditionParts: string[] = [];
+    const expressionAttributeNames: Record<string, string> = {};
+    const expressionAttributeValues: Record<string, unknown> = {};
+
+    expressionAttributeNames[`#${prefix}`] = prefix;
+
+    for (const field of Object.keys(adjustments)) {
+      const namePlaceholder = `#${field}`;
+      const valuePlaceholder = `:${field}`;
+      const fieldExpr = `if_not_exists(#${prefix}.${namePlaceholder}, :zero)`;
+
+      parts.push(
+        `#${prefix}.${namePlaceholder} = ${fieldExpr} + ${valuePlaceholder}`,
+      );
+
+      expressionAttributeNames[namePlaceholder] = field;
+      expressionAttributeValues[valuePlaceholder] = adjustments[field];
+
+      // Build constraint conditions using pre-computed thresholds.
+      // ConditionExpression checks the current value against the threshold.
+      // UpdateExpression applies the delta. Both in a single atomic UpdateItem.
+      //
+      // For min with negative delta: currentValue >= (min + abs(delta))
+      // For max with positive delta: currentValue <= (max - delta)
+      //
+      // For dynamic minField/maxField: the service layer reads the entity's
+      // field value first, then passes it as a resolved static constraint.
+      if (constraints?.[field]) {
+        const constraint = constraints[field];
+        const delta = adjustments[field];
+        const currentFieldRef = `#${prefix}.${namePlaceholder}`;
+
+        // Static min — only check when decrementing
+        // Condition: currentValue >= min + abs(delta)
+        // If field doesn't exist, condition fails (safe — can't withdraw from nothing)
+        if (constraint.min !== undefined && delta < 0) {
+          const thresholdPlaceholder = `:${field}_min_threshold`;
+          conditionParts.push(`${currentFieldRef} >= ${thresholdPlaceholder}`);
+          expressionAttributeValues[thresholdPlaceholder] = constraint.min - delta;
+        }
+        // Static max — only check when incrementing
+        // Condition: currentValue <= max - delta
+        if (constraint.max !== undefined && delta > 0) {
+          const thresholdPlaceholder = `:${field}_max_threshold`;
+          conditionParts.push(`${currentFieldRef} <= ${thresholdPlaceholder}`);
+          expressionAttributeValues[thresholdPlaceholder] = constraint.max - delta;
+        }
+      }
+    }
+
+    expressionAttributeValues[':zero'] = 0;
+
+    return {
+      UpdateExpression: `SET ${parts.join(', ')}`,
+      ...(conditionParts.length > 0 && {
+        ConditionExpression: conditionParts.join(' AND '),
+      }),
+      ExpressionAttributeNames: expressionAttributeNames,
+      ExpressionAttributeValues: marshall(expressionAttributeValues),
+    };
+  }
 }
