@@ -9,6 +9,3 @@ export const monorise = {
     QFunction,
   },
 };
-
-
-

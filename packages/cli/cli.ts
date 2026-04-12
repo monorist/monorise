@@ -237,7 +237,6 @@ async function generateHandleFile(
   // Detect whether the consumer uses the combined 'monorise' package or scoped '@monorise/*' packages
   const usesCombinedPackage = detectCombinedPackage(projectRoot);
   const coreImportPath = usesCombinedPackage ? 'monorise/core' : '@monorise/core';
-  const sstImportPath = usesCombinedPackage ? 'monorise/sst' : '@monorise/sst';
 
   const combinedContent = `
 import CoreFactory from '${coreImportPath}';
