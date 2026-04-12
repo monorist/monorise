@@ -301,5 +301,7 @@ Monorise provides WebSocket hooks for real-time updates. These are documented in
 | `useMutualSocket(byType, byId, entityType, opts?)` | Subscribe to mutual changes for a specific entity pair |
 | `useEphemeralSocket(channel, opts?)` | Non-persisted messages (typing indicators, presence) |
 
+The feed hook auto-updates the same stores that `useEntities` and `useMutuals` read from — no new API to learn. See the [WebSocket chat example](/websocket#example-chat-app) for a complete working app with entity feed, unread tracking, typing indicators, and connection recovery.
+
 The feed hook auto-updates the same stores that `useEntities` and `useMutuals` read from — no new API to learn.
 

@@ -251,3 +251,74 @@ useEntityFeed()
   ◄── { type: 'entity.created', payload: ... }
        (auto-updates zustand store)
 ```
+
+## Example: Chat App
+
+A full working chat application demonstrates the WebSocket features end-to-end.
+
+**[Live demo](https://d1n9mvjkvdjtz1.cloudfront.net/)** · **[Source code](https://github.com/monorist/monorise/tree/main/examples/websocket-chat)**
+
+### What it demonstrates
+
+- **Entity feed** — `useEntityFeed` provides real-time updates across all joined channels with a single hook
+- **Channel membership** — users join channels via mutuals; sidebar separates "Joined" and "Browse" sections
+- **Unread messages** — `lastReadAt` stored as mutual data between user and channel, unread count badge in the sidebar, "New" divider in the conversation view
+- **Typing indicators** — `useEphemeralSocket` for non-persisted real-time events
+- **Connection recovery** — automatic reconnect after network drops and sleep/wake
+
+### Key patterns
+
+#### Setting up the feed
+
+```tsx
+function ChatApp({ currentUserId }) {
+  const { isConnected, error } = useEntityFeed({
+    entityType: Entity.USER,
+    entityId: currentUserId,
+  });
+
+  // Existing hooks automatically reflect real-time changes
+  const { mutuals: joinedChannels } = useMutuals(
+    Entity.USER, Entity.CHANNEL, currentUserId,
+  );
+}
+```
+
+#### Tracking unread messages
+
+Store a `lastReadAt` timestamp as mutual data between user and channel. When the user views a channel, update it:
+
+```tsx
+// Mark channel as read
+editMutual(Entity.USER, Entity.CHANNEL, userId, channelId, {
+  lastReadAt: new Date().toISOString(),
+});
+```
+
+Count unread messages by listening for incoming feed messages on non-active channels:
+
+```tsx
+const ws = getWebSocketManager();
+ws.onMessage((msg) => {
+  if (msg.type !== 'mutual.created') return;
+  const { byEntityType, mutualEntityType, byEntityId } = msg.payload;
+  if (byEntityType !== 'channel' || mutualEntityType !== 'message') return;
+  if (byEntityId === selectedChannelId) return; // skip active channel
+  // increment unread count for byEntityId
+});
+```
+
+#### Typing indicators
+
+```tsx
+// Send
+const { send } = useEphemeralSocket(`channel:${channelId}:typing`);
+send({ type: 'typing', userId, userName });
+
+// Receive
+useEphemeralSocket(`channel:${channelId}:typing`, {
+  onMessage: (data) => {
+    // show typing indicator for data.userName
+  },
+});
+```
