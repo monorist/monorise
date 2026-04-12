@@ -1,5 +1,11 @@
 # @monorise/base
 
+## 3.1.0
+
+### Minor Changes
+
+- b5a1fea: Add adjustEntity for atomic numeric updates on entity fields. Uses DynamoDB's native arithmetic expressions (SET field = field + delta) for race-condition-free concurrent writes. Useful for counters, accumulators, and real-time metrics.
+
 ## 3.0.2
 
 ### Patch Changes
