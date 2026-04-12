@@ -1,0 +1,21 @@
+{
+  "name": "ledger-example",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx sst dev"
+  },
+  "workspaces": [
+    "apps/*",
+    "services/*"
+  ],
+  "dependencies": {
+    "monorise": "^0.1.0",
+    "sst": "3.17.38",
+    "zod": "^3.25.67"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}
