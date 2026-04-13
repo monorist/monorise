@@ -1,21 +1,11 @@
 'use client';
 
 import { useEntity } from 'monorise/react';
+import type { CreatedEntity } from 'monorise/base';
 import { Entity } from '#/monorise/entities';
 import { Badge } from '#/components/ui/badge';
 
-type Transaction = {
-  entityId: string;
-  data: {
-    amount: number;
-    type: 'sale' | 'refund' | 'discount';
-    description?: string;
-    transactionDate: string;
-    status: string;
-    merchantId: string;
-    buyerId: string;
-  };
-};
+type Transaction = CreatedEntity<Entity.TRANSACTION>;
 
 function formatCurrency(cents: number) {
   return `$${(cents / 100).toFixed(2)}`;

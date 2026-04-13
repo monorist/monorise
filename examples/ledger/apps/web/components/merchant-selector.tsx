@@ -1,11 +1,10 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import type { CreatedEntity } from 'monorise/base';
+import { Entity } from '#/monorise/entities';
 
-type Merchant = {
-  entityId: string;
-  data: { name: string; [key: string]: any };
-};
+type Merchant = CreatedEntity<Entity.MERCHANT>;
 
 export default function MerchantSelector({
   merchants,
