@@ -30,6 +30,17 @@ export interface UseMutualSocketReturn<T extends Entity> {
   hasMore: boolean;
 }
 
+export interface UseEntityFeedOptions {
+  entityType: Entity;
+  entityId: string;
+  ticketEndpoint?: string;
+}
+
+export interface UseEntityFeedReturn {
+  isConnected: boolean;
+  error: { code: string; message: string } | null;
+}
+
 let globalWsManager: WebSocketManager | null = null;
 let wsEndpoint: string | undefined;
 
@@ -51,7 +62,7 @@ export const getWebSocketManager = () => globalWsManager;
 
 export const initWebSocketActions = (
   monoriseStore: MonoriseStore,
-  httpActions: {
+  httpActions?: {
     listEntities: <T extends Entity>(
       entityType: T,
       params?: { limit?: number; lastKey?: string },
@@ -84,6 +95,7 @@ export const initWebSocketActions = (
     });
 
     const fetchData = async (type: 'initial' | 'more' | 'refresh') => {
+      if (!httpActions) return;
       if (type === 'more') {
         setIsFetchingMore(true);
       } else if (type === 'refresh') {
@@ -243,7 +255,7 @@ export const initWebSocketActions = (
     });
 
     const fetchData = async (type: 'initial' | 'more' | 'refresh') => {
-      if (!byEntityId) return;
+      if (!byEntityId || !httpActions) return;
 
       if (type === 'more') {
         setIsFetchingMore(true);
@@ -459,10 +471,281 @@ export const initWebSocketActions = (
     return { isSubscribed, send };
   };
 
+  /**
+   * Subscribe to an entity's real-time feed.
+   *
+   * Fetches a ticket (via ticketEndpoint or default monorise route through catch-all proxy),
+   * establishes a WebSocket connection, and auto-updates entity/mutual stores.
+   * Handles ticket refresh and auto-resync on reconnect.
+   *
+   * @example
+   * ```tsx
+   * // Internal app (uses catch-all proxy)
+   * useEntityFeed({ entityType: Entity.USER, entityId: userId });
+   *
+   * // Client-facing app (custom auth endpoint)
+   * useEntityFeed({ entityType: Entity.USER, entityId: userId, ticketEndpoint: '/api/ws/ticket' });
+   * ```
+   */
+  const useEntityFeed = (opts: UseEntityFeedOptions): UseEntityFeedReturn => {
+    const { entityType, entityId, ticketEndpoint } = opts;
+    const [isConnected, setIsConnected] = useState(false);
+    const [error, setError] = useState<{ code: string; message: string } | null>(null);
+    const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const wsManagerRef = useRef<WebSocketManager | null>(null);
+    const isMountedRef = useRef(true);
+    const connectingRef = useRef(false);
+    const reconnectCountRef = useRef(0);
+    const connectRef = useRef<() => void>(() => {});
+    const lastConnectedAtRef = useRef(0);
+
+    const fetchTicket = useCallback(async () => {
+      try {
+        const url = ticketEndpoint
+          || `/api/core/ws/ticket/${entityType}/${entityId}`;
+
+        const fetchOpts: RequestInit = {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        };
+
+        // Only send body for custom endpoints (default route gets params from URL)
+        if (ticketEndpoint) {
+          fetchOpts.body = JSON.stringify({ entityType, entityId });
+        }
+
+        const response = await fetch(url, fetchOpts);
+
+        if (response.status === 401 || response.status === 403) {
+          return { error: { code: 'TICKET_UNAUTHORIZED', message: 'Unauthorized' } };
+        }
+
+        if (!response.ok) {
+          return { error: { code: 'TICKET_FAILED', message: `HTTP ${response.status}` } };
+        }
+
+        const data = await response.json();
+        return { data: data as { ticket: string; wsUrl: string; expiresIn: number } };
+      } catch (err) {
+        return { error: { code: 'TICKET_FAILED', message: (err as Error).message } };
+      }
+    }, [entityType, entityId, ticketEndpoint]);
+
+    const connectWithTicket = useCallback(async () => {
+      if (connectingRef.current) return;
+      connectingRef.current = true;
+
+      // Retry ticket fetch with backoff
+      let result: Awaited<ReturnType<typeof fetchTicket>> | null = null;
+      const maxRetries = 3;
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        result = await fetchTicket();
+
+        if (!isMountedRef.current) {
+          connectingRef.current = false;
+          return;
+        }
+
+        if (!result.error) break;
+
+        // Don't retry auth errors
+        if (result.error.code === 'TICKET_UNAUTHORIZED') break;
+
+        if (attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, 1000 * Math.pow(2, attempt)));
+          if (!isMountedRef.current) {
+            connectingRef.current = false;
+            return;
+          }
+        }
+      }
+
+      if (result!.error) {
+        setError(result!.error);
+        setIsConnected(false);
+        connectingRef.current = false;
+        return;
+      }
+
+      setError(null);
+      const { ticket, wsUrl, expiresIn } = result!.data!;
+      // Disconnect existing connection
+      if (wsManagerRef.current) {
+        wsManagerRef.current.disconnect();
+      }
+
+      const { WebSocketManager: WsManagerClass } = await import('../websocket');
+
+      const wsUrlWithTicket = `${wsUrl}?ticket=${encodeURIComponent(ticket)}`;
+      const manager = new WsManagerClass(wsUrlWithTicket, '');
+      manager.disableAutoReconnect = true;
+      wsManagerRef.current = manager;
+      globalWsManager = manager;
+
+      manager.onStateChange((state: ConnectionState) => {
+        if (!isMountedRef.current) return;
+        // Ignore events from old managers (stale callbacks)
+        if (wsManagerRef.current !== manager) return;
+
+        if (state === 'connected') {
+          connectingRef.current = false;
+          reconnectCountRef.current = 0;
+          lastConnectedAtRef.current = Date.now();
+          setIsConnected(true);
+          setError(null);
+        } else if (state === 'disconnected') {
+          connectingRef.current = false;
+          setIsConnected(false);
+
+          // Only auto-reconnect if we were connected for >5s (stable connection)
+          // and haven't exceeded max reconnect attempts
+          const wasStable = Date.now() - lastConnectedAtRef.current > 5000;
+          if (wasStable && reconnectCountRef.current < 5) {
+            reconnectCountRef.current++;
+            const delay = 2000 * Math.pow(2, reconnectCountRef.current - 1);
+            setTimeout(() => {
+              if (isMountedRef.current && !connectingRef.current) {
+                connectRef.current();
+              }
+            }, delay);
+          }
+        }
+      });
+
+      // Route feed messages into stores
+      manager.onMessage((msg: ServerMessage) => {
+        if (!isMountedRef.current) return;
+
+        if (msg.type === 'entity.created' || msg.type === 'entity.updated') {
+          const payload = msg.payload as {
+            entityType: string;
+            entityId: string;
+            data?: any;
+          };
+          if (payload.data) {
+            monoriseStore.setState(
+              produce((state) => {
+                const key = payload.entityType;
+                if (!state.entity[key]) {
+                  state.entity[key] = { dataMap: new Map(), isFirstFetched: false, lastKey: undefined };
+                }
+                state.entity[key].dataMap.set(payload.entityId, payload.data);
+              }),
+            );
+          }
+        } else if (msg.type === 'entity.deleted') {
+          const payload = msg.payload as { entityType: string; entityId: string };
+          monoriseStore.setState(
+            produce((state) => {
+              state.entity[payload.entityType]?.dataMap?.delete(payload.entityId);
+            }),
+          );
+        } else if (msg.type === 'mutual.created' || msg.type === 'mutual.updated') {
+          const payload = msg.payload as {
+            byEntityType: string;
+            byEntityId: string;
+            mutualEntityType: string;
+            entityId: string;
+            data?: any;
+          };
+          if (payload.data) {
+            const mutualKey = `${payload.byEntityType}/${payload.byEntityId}/${payload.mutualEntityType}`;
+            monoriseStore.setState(
+              produce((state) => {
+                if (!state.mutual[mutualKey]) {
+                  state.mutual[mutualKey] = { dataMap: new Map(), isFirstFetched: false, lastKey: undefined };
+                }
+                state.mutual[mutualKey].dataMap.set(payload.entityId, payload.data);
+              }),
+            );
+          }
+        } else if (msg.type === 'mutual.deleted') {
+          const payload = msg.payload as {
+            byEntityType: string;
+            byEntityId: string;
+            mutualEntityType: string;
+            entityId: string;
+          };
+          const mutualKey = `${payload.byEntityType}/${payload.byEntityId}/${payload.mutualEntityType}`;
+          monoriseStore.setState(
+            produce((state) => {
+              state.mutual[mutualKey]?.dataMap?.delete(payload.entityId);
+            }),
+          );
+        }
+      });
+
+      manager.connect();
+
+      // Schedule proactive ticket refresh
+      if (refreshTimerRef.current) {
+        clearTimeout(refreshTimerRef.current);
+      }
+      const refreshMs = Math.max((expiresIn - 120) * 1000, 60000); // refresh 2 min before expiry, minimum 1 min
+      refreshTimerRef.current = setTimeout(() => {
+        if (isMountedRef.current) {
+          connectRef.current();
+        }
+      }, refreshMs);
+    }, [fetchTicket]);
+
+    connectRef.current = connectWithTicket;
+
+    useEffect(() => {
+      isMountedRef.current = true;
+
+      if (entityId) {
+        connectRef.current();
+      }
+
+      // Detect wake from sleep using periodic check
+      let lastCheckTime = Date.now();
+      const sleepCheckInterval = setInterval(() => {
+        const now = Date.now();
+        const elapsed = now - lastCheckTime;
+        lastCheckTime = now;
+
+        if (elapsed > 30000 && wsManagerRef.current) {
+          wsManagerRef.current.disconnect();
+          wsManagerRef.current = null;
+          connectingRef.current = false;
+          reconnectCountRef.current = 0;
+          connectRef.current();
+        }
+      }, 5000);
+
+      // Reconnect when network comes back online
+      const handleOnline = () => {
+        if (!isMountedRef.current) return;
+        if (wsManagerRef.current?.getState() === 'connected') return;
+        if (connectingRef.current) return;
+        reconnectCountRef.current = 0;
+        connectRef.current();
+      };
+      window.addEventListener('online', handleOnline);
+
+      return () => {
+        isMountedRef.current = false;
+        clearInterval(sleepCheckInterval);
+        window.removeEventListener('online', handleOnline);
+        if (refreshTimerRef.current) {
+          clearTimeout(refreshTimerRef.current);
+        }
+        if (wsManagerRef.current) {
+          wsManagerRef.current.disconnect();
+          wsManagerRef.current = null;
+        }
+      };
+    }, [entityType, entityId]);
+
+    return { isConnected, error };
+  };
+
   return {
     useEntitySocket,
     useMutualSocket,
     useEphemeralSocket,
+    useEntityFeed,
   };
 };
 
