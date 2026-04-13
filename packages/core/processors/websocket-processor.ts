@@ -254,7 +254,7 @@ export const disconnect = async (
                 TableName: tableName,
                 Key: { PK: pk, SK: sk },
               }),
-            ).catch(() => {}),
+            ).catch((e) => console.warn('Failed to delete subscription on disconnect:', e)),
           );
         }
       }
@@ -537,10 +537,8 @@ export const $default = async (
 export const broadcast: DynamoDBStreamHandler = async (
   event: DynamoDBStreamEvent,
 ) => {
-  console.log('[WS_BROADCAST] Handler invoked, records:', event.Records.length);
   const tableName = getTableName();
   const wsEndpoint = getWsEndpoint();
-  console.log('[WS_BROADCAST] table:', tableName, 'wsEndpoint:', wsEndpoint);
   const managementApi = new ApiGatewayManagementApiClient({
     endpoint: wsEndpoint,
   });
@@ -560,13 +558,12 @@ export const broadcast: DynamoDBStreamHandler = async (
     const pk = image.PK?.S || '';
     const sk = image.SK?.S || '';
 
-    // Skip connection/subscription/ticket records
-    if (pk.startsWith('CONN#') || pk.startsWith('SUB#') || pk.startsWith('SUB:') || pk.startsWith('TICKET#') || pk.startsWith('LIST#') || pk.startsWith('MUTUAL#') || pk.startsWith('UNIQUE#') || pk.startsWith('EMAIL#')) continue;
-
-    console.log('[WS_BROADCAST] Processing record PK:', pk, 'SK:', sk);
-
+    // Only process entity/mutual records (format: entityType#entityId)
+    // Skip all other record types (CONN#, SUB#, TICKET#, LIST#, MUTUAL#, etc.)
     const pkParts = pk.split('#');
     if (pkParts.length < 2) continue;
+    const firstPart = pkParts[0];
+    if (firstPart === firstPart.toUpperCase() || firstPart.includes(':')) continue;
 
     const entityType = pkParts[0];
     const entityId = pkParts[1];
@@ -711,40 +708,39 @@ async function broadcastToSubscribers(
 
   const messageData = JSON.stringify(message);
 
-  for (const subscriber of subscribersResult.Items) {
-    const subscriberConnectionId = subscriber.connectionId as string;
-
-    // Skip excluded connection (e.g., sender of ephemeral message)
-    if (excludeConnectionId && subscriberConnectionId === excludeConnectionId) {
-      continue;
-    }
-
-    try {
-      await managementApi.send(
-        new PostToConnectionCommand({
-          ConnectionId: subscriberConnectionId,
-          Data: messageData,
-        }),
-      );
-    } catch (error: unknown) {
-      // Clean up stale connections
-      if (
-        error instanceof Error &&
-        (error.message?.includes('GoneException') ||
-          error.message?.includes('410'))
-      ) {
-        await docClient.send(
-          new DeleteCommand({
-            TableName: tableName,
-            Key: {
-              PK: subKey,
-              SK: `CONN#${subscriberConnectionId}`,
-            },
+  const sends = subscribersResult.Items
+    .filter((subscriber) => {
+      const id = subscriber.connectionId as string;
+      return !excludeConnectionId || id !== excludeConnectionId;
+    })
+    .map(async (subscriber) => {
+      const subscriberConnectionId = subscriber.connectionId as string;
+      try {
+        await managementApi.send(
+          new PostToConnectionCommand({
+            ConnectionId: subscriberConnectionId,
+            Data: messageData,
           }),
         );
+      } catch (error: unknown) {
+        const isGone =
+          (error as any)?.name === 'GoneException' ||
+          (error as any)?.$metadata?.httpStatusCode === 410;
+        if (isGone) {
+          await docClient.send(
+            new DeleteCommand({
+              TableName: tableName,
+              Key: {
+                PK: subKey,
+                SK: `CONN#${subscriberConnectionId}`,
+              },
+            }),
+          ).catch((e) => console.warn('Failed to clean up stale subscription:', e));
+        }
       }
-    }
-  }
+    });
+
+  await Promise.allSettled(sends);
 }
 
 /**
@@ -774,11 +770,10 @@ async function broadcastToFeedSubscribers(
       TableName: tableName,
       KeyConditionExpression: 'PK = :pk',
       ExpressionAttributeValues: { ':pk': pk },
+      ProjectionExpression: 'SK',
       ConsistentRead: true,
     }),
   );
-
-  console.log('[FEED_BROADCAST] Query PK:', pk, 'found items:', mutualsResult.Items?.length || 0);
 
   if (!mutualsResult.Items?.length) return;
 
@@ -787,7 +782,6 @@ async function broadcastToFeedSubscribers(
 
   for (const item of mutualsResult.Items) {
     const sk = item.SK as string;
-    console.log('[FEED_BROADCAST] Item SK:', sk);
     if (!sk || sk === '#METADATA#' || sk.startsWith('#')) continue;
 
     // SK format: entityType#entityId
@@ -801,9 +795,6 @@ async function broadcastToFeedSubscribers(
 
   // Also check the entity itself as a feed subscriber
   connectedEntities.add(`${byEntityType}:${byEntityId}`);
-
-  console.log('[FEED_BROADCAST] Connected entities:', Array.from(connectedEntities));
-  console.log('[FEED_BROADCAST] Changed entity type:', changedEntityType);
 
   // Step 2: For each connected entity, check if they have a feed subscription
   const sentConnections = new Set<string>();
@@ -821,14 +812,11 @@ async function broadcastToFeedSubscribers(
       }),
     );
 
-    console.log('[FEED_BROADCAST] Feed sub query:', feedSubKey, 'found:', feedSubsResult.Items?.length || 0);
-
     if (!feedSubsResult.Items?.length) continue;
 
     for (const feedSub of feedSubsResult.Items) {
       const feedTypes = feedSub.feedTypes as string[] | undefined;
       const connectionId = feedSub.connectionId as string;
-      console.log('[FEED_BROADCAST] Feed sub:', { connectionId, feedTypes, changedEntityType, pass: !feedTypes || feedTypes.includes(changedEntityType) });
 
       // Check if the changed entity type is in the feed's allowed types
       if (feedTypes && !feedTypes.includes(changedEntityType)) continue;
@@ -845,11 +833,10 @@ async function broadcastToFeedSubscribers(
           }),
         );
       } catch (error: unknown) {
-        if (
-          error instanceof Error &&
-          (error.message?.includes('GoneException') ||
-            error.message?.includes('410'))
-        ) {
+        const isGone =
+          (error as any)?.name === 'GoneException' ||
+          (error as any)?.$metadata?.httpStatusCode === 410;
+        if (isGone) {
           await docClient.send(
             new DeleteCommand({
               TableName: tableName,
@@ -858,7 +845,7 @@ async function broadcastToFeedSubscribers(
                 SK: `${CONN_PREFIX}${connectionId}`,
               },
             }),
-          );
+          ).catch((e) => console.warn('Failed to clean up stale feed subscription:', e));
         }
       }
     }
