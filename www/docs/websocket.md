@@ -85,6 +85,8 @@ Use cases: typing indicators, live cursors, presence, any transient state that d
 Subscribe to **everything relevant to an entity** based on the mutual graph. This is the recommended approach for most apps.
 
 ```ts
+import { useEntityFeed } from 'monorise/react';
+
 const { isConnected, error } = useEntityFeed({
   entityType: Entity.USER,
   entityId: userId,
@@ -121,7 +123,11 @@ The entity feed deserves a deeper explanation since it's the primary way to add 
 
 This follows the same pattern as `customUrl` in `useEntities` and `useMutuals`:
 
-**Default (internal apps)** — goes through the catch-all proxy, no auth:
+**Default (internal apps)** — goes through the catch-all proxy, no user-level auth (API key only):
+
+::: warning
+The default route issues tickets for any entity without user authentication. Use this only for local development and internal tooling. For client-facing apps, always use a custom `ticketEndpoint` with your own auth.
+:::
 
 ```ts
 useEntityFeed({

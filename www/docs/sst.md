@@ -46,7 +46,7 @@ new MonoriseCore(id: string, args?: MonoriseCoreArgs)
 | `tableTtl` | `string` | — | DynamoDB TTL attribute name |
 | `slackWebhook` | `string` | — | Slack webhook URL for DLQ alerts |
 | `configRoot` | `string` | — | Custom root path for monorise config |
-| `webSocket` | `{ enabled: true, handler?: { memory?, timeout? } }` | — | Enable WebSocket support for real-time updates. See [WebSocket](/websocket) |
+| `webSocket` | `{ enabled: true, handler?: { memory?, timeout? } }` | Disabled | Enable WebSocket support for real-time updates. See [WebSocket](/websocket) |
 
 ### Exposed resources
 
