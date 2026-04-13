@@ -263,3 +263,9 @@ npx monorise init     # scaffold a new project
 npx monorise dev      # watch mode — regenerates on config changes
 npx monorise build    # one-time build
 ```
+
+## Examples
+
+For a complete reference app, see the [Ledger example](https://github.com/monorist/monorise/tree/main/examples/ledger).
+
+It demonstrates date-range tag queries, mutual relationships, and a custom aggregation route (`/core/app/summary`) built on top of the generated API.
