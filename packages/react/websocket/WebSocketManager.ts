@@ -107,6 +107,7 @@ export class WebSocketManager {
   disconnect(): void {
     this.stopHeartbeat();
     this.reconnectAttempts = 0;
+    this.pendingMessages = [];
 
     if (this.ws) {
       this.ws.close();

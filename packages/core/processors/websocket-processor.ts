@@ -86,8 +86,10 @@ export const connect = async (
     return { statusCode: 401, body: 'Unauthorized' };
   }
 
-  // TODO: Validate token and extract userId/workspaceId
-  const userId = token; // Simplified for now
+  // SECURITY: Simplified token auth — token is treated as entityId directly.
+  // For production, use ticket-based auth via useEntityFeed which validates
+  // tickets issued through your authenticated proxy route.
+  const userId = token;
   const workspaceId = 'default';
 
   const tableName = getTableName();
@@ -534,38 +536,37 @@ async function broadcastToSubscribers(
 
   const messageData = JSON.stringify(message);
 
-  for (const subscriber of subscribersResult.Items) {
-    const subscriberConnectionId = subscriber.connectionId as string;
-
-    // Skip excluded connection (e.g., sender of ephemeral message)
-    if (excludeConnectionId && subscriberConnectionId === excludeConnectionId) {
-      continue;
-    }
-
-    try {
-      await managementApi.send(
-        new PostToConnectionCommand({
-          ConnectionId: subscriberConnectionId,
-          Data: messageData,
-        }),
-      );
-    } catch (error: unknown) {
-      // Clean up stale connections
-      if (
-        error instanceof Error &&
-        (error.message?.includes('GoneException') ||
-          error.message?.includes('410'))
-      ) {
-        await docClient.send(
-          new DeleteCommand({
-            TableName: tableName,
-            Key: {
-              PK: subKey,
-              SK: `CONN#${subscriberConnectionId}`,
-            },
+  const sends = subscribersResult.Items
+    .filter((subscriber) => {
+      const id = subscriber.connectionId as string;
+      return !excludeConnectionId || id !== excludeConnectionId;
+    })
+    .map(async (subscriber) => {
+      const subscriberConnectionId = subscriber.connectionId as string;
+      try {
+        await managementApi.send(
+          new PostToConnectionCommand({
+            ConnectionId: subscriberConnectionId,
+            Data: messageData,
           }),
         );
+      } catch (error: unknown) {
+        const isGone =
+          (error as any)?.name === 'GoneException' ||
+          (error as any)?.$metadata?.httpStatusCode === 410;
+        if (isGone) {
+          await docClient.send(
+            new DeleteCommand({
+              TableName: tableName,
+              Key: {
+                PK: subKey,
+                SK: `CONN#${subscriberConnectionId}`,
+              },
+            }),
+          ).catch(() => {});
+        }
       }
-    }
-  }
+    });
+
+  await Promise.allSettled(sends);
 }
