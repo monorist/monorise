@@ -383,20 +383,7 @@ export class WebSocketManager {
   }
 
   private startHeartbeat(): void {
-    let lastHeartbeatTime = Date.now();
-
     this.heartbeatInterval = setInterval(() => {
-      const now = Date.now();
-      const elapsed = now - lastHeartbeatTime;
-      lastHeartbeatTime = now;
-
-      // If significantly more time passed than the interval, device was asleep
-      if (elapsed > this.heartbeatIntervalMs * 2) {
-        console.warn('WebSocket: detected wake from sleep, closing stale connection');
-        this.ws?.close();
-        return;
-      }
-
       const pingMessage: ClientMessage = {
         action: 'ping',
         id: nanoid(),
@@ -405,7 +392,6 @@ export class WebSocketManager {
       this.send(pingMessage);
 
       this.heartbeatTimeout = setTimeout(() => {
-        console.warn('WebSocket heartbeat timeout - closing connection');
         this.ws?.close();
       }, this.heartbeatTimeoutMs);
     }, this.heartbeatIntervalMs);
