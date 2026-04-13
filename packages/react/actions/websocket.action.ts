@@ -95,6 +95,7 @@ export const initWebSocketActions = (
     });
 
     const fetchData = async (type: 'initial' | 'more' | 'refresh') => {
+      if (!httpActions) return;
       if (type === 'more') {
         setIsFetchingMore(true);
       } else if (type === 'refresh') {
@@ -106,7 +107,7 @@ export const initWebSocketActions = (
 
       try {
         const fetchLastKey = type === 'refresh' ? undefined : lastKeyRef.current;
-        const result = await httpActions!.listEntities(entityType, {
+        const result = await httpActions.listEntities(entityType, {
           limit,
           lastKey: fetchLastKey,
         });
@@ -254,7 +255,7 @@ export const initWebSocketActions = (
     });
 
     const fetchData = async (type: 'initial' | 'more' | 'refresh') => {
-      if (!byEntityId) return;
+      if (!byEntityId || !httpActions) return;
 
       if (type === 'more') {
         setIsFetchingMore(true);
@@ -267,7 +268,7 @@ export const initWebSocketActions = (
 
       try {
         const fetchLastKey = type === 'refresh' ? undefined : lastKeyRef.current;
-        const result = await httpActions!.listEntitiesByEntity(
+        const result = await httpActions.listEntitiesByEntity(
           byEntityType,
           byEntityId,
           mutualEntityType,
@@ -495,6 +496,7 @@ export const initWebSocketActions = (
     const isMountedRef = useRef(true);
     const connectingRef = useRef(false);
     const reconnectCountRef = useRef(0);
+    const connectRef = useRef<() => void>(() => {});
     const lastConnectedAtRef = useRef(0);
 
     const fetchTicket = useCallback(async () => {
@@ -687,7 +689,6 @@ export const initWebSocketActions = (
       }, refreshMs);
     }, [fetchTicket]);
 
-    const connectRef = useRef(connectWithTicket);
     connectRef.current = connectWithTicket;
 
     useEffect(() => {
