@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import {
   useEntities,
   useEntity,
@@ -142,8 +142,9 @@ function ChatApp({
     currentUserId,
   );
 
-  const joinedChannelIds = new Set(
-    (joinedChannels || []).map((m: any) => m.entityId),
+  const joinedChannelIds = useMemo(
+    () => new Set((joinedChannels || []).map((m: any) => m.entityId)),
+    [joinedChannels],
   );
 
   // Build lastReadAt map from mutual data
@@ -324,12 +325,11 @@ function ChannelList({
     setCreating(false);
   };
 
-  const ChannelButton = ({ ch }: { ch: any }) => {
+  const renderChannelButton = (ch: any) => {
     const count = unreadCounts.get(ch.entityId) || 0;
     const hasUnread = count > 0;
     return (
       <button
-        key={ch.entityId}
         onClick={() => onSelectChannel(ch.entityId)}
         className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm ${
           selectedChannelId === ch.entityId
@@ -363,7 +363,7 @@ function ChannelList({
               Joined
             </div>
             {joined.map((ch: any) => (
-              <ChannelButton key={ch.entityId} ch={ch} />
+              <React.Fragment key={ch.entityId}>{renderChannelButton(ch)}</React.Fragment>
             ))}
           </div>
         )}
@@ -375,7 +375,7 @@ function ChannelList({
               Browse
             </div>
             {notJoined.map((ch: any) => (
-              <ChannelButton key={ch.entityId} ch={ch} />
+              <React.Fragment key={ch.entityId}>{renderChannelButton(ch)}</React.Fragment>
             ))}
           </div>
         )}
@@ -608,6 +608,12 @@ function MessageInput({
   const sendTyping = (type: 'typing' | 'stopped') => {
     send({ type, userId: currentUserId, userName: currentUserName });
   };
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    };
+  }, []);
 
   const handleChange = (value: string) => {
     setMessage(value);
