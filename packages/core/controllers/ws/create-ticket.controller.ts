@@ -8,6 +8,7 @@ import type { DependencyContainer } from '../../services/DependencyContainer';
 const TICKET_PREFIX = 'TICKET#';
 const METADATA_SK = '#METADATA#';
 const TICKET_TTL_SECONDS = 30 * 60; // 30 minutes
+const dynamodbClient = new DynamoDB({});
 
 export class CreateTicketController {
   constructor(private container: DependencyContainer) {}
@@ -58,7 +59,6 @@ export class CreateTicketController {
     const expiresAt = now + TICKET_TTL_SECONDS;
 
     const tableName = this.container.config.tableName || CORE_TABLE;
-    const dynamodbClient = new DynamoDB({});
 
     await dynamodbClient.putItem({
       TableName: tableName,
