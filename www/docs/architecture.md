@@ -60,7 +60,7 @@ The default Hono API exposes the following routes under `/core`. All entity rout
 | `GET` | `/entity/:entityType/unique/:field/:value` | Get entity by unique field |
 | `GET` | `/entity/:entityType/:entityId` | Get entity by ID |
 | `PUT` | `/entity/:entityType/:entityId` | Upsert entity (full replacement) |
-| `PATCH` | `/entity/:entityType/:entityId` | Update entity (partial); supports optional [`where` conditions](#conditional-updates-where) |
+| `PATCH` | `/entity/:entityType/:entityId` | Update entity (partial); supports optional [`$where` conditions](#conditional-updates-where) |
 | `DELETE` | `/entity/:entityType/:entityId` | Delete entity |
 | `POST` | `/entity/:entityType/:entityId/adjust` | Atomic numeric adjustment (body: `{ field: delta }`) |
 
@@ -82,13 +82,13 @@ The default Hono API exposes the following routes under `/core`. All entity rout
 
 Custom routes can be mounted under `/core/app/*` via `customRoutes` in your monorise config.
 
-### Conditional updates (`where`)
+### Conditional updates (`$where`)
 
-Use `where` in `PATCH /core/entity/:entityType/:entityId` when updates should
+Use `$where` in `PATCH /core/entity/:entityType/:entityId` when updates should
 only apply if current values match your preconditions. Monorise compiles this
 to a DynamoDB `ConditionExpression` and executes it atomically in one write.
 
-Without `where` (existing behavior):
+Without `$where` (existing behavior):
 
 ```json
 {
@@ -96,13 +96,13 @@ Without `where` (existing behavior):
 }
 ```
 
-With `where`:
+With `$where`:
 
 ```json
 {
   "status": "confirmed",
   "confirmedAt": "2026-04-13T00:00:00.000Z",
-  "where": {
+  "$where": {
     "status": { "$eq": "pending" },
     "retryCount": { "$lt": 3 }
   }
@@ -114,13 +114,13 @@ Shorthand equality is supported:
 ```json
 {
   "status": "confirmed",
-  "where": {
+  "$where": {
     "status": "pending"
   }
 }
 ```
 
-All `where` clauses are combined with `AND`.
+All `$where` clauses are combined with `AND`.
 
 Supported operators:
 
@@ -138,15 +138,15 @@ Supported operators:
 Response behavior for PATCH:
 
 - `200 OK`: update applied
-- `409 CONFLICT`: `where` precondition failed (`CONDITIONAL_CHECK_FAILED`)
+- `409 CONFLICT`: `$where` precondition failed (`CONDITIONAL_CHECK_FAILED`)
   - in conditional mode, this also includes missing entities
 - `404 NOT_FOUND`: entity missing in non-conditional mode
 - `400 BAD_REQUEST`: validation errors and unique-value conflicts
 
 Compatibility notes:
 
-- Existing PATCH clients continue to work unchanged (no `where` required).
-- Top-level `where` is reserved for conditional update semantics.
+- Existing PATCH clients continue to work unchanged (no `$where` required).
+- Top-level `$where` is reserved for conditional update semantics.
 
 ## Data layout cheat sheet
 

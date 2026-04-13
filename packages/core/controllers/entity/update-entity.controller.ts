@@ -16,7 +16,7 @@ export class UpdateEntityController {
     };
 
     const body = await c.req.json();
-    const { where, ...entityPayload } = body;
+    const { $where: where, ...entityPayload } = body;
 
     const errorContext: any = {
       accountId,
