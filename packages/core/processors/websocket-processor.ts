@@ -70,7 +70,8 @@ const getTableName = () => process.env.CORE_TABLE || '';
 const getWsEndpoint = () => process.env.WEBSOCKET_MANAGEMENT_ENDPOINT || '';
 
 /**
- * Validate a ticket and return its data, then delete it (one-time use).
+ * Validate and consume a ticket atomically (one-time use).
+ * Uses conditional delete to prevent race conditions from concurrent $connect calls.
  */
 const validateTicket = async (
   ticket: string,
@@ -80,42 +81,41 @@ const validateTicket = async (
   entityId: string;
   feedTypes: string[];
 } | null> => {
-  const result = await docClient.send(
-    new QueryCommand({
-      TableName: tableName,
-      KeyConditionExpression: 'PK = :pk',
-      ExpressionAttributeValues: {
-        ':pk': `${TICKET_PREFIX}${ticket}`,
-      },
-      ConsistentRead: true,
-    }),
-  );
+  try {
+    // Atomic delete-and-return: fails if ticket doesn't exist (already consumed)
+    const result = await docClient.send(
+      new DeleteCommand({
+        TableName: tableName,
+        Key: {
+          PK: `${TICKET_PREFIX}${ticket}`,
+          SK: METADATA_SK,
+        },
+        ConditionExpression: 'attribute_exists(PK)',
+        ReturnValues: 'ALL_OLD',
+      }),
+    );
 
-  const item = result.Items?.[0];
-  if (!item) return null;
+    const item = result.Attributes;
+    if (!item) return null;
 
-  // Check expiry
-  const expiresAt = item.expiresAt as number;
-  if (expiresAt && expiresAt < Math.floor(Date.now() / 1000)) {
-    return null;
+    // Check expiry
+    const expiresAt = item.expiresAt as number;
+    if (expiresAt && expiresAt < Math.floor(Date.now() / 1000)) {
+      return null;
+    }
+
+    return {
+      entityType: item.entityType as string,
+      entityId: item.entityId as string,
+      feedTypes: (item.feedTypes as string[]) || [],
+    };
+  } catch (error: unknown) {
+    // ConditionalCheckFailedException = ticket already consumed or doesn't exist
+    if ((error as any)?.name === 'ConditionalCheckFailedException') {
+      return null;
+    }
+    throw error;
   }
-
-  // Delete ticket (one-time use)
-  await docClient.send(
-    new DeleteCommand({
-      TableName: tableName,
-      Key: {
-        PK: `${TICKET_PREFIX}${ticket}`,
-        SK: METADATA_SK,
-      },
-    }),
-  );
-
-  return {
-    entityType: item.entityType as string,
-    entityId: item.entityId as string,
-    feedTypes: (item.feedTypes as string[]) || [],
-  };
 };
 
 /**
