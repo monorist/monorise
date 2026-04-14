@@ -83,10 +83,37 @@ That's it — relational queries on DynamoDB without the design doc. Single-tabl
 npx monorise init --name my-app
 
 # Start development
+cd my-app
 npx sst dev
 
 # Deploy to production
 npx sst deploy --stage prod
+```
+
+`monorise init` scaffolds a production-ready monorepo:
+
+```
+my-app/
+├── apps/web/                        # Next.js frontend
+│   └── src/
+│       ├── app/
+│       │   ├── layout.tsx           # GlobalInitializer + GlobalLoader wired in
+│       │   ├── page.tsx             # Example page with useEntities
+│       │   ├── globals.css          # Shadcn theme variables
+│       │   └── api/
+│       │       ├── proxy-request.ts # API proxy utility
+│       │       └── [...proxy]/route.ts  # Catch-all proxy to monorise backend
+│       ├── components/
+│       │   ├── global-initializer.tsx   # Monorise store config
+│       │   ├── global-loader.tsx        # Interruptive loading overlay
+│       │   └── ui/                      # Shadcn UI (button, card, input, label)
+│       └── lib/utils.ts             # cn() helper
+├── services/core/
+│   └── routes.ts                    # Hono backend routes
+├── monorise/configs/
+│   └── user.ts                      # Starter entity definition
+├── sst.config.ts                    # SST + Monorise configured
+└── .monorise/                       # Generated types
 ```
 
 Read the [Getting Started Guide](https://monorise.dev/getting-started) for the complete walkthrough.

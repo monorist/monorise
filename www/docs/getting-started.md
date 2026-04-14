@@ -6,7 +6,7 @@ Monorise is an open-source DynamoDB single-table toolkit that powers the core da
 
 - **Single-table DynamoDB modeling** without hand-writing complex queries.
 - **Relational-style access** via `Entity`, `Mutual`, and `Tag` concepts.
-- **Event-driven maintenance** (mutual/tag/prejoin processors + replication).
+- **Event-driven maintenance** (mutual/tag/tree processors + replication).
 - **Zero schema drift** — One Zod config drives DB, API, and frontend types. `monorise dev` auto-regenerates on every change.
 
 ## Prerequisites
@@ -23,19 +23,43 @@ Monorise is an open-source DynamoDB single-table toolkit that powers the core da
 npx monorise init --name my-app
 ```
 
-This single command creates a complete monorepo:
+This single command creates a production-ready monorepo:
 
 ```
 my-app/
-├── apps/web/              # Next.js frontend
-│   └── src/app/page.tsx   # Example page with useEntities
+├── apps/web/                        # Next.js frontend (Tailwind CSS)
+│   └── src/
+│       ├── app/
+│       │   ├── layout.tsx           # GlobalInitializer + GlobalLoader wired in
+│       │   ├── page.tsx             # Example page with useEntities + createEntity
+│       │   ├── globals.css          # Shadcn theme variables (oklch)
+│       │   └── api/
+│       │       ├── proxy-request.ts # Rewrites /api/* to monorise backend
+│       │       └── [...proxy]/route.ts  # Catch-all route (GET/POST/PUT/PATCH/DELETE)
+│       ├── components/
+│       │   ├── global-initializer.tsx   # Monorise store configuration
+│       │   ├── global-loader.tsx        # Full-screen interruptive loading overlay
+│       │   └── ui/                      # Shadcn UI components (button, card, input, label)
+│       └── lib/utils.ts             # cn() — clsx + tailwind-merge helper
 ├── services/core/         # Hono backend routes
 │   └── routes.ts
 ├── monorise/configs/      # Entity definitions
-│   └── user.ts
-├── sst.config.ts          # SST + Monorise configured
-└── .monorise/             # Generated types
+│   └── user.ts            # Starter User entity (displayName, email)
+├── monorise.config.ts     # Points to configs dir + custom routes
+├── sst.config.ts          # SST v3 + Monorise module configured
+├── tsconfig.json          # Path aliases (#/monorise/*, #/*)
+└── .monorise/             # Generated types + handlers (do not edit)
 ```
+
+### What's included out of the box
+
+| Feature | Description |
+|---------|-------------|
+| **Shadcn UI** | Pre-installed button, card, input, label components with theme variables |
+| **Global Loader** | `useInterruptiveLoadStore` → full-screen loading overlay via portal |
+| **Global Initializer** | Calls `Monorise.config()` with your entity config on app mount |
+| **API Proxy** | Next.js catch-all route at `/api/*` that proxies requests to monorise backend |
+| **Path Aliases** | `#/monorise/*` for generated types, `#/*` for app-local imports |
 
 ### 2. Start development
 
@@ -225,7 +249,7 @@ The `monorise.module.Core` construct provisions everything you need — API Gate
 | `alarmTopic` | SNS topic for processor error alerts |
 | Mutual processor | SQS + Lambda for mutual relationship sync |
 | Tag processor | SQS + Lambda for tag index sync |
-| Prejoin processor | SQS + Lambda for computed relationship sync |
+| Tree processor | SQS + Lambda for computed relationship sync |
 | Replication processor | DynamoDB stream + Lambda for denormalized data sync |
 | CloudWatch dashboard | Pre-built dashboard with Lambda metrics, DLQ depth, and table stats |
 
