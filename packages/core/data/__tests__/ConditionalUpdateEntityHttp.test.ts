@@ -407,6 +407,64 @@ describe('HTTP — conditional updateEntity ($where body key)', () => {
     });
   });
 
+  // ─── Group 8: Shorthand $eq (bare value) ─────────────────────────────────
+
+  describe('Group 8: shorthand $eq (bare value)', () => {
+    it('8.1 — bare number matches → 200 with updated entity', async () => {
+      const entity = await entityRepository.createEntity(WALLET, { balance: 100 });
+      const { status, data } = await patch(MockEntityType.WALLET, entity.entityId as string, {
+        balance: 200,
+        $where: { balance: 100 },
+      });
+      expect(status).toBe(200);
+      expect(data.data.balance).toBe(200);
+      const stored = await entityRepository.getEntity(WALLET, entity.entityId as string);
+      expect(stored.data.balance).toBe(200);
+    });
+
+    it('8.2 — bare number mismatch → 409 CONDITIONAL_CHECK_FAILED', async () => {
+      const entity = await entityRepository.createEntity(WALLET, { balance: 100 });
+      const { status, data } = await patch(MockEntityType.WALLET, entity.entityId as string, {
+        balance: 200,
+        $where: { balance: 999 },
+      });
+      expect(status).toBe(409);
+      expect(data.code).toBe('CONDITIONAL_CHECK_FAILED');
+      const stored = await entityRepository.getEntity(WALLET, entity.entityId as string);
+      expect(stored.data.balance).toBe(100);
+    });
+
+    it('8.3 — bare string matches → 200', async () => {
+      const entity = await entityRepository.createEntity(USER, {
+        name: 'draft-report',
+        username: `user-shorthand-match-${Date.now()}`,
+      });
+      const { status, data } = await patch(MockEntityType.USER, entity.entityId as string, {
+        name: 'final-report',
+        $where: { name: 'draft-report' },
+      });
+      expect(status).toBe(200);
+      expect(data.data.name).toBe('final-report');
+      const stored = await entityRepository.getEntity(USER, entity.entityId as string);
+      expect(stored.data.name).toBe('final-report');
+    });
+
+    it('8.4 — bare string mismatch → 409 CONDITIONAL_CHECK_FAILED', async () => {
+      const entity = await entityRepository.createEntity(USER, {
+        name: 'final-report',
+        username: `user-shorthand-mismatch-${Date.now()}`,
+      });
+      const { status, data } = await patch(MockEntityType.USER, entity.entityId as string, {
+        name: 'published-report',
+        $where: { name: 'draft-report' },
+      });
+      expect(status).toBe(409);
+      expect(data.code).toBe('CONDITIONAL_CHECK_FAILED');
+      const stored = await entityRepository.getEntity(USER, entity.entityId as string);
+      expect(stored.data.name).toBe('final-report');
+    });
+  });
+
   // ─── Group 7: Concurrency ─────────────────────────────────────────────────
 
   describe('Group 7: Concurrency', () => {
