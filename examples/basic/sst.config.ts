@@ -10,7 +10,7 @@ export default $config({
     };
   },
   async run() {
-    const { monorise } = await import('@monorise/sst');
+    const { monorise } = await import('monorise/sst');
 
     new monorise.module.Core('app')
   },

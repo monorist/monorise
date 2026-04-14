@@ -1,9 +1,12 @@
-import type { DurationMinutes } from '../.sst/platform/src/components/duration';
-import type { Input } from '../.sst/platform/src/components/input';
+type DurationMinutes =
+  | `${number} second`
+  | `${number} seconds`
+  | `${number} minute`
+  | `${number} minutes`;
 
 interface QFunctionArgs extends sst.aws.FunctionArgs {
   visibilityTimeout?: sst.aws.QueueArgs['visibilityTimeout'];
-  maxBatchingWindow?: Input<DurationMinutes>;
+  maxBatchingWindow?: DurationMinutes;
   batchSize?: number;
   alarmTopic?: sst.aws.SnsTopic;
 }
