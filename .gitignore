@@ -13,6 +13,15 @@ tsconfig.tsbuildinfo
 # sst
 .sst
 
+# open-next build output
+.open-next
+
+# claude code
+.claude/
+
+# npm pack output
+*.tgz
+
 # vitepress
 www/docs/.vitepress/cache
 www/docs/.vitepress/dist
