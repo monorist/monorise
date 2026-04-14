@@ -1,1 +1,0 @@
-self.__REACT_LOADABLE_MANIFEST='{"../../node_modules/monorise/dist/react/index.js -> ./websocket-7MZ3ENOC.js":{"id":2711,"files":["static/chunks/711.dc41501c4b88131c.js"]}}';
