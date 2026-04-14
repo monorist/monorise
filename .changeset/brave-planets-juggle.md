@@ -1,6 +1,5 @@
 ---
 "@monorise/cli": minor
-"@monorise/www": patch
 ---
 
 Enhanced CLI init command with full project scaffolding and example page
