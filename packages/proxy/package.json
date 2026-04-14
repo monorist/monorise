@@ -16,6 +16,6 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@monorise/base": "^3.0.2"
+    "@monorise/base": "^4.0.0"
   }
 }

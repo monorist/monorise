@@ -2,15 +2,14 @@
   "name": "basic",
   "private": true,
   "type": "module",
+  "dependencies": {
+    "monorise": "file:../../packages/monorise/monorise-1.0.0.tgz",
+    "sst": "^4.7.3",
+    "zod": "^3.25.67"
+  },
   "devDependencies": {
     "@types/bun": "latest",
-    "@monorise/cli": "1.0.0-dev.1",
-    "@monorise/sst": "1.0.0-dev.2"
-  },
-  "peerDependencies": {
-    "typescript": "^5",
-    "@monorise/base": "1.0.0-dev.0",
-    "@monorise/core": "1.0.0-dev.0"
+    "typescript": "^5"
   },
   "scripts": {
     "dev": "sst dev"

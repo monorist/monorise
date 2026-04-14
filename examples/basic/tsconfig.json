@@ -26,5 +26,7 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
-  }
+  },
+  "include": ["sst.config.ts"],
+  "exclude": ["node_modules", ".sst"]
 }

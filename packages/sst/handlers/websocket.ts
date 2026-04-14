@@ -70,7 +70,7 @@ const getWsEndpoint = () => {
 export const connect = async (
   event: APIGatewayProxyEventV2,
 ): Promise<APIGatewayProxyResultV2> => {
-  const connectionId = event.requestContext.connectionId;
+  const connectionId = (event.requestContext as any).connectionId as string | undefined;
   if (!connectionId) {
     return { statusCode: 400, body: 'Missing connection ID' };
   }
@@ -120,7 +120,7 @@ export const connect = async (
 export const disconnect = async (
   event: APIGatewayProxyEventV2,
 ): Promise<APIGatewayProxyResultV2> => {
-  const connectionId = event.requestContext.connectionId;
+  const connectionId = (event.requestContext as any).connectionId as string | undefined;
   if (!connectionId) {
     return { statusCode: 400, body: 'Missing connection ID' };
   }
@@ -155,7 +155,7 @@ export const disconnect = async (
 export const $default = async (
   event: APIGatewayProxyEventV2,
 ): Promise<APIGatewayProxyResultV2> => {
-  const connectionId = event.requestContext.connectionId;
+  const connectionId = (event.requestContext as any).connectionId as string | undefined;
   if (!connectionId || !event.body) {
     return { statusCode: 400, body: 'Invalid message' };
   }

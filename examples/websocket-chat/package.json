@@ -9,8 +9,8 @@
     "apps/*"
   ],
   "dependencies": {
-    "monorise": "file:../../packages/monorise/monorise-0.0.2.tgz",
-    "sst": "^3.18.1",
+    "monorise": "file:../../packages/monorise/monorise-1.0.0.tgz",
+    "sst": "^4.7.3",
     "zod": "^3.25.67"
   },
   "devDependencies": {
