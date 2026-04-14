@@ -5,6 +5,10 @@ import type {
 } from '@monorise/base';
 import { z } from 'zod';
 import type { EntityRepository } from '../data/Entity';
+import {
+  buildConditionExpression,
+  type WhereConditions,
+} from '../data/utils/build-condition-expression';
 import { StandardError, StandardErrorCode } from '../errors/standard-error';
 import type { publishEvent as publishEventType } from '../helpers/event';
 import type { EventDetailBody as MutualProcessorEventDetailBody } from '../processors/mutual-processor';
@@ -155,11 +159,13 @@ export class EntityService {
     entityId,
     entityPayload,
     accountId,
+    where,
   }: {
     entityType: T;
     entityId: string;
     entityPayload: Partial<EntitySchemaMap[T]>;
     accountId?: string | string[];
+    where?: WhereConditions;
   }) => {
     const errorContext: Record<string, unknown> = {};
 
@@ -180,10 +186,16 @@ export class EntityService {
       const parsedMutualPayload = mutualSchema?.parse(entityPayload);
       errorContext.parsedMutualPayload = parsedMutualPayload;
 
+      const opts =
+        where && Object.keys(where).length > 0
+          ? buildConditionExpression(where)
+          : undefined;
+
       const entity = await this.entityRepository.updateEntity(
         entityType,
         entityId,
         { data: parsedEntityPayload },
+        opts,
       );
       errorContext.entity = entity;
 

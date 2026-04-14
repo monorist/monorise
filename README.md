@@ -19,6 +19,7 @@ denormalized access patterns in sync.
   - [End-to-end overview (config -\> runtime -\> data)](#end-to-end-overview-config---runtime---data)
   - [Data layout (short cheat sheet)](#data-layout-short-cheat-sheet)
   - [Public API surface (core)](#public-api-surface-core)
+  - [Conditional PATCH updates (atomic where)](#conditional-patch-updates-atomic-where)
   - [Package map](#package-map)
   - [Where to look next (within this repo)](#where-to-look-next-within-this-repo)
   - [Contributing](#contributing)
@@ -219,6 +220,76 @@ The default Hono API exposes:
 - `GET /core/tag/:entityType/:tagName`
 
 Custom routes can be mounted under `/core/app/*` via `customRoutes`.
+
+`PATCH /core/entity/:entityType/:entityId` supports optional conditional
+preconditions through a top-level `$where` object. This lets you do atomic
+compare-and-set style updates.
+
+## Conditional PATCH updates (atomic $where)
+
+Use `$where` in `PATCH /core/entity/:entityType/:entityId` when updates should
+only apply if current values match your preconditions. Monorise compiles this
+to a DynamoDB `ConditionExpression` and executes it atomically in one write.
+
+Without `$where` (existing behavior):
+
+```json
+{
+  "status": "confirmed"
+}
+```
+
+With `$where`:
+
+```json
+{
+  "status": "confirmed",
+  "confirmedAt": "2026-04-13T00:00:00.000Z",
+  "$where": {
+    "status": { "$eq": "pending" },
+    "retryCount": { "$lt": 3 }
+  }
+}
+```
+
+Shorthand equality is supported:
+
+```json
+{
+  "status": "confirmed",
+  "$where": {
+    "status": "pending"
+  }
+}
+```
+
+All `$where` clauses are combined with `AND`.
+
+Supported operators:
+
+| Operator | Meaning |
+|---|---|
+| `$eq` | Equals |
+| `$ne` | Not equals |
+| `$gt` | Greater than |
+| `$lt` | Less than |
+| `$gte` | Greater than or equal |
+| `$lte` | Less than or equal |
+| `$exists` | Field exists / does not exist |
+| `$beginsWith` | String prefix match |
+
+Response behavior for PATCH:
+
+- `200 OK`: update applied
+- `409 CONFLICT`: `$where` precondition failed (`CONDITIONAL_CHECK_FAILED`)
+  - in conditional mode, this also includes missing entities
+- `404 NOT_FOUND`: entity missing in non-conditional mode
+- `400 BAD_REQUEST`: validation errors and unique-value conflicts
+
+Compatibility notes:
+
+- Existing PATCH clients continue to work unchanged (no `$where` required).
+- Top-level `$where` is reserved for conditional update semantics.
 
 ## Package map
 
