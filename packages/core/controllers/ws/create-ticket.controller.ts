@@ -1,14 +1,8 @@
-import { DynamoDB } from '@aws-sdk/client-dynamodb';
-import { marshall } from '@aws-sdk/util-dynamodb';
 import { createMiddleware } from 'hono/factory';
 import { ulid } from 'ulid';
-import { CORE_TABLE } from '../../configs/service.config';
 import type { DependencyContainer } from '../../services/DependencyContainer';
 
-const TICKET_PREFIX = 'TICKET#';
-const METADATA_SK = '#METADATA#';
 const TICKET_TTL_SECONDS = 30 * 60; // 30 minutes
-const dynamodbClient = new DynamoDB({});
 
 export class CreateTicketController {
   constructor(private container: DependencyContainer) {}
@@ -35,13 +29,19 @@ export class CreateTicketController {
       const queue: string[] = [entityType];
 
       while (queue.length > 0) {
-        const current = queue.shift()!;
+        const current = queue.shift();
+        if (!current) continue;
         if (visited.has(current)) continue;
         visited.add(current);
 
-        const config = allConfigs[current as any];
+        const config =
+          allConfigs[current as unknown as keyof typeof allConfigs];
         if (config?.mutual?.mutualFields) {
-          for (const field of Object.values(config.mutual.mutualFields) as any[]) {
+          for (const field of Object.values(
+            config.mutual.mutualFields,
+          ) as unknown as {
+            entityType: string;
+          }[]) {
             if (!visited.has(field.entityType)) {
               queue.push(field.entityType);
             }
@@ -58,20 +58,13 @@ export class CreateTicketController {
     const now = Math.floor(Date.now() / 1000);
     const expiresAt = now + TICKET_TTL_SECONDS;
 
-    const tableName = this.container.config.tableName || CORE_TABLE;
-
-    await dynamodbClient.putItem({
-      TableName: tableName,
-      Item: marshall({
-        PK: `${TICKET_PREFIX}${ticket}`,
-        SK: METADATA_SK,
-        entityType,
-        entityId,
-        feedTypes,
-        createdAt: new Date().toISOString(),
-        expiresAt,
-      }),
-    });
+    await this.container.websocketRepository.createTicket(
+      ticket,
+      entityType,
+      entityId,
+      feedTypes,
+      expiresAt,
+    );
 
     const wsEndpoint = process.env.WEBSOCKET_URL || '';
 
