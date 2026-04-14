@@ -13,8 +13,9 @@ tsconfig.tsbuildinfo
 # sst
 .sst
 
-# open-next build output
+# generated output
 .open-next
+.monorise
 
 # claude code
 .claude/
