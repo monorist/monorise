@@ -5,6 +5,22 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execSync, spawn } from 'node:child_process';
 import chokidar from 'chokidar';
+import { CORE_ROUTES_TEMPLATE } from './templates/core-routes';
+import { EXAMPLE_PAGE_TEMPLATE } from './templates/example-page';
+import { MONORISE_CONFIG_TEMPLATE } from './templates/monorise-config';
+import { USER_ENTITY_TEMPLATE } from './templates/user-entity';
+import { ROOT_TSCONFIG_TEMPLATE } from './templates/root-tsconfig';
+import { getSstConfigContent } from './templates/sst-config';
+import { GLOBAL_INITIALIZER_TEMPLATE } from './templates/global-initializer';
+import { GLOBAL_LOADER_TEMPLATE } from './templates/global-loader';
+import { LIB_UTILS_TEMPLATE } from './templates/lib-utils';
+import { GLOBALS_CSS_TEMPLATE } from './templates/globals-css';
+import { UI_BUTTON_TEMPLATE } from './templates/ui-button';
+import { UI_CARD_TEMPLATE } from './templates/ui-card';
+import { UI_INPUT_TEMPLATE } from './templates/ui-input';
+import { UI_LABEL_TEMPLATE } from './templates/ui-label';
+import { PROXY_REQUEST_TEMPLATE } from './templates/proxy-request';
+import { PROXY_ROUTE_TEMPLATE } from './templates/proxy-route';
 
 function kebabToCamel(str: string): string {
   return str.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
@@ -336,194 +352,6 @@ const MONORISE_LOGO = `
 
 `;
 
-// Template for services/core/routes.ts
-const CORE_ROUTES_TEMPLATE = `import { Hono } from 'hono';
-import { DependencyContainer } from 'monorise/core';
-import config, { Entity } from '#/monorise/config';
-
-const container = new DependencyContainer(config);
-
-const app = new Hono();
-
-app.get('/health', async (c) => {
-  return c.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-app.get('/test', async (c) => {
-  // Example: List users using the entity repository
-  const entities = await container.entityRepository.listEntities({
-    entityType: Entity.USER,
-  });
-
-  return c.json({ items: entities.items }, 200);
-});
-
-export default app;
-`;
-
-// Template for root tsconfig.json
-const ROOT_TSCONFIG_TEMPLATE = {
-  compilerOptions: {
-    target: 'ES2017',
-    lib: ['dom', 'dom.iterable', 'esnext'],
-    allowJs: true,
-    skipLibCheck: true,
-    strict: true,
-    noEmit: true,
-    esModuleInterop: true,
-    module: 'esnext',
-    moduleResolution: 'bundler',
-    resolveJsonModule: true,
-    isolatedModules: true,
-    jsx: 'react-jsx',
-    incremental: true,
-    paths: {
-      '#/monorise/*': ['./.monorise/*'],
-    },
-  },
-  include: ['**/*.ts', '**/*.tsx'],
-  exclude: ['node_modules', 'sst.config.ts'],
-};
-
-// Template for monorise.config.ts
-const MONORISE_CONFIG_TEMPLATE = `const config = {
-  configDir: './monorise/configs',
-  // custom routes should export default a Hono object.
-  customRoutes: './services/core/routes.ts',
-};
-
-export default config;
-`;
-
-// Template for starter entity
-const USER_ENTITY_TEMPLATE = `import { createEntityConfig } from 'monorise/base';
-import { z } from 'zod';
-
-const baseSchema = z
-  .object({
-    displayName: z.string().min(1, 'Display name is required'),
-    email: z.string().email('Valid email is required'),
-    firstName: z.string().optional(),
-    lastName: z.string().optional(),
-  })
-  .partial();
-
-const createSchema = z.object({
-  displayName: z.string().min(1, 'Display name is required'),
-  email: z.string().email('Valid email is required'),
-});
-
-const config = createEntityConfig({
-  name: 'user',
-  displayName: 'User',
-  baseSchema,
-  createSchema,
-  searchableFields: ['displayName', 'email'],
-  uniqueFields: ['email'],
-});
-
-export default config;
-`;
-
-// Template for example Next.js page demonstrating monorise/react hooks
-const EXAMPLE_PAGE_TEMPLATE = `'use client';
-
-import { useState } from 'react';
-import { useEntities, createEntity } from 'monorise/react';
-import { Entity } from '#/monorise/config';
-
-export default function Home() {
-  const { entities: users, isLoading } = useEntities(Entity.USER);
-  const [displayName, setDisplayName] = useState('');
-  const [email, setEmail] = useState('');
-  const [isCreating, setIsCreating] = useState(false);
-
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!displayName || !email) return;
-
-    setIsCreating(true);
-    try {
-      await createEntity(Entity.USER, {
-        displayName,
-        email,
-      });
-      // The list automatically updates via the store!
-      // Clear form
-      setDisplayName('');
-      setEmail('');
-    } catch (error) {
-      console.error('Failed to create user:', error);
-      alert('Failed to create user. Check console for details.');
-    } finally {
-      setIsCreating(false);
-    }
-  };
-
-  return (
-    <main className="min-h-screen p-8 max-w-4xl mx-auto">
-      <h1 className="text-3xl font-bold mb-8">Monorise Demo</h1>
-
-      {/* Create User Form */}
-      <section className="mb-8 p-6 border rounded-lg bg-gray-50">
-        <h2 className="text-xl font-semibold mb-4">Create User</h2>
-        <form onSubmit={handleCreate} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Display Name</label>
-            <input
-              type="text"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-              className="w-full px-3 py-2 border rounded"
-              placeholder="John Doe"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3 py-2 border rounded"
-              placeholder="john@example.com"
-              required
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={isCreating}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50"
-          >
-            {isCreating ? 'Creating...' : 'Create User'}
-          </button>
-        </form>
-      </section>
-
-      {/* Users List */}
-      <section className="p-6 border rounded-lg">
-        <h2 className="text-xl font-semibold mb-4">Users</h2>
-        {isLoading ? (
-          <p>Loading...</p>
-        ) : users && users.length > 0 ? (
-          <ul className="space-y-2">
-            {users.map((user) => (
-              <li key={user.entityId} className="p-3 bg-white border rounded">
-                <p className="font-medium">{user.data.displayName}</p>
-                <p className="text-sm text-gray-600">{user.data.email}</p>
-                <p className="text-xs text-gray-400 mt-1">ID: {user.entityId}</p>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="text-gray-500">No users yet. Create one above!</p>
-        )}
-      </section>
-    </main>
-  );
-}
-`;
-
 async function runInitCommand(rootPath?: string) {
   console.log(MONORISE_LOGO);
 
@@ -603,9 +431,9 @@ async function runInitCommand(rootPath?: string) {
   }
 
   // Step 6: Install dependencies
-  console.log('\n📦 Installing dependencies (monorise, hono, zod)...');
+  console.log('\n📦 Installing dependencies (monorise, hono, zod, shadcn utilities)...');
   try {
-    execCommand('npm install monorise hono zod', projectRoot);
+    execCommand('npm install monorise hono zod clsx class-variance-authority radix-ui lucide-react tailwind-merge', projectRoot);
   } catch (error) {
     console.error('Failed to install dependencies:', error);
     process.exit(1);
@@ -646,34 +474,7 @@ async function runInitCommand(rootPath?: string) {
   // Step 12: Create sst.config.ts with monorise
   console.log('⚙️  Creating sst.config.ts with Monorise...');
   const sstConfigPath = path.join(projectRoot, 'sst.config.ts');
-  const sstConfigContent = `/// <reference path='./.sst/platform/config.d.ts' />
-
-export default $config({
-  app(input) {
-    return {
-      name: '${projectName}',
-      removal: input?.stage === 'production' ? 'retain' : 'remove',
-      protect: ['production'].includes(input?.stage),
-      home: 'aws',
-    };
-  },
-  async run() {
-    const { monorise } = await import('monorise/sst');
-
-    const { api } = new monorise.module.Core('core', {
-      allowOrigins: ['http://localhost:3000'],
-    });
-
-    new sst.aws.Nextjs('web', {
-      path: 'apps/web',
-      environment: {
-        API_BASE_URL: api.url,
-      },
-    });
-  },
-});
-`;
-  fs.writeFileSync(sstConfigPath, sstConfigContent);
+  fs.writeFileSync(sstConfigPath, getSstConfigContent(projectName));
 
   // Step 13: Install SST providers (after sst.config.ts exists)
   console.log('\n☁️  Installing SST providers...');
@@ -704,7 +505,117 @@ export default $config({
     console.warn('Warning: Could not find apps/web/src/app or apps/web/app directory');
   }
 
-  // Step 15: Update apps/web tsconfig.json with monorise path alias
+  // Step 15: Create global components, lib/utils, UI components, and globals.css
+  const webRoot = fs.existsSync(webSrcAppDir)
+    ? path.join(projectRoot, 'apps', 'web', 'src')
+    : fs.existsSync(webAppDir)
+      ? path.join(projectRoot, 'apps', 'web')
+      : null;
+
+  if (webRoot) {
+    const appDir = fs.existsSync(webSrcAppDir) ? webSrcAppDir : webAppDir;
+
+    // Create directories
+    fs.mkdirSync(path.join(webRoot, 'components', 'ui'), { recursive: true });
+    fs.mkdirSync(path.join(webRoot, 'lib'), { recursive: true });
+
+    // Global components
+    console.log('🌐 Creating global components...');
+    fs.writeFileSync(
+      path.join(webRoot, 'components', 'global-initializer.tsx'),
+      GLOBAL_INITIALIZER_TEMPLATE,
+    );
+    fs.writeFileSync(
+      path.join(webRoot, 'components', 'global-loader.tsx'),
+      GLOBAL_LOADER_TEMPLATE,
+    );
+
+    // lib/utils.ts
+    console.log('🔧 Creating lib/utils.ts...');
+    fs.writeFileSync(
+      path.join(webRoot, 'lib', 'utils.ts'),
+      LIB_UTILS_TEMPLATE,
+    );
+
+    // Shadcn UI components
+    console.log('🎨 Creating shadcn UI components...');
+    fs.writeFileSync(
+      path.join(webRoot, 'components', 'ui', 'button.tsx'),
+      UI_BUTTON_TEMPLATE,
+    );
+    fs.writeFileSync(
+      path.join(webRoot, 'components', 'ui', 'card.tsx'),
+      UI_CARD_TEMPLATE,
+    );
+    fs.writeFileSync(
+      path.join(webRoot, 'components', 'ui', 'input.tsx'),
+      UI_INPUT_TEMPLATE,
+    );
+    fs.writeFileSync(
+      path.join(webRoot, 'components', 'ui', 'label.tsx'),
+      UI_LABEL_TEMPLATE,
+    );
+
+    // Replace globals.css with shadcn theme
+    console.log('🎨 Setting up shadcn globals.css...');
+    const globalsCssPath = path.join(appDir, 'globals.css');
+    fs.writeFileSync(globalsCssPath, GLOBALS_CSS_TEMPLATE);
+
+    // Update layout.tsx with GlobalInitializer, GlobalLoader, and loader-portal
+    console.log('📐 Updating layout.tsx with global components...');
+    const layoutPath = path.join(appDir, 'layout.tsx');
+    if (fs.existsSync(layoutPath)) {
+      try {
+        let layoutContent = fs.readFileSync(layoutPath, 'utf8');
+
+        // Add imports after existing imports
+        const globalImports = `import GlobalInitializer from '#/components/global-initializer';\nimport GlobalLoader from '#/components/global-loader';`;
+        // Insert after the last import statement
+        const lastImportIndex = layoutContent.lastIndexOf('import ');
+        const lineEnd = layoutContent.indexOf('\n', lastImportIndex);
+        layoutContent =
+          layoutContent.slice(0, lineEnd + 1) +
+          globalImports +
+          '\n' +
+          layoutContent.slice(lineEnd + 1);
+
+        // Add loader-portal div and global components inside <body>
+        layoutContent = layoutContent.replace(
+          /(<body[^>]*>)/,
+          `$1\n        <div id="loader-portal" />\n        <GlobalInitializer />\n        <GlobalLoader />`,
+        );
+
+        fs.writeFileSync(layoutPath, layoutContent);
+      } catch (error) {
+        console.warn('Warning: Could not update layout.tsx:', error);
+      }
+    }
+
+    // Replace postcss.config.mjs with @tailwindcss/postcss
+    const postcssPath = path.join(projectRoot, 'apps', 'web', 'postcss.config.mjs');
+    if (fs.existsSync(postcssPath)) {
+      fs.writeFileSync(
+        postcssPath,
+        `const config = {\n  plugins: {\n    '@tailwindcss/postcss': {},\n  },\n};\n\nexport default config;\n`,
+      );
+    }
+
+    // Create API proxy routes
+    console.log('🔀 Creating API proxy routes...');
+    const apiDir = path.join(appDir, 'api');
+    const catchAllDir = path.join(apiDir, '[...proxy]');
+    fs.mkdirSync(catchAllDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(apiDir, 'proxy-request.ts'),
+      PROXY_REQUEST_TEMPLATE,
+    );
+    fs.writeFileSync(
+      path.join(catchAllDir, 'route.ts'),
+      PROXY_ROUTE_TEMPLATE,
+    );
+  }
+
+  // Step 16: Update apps/web tsconfig.json with monorise path alias
   console.log('⚙️  Updating apps/web tsconfig.json...');
   const webTsconfigPath = path.join(projectRoot, 'apps', 'web', 'tsconfig.json');
   if (fs.existsSync(webTsconfigPath)) {
@@ -719,8 +630,10 @@ export default $config({
         webTsconfig.compilerOptions.paths = {};
       }
 
-      // Add monorise path alias
+      // Add path aliases
       webTsconfig.compilerOptions.paths['#/monorise/*'] = ['../../.monorise/*'];
+      const hasSrcDir = fs.existsSync(path.join(projectRoot, 'apps', 'web', 'src'));
+      webTsconfig.compilerOptions.paths['#/*'] = [hasSrcDir ? './src/*' : './*'];
 
       fs.writeFileSync(webTsconfigPath, JSON.stringify(webTsconfig, null, 2));
     } catch (error) {

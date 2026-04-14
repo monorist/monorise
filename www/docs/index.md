@@ -116,7 +116,7 @@ That's it — API, DynamoDB, EventBridge, processors, and a type-safe frontend. 
   </div>
   <div class="feature">
     <h3><span class="feature-icon">&#x1F680;</span> Ship in Hours, Not Weeks</h3>
-    <p>From <code>git init</code> to production API in minutes. No migration scripts. No access pattern spreadsheets. No 2am GSI regrets.</p>
+    <p>From <code>git init</code> to production API in minutes. No migration scripts. No access pattern spreadsheets. No hand-rolled GSI headaches.</p>
   </div>
   <div class="feature">
     <h3><span class="feature-icon">&#x1F517;</span> Relational Access Patterns</h3>

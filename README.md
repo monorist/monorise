@@ -107,12 +107,12 @@ Read the [Getting Started Guide](https://monorise.dev/getting-started) for the c
 - **[Entity](https://monorise.dev/concepts/entities)** — A first-class record (e.g., `user`, `order`)
 - **[Mutual](https://monorise.dev/concepts/mutuals)** — A relationship between two entities with optional data (e.g., `learner` enrolled in `course`)
 - **[Tag](https://monorise.dev/concepts/tags)** — Key/value access patterns for fast querying
-- **[Prejoin](https://monorise.dev/concepts/prejoins)** — Computed relationships that avoid multi-hop queries
+- **[Tree](https://monorise.dev/concepts/prejoins)** — Computed relationships that avoid multi-hop queries
 
 ## Documentation
 
 - **[Getting Started](https://monorise.dev/getting-started)** — Installation, configuration, and first steps
-- **[Concepts](https://monorise.dev/concepts)** — Understanding Entities, Mutuals, Tags, and Prejoins
+- **[Concepts](https://monorise.dev/concepts)** — Understanding Entities, Mutuals, Tags, and Trees
 - **[SST SDK](https://monorise.dev/sst)** — Infrastructure and deployment reference
 - **[React SDK](https://monorise.dev/react)** — Frontend hooks and utilities
 - **[Best Practices](https://monorise.dev/best-practices)** — Security patterns and recommendations
@@ -136,7 +136,7 @@ Read the [Getting Started Guide](https://monorise.dev/getting-started) for the c
                               ┌────────────────────────┼────────────────────────┐
                               ▼                        ▼                        ▼
                        ┌─────────────┐          ┌─────────────┐          ┌─────────────┐
-                       │ SQS Mutual  │          │  SQS Tag    │          │ SQS Prejoin │
+                       │ SQS Mutual  │          │  SQS Tag    │          │  SQS Tree   │
                        │  Processor  │          │  Processor  │          │  Processor  │
                        └─────────────┘          └─────────────┘          └─────────────┘
 ```
