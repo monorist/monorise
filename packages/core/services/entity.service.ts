@@ -5,6 +5,10 @@ import type {
 } from '@monorise/base';
 import { z } from 'zod';
 import type { EntityRepository } from '../data/Entity';
+import {
+  buildConditionExpression,
+  type WhereConditions,
+} from '../data/utils/build-condition-expression';
 import { StandardError, StandardErrorCode } from '../errors/standard-error';
 import type { publishEvent as publishEventType } from '../helpers/event';
 import type { EventDetailBody as MutualProcessorEventDetailBody } from '../processors/mutual-processor';
@@ -95,16 +99,73 @@ export class EntityService {
     return entity;
   };
 
+  adjustEntity = async <T extends EntityType>({
+    entityType,
+    entityId,
+    adjustments,
+    accountId,
+  }: {
+    entityType: T;
+    entityId: string;
+    adjustments: Record<string, number>;
+    accountId?: string;
+  }) => {
+    const rawConstraints = this.EntityConfig[entityType]?.adjustmentConstraints;
+
+    // Resolve dynamic minField/maxField to static values
+    let resolvedConstraints = rawConstraints;
+    if (rawConstraints) {
+      const hasDynamicFields = Object.values(rawConstraints).some(
+        (c: any) => c.minField || c.maxField,
+      );
+      if (hasDynamicFields) {
+        const currentEntity = await this.entityRepository.getEntity(entityType, entityId);
+        const data = currentEntity?.data ?? {};
+        resolvedConstraints = {};
+        for (const [field, constraint] of Object.entries(rawConstraints)) {
+          const resolved: { min?: number; max?: number } = {};
+          if ((constraint as any).min !== undefined) resolved.min = (constraint as any).min;
+          if ((constraint as any).max !== undefined) resolved.max = (constraint as any).max;
+          if ((constraint as any).minField) resolved.min = data[(constraint as any).minField] ?? 0;
+          if ((constraint as any).maxField) resolved.max = data[(constraint as any).maxField] ?? Number.MAX_SAFE_INTEGER;
+          resolvedConstraints[field] = resolved;
+        }
+      }
+    }
+
+    const entity = await this.entityRepository.adjustEntity(
+      entityType,
+      entityId,
+      adjustments,
+      resolvedConstraints as any,
+    );
+
+    await this.publishEvent({
+      event: EVENT.CORE.ENTITY_UPDATED,
+      payload: {
+        entityType,
+        entityId,
+        data: entity.data,
+        updatedByAccountId: accountId,
+        publishedAt: entity.updatedAt || new Date().toISOString(),
+      },
+    });
+
+    return entity;
+  };
+
   updateEntity = async <T extends EntityType>({
     entityType,
     entityId,
     entityPayload,
     accountId,
+    where,
   }: {
     entityType: T;
     entityId: string;
     entityPayload: Partial<EntitySchemaMap[T]>;
     accountId?: string | string[];
+    where?: WhereConditions;
   }) => {
     const errorContext: Record<string, unknown> = {};
 
@@ -125,10 +186,16 @@ export class EntityService {
       const parsedMutualPayload = mutualSchema?.parse(entityPayload);
       errorContext.parsedMutualPayload = parsedMutualPayload;
 
+      const opts =
+        where && Object.keys(where).length > 0
+          ? buildConditionExpression(where)
+          : undefined;
+
       const entity = await this.entityRepository.updateEntity(
         entityType,
         entityId,
         { data: parsedEntityPayload },
+        opts,
       );
       errorContext.entity = entity;
 

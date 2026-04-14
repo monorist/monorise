@@ -1,0 +1,19 @@
+{
+  "name": "websocket-chat",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "sst dev"
+  },
+  "workspaces": [
+    "apps/*"
+  ],
+  "dependencies": {
+    "monorise": "file:../../packages/monorise/monorise-0.0.2.tgz",
+    "sst": "^3.18.1",
+    "zod": "^3.25.67"
+  },
+  "devDependencies": {
+    "typescript": "^5"
+  }
+}

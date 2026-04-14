@@ -20,6 +20,7 @@ export class CreateEntityController {
       const entity = await this.entityService.createEntity({
         entityType,
         entityPayload: body,
+        entityId: body.entityId,
         accountId,
         options: {
           createAndUpdateDatetime: body.createdAt,

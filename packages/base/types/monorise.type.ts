@@ -9,6 +9,10 @@ export interface EntitySchemaMap {
 export type DraftEntity<T extends Entity = Entity> =
   T extends keyof EntitySchemaMap ? EntitySchemaMap[T] : never;
 
+export type NumericFields<T> = {
+  [K in keyof T as T[K] extends number ? K : never]?: number;
+};
+
 export type CreatedEntity<T extends Entity = Entity> = {
   entityId: string;
   entityType: string;
@@ -227,4 +231,45 @@ export interface MonoriseEntityConfig<
       sortValue?: string;
     }[];
   }[];
+
+  /**
+   * @description (Optional) Constraints for `adjustEntity` operations.
+   * When adjusting numeric fields, these constraints are enforced at the database level.
+   * If an adjustment would violate a constraint, the operation is rejected.
+   *
+   * @example
+   * ```ts
+   * {
+   *   adjustmentConstraints: {
+   *     // Static: same for all entities of this type
+   *     balance: { min: 0 },
+   *     credits: { min: 0, max: 10000 },
+   *
+   *     // Dynamic: reads constraint value from entity's own data
+   *     balance: { minField: 'minBalance' },
+   *     credits: { min: 0, maxField: 'creditLimit' },
+   *   }
+   * }
+   * ```
+   */
+  adjustmentConstraints?: {
+    [fieldName: string]: {
+      /** Static minimum value */
+      min?: number;
+      /** Static maximum value */
+      max?: number;
+      /** Field name on the entity whose value is used as the minimum (must be a numeric field) */
+      minField?: keyof {
+        [K in keyof B as B[K] extends z.ZodNumber | z.ZodOptional<z.ZodNumber> ? K : never]: K;
+      } extends never ? string : keyof {
+        [K in keyof B as B[K] extends z.ZodNumber | z.ZodOptional<z.ZodNumber> ? K : never]: K;
+      };
+      /** Field name on the entity whose value is used as the maximum (must be a numeric field) */
+      maxField?: keyof {
+        [K in keyof B as B[K] extends z.ZodNumber | z.ZodOptional<z.ZodNumber> ? K : never]: K;
+      } extends never ? string : keyof {
+        [K in keyof B as B[K] extends z.ZodNumber | z.ZodOptional<z.ZodNumber> ? K : never]: K;
+      };
+    };
+  };
 }

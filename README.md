@@ -134,7 +134,7 @@ Read the [Getting Started Guide](https://monorise.dev/getting-started) for the c
 - **[Entity](https://monorise.dev/concepts/entities)** — A first-class record (e.g., `user`, `order`)
 - **[Mutual](https://monorise.dev/concepts/mutuals)** — A relationship between two entities with optional data (e.g., `learner` enrolled in `course`)
 - **[Tag](https://monorise.dev/concepts/tags)** — Key/value access patterns for fast querying
-- **[Tree](https://monorise.dev/concepts/prejoins)** — Computed relationships that avoid multi-hop queries
+- **[Tree](https://monorise.dev/concepts/trees)** — Computed relationships that avoid multi-hop queries
 
 ## Documentation
 
@@ -182,6 +182,193 @@ See [Architecture](https://monorise.dev/architecture) for the detailed design.
 ├── www/               # Documentation site (VitePress)
 └── examples/          # Example projects
 ```
+
+## How config becomes a running API
+
+Monorise uses a small build step to turn entity configs into runnable handlers.
+
+```mermaid
+flowchart LR
+  Config["monorise.config.ts + entity config files"] --> CLI["monorise dev/build (CLI)"]
+  CLI --> Out[".monorise/config.ts + .monorise/handle.ts"]
+  Out --> SST["SST stack (v2 or v3)"]
+```
+
+Notes:
+- `monorise.config.ts` points to your entity config directory and optional
+  custom routes (Hono).
+- The CLI writes `.monorise/handle.ts` which exports Lambda handlers used by SST
+  (API + processors + replication).
+
+## Runtime flow (high-level)
+
+```mermaid
+flowchart LR
+  Client --> Api["Hono API /core/*"]
+  Api --> CoreSvc["Entity/Mutual/Tag services"]
+  CoreSvc --> DDB[(DynamoDB single table)]
+  CoreSvc --> Bus["EventBridge bus"]
+  Bus --> SQS["SQS processors (mutual/tag/tree)"]
+  SQS --> DDB
+  DDB --> Stream["DynamoDB stream"]
+  Stream --> Replicator["replication processor"]
+  Replicator --> DDB
+```
+
+## End-to-end overview (config -> runtime -> data)
+
+```mermaid
+flowchart TB
+  subgraph Build["Build-time"]
+    Config["Entity configs (zod + mutual/tag/tree)"]
+    Cli["monorise CLI (dev/build)"]
+    Handle[".monorise/handle.ts"]
+    Config --> Cli --> Handle
+  end
+
+  subgraph Runtime["Runtime (SST)"]
+    API["/core API (Hono)"]
+    Services["Entity/Mutual/Tag services"]
+    Table[(DynamoDB single table)]
+    Bus["EventBridge bus"]
+    MutualQ["Mutual processor"]
+    TagQ["Tag processor"]
+    TreeQ["Tree processor"]
+    Stream["DynamoDB stream"]
+    Replicator["Replication processor"]
+  end
+
+  Client["App / Backoffice / Services"] --> API
+  Handle --> API
+  API --> Services --> Table
+  Services --> Bus
+  Bus --> MutualQ --> Table
+  Bus --> TagQ --> Table
+  Bus --> TreeQ --> Bus
+  Table --> Stream --> Replicator --> Table
+```
+
+Key behavior:
+- **Mutual processor**: creates/updates/removes relationship items in both
+  directions with conditional checks and locking.
+- **Tag processor**: calculates tag diffs and syncs tag items.
+- **Tree processor**: walks configured relationship paths and publishes
+  derived mutual updates.
+- **Replication processor**: keeps denormalized copies aligned via stream
+  updates (uses replication indexes).
+
+## Data layout (short cheat sheet)
+
+These are the main access patterns in the single table:
+
+- **Entity metadata**: `PK = <entityType>#<entityId>`, `SK = #METADATA#`
+- **Entity list**: `PK = LIST#<entityType>`, `SK = <entityType>#<entityId>`
+- **Mutual records**: a primary `MUTUAL#<id>` item plus two directional lookup
+  items (`byEntity -> entity` and the reverse).
+- **Tag records**: `PK = TAG#<entityType>#<tagName>[#group]`,
+  `SK = <sortValue?>#<entityType>#<entityId>` plus reverse lookup by entity.
+- **Unique fields**: `PK = UNIQUE#<field>#<value>`, `SK = <entityType>`
+
+The replication indexes (`R1PK/R2PK`) support fast updates of denormalized items.
+
+## Public API surface (core)
+
+The default Hono API exposes:
+
+- `GET/POST /core/entity/:entityType`
+- `GET/PUT/PATCH/DELETE /core/entity/:entityType/:entityId`
+- `GET/POST/PATCH/DELETE /core/mutual/:byEntityType/:byEntityId/:entityType/:entityId`
+- `GET /core/tag/:entityType/:tagName`
+
+Custom routes can be mounted under `/core/app/*` via `customRoutes`.
+
+`PATCH /core/entity/:entityType/:entityId` supports optional conditional
+preconditions through a top-level `$where` object. This lets you do atomic
+compare-and-set style updates.
+
+## Conditional PATCH updates (atomic $where)
+
+Use `$where` in `PATCH /core/entity/:entityType/:entityId` when updates should
+only apply if current values match your preconditions. Monorise compiles this
+to a DynamoDB `ConditionExpression` and executes it atomically in one write.
+
+Without `$where` (existing behavior):
+
+```json
+{
+  "status": "confirmed"
+}
+```
+
+With `$where`:
+
+```json
+{
+  "status": "confirmed",
+  "confirmedAt": "2026-04-13T00:00:00.000Z",
+  "$where": {
+    "status": { "$eq": "pending" },
+    "retryCount": { "$lt": 3 }
+  }
+}
+```
+
+Shorthand equality is supported:
+
+```json
+{
+  "status": "confirmed",
+  "$where": {
+    "status": "pending"
+  }
+}
+```
+
+All `$where` clauses are combined with `AND`.
+
+Supported operators:
+
+| Operator | Meaning |
+|---|---|
+| `$eq` | Equals |
+| `$ne` | Not equals |
+| `$gt` | Greater than |
+| `$lt` | Less than |
+| `$gte` | Greater than or equal |
+| `$lte` | Less than or equal |
+| `$exists` | Field exists / does not exist |
+| `$beginsWith` | String prefix match |
+
+Response behavior for PATCH:
+
+- `200 OK`: update applied
+- `409 CONFLICT`: `$where` precondition failed (`CONDITIONAL_CHECK_FAILED`)
+  - in conditional mode, this also includes missing entities
+- `404 NOT_FOUND`: entity missing in non-conditional mode
+- `400 BAD_REQUEST`: validation errors and unique-value conflicts
+
+Compatibility notes:
+
+- Existing PATCH clients continue to work unchanged (no `$where` required).
+- Top-level `$where` is reserved for conditional update semantics.
+
+## Package map
+
+| Package | Role |
+|---|---|
+| `@monorise/base` | Entity config + schema/types (zod). |
+| `@monorise/core` | Hono API, DynamoDB repositories, processors, event utils. |
+| `@monorise/cli` | Generates `.monorise/config.ts` + `.monorise/handle.ts`. |
+| `@monorise/react` | Client SDK, hooks, stores, axios helpers. |
+| `@monorise/sst` | SST v3 module: API, bus, table, queues, processors. |
+
+## Where to look next (within this repo)
+
+- Core API + processors: `packages/core/*`
+- SST v3 module: `packages/sst/*`
+- CLI generator: `packages/cli/*`
+- Shared types: `packages/base/*`
+- React SDK: `packages/react/*`
 
 ## Contributing
 

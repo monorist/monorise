@@ -52,9 +52,10 @@ export type CommonOptions = Partial<AxiosRequestConfig> & {
   stateKey?: string;
   forceFetch?: boolean;
   noData?: boolean;
+  limit?: number;
   requestKey?: string;
   onError?: (error: ApplicationRequestError | Error) => void;
-  limit?: number;
+  entityId?: string;
 };
 
 const initCoreService = (
@@ -167,7 +168,7 @@ const initCoreService = (
     const entityConfig = monoriseStore.getState().config;
     return axios.post<CreatedEntity<T>>(
       opts.customUrl || `${entityApiBaseUrl}/${entityType}`,
-      values,
+      { ...values, ...(opts.entityId && { entityId: opts.entityId }) },
       {
         requestKey:
           opts.requestKey || getEntityRequestKey('create', entityType),
@@ -217,6 +218,29 @@ const initCoreService = (
       values,
       {
         requestKey: getEntityRequestKey('edit', entityType, id),
+        isInterruptive: opts.isInterruptive ?? true,
+        feedback: {
+          loading: `Updating ${entityConfig[entityType].displayName}`,
+          success: `${entityConfig[entityType].displayName} updated`,
+          ...(opts.feedback || {}),
+        },
+      },
+    );
+  };
+
+  const adjustEntity = <T extends Entity>(
+    entityType: T,
+    id: string,
+    adjustments: Record<string, number>,
+    opts: CommonOptions = {},
+  ) => {
+    const { entityApiBaseUrl = ENTITY_API_BASE_URL } = options;
+    const entityConfig = monoriseStore.getState().config;
+    return axios.post<CreatedEntity<T>>(
+      opts.customUrl || `${entityApiBaseUrl}/${entityType}/${id}/adjust`,
+      adjustments,
+      {
+        requestKey: getEntityRequestKey('adjust', entityType, id),
         isInterruptive: opts.isInterruptive ?? true,
         feedback: {
           loading: `Updating ${entityConfig[entityType].displayName}`,
@@ -426,6 +450,11 @@ const initCoreService = (
       values: DraftEntity<T>,
       opts: CommonOptions = {},
     ) => editEntity(entityType, id, values, opts),
+    adjustEntity: (
+      id: string,
+      adjustments: Record<string, number>,
+      opts: CommonOptions = {},
+    ) => adjustEntity(entityType, id, adjustments, opts),
     deleteEntity: (id: string, opts: CommonOptions = {}) =>
       deleteEntity(entityType, id, opts),
   });

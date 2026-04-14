@@ -1,5 +1,28 @@
 # @monorise/react
 
+## 4.0.0
+
+### Minor Changes
+
+- b5a1fea: Add adjustEntity for atomic numeric updates on entity fields. Uses DynamoDB's native arithmetic expressions (SET field = field + delta) for race-condition-free concurrent writes. Useful for counters, accumulators, and real-time metrics.
+
+### Patch Changes
+
+- Updated dependencies [b5a1fea]
+  - @monorise/base@3.1.0
+
+## 3.0.6
+
+### Patch Changes
+
+- ca13559: Add limit param support to useEntities, with useState for stable tracking. Default params to { limit: 20 }. listMore respects the same limit. Add limit to CommonOptions for useMutuals and listMoreEntities.
+
+## 3.0.5
+
+### Patch Changes
+
+- eb14403: Add limit support to CommonOptions, listMoreEntities, and useEntities listMore for consistent pagination
+
 ## 3.0.4
 
 ### Patch Changes

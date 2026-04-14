@@ -58,7 +58,8 @@ const initCoreActions = (
     params: {
       skRange?: { start: string; end: string };
       all?: boolean;
-    } = {},
+      limit?: number;
+    } = { limit: 20 },
     opts: CommonOptions = {},
   ) => {
     const store = monoriseStore.getState();
@@ -86,7 +87,7 @@ const initCoreActions = (
     try {
       const { data: result } = await entityService.listEntities(
         {
-          ...(params?.all ? {} : { limit: 20 }),
+          ...(params?.all ? {} : { limit: params?.limit }),
           start: skRange?.start,
           end: skRange?.end,
         },
@@ -145,7 +146,7 @@ const initCoreActions = (
     try {
       const { data: result } = await entityService.listEntities(
         {
-          limit: 20,
+          limit: opts.limit ?? 20,
           lastKey,
         },
         opts,
@@ -623,6 +624,75 @@ const initCoreActions = (
       );
       return { data };
     } catch (err) {
+      const error: Error & { originalError?: unknown } =
+        err instanceof Error ? err : new Error('Unknown error occurred');
+      onError(error);
+      return { error };
+    }
+  };
+
+  const adjustEntity = async <T extends Entity>(
+    entityType: T,
+    id: string,
+    adjustments: Record<string, number>,
+    opts: CommonOptions = {},
+  ) => {
+    const entityService = makeEntityService(entityType);
+    const onError = opts.onError ?? defaultOnError;
+
+    try {
+      const { data } = await entityService.adjustEntity(id, adjustments, opts);
+
+      // Update local store with server response
+      monoriseStore.setState(
+        produce((state) => {
+          state.entity[entityType].dataMap.set(data.entityId, data);
+
+          // Propagate to mutual stores
+          for (const key of Object.keys(state.mutual)) {
+            const [_byEntity, _byId, _entityType] = key.split('/');
+            if ((_entityType as unknown as Entity) === entityType) {
+              const mutual = state.mutual[key].dataMap.get(id);
+              if (mutual) {
+                state.mutual[key].dataMap = new Map(
+                  state.mutual[key].dataMap,
+                ).set(id, { ...(mutual as any), data: data.data });
+              }
+            }
+          }
+
+          for (const key of Object.keys(state.mutual)) {
+            const [_byEntity, _byId] = key.split('/');
+            if ((_byEntity as unknown as Entity) === entityType && _byId === id) {
+              const newDataMap = new Map(state.mutual[key].dataMap);
+              for (const [entryId, mutual] of newDataMap) {
+                newDataMap.set(entryId, { ...(mutual as any), data: data.data });
+              }
+              state.mutual[key].dataMap = newDataMap;
+            }
+          }
+
+          // Propagate to tag stores
+          for (const tagKey of Object.keys(state.tag)) {
+            const [tagEntityType] = tagKey.split('/');
+            if ((tagEntityType as unknown as Entity) === entityType) {
+              if (state.tag[tagKey]?.dataMap?.has(id)) {
+                state.tag[tagKey].dataMap.set(id, data);
+              }
+            }
+          }
+        }),
+        undefined,
+        `mr/entity/adjust/${entityType}/${id}`,
+      );
+
+      return { data };
+    } catch (err: any) {
+      // Constraint violated — refetch entity to get latest state
+      if (err?.response?.status === 409) {
+        await getEntity(entityType, id, { forceFetch: true });
+      }
+
       const error: Error & { originalError?: unknown } =
         err instanceof Error ? err : new Error('Unknown error occurred');
       onError(error);
@@ -1352,7 +1422,8 @@ const initCoreActions = (
         end: string;
       };
       all?: boolean;
-    } = {},
+      limit?: number;
+    } = { limit: 20 },
     opts: CommonOptions & { searchInterval?: number } = {},
   ): {
     isLoading: boolean;
@@ -1380,6 +1451,7 @@ const initCoreActions = (
     const [query, setQuery] = useState<string>('');
     const [skRange, setBetween] = useState(params.skRange);
     const [all, setAll] = useState(params.all);
+    const [limit, setLimit] = useState(params.limit);
     const [isSearching, setIsSearching] = useState(false);
     const isLoading = isListing || isSearching;
 
@@ -1400,10 +1472,16 @@ const initCoreActions = (
     }, [all, params.all]);
 
     useEffect(() => {
-      if (!isFirstFetched || opts?.forceFetch) {
-        listEntities(entityType, { skRange, all }, opts);
+      if (params?.limit !== limit) {
+        setLimit(params.limit);
       }
-    }, [all, entityType, skRange, opts, isFirstFetched, opts?.forceFetch]);
+    }, [limit, params.limit]);
+
+    useEffect(() => {
+      if (!isFirstFetched || opts?.forceFetch) {
+        listEntities(entityType, { skRange, all, limit }, opts);
+      }
+    }, [all, entityType, skRange, opts, isFirstFetched, opts?.forceFetch, limit]);
 
     useEffect(() => {
       let queryTimeout: NodeJS.Timeout;
@@ -1476,6 +1554,7 @@ const initCoreActions = (
 
         await listMoreEntities(entityType, {
           ...opts,
+          limit,
           forceFetch: true,
         });
       },
@@ -1542,6 +1621,7 @@ const initCoreActions = (
     isFirstFetched?: boolean;
     lastKey?: string;
     listMore?: () => void;
+    refetch?: () => Promise<any>;
   } => {
     const stateKey = getMutualStateKey(
       byEntityType,
@@ -1769,6 +1849,7 @@ const initCoreActions = (
     upsertEntity,
     getEntity,
     editEntity,
+    adjustEntity,
     deleteEntity,
     getMutual,
     updateLocalEntity,
