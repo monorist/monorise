@@ -216,4 +216,7 @@ export type {
   Entity,
   EntitySchemaMap,
   NumericFields,
+  WhereClause,
+  WhereConditions,
+  WhereOperator,
 } from '@monorise/base';

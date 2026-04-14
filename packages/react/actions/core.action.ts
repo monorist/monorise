@@ -3,6 +3,7 @@ import type {
   DraftEntity,
   Entity,
   EntitySchemaMap,
+  WhereConditions,
 } from '@monorise/base';
 import { produce } from 'immer';
 import { useEffect, useState } from 'react';
@@ -428,9 +429,7 @@ const initCoreActions = (
           if (tagConfigs) {
             for (const tagConfig of tagConfigs) {
               const { name, processor } = tagConfig;
-              const processorResults = processor(
-                data as CreatedEntity<Entity>,
-              );
+              const processorResults = processor(data as CreatedEntity<Entity>);
 
               for (const tagKey of Object.keys(state.tag)) {
                 const [tagEntityType, tagName, ...paramParts] =
@@ -452,8 +451,9 @@ const initCoreActions = (
                 for (const part of paramParts) {
                   const colonIdx = part.indexOf(':');
                   if (colonIdx > 0) {
-                    keyParams[part.substring(0, colonIdx)] =
-                      part.substring(colonIdx + 1);
+                    keyParams[part.substring(0, colonIdx)] = part.substring(
+                      colonIdx + 1,
+                    );
                   }
                 }
 
@@ -490,8 +490,7 @@ const initCoreActions = (
           }
 
           // auto-populate mutual store based on entity config
-          const mutualFields =
-            state.config[entityType]?.mutual?.mutualFields;
+          const mutualFields = state.config[entityType]?.mutual?.mutualFields;
           if (mutualFields) {
             for (const [field, fieldConfig] of Object.entries(mutualFields)) {
               const byEntityType = fieldConfig.entityType;
@@ -573,12 +572,13 @@ const initCoreActions = (
     id: string,
     entity: Partial<DraftEntity<T>>,
     opts: CommonOptions = {},
+    where?: WhereConditions,
   ) => {
     const entityService = makeEntityService(entityType);
     const onError = opts.onError ?? defaultOnError;
 
     try {
-      const { data } = await entityService.editEntity(id, entity, opts);
+      const { data } = await entityService.editEntity(id, entity, opts, where);
 
       monoriseStore.setState(
         produce((state) => {
@@ -600,7 +600,10 @@ const initCoreActions = (
           // update flipped mutual side (entity is the "by" entity)
           for (const key of Object.keys(state.mutual)) {
             const [_byEntity, _byId] = key.split('/');
-            if ((_byEntity as unknown as Entity) === entityType && _byId === id) {
+            if (
+              (_byEntity as unknown as Entity) === entityType &&
+              _byId === id
+            ) {
               const newDataMap = new Map(state.mutual[key].dataMap);
               for (const [entryId, mutual] of newDataMap) {
                 newDataMap.set(entryId, { ...mutual, data: data.data });
@@ -663,10 +666,16 @@ const initCoreActions = (
 
           for (const key of Object.keys(state.mutual)) {
             const [_byEntity, _byId] = key.split('/');
-            if ((_byEntity as unknown as Entity) === entityType && _byId === id) {
+            if (
+              (_byEntity as unknown as Entity) === entityType &&
+              _byId === id
+            ) {
               const newDataMap = new Map(state.mutual[key].dataMap);
               for (const [entryId, mutual] of newDataMap) {
-                newDataMap.set(entryId, { ...(mutual as any), data: data.data });
+                newDataMap.set(entryId, {
+                  ...(mutual as any),
+                  data: data.data,
+                });
               }
               state.mutual[key].dataMap = newDataMap;
             }
@@ -1481,7 +1490,15 @@ const initCoreActions = (
       if (!isFirstFetched || opts?.forceFetch) {
         listEntities(entityType, { skRange, all, limit }, opts);
       }
-    }, [all, entityType, skRange, opts, isFirstFetched, opts?.forceFetch, limit]);
+    }, [
+      all,
+      entityType,
+      skRange,
+      opts,
+      isFirstFetched,
+      opts?.forceFetch,
+      limit,
+    ]);
 
     useEffect(() => {
       let queryTimeout: NodeJS.Timeout;
@@ -1647,7 +1664,12 @@ const initCoreActions = (
     const error = useErrorStore(requestKey);
 
     useEffect(() => {
-      if (byEntityType && entityType && byId && (!isFirstFetched || opts?.forceFetch)) {
+      if (
+        byEntityType &&
+        entityType &&
+        byId &&
+        (!isFirstFetched || opts?.forceFetch)
+      ) {
         listEntitiesByEntity(
           byEntityType,
           entityType,

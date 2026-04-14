@@ -1,4 +1,4 @@
-import type { CreatedEntity, DraftEntity, Entity } from '@monorise/base';
+import type { CreatedEntity, DraftEntity, Entity, WhereConditions } from '@monorise/base';
 import type { AxiosRequestConfig } from 'axios';
 import {
   getEntityRequestKey,
@@ -210,12 +210,13 @@ const initCoreService = (
     id: string,
     values: Partial<DraftEntity<T>>,
     opts: CommonOptions = {},
+    where?: WhereConditions,
   ) => {
     const { entityApiBaseUrl = ENTITY_API_BASE_URL } = options;
     const entityConfig = monoriseStore.getState().config;
     return axios.patch<CreatedEntity<T>>(
       opts.customUrl || `${entityApiBaseUrl}/${entityType}/${id}`,
-      values,
+      where ? { ...values, $where: where } : values,
       {
         requestKey: getEntityRequestKey('edit', entityType, id),
         isInterruptive: opts.isInterruptive ?? true,
@@ -444,12 +445,14 @@ const initCoreService = (
       id: string,
       values: Partial<DraftEntity<T>>,
       opts: CommonOptions = {},
-    ) => editEntity(entityType, id, values, opts),
+      where?: WhereConditions,
+    ) => editEntity(entityType, id, values, opts, where),
     updateEntity: (
       id: string,
       values: DraftEntity<T>,
       opts: CommonOptions = {},
-    ) => editEntity(entityType, id, values, opts),
+      where?: WhereConditions,
+    ) => editEntity(entityType, id, values, opts, where),
     adjustEntity: (
       id: string,
       adjustments: Record<string, number>,
