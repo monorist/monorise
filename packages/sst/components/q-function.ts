@@ -47,7 +47,7 @@ export class QFunction {
     this.queue.subscribe(this.function.arn, {
       batch: {
         partialResponses: true,
-        window: maxBatchingWindow as any,
+        window: maxBatchingWindow,
         size: batchSize,
       },
     });

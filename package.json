@@ -39,7 +39,7 @@
     "typescript": "^5.1.6"
   },
   "dependencies": {
-    "sst": "^4.0.0",
+    "sst": "4.7.3",
     "zustand": "^4.5.2"
   },
   "type": "module"

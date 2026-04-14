@@ -10,8 +10,8 @@ import {
   QueryCommand,
 } from '@aws-sdk/lib-dynamodb';
 import type {
-  APIGatewayProxyEventV2,
   APIGatewayProxyResultV2,
+  APIGatewayProxyWebsocketEventV2,
   DynamoDBStreamEvent,
   DynamoDBStreamHandler,
 } from 'aws-lambda';
@@ -25,6 +25,11 @@ const CONN_PREFIX = 'CONN#';
 const SUB_ENTITY_TYPE = 'SUB:ENTITY:'; // SUB:ENTITY:{entityType}
 const SUB_MUTUAL_TYPE = 'SUB:MUTUAL:'; // SUB:MUTUAL:{byEntityType}:{byEntityId}:{mutualEntityType}
 const SUB_EPHEMERAL = 'SUB:EPHEMERAL:'; // SUB:EPHEMERAL:{channel}
+
+interface WebSocketConnectEvent extends APIGatewayProxyWebsocketEventV2 {
+  queryStringParameters?: Record<string, string | undefined>;
+  headers?: Record<string, string | undefined>;
+}
 
 interface ClientMessage {
   action: 'subscribe' | 'unsubscribe' | 'ephemeral' | 'ping';
@@ -68,9 +73,9 @@ const getWsEndpoint = () => {
  * $connect handler
  */
 export const connect = async (
-  event: APIGatewayProxyEventV2,
+  event: WebSocketConnectEvent,
 ): Promise<APIGatewayProxyResultV2> => {
-  const connectionId = (event.requestContext as any).connectionId as string | undefined;
+  const connectionId = event.requestContext.connectionId;
   if (!connectionId) {
     return { statusCode: 400, body: 'Missing connection ID' };
   }
@@ -118,9 +123,9 @@ export const connect = async (
  * $disconnect handler
  */
 export const disconnect = async (
-  event: APIGatewayProxyEventV2,
+  event: APIGatewayProxyWebsocketEventV2,
 ): Promise<APIGatewayProxyResultV2> => {
-  const connectionId = (event.requestContext as any).connectionId as string | undefined;
+  const connectionId = event.requestContext.connectionId;
   if (!connectionId) {
     return { statusCode: 400, body: 'Missing connection ID' };
   }
@@ -153,9 +158,9 @@ export const disconnect = async (
  * $default handler - route messages
  */
 export const $default = async (
-  event: APIGatewayProxyEventV2,
+  event: APIGatewayProxyWebsocketEventV2,
 ): Promise<APIGatewayProxyResultV2> => {
-  const connectionId = (event.requestContext as any).connectionId as string | undefined;
+  const connectionId = event.requestContext.connectionId;
   if (!connectionId || !event.body) {
     return { statusCode: 400, body: 'Invalid message' };
   }

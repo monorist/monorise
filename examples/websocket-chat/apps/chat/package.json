@@ -8,7 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
-    "monorise": "file:../../../../packages/monorise/monorise-1.0.0.tgz",
+    "monorise": "file:../../../../packages/monorise",
     "next": "^15",
     "react": "^19",
     "react-dom": "^19"
