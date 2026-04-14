@@ -2,23 +2,11 @@
 
 import { useMemo, useState } from 'react';
 
-type Summary = {
-  entityId: string;
-  data: {
-    merchantId: string;
-    month: string;
-    totalSales: number;
-    totalRefunds: number;
-    totalDiscounts: number;
-    netTotal: number;
-    count: number;
-  };
-};
+import type { CreatedEntity } from 'monorise/base';
+import { Entity } from '#/monorise/entities';
 
-type Merchant = {
-  entityId: string;
-  data: { name: string; [key: string]: any };
-};
+type Summary = CreatedEntity<Entity.MONTHLY_SUMMARY>;
+type Merchant = CreatedEntity<Entity.MERCHANT>;
 
 function formatCompact(cents: number) {
   const val = cents / 100;

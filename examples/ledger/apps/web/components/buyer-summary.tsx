@@ -1,15 +1,10 @@
 'use client';
 
 import { useMemo } from 'react';
+import type { CreatedEntity } from 'monorise/base';
+import { Entity } from '#/monorise/entities';
 
-type Transaction = {
-  entityId: string;
-  data: {
-    amount: number;
-    type: 'sale' | 'refund' | 'discount';
-    [key: string]: any;
-  };
-};
+type Transaction = CreatedEntity<Entity.TRANSACTION>;
 
 function formatCurrency(cents: number) {
   return `$${(cents / 100).toFixed(2)}`;

@@ -3,6 +3,8 @@ import GlobalInitializer from '#/components/global-initializer';
 import GlobalLoader from '#/components/global-loader';
 import './globals.css';
 
+export const dynamic = 'force-dynamic';
+
 export const metadata: Metadata = {
   title: 'Ledger Dashboard',
   description: 'Monorise Ledger Example — Transaction management with DynamoDB',

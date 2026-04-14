@@ -1,5 +1,5 @@
 import { createEntityConfig } from 'monorise/base';
-import { z } from 'zod/v4';
+import { z } from 'zod';
 import { Entity } from '../entity';
 
 const baseSchema = z

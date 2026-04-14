@@ -261,9 +261,13 @@ export interface MonoriseEntityConfig<
       /** Field name on the entity whose value is used as the minimum (must be a numeric field) */
       minField?: keyof {
         [K in keyof B as B[K] extends z.ZodNumber | z.ZodOptional<z.ZodNumber> ? K : never]: K;
+      } extends never ? string : keyof {
+        [K in keyof B as B[K] extends z.ZodNumber | z.ZodOptional<z.ZodNumber> ? K : never]: K;
       };
       /** Field name on the entity whose value is used as the maximum (must be a numeric field) */
       maxField?: keyof {
+        [K in keyof B as B[K] extends z.ZodNumber | z.ZodOptional<z.ZodNumber> ? K : never]: K;
+      } extends never ? string : keyof {
         [K in keyof B as B[K] extends z.ZodNumber | z.ZodOptional<z.ZodNumber> ? K : never]: K;
       };
     };
