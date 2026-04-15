@@ -1,5 +1,20 @@
 # @monorise/base
 
+## 4.0.0
+
+### Major Changes
+
+- e6a935f: Upgrade to SST v4
+
+  - Bumped `sst` peer dependency from `^3.16.3` to `4.7.3`
+  - Fixed internal type leak in `QFunction` that referenced `.sst/platform` paths
+  - Updated `examples/basic` to use SST v4 and the unified `monorise` package
+  - Added migration guide at `docs/MIGRATE-SST-V4.md`
+
+### Patch Changes
+
+- 8e1333a: Fix MonoriseEntityConfig adjustmentConstraints minField/maxField defaulting to never when generic params are not specified
+
 ## 3.1.0
 
 ### Minor Changes
