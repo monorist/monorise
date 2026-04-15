@@ -1,4 +1,5 @@
 ---
+"monorise": minor
 "@monorise/base": minor
 "@monorise/react": minor
 ---
