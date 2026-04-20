@@ -55,7 +55,8 @@ export default config;
 | `uniqueFields` | `string[]` | No | Fields that must be unique per entity type |
 | `mutual` | `object` | No | Mutual relationship configuration (see [Mutuals](/concepts/mutuals)) |
 | `tags` | `array` | No | Tag access patterns (see [Tags](/concepts/tags)) |
-| `adjustmentConstraints` | `object` | No | Bounds for numeric fields when using [`adjustEntity`](/react#adjustentity) |
+| `adjustmentConditions` | `object` | No | Named conditions for [`adjustEntity`](/react#adjustentity) — enforces preconditions on numeric adjustments |
+| `updateConditions` | `object` | No | Named conditions for [`editEntity`](/react#editentity) — enforces preconditions on updates |
 
 ## Unique fields
 
