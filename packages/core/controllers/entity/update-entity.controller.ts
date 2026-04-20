@@ -18,6 +18,16 @@ export class UpdateEntityController {
     const body = await c.req.json();
     const { $condition: condition, $where: where, ...entityPayload } = body;
 
+    if (condition !== undefined) {
+      if (typeof condition !== 'string' || condition.trim().length === 0) {
+        c.status(httpStatus.BAD_REQUEST);
+        return c.json({
+          code: 'API_VALIDATION_ERROR',
+          message: '$condition must be a non-empty string',
+        });
+      }
+    }
+
     const errorContext: any = {
       accountId,
       'req.params': c.req.param(),

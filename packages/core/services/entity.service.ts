@@ -150,6 +150,9 @@ export class EntityService {
         },
       });
     } else if (rawConstraints) {
+      console.warn(
+        '[monorise] adjustmentConstraints is deprecated. Use adjustmentConditions instead.',
+      );
       // Legacy adjustmentConstraints — backward compatibility
       let resolvedConstraints = rawConstraints;
       const hasDynamicFields = Object.values(rawConstraints).some(

@@ -757,7 +757,7 @@ export class EntityRepository extends Repository {
       TableName: this.TABLE_NAME,
       Key: entity.keys(),
       UpdateExpression: UpdateExpression + updatedAtExpression,
-      ConditionExpression: opts?.ConditionExpression,
+      ConditionExpression: opts?.ConditionExpression || 'attribute_exists(PK)',
       ExpressionAttributeNames: {
         ...ExpressionAttributeNames,
         ...opts?.ExpressionAttributeNames,
