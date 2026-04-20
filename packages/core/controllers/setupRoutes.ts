@@ -70,5 +70,11 @@ export const setupCommonRoutes = (container: DependencyContainer): Hono => {
    * Tag endpoint
    */
   app.get('/tag/:entityType/:tagName', container.listTagsController.controller);
+
+  /*
+   * Transaction endpoint
+   */
+  app.post('/transaction', container.executeTransactionController.controller);
+
   return app;
 };

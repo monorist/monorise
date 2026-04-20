@@ -18,6 +18,7 @@ import type { Mutual, MutualData } from '../types/mutual.type';
 const ENTITY_API_BASE_URL = '/api/core/entity';
 const MUTUAL_API_BASE_URL = '/api/core/mutual';
 const TAG_API_BASE_URL = '/api/core/tag';
+const TRANSACTION_API_BASE_URL = '/api/core/transaction';
 
 type ListEntitiesPayload = {
   limit?: number;
@@ -275,6 +276,37 @@ const initCoreService = (
     );
   };
 
+  const transaction = (
+    operations: Array<{
+      operation:
+        | 'createEntity'
+        | 'updateEntity'
+        | 'adjustEntity'
+        | 'deleteEntity';
+      entityType: Entity;
+      entityId?: string;
+      payload?: Record<string, unknown>;
+      adjustments?: Record<string, number>;
+      condition?: string;
+    }>,
+    opts: CommonOptions = {},
+  ) => {
+    const { transactionApiBaseUrl = TRANSACTION_API_BASE_URL } = options as any;
+    return axios.post(
+      opts.customUrl || transactionApiBaseUrl,
+      { operations },
+      {
+        requestKey: 'transaction',
+        isInterruptive: opts.isInterruptive ?? true,
+        feedback: {
+          loading: 'Processing transaction',
+          success: 'Transaction completed',
+          ...(opts.feedback || {}),
+        },
+      },
+    );
+  };
+
   const listEntitiesByEntity = <B extends Entity, T extends Entity>(
     byEntityType: B,
     entityType: T,
@@ -521,6 +553,7 @@ const initCoreService = (
   return {
     makeEntityService,
     makeMutualService,
+    transaction,
     setOptions,
   };
 };
