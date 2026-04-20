@@ -7,6 +7,14 @@ import {
   NumericFields,
 } from './types/monorise.type';
 
+import type {
+  Condition,
+  ConditionFn,
+  WhereClause,
+  WhereConditions,
+  WhereOperator,
+} from './types/conditions.type';
+
 import { createEntityConfig } from './utils';
 
 export {
@@ -17,4 +25,12 @@ export {
   MonoriseEntityConfig,
   NumericFields,
   createEntityConfig,
+};
+
+export type {
+  Condition,
+  ConditionFn,
+  WhereClause,
+  WhereConditions,
+  WhereOperator,
 };

@@ -1,4 +1,5 @@
 import type { z } from 'zod';
+import type { WhereConditions } from './conditions.type';
 
 export enum Entity {}
 
@@ -237,6 +238,8 @@ export interface MonoriseEntityConfig<
    * When adjusting numeric fields, these constraints are enforced at the database level.
    * If an adjustment would violate a constraint, the operation is rejected.
    *
+   * @deprecated Use `conditions` instead. Will be removed in a future version.
+   *
    * @example
    * ```ts
    * {
@@ -271,5 +274,45 @@ export interface MonoriseEntityConfig<
         [K in keyof B as B[K] extends z.ZodNumber | z.ZodOptional<z.ZodNumber> ? K : never]: K;
       };
     };
+  };
+
+  /**
+   * @description Named conditions for conditional writes (update and adjust operations).
+   * Each condition is either a static `WhereConditions` object or a function
+   * `(data, adjustments?) => WhereConditions` that receives the entity's current data
+   * and (for adjustEntity) the adjustment deltas.
+   *
+   * When `conditions` is defined on an entity:
+   * - `adjustEntity`: `$condition` is **required** in the request body
+   * - `updateEntity`: `$condition` is **optional** (no condition = unconditioned update)
+   *
+   * The client sends a condition name (string), the server resolves it to a
+   * DynamoDB ConditionExpression. Raw `$where` operators are never exposed to clients.
+   *
+   * @example
+   * ```ts
+   * {
+   *   conditions: {
+   *     // Static condition
+   *     publish: { status: { $eq: 'draft' } },
+   *
+   *     // Dynamic condition using entity data + adjustment deltas
+   *     withdraw: (data, adjustments) => ({
+   *       balance: { $gte: (data.minBalance ?? 0) + Math.abs(adjustments?.balance ?? 0) },
+   *     }),
+   *
+   *     // Dynamic condition using entity data only
+   *     archive: (data) => ({ status: { $ne: 'archived' } }),
+   *   }
+   * }
+   * ```
+   */
+  conditions?: {
+    [conditionName: string]:
+      | WhereConditions
+      | ((
+          data: Partial<z.infer<z.ZodObject<B>>>,
+          adjustments?: Record<string, number>,
+        ) => WhereConditions);
   };
 }
