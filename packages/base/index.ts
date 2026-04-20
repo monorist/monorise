@@ -8,6 +8,14 @@ import {
   NumericFields,
 } from './types/monorise.type';
 
+import type {
+  Condition,
+  ConditionFn,
+  WhereClause,
+  WhereConditions,
+  WhereOperator,
+} from './types/conditions.type';
+
 import { createEntityConfig, createMutualConfig } from './utils';
 
 export {
@@ -20,4 +28,12 @@ export {
   NumericFields,
   createEntityConfig,
   createMutualConfig,
+};
+
+export type {
+  Condition,
+  ConditionFn,
+  WhereClause,
+  WhereConditions,
+  WhereOperator,
 };
