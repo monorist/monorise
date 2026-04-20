@@ -395,6 +395,46 @@ Conditions are enforced at the database level via DynamoDB ConditionExpressions 
 
 **Event publishing**: Publishes `ENTITY_UPDATED` event, so tag and replication processors keep denormalized data in sync — same as `editEntity`.
 
+### `transaction`
+
+Execute multiple entity operations atomically — all succeed or all fail. Uses DynamoDB `TransactWriteItems` under the hood.
+
+```ts
+import { transaction } from 'monorise/react';
+
+await transaction([
+  {
+    operation: 'createEntity',
+    entityType: Entity.ORDER,
+    payload: { customerId: '...', total: 5000 },
+  },
+  {
+    operation: 'adjustEntity',
+    entityType: Entity.WALLET,
+    entityId: walletId,
+    adjustments: { balance: -5000 },
+    condition: 'withdraw',
+  },
+]);
+```
+
+**Supported operations:**
+
+| Operation | Description |
+|-----------|-------------|
+| `createEntity` | Create a new entity (with unique field enforcement) |
+| `updateEntity` | Partial update (no unique field changes allowed in transactions) |
+| `adjustEntity` | Atomic numeric increment/decrement (with condition support) |
+| `deleteEntity` | Delete an entity |
+
+**Conditions**: `adjustEntity` and `updateEntity` support the `condition` field, referencing `adjustmentConditions` or `updateConditions` defined in the entity config.
+
+**DynamoDB limits**: Maximum 100 items per transaction. Each `createEntity` uses 2+ items (main record + list index + unique fields). Other operations use 1 item each.
+
+**Atomicity**: If any operation fails (condition violation, duplicate unique field, missing entity for delete), the entire transaction is rolled back — no partial writes.
+
+**Events**: Events (`ENTITY_CREATED`, `ENTITY_UPDATED`, `ENTITY_DELETED`) are published only after the transaction commits successfully. Replication, tag, and mutual processors work normally.
+
 ### Mutual actions
 
 | Action | Description |

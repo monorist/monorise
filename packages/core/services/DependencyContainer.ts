@@ -27,7 +27,9 @@ import { EntityService } from './entity.service';
 import { MutualService } from './mutual.service';
 
 import { ListTagsController } from '../controllers/tag/list-tags.controller';
+import { ExecuteTransactionController } from '../controllers/transaction/execute-transaction.controller';
 import { EntityServiceLifeCycle } from './entity-service-lifecycle';
+import { TransactionService } from './transaction.service';
 
 export class DependencyContainer {
   private _instanceCache: Map<string, any>;
@@ -246,5 +248,25 @@ export class DependencyContainer {
 
   get listTagsController(): ListTagsController {
     return this.createCachedInstance(ListTagsController, this.tagRepository);
+  }
+
+  get transactionService(): TransactionService {
+    return this.createCachedInstance(
+      TransactionService,
+      this.config.EntityConfig,
+      this.config.EmailAuthEnabledEntities,
+      this.entityRepository,
+      this.dynamodbClient,
+      this.publishEvent,
+      this.entityServiceLifeCycle,
+      this.eventUtils,
+    );
+  }
+
+  get executeTransactionController(): ExecuteTransactionController {
+    return this.createCachedInstance(
+      ExecuteTransactionController,
+      this.transactionService,
+    );
   }
 }

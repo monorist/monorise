@@ -111,7 +111,7 @@ export class EntityRepository extends Repository {
       EntityType,
       ReturnType<typeof createEntityConfig>
     >,
-    private readonly TABLE_NAME: string,
+    public readonly TABLE_NAME: string,
     private readonly dynamodbClient: DynamoDB,
     private readonly EmailAuthEnabledEntities: EntityType[],
   ) {
