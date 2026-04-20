@@ -14,11 +14,19 @@ export type WhereClause = WhereOperator | string | number | boolean;
 
 export type WhereConditions = Record<string, WhereClause>;
 
-export type ConditionFn<B extends z.ZodRawShape = z.ZodRawShape> = (
+export type AdjustmentConditionFn<B extends z.ZodRawShape = z.ZodRawShape> = (
   data: Partial<z.infer<z.ZodObject<B>>>,
-  adjustments?: Record<string, number>,
+  adjustments: Record<string, number>,
 ) => WhereConditions;
 
-export type Condition<B extends z.ZodRawShape = z.ZodRawShape> =
+export type AdjustmentCondition<B extends z.ZodRawShape = z.ZodRawShape> =
   | WhereConditions
-  | ConditionFn<B>;
+  | AdjustmentConditionFn<B>;
+
+export type UpdateConditionFn<B extends z.ZodRawShape = z.ZodRawShape> = (
+  data: Partial<z.infer<z.ZodObject<B>>>,
+) => WhereConditions;
+
+export type UpdateCondition<B extends z.ZodRawShape = z.ZodRawShape> =
+  | WhereConditions
+  | UpdateConditionFn<B>;

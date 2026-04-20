@@ -18,9 +18,9 @@ const config = createEntityConfig({
   displayName: 'Wallet',
   baseSchema,
   createSchema,
-  conditions: {
+  adjustmentConditions: {
     withdraw: (data, adjustments) => ({
-      balance: { $gte: Math.abs(adjustments?.balance ?? 0) },
+      balance: { $gte: Math.abs(adjustments.balance ?? 0) },
     }),
     deposit: { balance: { $lte: 1000000 } },
   },

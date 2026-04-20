@@ -9,8 +9,10 @@ import {
 } from './types/monorise.type';
 
 import type {
-  Condition,
-  ConditionFn,
+  AdjustmentCondition,
+  AdjustmentConditionFn,
+  UpdateCondition,
+  UpdateConditionFn,
   WhereClause,
   WhereConditions,
   WhereOperator,
@@ -31,8 +33,10 @@ export {
 };
 
 export type {
-  Condition,
-  ConditionFn,
+  AdjustmentCondition,
+  AdjustmentConditionFn,
+  UpdateCondition,
+  UpdateConditionFn,
   WhereClause,
   WhereConditions,
   WhereOperator,
