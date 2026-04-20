@@ -24,13 +24,13 @@ export async function resolveAdjustmentCondition({
   adjustments: Record<string, number>;
   getEntityData: () => Promise<Record<string, unknown>>;
 }): Promise<ConditionExpressionResult> {
-  const condition = conditions[conditionName];
-  if (!condition) {
+  if (!Object.hasOwn(conditions, conditionName)) {
     throw new StandardError(
       StandardErrorCode.INVALID_CONDITION,
       `Unknown adjustment condition: '${conditionName}'`,
     );
   }
+  const condition = conditions[conditionName];
 
   let resolved: WhereConditions;
 
@@ -53,13 +53,13 @@ export async function resolveUpdateCondition({
   conditions: Record<string, UpdateCondition>;
   getEntityData: () => Promise<Record<string, unknown>>;
 }): Promise<ConditionExpressionResult> {
-  const condition = conditions[conditionName];
-  if (!condition) {
+  if (!Object.hasOwn(conditions, conditionName)) {
     throw new StandardError(
       StandardErrorCode.INVALID_CONDITION,
       `Unknown update condition: '${conditionName}'`,
     );
   }
+  const condition = conditions[conditionName];
 
   let resolved: WhereConditions;
 

@@ -445,7 +445,7 @@ const initCoreService = (
     ) => upsertEntity(entityType, id, values, opts),
     editEntity: (
       id: string,
-      values: Partial<DraftEntity<T>>,
+      values: Partial<DraftEntity<T>> & { $condition?: string },
       opts: CommonOptions = {},
     ) => editEntity(entityType, id, values, opts),
     updateEntity: (

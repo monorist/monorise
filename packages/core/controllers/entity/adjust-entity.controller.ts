@@ -17,13 +17,15 @@ export class AdjustEntityController {
     const body = await c.req.json();
     const { $condition: condition, ...adjustments } = body;
 
-    // Validate $condition is a string if provided
-    if (condition !== undefined && typeof condition !== 'string') {
-      c.status(httpStatus.BAD_REQUEST);
-      return c.json({
-        code: 'API_VALIDATION_ERROR',
-        message: '$condition must be a string',
-      });
+    // Validate $condition is a non-empty string if provided
+    if (condition !== undefined) {
+      if (typeof condition !== 'string' || condition.trim().length === 0) {
+        c.status(httpStatus.BAD_REQUEST);
+        return c.json({
+          code: 'API_VALIDATION_ERROR',
+          message: '$condition must be a non-empty string',
+        });
+      }
     }
 
     // Validate all adjustment values are numbers
