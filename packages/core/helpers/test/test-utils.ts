@@ -110,13 +110,15 @@ export const createMockEntityConfig = () => ({
         status: z.string(),
       })
       .partial(),
-    conditions: {
+    adjustmentConditions: {
       withdraw: (data, adjustments) => ({
         balance: {
-          $gte: (data.minBalance ?? 0) + Math.abs(adjustments?.balance ?? 0),
+          $gte: (data.minBalance ?? 0) + Math.abs(adjustments.balance ?? 0),
         },
       }),
       deposit: { balance: { $lte: 10000 } },
+    },
+    updateConditions: {
       publish: { status: { $eq: 'draft' } },
     },
   }),

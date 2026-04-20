@@ -1,7 +1,8 @@
 import type {
-  Condition,
+  AdjustmentCondition,
   EntitySchemaMap,
   Entity as EntityType,
+  UpdateCondition,
   WhereConditions,
   createEntityConfig,
 } from '@monorise/base';
@@ -15,7 +16,10 @@ import type { publishEvent as publishEventType } from '../helpers/event';
 import type { EventDetailBody as MutualProcessorEventDetailBody } from '../processors/mutual-processor';
 import { EVENT } from '../types/event';
 import type { EntityServiceLifeCycle } from './entity-service-lifecycle';
-import { resolveCondition } from './resolve-condition';
+import {
+  resolveAdjustmentCondition,
+  resolveUpdateCondition,
+} from './resolve-condition';
 
 export class EntityService {
   constructor(
@@ -115,8 +119,8 @@ export class EntityService {
     condition?: string;
   }) => {
     const entityConfig = this.EntityConfig[entityType];
-    const conditions = entityConfig?.conditions as
-      | Record<string, Condition>
+    const adjustmentConditions = entityConfig?.adjustmentConditions as
+      | Record<string, AdjustmentCondition>
       | undefined;
     const rawConstraints = entityConfig?.adjustmentConstraints;
 
@@ -124,21 +128,21 @@ export class EntityService {
       | {
           ConditionExpression: string;
           ExpressionAttributeNames: Record<string, string>;
-          ExpressionAttributeValues: Record<string, import('@aws-sdk/client-dynamodb').AttributeValue>;
+          ExpressionAttributeValues: Record<string, AttributeValue>;
         }
       | undefined;
 
-    if (conditions) {
+    if (adjustmentConditions) {
       // New conditions system — $condition is required
       if (!condition) {
         throw new StandardError(
           StandardErrorCode.INVALID_CONDITION,
-          'Entity has conditions defined; $condition is required for adjustEntity',
+          'Entity has adjustmentConditions defined; $condition is required for adjustEntity',
         );
       }
-      opts = await resolveCondition({
+      opts = await resolveAdjustmentCondition({
         conditionName: condition,
-        conditions,
+        conditions: adjustmentConditions,
         adjustments,
         getEntityData: async () => {
           const entity = await this.entityRepository.getEntity(entityType, entityId);
@@ -232,18 +236,18 @@ export class EntityService {
         | undefined;
 
       if (condition) {
-        const conditions = this.EntityConfig[entityType]?.conditions as
-          | Record<string, Condition>
+        const updateConditions = this.EntityConfig[entityType]?.updateConditions as
+          | Record<string, UpdateCondition>
           | undefined;
-        if (!conditions) {
+        if (!updateConditions) {
           throw new StandardError(
             StandardErrorCode.INVALID_CONDITION,
-            `Entity '${entityType}' has no conditions defined`,
+            `Entity '${entityType}' has no updateConditions defined`,
           );
         }
-        opts = await resolveCondition({
+        opts = await resolveUpdateCondition({
           conditionName: condition,
-          conditions,
+          conditions: updateConditions,
           getEntityData: async () => {
             const entity = await this.entityRepository.getEntity(entityType, entityId);
             return entity?.data ?? {};

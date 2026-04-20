@@ -277,42 +277,58 @@ export interface MonoriseEntityConfig<
   };
 
   /**
-   * @description Named conditions for conditional writes (update and adjust operations).
+   * @description Named conditions for adjustEntity operations.
    * Each condition is either a static `WhereConditions` object or a function
-   * `(data, adjustments?) => WhereConditions` that receives the entity's current data
-   * and (for adjustEntity) the adjustment deltas.
+   * `(data, adjustments) => WhereConditions` that receives the entity's current data
+   * and the adjustment deltas.
    *
-   * When `conditions` is defined on an entity:
-   * - `adjustEntity`: `$condition` is **required** in the request body
-   * - `updateEntity`: `$condition` is **optional** (no condition = unconditioned update)
-   *
+   * When defined, `$condition` is **required** in the adjustEntity request body.
    * The client sends a condition name (string), the server resolves it to a
-   * DynamoDB ConditionExpression. Raw `$where` operators are never exposed to clients.
+   * DynamoDB ConditionExpression.
    *
    * @example
    * ```ts
    * {
-   *   conditions: {
-   *     // Static condition
-   *     publish: { status: { $eq: 'draft' } },
-   *
-   *     // Dynamic condition using entity data + adjustment deltas
+   *   adjustmentConditions: {
    *     withdraw: (data, adjustments) => ({
    *       balance: { $gte: (data.minBalance ?? 0) + Math.abs(adjustments?.balance ?? 0) },
    *     }),
+   *     deposit: { balance: { $lte: 1000000 } },
+   *   }
+   * }
+   * ```
+   */
+  adjustmentConditions?: {
+    [conditionName: string]:
+      | WhereConditions
+      | ((
+          data: Partial<z.infer<z.ZodObject<B>>>,
+          adjustments: Record<string, number>,
+        ) => WhereConditions);
+  };
+
+  /**
+   * @description Named conditions for updateEntity operations.
+   * Each condition is either a static `WhereConditions` object or a function
+   * `(data) => WhereConditions` that receives the entity's current data.
    *
-   *     // Dynamic condition using entity data only
+   * `$condition` is always **optional** for updateEntity.
+   * The client sends a condition name (string), the server resolves it to a
+   * DynamoDB ConditionExpression. Replaces raw `$where` (deprecated).
+   *
+   * @example
+   * ```ts
+   * {
+   *   updateConditions: {
+   *     publish: { status: { $eq: 'draft' } },
    *     archive: (data) => ({ status: { $ne: 'archived' } }),
    *   }
    * }
    * ```
    */
-  conditions?: {
+  updateConditions?: {
     [conditionName: string]:
       | WhereConditions
-      | ((
-          data: Partial<z.infer<z.ZodObject<B>>>,
-          adjustments?: Record<string, number>,
-        ) => WhereConditions);
+      | ((data: Partial<z.infer<z.ZodObject<B>>>) => WhereConditions);
   };
 }
