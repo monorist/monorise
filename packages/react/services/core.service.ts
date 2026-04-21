@@ -288,7 +288,6 @@ const initCoreService = (
       payload?: Record<string, unknown>;
       adjustments?: Record<string, number>;
       condition?: string;
-      accountId?: string;
     }>,
     opts: CommonOptions = {},
   ) => {

@@ -81,7 +81,7 @@ export class TransactionService {
             ...this.collectCreateEvents(
               entity,
               op.payload,
-              op.accountId || accountId,
+              accountId,
             ),
           );
           resultEntries.push({
@@ -99,7 +99,7 @@ export class TransactionService {
             ...this.collectUpdateEvents(
               op,
               updatedAt,
-              op.accountId || accountId,
+              accountId,
             ),
           );
           resultEntries.push({
@@ -117,7 +117,7 @@ export class TransactionService {
             payload: {
               entityType: op.entityType,
               entityId: op.entityId,
-              updatedByAccountId: op.accountId || accountId,
+              updatedByAccountId: accountId,
               publishedAt: updatedAt,
             },
           });
@@ -136,7 +136,7 @@ export class TransactionService {
             payload: {
               entityType: op.entityType,
               entityId: op.entityId,
-              deletedByAccountId: op.accountId || accountId,
+              deletedByAccountId: accountId,
             },
           });
           resultEntries.push({

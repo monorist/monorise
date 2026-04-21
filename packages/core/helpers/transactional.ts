@@ -11,7 +11,7 @@ export const transactional = {
   createEntity: <T extends EntityType>(
     entityType: T,
     payload: EntitySchemaMap[T],
-    opts?: { entityId?: string; accountId?: string },
+    opts?: { entityId?: string },
   ): TransactionCreateEntity<T> => ({
     operation: 'createEntity',
     entityType,
@@ -23,7 +23,7 @@ export const transactional = {
     entityType: T,
     entityId: string,
     payload: Partial<EntitySchemaMap[T]>,
-    opts?: { condition?: string; accountId?: string },
+    opts?: { condition?: string },
   ): TransactionUpdateEntity<T> => ({
     operation: 'updateEntity',
     entityType,
@@ -36,7 +36,7 @@ export const transactional = {
     entityType: T,
     entityId: string,
     adjustments: Record<string, number>,
-    opts?: { condition?: string; accountId?: string },
+    opts?: { condition?: string },
   ): TransactionAdjustEntity<T> => ({
     operation: 'adjustEntity',
     entityType,
@@ -48,12 +48,10 @@ export const transactional = {
   deleteEntity: <T extends EntityType>(
     entityType: T,
     entityId: string,
-    opts?: { accountId?: string },
   ): TransactionDeleteEntity<T> => ({
     operation: 'deleteEntity',
     entityType,
     entityId,
-    ...opts,
   }),
 };
 
