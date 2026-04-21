@@ -5,7 +5,6 @@ export type TransactionCreateEntity<T extends EntityType = EntityType> = {
   entityType: T;
   entityId?: string;
   payload: EntitySchemaMap[T];
-  accountId?: string;
 };
 
 export type TransactionUpdateEntity<T extends EntityType = EntityType> = {
@@ -30,7 +29,6 @@ export type TransactionDeleteEntity<T extends EntityType = EntityType> = {
   operation: 'deleteEntity';
   entityType: T;
   entityId: string;
-  accountId?: string;
 };
 
 export type TransactionOperation =
