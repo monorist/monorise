@@ -109,7 +109,7 @@ import { transaction, transactional } from 'monorise/react';
 
 await transaction([
   transactional.createEntity('order', { ... }),
-  transactional.adjustEntity('wallet', '...', { balance: -100 }, { condition: 'withdraw' }),
+  transactional.adjustEntity('wallet', '...', { balance: -100, $condition: 'withdraw' }),
 ]);
 ```
 

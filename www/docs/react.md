@@ -406,7 +406,7 @@ import { transaction, transactional } from 'monorise/react';
 
 await transaction([
   transactional.createEntity(Entity.ORDER, { customerId: '...', total: 5000 }),
-  transactional.adjustEntity(Entity.WALLET, walletId, { balance: -5000 }, { condition: 'withdraw' }),
+  transactional.adjustEntity(Entity.WALLET, walletId, { balance: -5000, $condition: 'withdraw' }),
 ]);
 ```
 
@@ -417,7 +417,8 @@ const tx = transactional;
 
 await transaction([
   tx.createEntity(Entity.ORDER, { customerId: '...', total: 5000 }),
-  tx.adjustEntity(Entity.WALLET, walletId, { balance: -5000 }, { condition: 'withdraw' }),
+  tx.adjustEntity(Entity.WALLET, walletId, { balance: -5000, $condition: 'withdraw' }),
+  tx.updateEntity(Entity.POST, postId, { status: 'published', $condition: 'publish' }),
   tx.deleteEntity(Entity.PRODUCT, productId),
 ]);
 ```
