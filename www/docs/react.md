@@ -365,8 +365,10 @@ const config = createEntityConfig({
     withdraw: (data, adjustments) => ({
       balance: { $gte: (data.minBalance ?? 0) + Math.abs(adjustments.balance ?? 0) },
     }),
-    // Static: same for all wallets
-    deposit: { balance: { $lte: 1000000 } },
+    // Ensures post-deposit balance doesn't exceed cap
+    deposit: (data, adjustments) => ({
+      balance: { $lte: 1000000 - (adjustments.balance ?? 0) },
+    }),
   },
 });
 ```

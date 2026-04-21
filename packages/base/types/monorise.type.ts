@@ -293,7 +293,9 @@ export interface MonoriseEntityConfig<
    *     withdraw: (data, adjustments) => ({
    *       balance: { $gte: (data.minBalance ?? 0) + Math.abs(adjustments?.balance ?? 0) },
    *     }),
-   *     deposit: { balance: { $lte: 1000000 } },
+   *     deposit: (data, adjustments) => ({
+   *       balance: { $lte: 1000000 - (adjustments.balance ?? 0) },
+   *     }),
    *   }
    * }
    * ```
