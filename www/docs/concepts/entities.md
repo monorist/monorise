@@ -144,9 +144,11 @@ Internally, this always writes to an `expiresAt` attribute — the same attribut
 Multiple entity operations can be executed atomically using the [`transaction`](/react#transaction) API. All operations succeed or all fail — no partial writes.
 
 ```ts
+import { transaction, transactional } from 'monorise/react';
+
 await transaction([
-  { operation: 'createEntity', entityType: 'order', payload: { ... } },
-  { operation: 'adjustEntity', entityType: 'wallet', entityId: '...', adjustments: { balance: -100 }, condition: 'withdraw' },
+  transactional.createEntity('order', { ... }),
+  transactional.adjustEntity('wallet', '...', { balance: -100 }, { condition: 'withdraw' }),
 ]);
 ```
 

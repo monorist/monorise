@@ -288,10 +288,12 @@ const initCoreService = (
       payload?: Record<string, unknown>;
       adjustments?: Record<string, number>;
       condition?: string;
+      accountId?: string;
     }>,
     opts: CommonOptions = {},
   ) => {
-    const { transactionApiBaseUrl = TRANSACTION_API_BASE_URL } = options as any;
+    const { transactionApiBaseUrl = TRANSACTION_API_BASE_URL } =
+      options as any;
     return axios.post(
       opts.customUrl || transactionApiBaseUrl,
       { operations },
