@@ -402,21 +402,23 @@ Conditions are enforced at the database level via DynamoDB ConditionExpressions 
 Execute multiple entity operations atomically — all succeed or all fail. Uses DynamoDB `TransactWriteItems` under the hood.
 
 ```ts
-import { transaction } from 'monorise/react';
+import { transaction, transactional } from 'monorise/react';
 
 await transaction([
-  {
-    operation: 'createEntity',
-    entityType: Entity.ORDER,
-    payload: { customerId: '...', total: 5000 },
-  },
-  {
-    operation: 'adjustEntity',
-    entityType: Entity.WALLET,
-    entityId: walletId,
-    adjustments: { balance: -5000 },
-    condition: 'withdraw',
-  },
+  transactional.createEntity(Entity.ORDER, { customerId: '...', total: 5000 }),
+  transactional.adjustEntity(Entity.WALLET, walletId, { balance: -5000 }, { condition: 'withdraw' }),
+]);
+```
+
+The `transactional` builder provides autocomplete-friendly, type-safe operation constructors. You can alias it for brevity:
+
+```ts
+const tx = transactional;
+
+await transaction([
+  tx.createEntity(Entity.ORDER, { customerId: '...', total: 5000 }),
+  tx.adjustEntity(Entity.WALLET, walletId, { balance: -5000 }, { condition: 'withdraw' }),
+  tx.deleteEntity(Entity.PRODUCT, productId),
 ]);
 ```
 
