@@ -665,6 +665,26 @@ export class EntityRepository extends Repository {
               const [updateErr, ...uniqueFieldErr] =
                 err.CancellationReasons || [];
 
+              if (
+                updateErr?.Code ===
+                BatchStatementErrorCodeEnum.ConditionalCheckFailed
+              ) {
+                if (opts?.ConditionExpression) {
+                  throw new StandardError(
+                    StandardErrorCode.CONDITIONAL_CHECK_FAILED,
+                    'Conditional check failed',
+                    err,
+                    { entityId, toUpdate },
+                  );
+                }
+                throw new StandardError(
+                  StandardErrorCode.ENTITY_NOT_FOUND,
+                  'Entity not found',
+                  err,
+                  { entityId, toUpdate },
+                );
+              }
+
               for (let i = 0; i < uniqueFieldErr.length; i++) {
                 if (
                   i % 2 === 1 &&
@@ -692,6 +712,14 @@ export class EntityRepository extends Repository {
       return updatedEntity;
     } catch (err) {
       if (err instanceof ConditionalCheckFailedException) {
+        if (opts?.ConditionExpression) {
+          throw new StandardError(
+            StandardErrorCode.CONDITIONAL_CHECK_FAILED,
+            'Conditional check failed',
+            err,
+            { entityId, toUpdate },
+          );
+        }
         throw new StandardError(
           StandardErrorCode.ENTITY_NOT_FOUND,
           'Entity not found',
@@ -705,6 +733,33 @@ export class EntityRepository extends Repository {
 
       throw err;
     }
+  }
+
+  async adjustEntity<T extends EntityType>(
+    entityType: T,
+    entityId: string,
+    adjustments: Record<string, number>,
+    constraints?: { [field: string]: { min?: number; max?: number } },
+  ): Promise<Entity<T>> {
+    const entity = new Entity(entityType, entityId);
+    const { UpdateExpression, ConditionExpression, ExpressionAttributeNames, ExpressionAttributeValues } =
+      this.toAdjustUpdate(adjustments, constraints);
+
+    const updatedAtExpression = ', #updatedAt = :updatedAt';
+    ExpressionAttributeNames['#updatedAt'] = 'updatedAt';
+    ExpressionAttributeValues[':updatedAt'] = { S: new Date().toISOString() };
+
+    const resp = await this.dynamodbClient.updateItem({
+      TableName: this.TABLE_NAME,
+      Key: entity.keys(),
+      UpdateExpression: UpdateExpression + updatedAtExpression,
+      ...(ConditionExpression && { ConditionExpression }),
+      ExpressionAttributeNames,
+      ExpressionAttributeValues,
+      ReturnValues: 'ALL_NEW',
+    });
+
+    return Entity.fromItem<T>(resp.Attributes);
   }
 
   async deleteEntity<T extends EntityType>(

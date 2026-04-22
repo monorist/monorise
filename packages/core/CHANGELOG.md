@@ -1,5 +1,36 @@
 # @monorise/core
 
+## 4.0.0
+
+### Major Changes
+
+- e6a935f: Upgrade to SST v4
+
+  - Bumped `sst` peer dependency from `^3.16.3` to `4.7.3`
+  - Fixed internal type leak in `QFunction` that referenced `.sst/platform` paths
+  - Updated `examples/basic` to use SST v4 and the unified `monorise` package
+  - Added migration guide at `docs/MIGRATE-SST-V4.md`
+
+## 3.2.0
+
+### Minor Changes
+
+- a76b169: Add conditional `$where` support to core entity PATCH updates so callers can apply atomic compare-and-set style updates with DynamoDB condition expressions.
+
+  Map failed conditional checks to `CONDITIONAL_CHECK_FAILED` and return HTTP 409 from the update entity controller.
+
+## 3.1.0
+
+### Minor Changes
+
+- b5a1fea: Add adjustEntity for atomic numeric updates on entity fields. Uses DynamoDB's native arithmetic expressions (SET field = field + delta) for race-condition-free concurrent writes. Useful for counters, accumulators, and real-time metrics.
+
+## 3.0.4
+
+### Patch Changes
+
+- 9692fa3: Fix NaN limit in list-entities controller when limit query param is not provided
+
 ## 3.0.3
 
 ## 3.0.3

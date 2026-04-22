@@ -16,6 +16,7 @@ export class UpdateEntityController {
     };
 
     const body = await c.req.json();
+    const { $where: where, ...entityPayload } = body;
 
     const errorContext: any = {
       accountId,
@@ -27,8 +28,9 @@ export class UpdateEntityController {
       const entity = await this.entityService.updateEntity({
         entityType,
         entityId,
-        entityPayload: body,
+        entityPayload,
         accountId,
+        where,
       });
       errorContext.entity = entity;
 
@@ -59,6 +61,16 @@ export class UpdateEntityController {
         err.code === StandardErrorCode.UNIQUE_VALUE_EXISTS
       ) {
         c.status(httpStatus.BAD_REQUEST);
+        return c.json({
+          ...err.toJSON(),
+        });
+      }
+
+      if (
+        err instanceof StandardError &&
+        err.code === StandardErrorCode.CONDITIONAL_CHECK_FAILED
+      ) {
+        c.status(httpStatus.CONFLICT);
         return c.json({
           ...err.toJSON(),
         });

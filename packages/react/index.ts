@@ -141,6 +141,7 @@ const {
   createEntity,
   upsertEntity,
   editEntity,
+  adjustEntity,
   updateLocalEntity,
   deleteEntity,
   getMutual,
@@ -196,6 +197,7 @@ export {
   createEntity,
   upsertEntity,
   editEntity,
+  adjustEntity,
   updateLocalEntity,
   deleteEntity,
   getMutual,
@@ -240,4 +242,5 @@ export type {
   DraftEntity,
   Entity,
   EntitySchemaMap,
+  NumericFields,
 } from '@monorise/base';

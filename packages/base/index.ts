@@ -4,6 +4,7 @@ import {
   Entity,
   EntitySchemaMap,
   MonoriseEntityConfig,
+  NumericFields,
 } from './types/monorise.type';
 
 import { createEntityConfig } from './utils';
@@ -14,5 +15,6 @@ export {
   DraftEntity,
   CreatedEntity,
   MonoriseEntityConfig,
+  NumericFields,
   createEntityConfig,
 };

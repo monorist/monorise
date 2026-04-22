@@ -5,6 +5,7 @@ import 'tsconfig-paths/register.js';
 import fs from 'node:fs';
 import path from 'node:path';
 import chokidar from 'chokidar';
+import { detectCombinedPackage } from './commands/utils/detect-package';
 
 function kebabToCamel(str: string): string {
   return str.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
@@ -93,12 +94,26 @@ export enum Entity {}
   }
 
   // Detect whether the consumer uses the combined 'monorise' package or scoped '@monorise/*' packages
-  const usesCombinedPackage = fs.existsSync(
-    path.join(projectRoot, 'node_modules', 'monorise'),
-  );
-  const baseModuleName = usesCombinedPackage
-    ? 'monorise/base'
-    : '@monorise/base';
+  const usesCombinedPackage = detectCombinedPackage(projectRoot);
+
+  // Build module augmentation block
+  const augmentationBlock = (moduleName: string) => `
+declare module '${moduleName}' {
+  export enum Entity {
+    ${enumEntries.join(',\n    ')}
+  }
+
+  ${typeEntries.join('\n  ')}
+
+  export interface EntitySchemaMap {
+    ${schemaMapEntries.join('\n    ')}
+  }
+}`;
+
+  // Augment the correct module based on which package is installed
+  const moduleAugmentations = usesCombinedPackage
+    ? augmentationBlock('monorise/base')
+    : augmentationBlock('@monorise/base');
 
   const configOutputContent = `
 import type { z } from 'zod';
@@ -143,18 +158,7 @@ const config = {
 };
 
 export default config;
-
-declare module '${baseModuleName}' {
-  export enum Entity {
-    ${enumEntries.join(',\n    ')}
-  }
-
-  ${typeEntries.join('\n  ')}
-
-  export interface EntitySchemaMap {
-    ${schemaMapEntries.join('\n    ')}
-  }
-}
+${moduleAugmentations}
 `;
 
   fs.writeFileSync(configOutputPath, configOutputContent);
@@ -231,13 +235,8 @@ async function generateHandleFile(
   // If customRoutesPath is not provided, routesImportLine remains empty and appHandlerPayload remains `{}`
 
   // Detect whether the consumer uses the combined 'monorise' package or scoped '@monorise/*' packages
-  const usesCombinedPackage = fs.existsSync(
-    path.join(projectRoot, 'node_modules', 'monorise'),
-  );
-  const coreImportPath = usesCombinedPackage
-    ? 'monorise/core'
-    : '@monorise/core';
-  const sstImportPath = usesCombinedPackage ? 'monorise/sst' : '@monorise/sst';
+  const usesCombinedPackage = detectCombinedPackage(projectRoot);
+  const coreImportPath = usesCombinedPackage ? 'monorise/core' : '@monorise/core';
 
   const combinedContent = `
 import CoreFactory from '${coreImportPath}';
