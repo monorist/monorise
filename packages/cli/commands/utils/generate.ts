@@ -233,6 +233,12 @@ export const appHandler = AppHandler({
   config,
   routes
 });
+
+// WebSocket handlers (wrapped with DependencyContainer for SST to resolve)
+export const wsConnect = coreFactory.wsConnect;
+export const wsDisconnect = coreFactory.wsDisconnect;
+export const wsDefault = coreFactory.wsDefault;
+export const wsBroadcast = coreFactory.wsBroadcast;
 `;
   fs.writeFileSync(handleOutputPath, combinedContent);
   console.log('Successfully generated handle.ts!');
