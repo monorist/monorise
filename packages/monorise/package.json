@@ -36,6 +36,11 @@
     "./cli": {
       "import": "./dist/cli/cli.js",
       "types": "./dist/cli/cli.d.ts"
+    },
+    "./proxy": {
+      "import": "./dist/proxy/index.js",
+      "types": "./dist/proxy/index.d.ts",
+      "require": "./dist/proxy/index.js"
     }
   },
   "typesVersions": {
@@ -54,6 +59,9 @@
       ],
       "cli": [
         "./dist/cli/cli.d.ts"
+      ],
+      "proxy": [
+        "./dist/proxy/index.d.ts"
       ]
     }
   },

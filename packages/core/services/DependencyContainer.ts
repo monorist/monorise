@@ -9,6 +9,7 @@ import { EntityRepository } from '../data/Entity';
 import { EventUtils } from '../data/EventUtils';
 import { MutualRepository } from '../data/Mutual';
 import { TagRepository } from '../data/Tag';
+import { WebSocketRepository } from '../data/WebSocket';
 
 import { CreateEntityController } from '../controllers/entity/create-entity.controller';
 import { DeleteEntityController } from '../controllers/entity/delete-entity.controller';
@@ -28,6 +29,7 @@ import { MutualService } from './mutual.service';
 
 import { ListTagsController } from '../controllers/tag/list-tags.controller';
 import { ExecuteTransactionController } from '../controllers/transaction/execute-transaction.controller';
+import { CreateTicketController } from '../controllers/ws/create-ticket.controller';
 import { EntityServiceLifeCycle } from './entity-service-lifecycle';
 import { TransactionService } from './transaction.service';
 
@@ -153,6 +155,14 @@ export class DependencyContainer {
     );
   }
 
+  get websocketRepository(): WebSocketRepository {
+    return this.createCachedInstance(
+      WebSocketRepository,
+      this.coreTable,
+      this.dynamodbClient,
+    );
+  }
+
   get getEntityController(): GetEntityController {
     return this.createCachedInstance(
       GetEntityController,
@@ -268,5 +278,9 @@ export class DependencyContainer {
       ExecuteTransactionController,
       this.transactionService,
     );
+  }
+
+  get createTicketController(): CreateTicketController {
+    return this.createCachedInstance(CreateTicketController, this);
   }
 }
