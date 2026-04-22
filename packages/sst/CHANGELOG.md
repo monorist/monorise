@@ -1,5 +1,52 @@
 # @monorise/sst
 
+## 4.1.0-dev.0
+
+### Minor Changes
+
+- 7b9cd73: Add ticket-based auth for WebSocket entity feed subscriptions.
+
+  - `POST /ws/ticket/:entityType/:entityId` endpoint for ticket generation
+  - Tickets are short-lived (30min TTL), one-time use, stored in DynamoDB
+  - `$connect` handler supports ticket auth alongside token auth
+  - Feed subscriptions auto-created on ticket-based connections
+  - `monorise/proxy` package with `generateWebSocketTicket()` helper
+  - feedTypes resolved transitively through mutual config graph
+  - Fix: baseSchema now always included in FinalSchemaType
+
+- 7b9cd73: Add WebSocket layer for real-time entity updates
+
+  ### Features
+
+  - Optional WebSocket support in MonoriseCore with `webSocket: { enabled: true }` config
+  - HTTP for mutations (reliable) + WebSocket for real-time updates (scalable)
+  - Entity-type subscriptions for scalability (not entity-id)
+  - Auto-refetch on reconnect to catch missed events during disconnect
+  - Lambda handlers: $connect, $disconnect, $default, broadcast
+  - DynamoDB Streams integration for change broadcasting
+
+  ### Breaking Changes
+
+  - **@monorise/core**: Removed WebSocketManager and OptimisticEngine exports (moved to @monorise/react)
+  - Import WebSocketManager from `@monorise/react` instead of `@monorise/core`
+
+  ### Migration
+
+  ```typescript
+  // Before
+  import { WebSocketManager } from "@monorise/core";
+
+  // After
+  import { WebSocketManager } from "@monorise/react";
+  ```
+
+  ### New React Hooks
+
+  - `useWebSocketConnection()`: Monitor connection state
+  - `useEntitySocket(entityType)`: Subscribe to entity type changes
+  - `useMutualSocket(byEntityType, byEntityId, mutualEntityType)`: Subscribe to mutual relationship changes
+  - `useEphemeralSocket(channel)`: Ephemeral messaging for typing indicators, live cursors, presence
+
 ## 4.0.0
 
 ### Major Changes
