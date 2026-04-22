@@ -11,5 +11,12 @@
     "@monorise/sst": "4.0.0",
     "@monorise/www": "0.0.0"
   },
-  "changesets": []
+  "changesets": [
+    "entity-feed-hook",
+    "entity-feed-subscriptions",
+    "entity-feed-ticket",
+    "happy-shrimps-kick",
+    "transactional-writes",
+    "unified-conditions"
+  ]
 }

@@ -1,6 +1,6 @@
 {
   "name": "@monorise/proxy",
-  "version": "3.0.0",
+  "version": "3.1.0-dev.0",
   "description": "Proxy helpers for monorise - used in Next.js API routes and similar proxy layers",
   "type": "module",
   "main": "dist/index.js",
@@ -16,6 +16,6 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@monorise/base": "^3.0.2"
+    "@monorise/base": "^4.1.0-dev.0"
   }
 }
