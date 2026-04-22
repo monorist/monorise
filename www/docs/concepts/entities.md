@@ -55,7 +55,8 @@ export default config;
 | `uniqueFields` | `string[]` | No | Fields that must be unique per entity type |
 | `mutual` | `object` | No | Mutual relationship configuration (see [Mutuals](/concepts/mutuals)) |
 | `tags` | `array` | No | Tag access patterns (see [Tags](/concepts/tags)) |
-| `adjustmentConstraints` | `object` | No | Bounds for numeric fields when using [`adjustEntity`](/react#adjustentity) |
+| `adjustmentConditions` | `object` | No | Named conditions for [`adjustEntity`](/react#adjustentity) — enforces preconditions on numeric adjustments |
+| `updateConditions` | `object` | No | Named conditions for [`editEntity`](/react#editentity) — enforces preconditions on updates |
 
 ## Unique fields
 
@@ -98,6 +99,21 @@ const { entities, searchField } = useEntities(Entity.USER);
 // Bind to an input
 <input {...searchField} placeholder="Search users..." />
 ```
+
+## Transactional writes
+
+Multiple entity operations can be executed atomically using the [`transaction`](/react#transaction) API. All operations succeed or all fail — no partial writes.
+
+```ts
+import { transaction, transactional } from 'monorise/react';
+
+await transaction([
+  transactional.createEntity('order', { ... }),
+  transactional.adjustEntity('wallet', '...', { balance: -100, $condition: 'withdraw' }),
+]);
+```
+
+Supported operations: `createEntity`, `updateEntity`, `adjustEntity`, `deleteEntity`. Conditions from `adjustmentConditions` and `updateConditions` are supported within transactions. Events are published only after the transaction commits.
 
 ## Data layout
 

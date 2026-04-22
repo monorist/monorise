@@ -1,4 +1,5 @@
 import type { z } from 'zod';
+import type { WhereConditions } from './conditions.type';
 
 export enum Entity {}
 
@@ -237,6 +238,8 @@ export interface MonoriseEntityConfig<
    * When adjusting numeric fields, these constraints are enforced at the database level.
    * If an adjustment would violate a constraint, the operation is rejected.
    *
+   * @deprecated Use `conditions` instead. Will be removed in a future version.
+   *
    * @example
    * ```ts
    * {
@@ -271,5 +274,63 @@ export interface MonoriseEntityConfig<
         [K in keyof B as B[K] extends z.ZodNumber | z.ZodOptional<z.ZodNumber> ? K : never]: K;
       };
     };
+  };
+
+  /**
+   * @description Named conditions for adjustEntity operations.
+   * Each condition is either a static `WhereConditions` object or a function
+   * `(data, adjustments) => WhereConditions` that receives the entity's current data
+   * and the adjustment deltas.
+   *
+   * When defined, `$condition` is **required** in the adjustEntity request body.
+   * The client sends a condition name (string), the server resolves it to a
+   * DynamoDB ConditionExpression.
+   *
+   * @example
+   * ```ts
+   * {
+   *   adjustmentConditions: {
+   *     withdraw: (data, adjustments) => ({
+   *       balance: { $gte: (data.minBalance ?? 0) + Math.abs(adjustments?.balance ?? 0) },
+   *     }),
+   *     deposit: (data, adjustments) => ({
+   *       balance: { $lte: 1000000 - (adjustments.balance ?? 0) },
+   *     }),
+   *   }
+   * }
+   * ```
+   */
+  adjustmentConditions?: {
+    [conditionName: string]:
+      | WhereConditions
+      | ((
+          data: Partial<z.infer<z.ZodObject<B>>>,
+          adjustments: Record<string, number>,
+        ) => WhereConditions);
+  };
+
+  /**
+   * @description Named conditions for updateEntity operations.
+   * Each condition is either a static `WhereConditions` object or a function
+   * `(data) => WhereConditions` that receives the entity's current data.
+   *
+   * `$condition` is always **optional** for updateEntity.
+   * The client sends a condition name (string), the server resolves it to a
+   * DynamoDB ConditionExpression. Replaces raw `$where` (deprecated).
+   *
+   * @example
+   * ```ts
+   * {
+   *   updateConditions: {
+   *     publish: { status: { $eq: 'draft' } },
+   *     archive: (data) => ({ status: { $ne: 'archived' } }),
+   *   }
+   * }
+   * ```
+   */
+  updateConditions?: {
+    [conditionName: string]:
+      | WhereConditions
+      | ((data: Partial<z.infer<z.ZodObject<B>>>) => WhereConditions);
   };
 }
