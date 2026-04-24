@@ -1,5 +1,9 @@
 import type { AttributeValue } from '@aws-sdk/client-dynamodb';
-import type { EntitySchemaMap, Entity as EntityType } from '@monorise/base';
+import type {
+  EntitySchemaMap,
+  Entity as EntityType,
+  createEntityConfig,
+} from '@monorise/base';
 import { ulid } from 'ulid';
 import { z } from 'zod';
 import type { DbUtils } from '../data/DbUtils';
@@ -11,12 +15,37 @@ import type { EntityServiceLifeCycle } from './entity-service-lifecycle';
 
 export class MutualService {
   constructor(
+    private EntityConfig: Record<
+      EntityType,
+      ReturnType<typeof createEntityConfig>
+    >,
     private entityRepository: EntityRepository,
     private mutualRepository: MutualRepository,
     private publishEvent: typeof publishEventType,
     private ddbUtils: DbUtils,
     private entityServiceLifeCycle: EntityServiceLifeCycle,
   ) {}
+
+  private getMutualDataSchema(
+    byEntityType: EntityType,
+    entityType: EntityType,
+  ) {
+    // Check byEntityType → entityType direction first, then reverse
+    for (const [from, to] of [
+      [byEntityType, entityType],
+      [entityType, byEntityType],
+    ]) {
+      const mutualFields = this.EntityConfig[from]?.mutual?.mutualFields;
+      if (!mutualFields) continue;
+
+      for (const config of Object.values(mutualFields)) {
+        if (config.entityType === to && config.mutual?.mutualDataSchema) {
+          return config.mutual.mutualDataSchema;
+        }
+      }
+    }
+    return undefined;
+  }
 
   createMutual = async <
     B extends EntityType,
@@ -76,8 +105,9 @@ export class MutualService {
       },
     };
 
-    // TODO: schema validation for mutual data by config
-    const schema = z.record(z.string(), z.any());
+    const schema =
+      this.getMutualDataSchema(byEntityType, entityType) ??
+      z.record(z.string(), z.any());
     const parsedMutualPayload = schema.parse(mutualPayload);
 
     const [{ data: byEntityData }, { data: entityData }] = await Promise.all([
@@ -220,7 +250,9 @@ export class MutualService {
       returnUpdatedValue?: boolean;
     };
   }) => {
-    const schema = z.record(z.string(), z.any());
+    const schema =
+      this.getMutualDataSchema(byEntityType, entityType) ??
+      z.record(z.string(), z.any());
     const parsedMutualPayload = schema.parse(mutualPayload);
     const mutual = await this.mutualRepository.updateMutual(
       byEntityType,

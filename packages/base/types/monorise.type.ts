@@ -7,6 +7,28 @@ export interface EntitySchemaMap {
   [key: string]: Record<string, any>;
 }
 
+/**
+ * @description Configuration for a mutual relationship between two entities.
+ * Defines the schema for mutualData validation. Define once, reference from both entity configs.
+ *
+ * @example
+ * ```ts
+ * const enrollmentMutual = createMutualConfig({
+ *   entities: [Entity.STUDENT, Entity.COURSE],
+ *   mutualDataSchema: z.object({
+ *     role: z.enum(['student', 'auditor']),
+ *     enrolledAt: z.string().datetime(),
+ *   }),
+ * });
+ * ```
+ */
+export interface MutualConfig<
+  MD extends z.ZodRawShape = z.ZodRawShape,
+> {
+  entities: [Entity, Entity];
+  mutualDataSchema: z.ZodObject<MD>;
+}
+
 export type DraftEntity<T extends Entity = Entity> =
   T extends keyof EntitySchemaMap ? EntitySchemaMap[T] : never;
 
@@ -130,6 +152,11 @@ export interface MonoriseEntityConfig<
           currentMutual: any,
           customContext?: Record<string, any>,
         ) => Record<string, any>;
+        /**
+         * @description (Optional) Reference to a mutual config created by `createMutualConfig`.
+         * Provides mutualData schema validation for create/update operations on this mutual relationship.
+         */
+        mutual?: MutualConfig;
       };
     };
 
