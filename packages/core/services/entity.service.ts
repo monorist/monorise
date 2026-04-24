@@ -48,8 +48,6 @@ export class EntityService {
       this.EntityConfig[entityType]?.createSchema ||
       this.EntityConfig[entityType]?.baseSchema ||
       z.object({});
-    // const mutualSchema = this.EntityConfig[entityType]?.mutual?.mutualSchema;
-
     if (!finalSchema || !entitySchema) {
       throw new StandardError(
         StandardErrorCode.INVALID_ENTITY_TYPE,
@@ -62,10 +60,6 @@ export class EntityService {
     const parsedEntityPayload = entitySchema.parse(
       entityPayload,
     ) as EntitySchemaMap[T] & { email: string };
-
-    // TODO: Create entity to accept mutual payload, so that mutual
-    // relationship can be formed when creating entity
-    // const parsedMutualPayload = mutualSchema?.parse(entityPayload);
 
     if (this.EmailAuthEnabledEntities.includes(entityType)) {
       await this.entityRepository.getEmailAvailability(

@@ -199,6 +199,91 @@ Each mutual object returned by hooks contains:
 }
 ```
 
+## Validating mutual data with `createMutualConfig`
+
+By default, `mutualData` accepts any shape — there's no validation. Use `createMutualConfig` to define a schema that validates mutual data on create and update operations.
+
+### Defining a mutual config
+
+Since a mutual relationship is shared between two entities, define the config **once** and reference it from both sides:
+
+```ts
+import { createMutualConfig } from 'monorise/base';
+
+// Define once
+const enrollmentMutual = createMutualConfig({
+  entities: [Entity.STUDENT, Entity.COURSE],
+  mutualDataSchema: z.object({
+    role: z.enum(['student', 'auditor']),
+    enrolledAt: z.string().datetime(),
+  }),
+});
+```
+
+### Referencing from entity configs
+
+Pass the mutual config to the `mutual` property in `mutualFields`:
+
+**Student config:**
+
+```ts
+const config = createEntityConfig({
+  name: 'student',
+  displayName: 'Student',
+  baseSchema,
+  mutual: {
+    mutualSchema: z
+      .object({
+        courseIds: z.string().array(),
+      })
+      .partial(),
+    mutualFields: {
+      courseIds: {
+        entityType: Entity.COURSE,
+        mutual: enrollmentMutual,
+      },
+    },
+  },
+});
+```
+
+**Course config:**
+
+```ts
+const config = createEntityConfig({
+  name: 'course',
+  displayName: 'Course',
+  baseSchema,
+  mutual: {
+    mutualSchema: z
+      .object({
+        studentIds: z.string().array(),
+      })
+      .partial(),
+    mutualFields: {
+      studentIds: {
+        entityType: Entity.STUDENT,
+        mutual: enrollmentMutual,
+      },
+    },
+  },
+});
+```
+
+### What gets validated
+
+When `mutualDataSchema` is defined, it validates:
+
+- **Direct mutual creation** — `createMutual()` API payload
+- **Direct mutual update** — `updateMutual()` API payload
+- **Processor output** — return value of `mutualDataProcessor` (if defined)
+
+Invalid payloads will throw a Zod validation error.
+
+::: tip
+`createMutualConfig` is optional. Existing configs without it continue to work as before — any data shape is accepted.
+:::
+
 ## Data layout
 
 | Pattern | Key structure |
