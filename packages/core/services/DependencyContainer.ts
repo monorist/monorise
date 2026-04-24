@@ -9,6 +9,7 @@ import { EntityRepository } from '../data/Entity';
 import { EventUtils } from '../data/EventUtils';
 import { MutualRepository } from '../data/Mutual';
 import { TagRepository } from '../data/Tag';
+import { WebSocketRepository } from '../data/WebSocket';
 
 import { CreateEntityController } from '../controllers/entity/create-entity.controller';
 import { DeleteEntityController } from '../controllers/entity/delete-entity.controller';
@@ -27,7 +28,10 @@ import { EntityService } from './entity.service';
 import { MutualService } from './mutual.service';
 
 import { ListTagsController } from '../controllers/tag/list-tags.controller';
+import { ExecuteTransactionController } from '../controllers/transaction/execute-transaction.controller';
+import { CreateTicketController } from '../controllers/ws/create-ticket.controller';
 import { EntityServiceLifeCycle } from './entity-service-lifecycle';
+import { TransactionService } from './transaction.service';
 
 export class DependencyContainer {
   private _instanceCache: Map<string, any>;
@@ -152,6 +156,14 @@ export class DependencyContainer {
     );
   }
 
+  get websocketRepository(): WebSocketRepository {
+    return this.createCachedInstance(
+      WebSocketRepository,
+      this.coreTable,
+      this.dynamodbClient,
+    );
+  }
+
   get getEntityController(): GetEntityController {
     return this.createCachedInstance(
       GetEntityController,
@@ -247,5 +259,29 @@ export class DependencyContainer {
 
   get listTagsController(): ListTagsController {
     return this.createCachedInstance(ListTagsController, this.tagRepository);
+  }
+
+  get transactionService(): TransactionService {
+    return this.createCachedInstance(
+      TransactionService,
+      this.config.EntityConfig,
+      this.config.EmailAuthEnabledEntities,
+      this.entityRepository,
+      this.dynamodbClient,
+      this.publishEvent,
+      this.entityServiceLifeCycle,
+      this.eventUtils,
+    );
+  }
+
+  get executeTransactionController(): ExecuteTransactionController {
+    return this.createCachedInstance(
+      ExecuteTransactionController,
+      this.transactionService,
+    );
+  }
+
+  get createTicketController(): CreateTicketController {
+    return this.createCachedInstance(CreateTicketController, this);
   }
 }

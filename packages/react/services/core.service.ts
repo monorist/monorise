@@ -18,6 +18,7 @@ import type { Mutual, MutualData } from '../types/mutual.type';
 const ENTITY_API_BASE_URL = '/api/core/entity';
 const MUTUAL_API_BASE_URL = '/api/core/mutual';
 const TAG_API_BASE_URL = '/api/core/tag';
+const TRANSACTION_API_BASE_URL = '/api/core/transaction';
 
 type ListEntitiesPayload = {
   limit?: number;
@@ -208,7 +209,7 @@ const initCoreService = (
   const editEntity = <T extends Entity>(
     entityType: T,
     id: string,
-    values: Partial<DraftEntity<T>>,
+    values: Partial<DraftEntity<T>> & { $condition?: string },
     opts: CommonOptions = {},
   ) => {
     const { entityApiBaseUrl = ENTITY_API_BASE_URL } = options;
@@ -232,13 +233,16 @@ const initCoreService = (
     entityType: T,
     id: string,
     adjustments: Record<string, number>,
-    opts: CommonOptions = {},
+    opts: CommonOptions & { condition?: string } = {},
   ) => {
     const { entityApiBaseUrl = ENTITY_API_BASE_URL } = options;
     const entityConfig = monoriseStore.getState().config;
+    const body = opts.condition
+      ? { ...adjustments, $condition: opts.condition }
+      : adjustments;
     return axios.post<CreatedEntity<T>>(
       opts.customUrl || `${entityApiBaseUrl}/${entityType}/${id}/adjust`,
-      adjustments,
+      body,
       {
         requestKey: getEntityRequestKey('adjust', entityType, id),
         isInterruptive: opts.isInterruptive ?? true,
@@ -266,6 +270,38 @@ const initCoreService = (
         feedback: {
           loading: `Deleting ${entityConfig[entityType].displayName}`,
           success: `${entityConfig[entityType].displayName} deleted`,
+          ...(opts.feedback || {}),
+        },
+      },
+    );
+  };
+
+  const transaction = (
+    operations: Array<{
+      operation:
+        | 'createEntity'
+        | 'updateEntity'
+        | 'adjustEntity'
+        | 'deleteEntity';
+      entityType: Entity;
+      entityId?: string;
+      payload?: Record<string, unknown>;
+      adjustments?: Record<string, number>;
+      condition?: string;
+    }>,
+    opts: CommonOptions = {},
+  ) => {
+    const { transactionApiBaseUrl = TRANSACTION_API_BASE_URL } =
+      options as any;
+    return axios.post(
+      opts.customUrl || transactionApiBaseUrl,
+      { operations },
+      {
+        requestKey: 'transaction',
+        isInterruptive: opts.isInterruptive ?? true,
+        feedback: {
+          loading: 'Processing transaction',
+          success: 'Transaction completed',
           ...(opts.feedback || {}),
         },
       },
@@ -442,7 +478,7 @@ const initCoreService = (
     ) => upsertEntity(entityType, id, values, opts),
     editEntity: (
       id: string,
-      values: Partial<DraftEntity<T>>,
+      values: Partial<DraftEntity<T>> & { $condition?: string },
       opts: CommonOptions = {},
     ) => editEntity(entityType, id, values, opts),
     updateEntity: (
@@ -518,6 +554,7 @@ const initCoreService = (
   return {
     makeEntityService,
     makeMutualService,
+    transaction,
     setOptions,
   };
 };

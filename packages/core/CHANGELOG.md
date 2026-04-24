@@ -1,5 +1,80 @@
 # @monorise/core
 
+## 5.0.0-dev.0
+
+### Major Changes
+
+- 7b9cd73: Add WebSocket layer for real-time entity updates
+
+  ### Features
+
+  - Optional WebSocket support in MonoriseCore with `webSocket: { enabled: true }` config
+  - HTTP for mutations (reliable) + WebSocket for real-time updates (scalable)
+  - Entity-type subscriptions for scalability (not entity-id)
+  - Auto-refetch on reconnect to catch missed events during disconnect
+  - Lambda handlers: $connect, $disconnect, $default, broadcast
+  - DynamoDB Streams integration for change broadcasting
+
+  ### Breaking Changes
+
+  - **@monorise/core**: Removed WebSocketManager and OptimisticEngine exports (moved to @monorise/react)
+  - Import WebSocketManager from `@monorise/react` instead of `@monorise/core`
+
+  ### Migration
+
+  ```typescript
+  // Before
+  import { WebSocketManager } from "@monorise/core";
+
+  // After
+  import { WebSocketManager } from "@monorise/react";
+  ```
+
+  ### New React Hooks
+
+  - `useWebSocketConnection()`: Monitor connection state
+  - `useEntitySocket(entityType)`: Subscribe to entity type changes
+  - `useMutualSocket(byEntityType, byEntityId, mutualEntityType)`: Subscribe to mutual relationship changes
+  - `useEphemeralSocket(channel)`: Ephemeral messaging for typing indicators, live cursors, presence
+
+### Minor Changes
+
+- 7b9cd73: Add feed subscription broadcast resolution via mutual graph traversal.
+
+  - `broadcastToFeedSubscribers()` resolves affected feed subscribers when changes occur
+  - Traverses mutual relationships to find connected entities with feed subscriptions
+  - Filters by feedTypes whitelist, deduplicates per-connection
+  - ConsistentRead on all broadcast subscriber queries
+  - Broadcast always runs feed resolution (not skipped when no direct subscribers)
+  - $disconnect cleans up all subscription records via R1 GSI
+
+- 7b9cd73: Add ticket-based auth for WebSocket entity feed subscriptions.
+
+  - `POST /ws/ticket/:entityType/:entityId` endpoint for ticket generation
+  - Tickets are short-lived (30min TTL), one-time use, stored in DynamoDB
+  - `$connect` handler supports ticket auth alongside token auth
+  - Feed subscriptions auto-created on ticket-based connections
+  - `monorise/proxy` package with `generateWebSocketTicket()` helper
+  - feedTypes resolved transitively through mutual config graph
+  - Fix: baseSchema now always included in FinalSchemaType
+
+- d8220f9: Add transactional writes for atomic multi-entity operations
+
+  - `POST /core/transaction` endpoint for atomic multi-entity operations
+  - Supports createEntity, updateEntity, adjustEntity, deleteEntity in single DynamoDB TransactWriteItems call
+  - All-or-nothing: if any operation fails, entire transaction rolls back
+  - Events (ENTITY_CREATED, ENTITY_UPDATED, ENTITY_DELETED) published only after commit succeeds
+  - Condition support: adjustmentConditions and updateConditions work within transactions
+  - React SDK: `transaction()` function for frontend usage
+  - DynamoDB limit enforced: max 100 items per transaction
+
+- d8220f9: Add named conditions system for conditional entity writes
+
+  - `adjustmentConditions`: server-defined preconditions for `adjustEntity`. `$condition` required when defined. Condition functions receive `(data, adjustments)`.
+  - `updateConditions`: server-defined preconditions for `updateEntity`. `$condition` always optional. Condition functions receive `(data)`.
+  - Clients send a condition name (`$condition: 'withdraw'`), server resolves to DynamoDB ConditionExpression. Raw operators never exposed to frontend.
+  - Deprecates `adjustmentConstraints` (backward compatible) and raw `$where` on updateEntity (backward compatible with warning).
+
 ## 4.0.0
 
 ### Major Changes

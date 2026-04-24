@@ -1,5 +1,26 @@
 # monorise
 
+## 1.1.0-dev.0
+
+### Minor Changes
+
+- d8220f9: Add transactional writes for atomic multi-entity operations
+
+  - `POST /core/transaction` endpoint for atomic multi-entity operations
+  - Supports createEntity, updateEntity, adjustEntity, deleteEntity in single DynamoDB TransactWriteItems call
+  - All-or-nothing: if any operation fails, entire transaction rolls back
+  - Events (ENTITY_CREATED, ENTITY_UPDATED, ENTITY_DELETED) published only after commit succeeds
+  - Condition support: adjustmentConditions and updateConditions work within transactions
+  - React SDK: `transaction()` function for frontend usage
+  - DynamoDB limit enforced: max 100 items per transaction
+
+- d8220f9: Add named conditions system for conditional entity writes
+
+  - `adjustmentConditions`: server-defined preconditions for `adjustEntity`. `$condition` required when defined. Condition functions receive `(data, adjustments)`.
+  - `updateConditions`: server-defined preconditions for `updateEntity`. `$condition` always optional. Condition functions receive `(data)`.
+  - Clients send a condition name (`$condition: 'withdraw'`), server resolves to DynamoDB ConditionExpression. Raw operators never exposed to frontend.
+  - Deprecates `adjustmentConstraints` (backward compatible) and raw `$where` on updateEntity (backward compatible with warning).
+
 ## 1.0.0
 
 ### Major Changes

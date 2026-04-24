@@ -1,0 +1,21 @@
+{
+  "name": "@monorise/proxy",
+  "version": "3.1.0-dev.0",
+  "description": "Proxy helpers for monorise - used in Next.js API routes and similar proxy layers",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch"
+  },
+  "files": [
+    "dist"
+  ],
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@monorise/base": "^4.1.0-dev.0"
+  }
+}

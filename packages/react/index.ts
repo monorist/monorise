@@ -4,6 +4,17 @@ import { initAppActions } from './actions/app.action';
 import { initAuthActions } from './actions/auth.action';
 import { initConfigActions } from './actions/config.action';
 import { initCoreActions } from './actions/core.action';
+import {
+  initWebSocketActions,
+  initializeWebSocketManager,
+  getWebSocketManager,
+} from './actions/websocket.action';
+import {
+  WebSocketManager,
+  type ConnectionState,
+  type ClientMessage,
+  type ServerMessage,
+} from './websocket';
 import { initAxiosInterceptor, injectAxiosInterceptor } from './lib/api';
 import {
   getEntityRequestKey,
@@ -52,6 +63,7 @@ const initMonorise = () => {
 
   const authActions = initAuthActions(store, authService);
   const coreActions = initCoreActions(store, appActions, coreService);
+  const websocketActions = initWebSocketActions(store);
 
   const axiosInterceptor = injectAxiosInterceptor(
     appActions,
@@ -93,6 +105,7 @@ const initMonorise = () => {
     ...appActions,
     ...authActions,
     ...coreActions,
+    ...websocketActions,
   };
 };
 
@@ -148,6 +161,10 @@ const {
   getEntity,
   updateLocalTaggedEntity,
   deleteLocalTaggedEntity,
+  useEntitySocket,
+  useMutualSocket,
+  useEphemeralSocket,
+  useEntityFeed,
 } = Monorise;
 
 export {
@@ -204,10 +221,21 @@ export {
   getEntity,
   updateLocalTaggedEntity,
   deleteLocalTaggedEntity,
+  useEntitySocket,
+  useMutualSocket,
+  useEphemeralSocket,
+  useEntityFeed,
+  initializeWebSocketManager,
+  getWebSocketManager,
+  WebSocketManager,
+  type ConnectionState,
+  type ClientMessage,
+  type ServerMessage,
 };
 
 export default Monorise;
 
+export { transactional } from '@monorise/core';
 export { MutualDataWithIndex, MutualDataMapping, MutualData, Mutual };
 
 export type {

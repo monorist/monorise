@@ -16,7 +16,17 @@ export class UpdateEntityController {
     };
 
     const body = await c.req.json();
-    const { $where: where, ...entityPayload } = body;
+    const { $condition: condition, $where: where, ...entityPayload } = body;
+
+    if (condition !== undefined) {
+      if (typeof condition !== 'string' || condition.trim().length === 0) {
+        c.status(httpStatus.BAD_REQUEST);
+        return c.json({
+          code: 'API_VALIDATION_ERROR',
+          message: '$condition must be a non-empty string',
+        });
+      }
+    }
 
     const errorContext: any = {
       accountId,
@@ -30,6 +40,7 @@ export class UpdateEntityController {
         entityId,
         entityPayload,
         accountId,
+        condition,
         where,
       });
       errorContext.entity = entity;
@@ -51,6 +62,16 @@ export class UpdateEntityController {
         err.code === StandardErrorCode.ENTITY_NOT_FOUND
       ) {
         c.status(httpStatus.NOT_FOUND);
+        return c.json({
+          ...err.toJSON(),
+        });
+      }
+
+      if (
+        err instanceof StandardError &&
+        err.code === StandardErrorCode.INVALID_CONDITION
+      ) {
+        c.status(httpStatus.BAD_REQUEST);
         return c.json({
           ...err.toJSON(),
         });

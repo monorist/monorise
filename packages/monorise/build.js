@@ -14,7 +14,7 @@ if (!fs.existsSync(distDir)) {
 }
 
 // Create subdirectories for each package and copy their dist files
-const packages = ['base', 'core', 'react', 'sst', 'cli'];
+const packages = ['base', 'core', 'react', 'sst', 'cli', 'proxy'];
 
 packages.forEach((pkg) => {
   const sourceDir = path.join(__dirname, '..', pkg, 'dist');
@@ -39,6 +39,7 @@ const packageMap = {
   '@monorise/react': 'react',
   '@monorise/sst': 'sst',
   '@monorise/cli': 'cli',
+  '@monorise/proxy': 'proxy',
 };
 
 function rewriteImports(dir, currentPkg) {

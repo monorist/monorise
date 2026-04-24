@@ -298,6 +298,28 @@ Only the fields you pass are updated — other fields remain unchanged. The upda
 If you need to increment or decrement a numeric field (e.g., a counter or running total), use [`adjustEntity`](#adjustentity) instead. `editEntity` sets the field to the value you provide, which can cause data loss if multiple updates happen concurrently.
 :::
 
+**Conditional updates**: Use `$condition` to enforce a precondition defined in `updateConditions`:
+
+```ts
+// Entity config
+const config = createEntityConfig({
+  name: 'post',
+  baseSchema,
+  updateConditions: {
+    publish: { status: { $eq: 'draft' } },
+    archive: (data) => ({ status: { $ne: 'archived' } }),
+  },
+});
+
+// Only publishes if current status is 'draft'
+await editEntity(Entity.POST, postId, {
+  status: 'published',
+  $condition: 'publish',
+});
+```
+
+`$condition` is always **optional** for `editEntity` — omitting it performs an unconditioned update (current behavior). If the condition is not met, the API returns a 409 Conflict error.
+
 ### `adjustEntity`
 
 Safely increment or decrement numeric fields on an entity. Unlike `editEntity` which sets a field to a specific value, `adjustEntity` adds or subtracts a delta — meaning multiple concurrent adjustments never overwrite each other.
@@ -325,59 +347,98 @@ await adjustEntity(Entity.MONTHLY_SUMMARY, summaryId, {
 
 **Type safety**: Only accepts numeric fields from the entity schema. Passing a string field results in a TypeScript error.
 
-**No optimistic update**: Unlike `editEntity`, the local cache is only updated after the server confirms success. This is because adjustments may fail (constraint violations) or produce different results than expected (concurrent adjustments).
+**No optimistic update**: Unlike `editEntity`, the local cache is only updated after the server confirms success. This is because adjustments may fail (condition violations) or produce different results than expected (concurrent adjustments).
 
-**Constraints**: Define `adjustmentConstraints` in your entity config to enforce bounds. If an adjustment would violate a constraint, the operation is rejected and the entity is automatically refetched to get the latest state.
+**Conditions**: Define `adjustmentConditions` in your entity config to enforce preconditions on adjustments. When defined, the `condition` option is **required** — you must specify which condition to apply.
 
-```ts
-// Entity config
-const config = createEntityConfig({
-  name: 'wallet',
-  baseSchema,
-  adjustmentConstraints: {
-    // Static: same for all wallets
-    balance: { min: 0 },
-    credits: { min: 0, max: 10000 },
-  },
-});
-
-// This succeeds (balance: 100 → 70)
-await adjustEntity(Entity.WALLET, id, { balance: -30 });
-
-// This fails with ADJUSTMENT_CONSTRAINT_VIOLATED (70 - 80 = -10 < 0)
-const { error } = await adjustEntity(Entity.WALLET, id, { balance: -80 });
-if (error) {
-  // entity is automatically refetched with latest state
-  // show "Insufficient balance" to user
-}
-```
-
-**Dynamic constraints** — use `minField`/`maxField` to read the constraint value from the entity's own data. This lets each entity instance have different limits:
+Each condition is either a static check or a function that receives the entity's current data and the adjustment deltas:
 
 ```ts
 const config = createEntityConfig({
   name: 'wallet',
   baseSchema: z.object({
     balance: z.number(),
-    minBalance: z.number(), // each wallet stores its own minimum
+    minBalance: z.number(),
   }).partial(),
-  adjustmentConstraints: {
-    balance: { minField: 'minBalance' },
+  adjustmentConditions: {
+    // Dynamic: uses entity data + adjustment deltas
+    withdraw: (data, adjustments) => ({
+      balance: { $gte: (data.minBalance ?? 0) + Math.abs(adjustments.balance ?? 0) },
+    }),
+    // Ensures post-deposit balance doesn't exceed cap
+    deposit: (data, adjustments) => ({
+      balance: { $lte: 1000000 - (adjustments.balance ?? 0) },
+    }),
   },
 });
-
-// Wallet A: can go down to $0
-createEntity(Entity.WALLET, { balance: 10000, minBalance: 0 });
-
-// Wallet B: must keep at least $10
-createEntity(Entity.WALLET, { balance: 10000, minBalance: 1000 });
 ```
 
-`minField`/`maxField` only accept numeric field names from the schema — TypeScript will reject non-numeric fields.
+Pass the condition name when calling `adjustEntity`:
 
-Constraints are enforced at the database level — they cannot be bypassed by the frontend.
+```ts
+// This succeeds (balance: 100, withdraw checks balance >= 0 + 30 = 30 → 100 >= 30 ✓)
+await adjustEntity(Entity.WALLET, id, { balance: -30 }, { condition: 'withdraw' });
+
+// This fails (balance: 70, withdraw checks balance >= 0 + 80 = 80 → 70 < 80 ✗)
+const { error } = await adjustEntity(Entity.WALLET, id, { balance: -80 }, {
+  condition: 'withdraw',
+});
+if (error) {
+  // entity is automatically refetched with latest state
+  // show "Insufficient balance" to user
+}
+```
+
+Conditions are resolved **server-side** — the client only sends the condition name, never raw operators. This prevents clients from bypassing or modifying the condition logic.
+
+Supported operators in conditions: `$eq`, `$ne`, `$gt`, `$lt`, `$gte`, `$lte`, `$exists`, `$beginsWith`.
+
+Conditions are enforced at the database level via DynamoDB ConditionExpressions — they cannot be bypassed by the frontend.
 
 **Event publishing**: Publishes `ENTITY_UPDATED` event, so tag and replication processors keep denormalized data in sync — same as `editEntity`.
+
+### `transaction`
+
+Execute multiple entity operations atomically — all succeed or all fail. Uses DynamoDB `TransactWriteItems` under the hood.
+
+```ts
+import { transaction, transactional } from 'monorise/react';
+
+await transaction([
+  transactional.createEntity(Entity.ORDER, { customerId: '...', total: 5000 }),
+  transactional.adjustEntity(Entity.WALLET, walletId, { balance: -5000, $condition: 'withdraw' }),
+]);
+```
+
+The `transactional` builder provides autocomplete-friendly, type-safe operation constructors. You can alias it for brevity:
+
+```ts
+const tx = transactional;
+
+await transaction([
+  tx.createEntity(Entity.ORDER, { customerId: '...', total: 5000 }),
+  tx.adjustEntity(Entity.WALLET, walletId, { balance: -5000, $condition: 'withdraw' }),
+  tx.updateEntity(Entity.POST, postId, { status: 'published', $condition: 'publish' }),
+  tx.deleteEntity(Entity.PRODUCT, productId),
+]);
+```
+
+**Supported operations:**
+
+| Operation | Description |
+|-----------|-------------|
+| `createEntity` | Create a new entity (with unique field enforcement) |
+| `updateEntity` | Partial update (no unique field changes allowed in transactions) |
+| `adjustEntity` | Atomic numeric increment/decrement (with condition support) |
+| `deleteEntity` | Delete an entity |
+
+**Conditions**: `adjustEntity` and `updateEntity` support the `condition` field, referencing `adjustmentConditions` or `updateConditions` defined in the entity config.
+
+**DynamoDB limits**: Maximum 100 items per transaction. Each `createEntity` uses 2+ items (main record + list index + unique fields). Other operations use 1 item each.
+
+**Atomicity**: If any operation fails (condition violation, duplicate unique field, missing entity for delete), the entire transaction is rolled back — no partial writes.
+
+**Events**: Events (`ENTITY_CREATED`, `ENTITY_UPDATED`, `ENTITY_DELETED`) are published only after the transaction commits successfully. Replication, tag, and mutual processors work normally.
 
 ### Mutual actions
 
