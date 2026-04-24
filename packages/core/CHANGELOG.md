@@ -1,5 +1,11 @@
 # @monorise/core
 
+## 5.0.0-dev.1
+
+### Minor Changes
+
+- afbd0e9: Add `createMutualConfig` for centralized mutualData schema validation. Define a Zod schema once for mutual relationships and reference it from both entity configs. Validates mutualData on create, update, and processor output.
+
 ## 5.0.0-dev.0
 
 ### Major Changes

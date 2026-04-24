@@ -12,6 +12,7 @@
     "@monorise/www": "0.0.0"
   },
   "changesets": [
+    "create-mutual-config",
     "entity-feed-hook",
     "entity-feed-subscriptions",
     "entity-feed-ticket",
