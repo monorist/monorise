@@ -1,5 +1,12 @@
 # @monorise/react
 
+## 5.0.0-dev.2
+
+### Patch Changes
+
+- Updated dependencies [8c1c228]
+  - @monorise/base@4.1.0-dev.2
+
 ## 5.0.0-dev.1
 
 ### Patch Changes
