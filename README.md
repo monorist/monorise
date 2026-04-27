@@ -1,125 +1,186 @@
 # Monorise
 
-Monorise is an open-source DynamoDB single-table toolkit that powers the core data
-layer for applications built on DynamoDB. It provides a shared data model (schemas + relationships), a ready-made API surface (entities, mutuals, tags), and background processors to keep
-denormalized access patterns in sync.
+<p align="center">
+  <strong>DynamoDB Single-Table Toolkit</strong><br/>
+  Type-safe, event-driven data layer for applications built on DynamoDB.
+</p>
 
-## Table of Contents
+<p align="center">
+  <a href="https://monorise.dev">📚 Documentation</a> •
+  <a href="https://monorise.dev/getting-started">🚀 Quickstart</a> •
+  <a href="https://monorise.dev/concepts">💡 Concepts</a> •
+  <a href="https://github.com/monorist/monorise/issues">💬 Issues</a>
+</p>
 
-- [Monorise](#monorise)
-  - [Table of Contents](#table-of-contents)
-  - [What it solves](#what-it-solves)
-  - [Core concepts (mental model)](#core-concepts-mental-model)
-  - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
-  - [Quickstart](#quickstart)
-  - [Common commands](#common-commands)
-  - [How config becomes a running API](#how-config-becomes-a-running-api)
-  - [Runtime flow (high-level)](#runtime-flow-high-level)
-  - [End-to-end overview (config -\> runtime -\> data)](#end-to-end-overview-config---runtime---data)
-  - [Data layout (short cheat sheet)](#data-layout-short-cheat-sheet)
-  - [Public API surface (core)](#public-api-surface-core)
-  - [Conditional PATCH updates (atomic where)](#conditional-patch-updates-atomic-where)
-  - [Package map](#package-map)
-  - [Where to look next (within this repo)](#where-to-look-next-within-this-repo)
-  - [Contributing](#contributing)
-  - [License](#license)
+---
 
-## What it solves
+## What is Monorise?
 
-- **Single-table DynamoDB modeling** without hand-writing complex queries.
-- **Relational-style access** via `Entity`, `Mutual`, and `Tag` concepts.
-- **Event-driven maintenance** (mutual/tag/prejoin processors + replication).
-- **Shared schema + types** across backend and frontend.
+Monorise is an open-source toolkit that powers the core data layer for applications built on DynamoDB. Define your data models with Zod schemas, and get:
 
-## Core concepts (mental model)
+- **A ready-made REST API** for entities, relationships, and queries
+- **Event-driven processors** that keep denormalized data in sync
+- **Full type safety** from backend to frontend
+- **SST v3 integration** for one-command deployment to AWS
 
-- **Entity**: a first-class record (for example, `learner`, `course`).
-- **Mutual**: a relationship record between two entities that can hold data
-  (for example, `learner` <-> `course` with progress/role/status).
-- **Tag**: a key/value access pattern to quickly query subsets of entities.
-- **Prejoin**: computed relationship that "joins" through a chain of mutuals to
-  avoid expensive multi-hop queries.
+## Full-Stack in Minutes
 
-These are defined per entity in config files via `createEntityConfig` (zod-based).
-For deeper concept examples, see [Concepts Guide](docs/CONCEPT.MD).
-
-## Prerequisites
-
-- Node.js 20+
-- npm 10+
-- AWS account/infrastructure context for runtime integration (SST + DynamoDB)
-
-## Installation
-
-Install base packages in your service project:
+**1. Create your project:**
 
 ```bash
-npm install @monorise/base @monorise/core @monorise/cli zod hono
+npx monorise init --name my-app
+cd my-app
 ```
 
-Install optional packages as needed:
+**2. Define your entity:**
 
-```bash
-npm install @monorise/react
-npm install @monorise/sst sst
+```ts
+// monorise/configs/member.ts
+import { createEntityConfig } from 'monorise/base';
+import { z } from 'zod/v4';
+
+const baseSchema = z.object({
+  name: z.string(),
+  email: z.string().email(),
+  role: z.enum(['admin', 'member']),
+}).partial();
+
+export default createEntityConfig({
+  name: 'member',
+  displayName: 'Member',
+  baseSchema,
+  searchableFields: ['name', 'email'],
+  uniqueFields: ['email'],
+});
 ```
 
-If you are working on this monorepo itself:
+**3. Query from React:**
 
-```bash
-npm install
+```tsx
+// apps/web/src/app/page.tsx
+import { useEntities, createEntity } from 'monorise/react';
+import { Entity } from '#/monorise/config';
+
+export default function MembersPage() {
+  const { entities: members, isLoading } = useEntities(Entity.MEMBER);
+
+  return (
+    <div>
+      {members?.map((m) => (
+        <div key={m.entityId}>{m.data.name} — {m.data.email}</div>
+      ))}
+    </div>
+  );
+}
 ```
+
+That's it — relational queries on DynamoDB without the design doc. Single-table performance without the single-table pain.
 
 ## Quickstart
 
-Initialize a project skeleton (creates `monorise.config.ts` and a starter entity):
-
 ```bash
-npx @monorise/cli init
+# Create a new project with everything set up
+npx monorise init --name my-app
+
+# Start development
+cd my-app
+npx sst dev
+
+# Deploy to production
+npx sst deploy --stage prod
 ```
 
-Example entity config:
+`monorise init` scaffolds a production-ready monorepo:
 
-```ts
-import { createEntityConfig } from '@monorise/base';
-import { z } from 'zod';
-
-const baseSchema = z.object({
-  displayName: z.string().min(1),
-});
-
-const config = createEntityConfig({
-  name: 'user',
-  baseSchema,
-});
-
-export default config;
+```
+my-app/
+├── apps/web/                        # Next.js frontend
+│   └── src/
+│       ├── app/
+│       │   ├── layout.tsx           # GlobalInitializer + GlobalLoader wired in
+│       │   ├── page.tsx             # Example page with useEntities
+│       │   ├── globals.css          # Shadcn theme variables
+│       │   └── api/
+│       │       ├── proxy-request.ts # API proxy utility
+│       │       └── [...proxy]/route.ts  # Catch-all proxy to monorise backend
+│       ├── components/
+│       │   ├── global-initializer.tsx   # Monorise store config
+│       │   ├── global-loader.tsx        # Interruptive loading overlay
+│       │   └── ui/                      # Shadcn UI (button, card, input, label)
+│       └── lib/utils.ts             # cn() helper
+├── services/core/
+│   └── routes.ts                    # Hono backend routes
+├── monorise/configs/
+│   └── user.ts                      # Starter entity definition
+├── sst.config.ts                    # SST + Monorise configured
+└── .monorise/                       # Generated types
 ```
 
-Generate Monorise artifacts from your config:
+Read the [Getting Started Guide](https://monorise.dev/getting-started) for the complete walkthrough.
 
-```bash
-npx monorise build
+## Why Monorise?
+
+| Feature | Description |
+|---------|-------------|
+| **🗄️ Single-Table DynamoDB** | One table, O(1) performance for every query. Denormalization handled automatically. |
+| **🔄 Zero Schema Drift** | One Zod config drives DB, backend, and frontend. `monorise dev` auto-regenerates types on every change. |
+| **🚀 Ship in Hours** | From `git init` to production API. No migration scripts, no access pattern spreadsheets.
+| **🔗 Relational Patterns** | Entity, Mutual, and Tag concepts for relational-style queries on DynamoDB. |
+| **📦 Full-Stack SDK** | Backend (Hono), React hooks, SST v3 infrastructure — one package. |
+| **🧠 Token-Efficient** | Built-in CRUD, relationships, and tagging. Less code to write, fewer tokens to generate/review. |
+
+## Core Concepts
+
+- **[Entity](https://monorise.dev/concepts/entities)** — A first-class record (e.g., `user`, `order`)
+- **[Mutual](https://monorise.dev/concepts/mutuals)** — A relationship between two entities with optional data (e.g., `learner` enrolled in `course`)
+- **[Tag](https://monorise.dev/concepts/tags)** — Key/value access patterns for fast querying
+- **[Tree](https://monorise.dev/concepts/trees)** — Computed relationships that avoid multi-hop queries
+
+## Documentation
+
+- **[Getting Started](https://monorise.dev/getting-started)** — Installation, configuration, and first steps
+- **[Concepts](https://monorise.dev/concepts)** — Understanding Entities, Mutuals, Tags, and Trees
+- **[SST SDK](https://monorise.dev/sst)** — Infrastructure and deployment reference
+- **[React SDK](https://monorise.dev/react)** — Frontend hooks and utilities
+- **[Best Practices](https://monorise.dev/best-practices)** — Security patterns and recommendations
+- **[FAQ](https://monorise.dev/faq)** — Common questions and answers
+
+## Architecture Overview
+
+```
+┌─────────┐     ┌─────────────┐     ┌─────────────────┐
+│  Client │────▶│  Hono API   │────▶│ Entity/Mutual/  │
+│         │     │  /core/*    │     │ Tag Services    │
+└─────────┘     └─────────────┘     └────────┬────────┘
+                                             │
+                         ┌───────────────────┴──────────┐
+                         ▼                              ▼
+                  ┌─────────────┐              ┌────────────────┐
+                  │  DynamoDB   │◀────────────▶│  EventBridge   │
+                  │ Single Table│              │     Bus        │
+                  └─────────────┘              └───────┬────────┘
+                                                       │
+                              ┌────────────────────────┼────────────────────────┐
+                              ▼                        ▼                        ▼
+                       ┌─────────────┐          ┌─────────────┐          ┌─────────────┐
+                       │ SQS Mutual  │          │  SQS Tag    │          │  SQS Tree   │
+                       │  Processor  │          │  Processor  │          │  Processor  │
+                       └─────────────┘          └─────────────┘          └─────────────┘
 ```
 
-For watch mode while developing entity configs:
+See [Architecture](https://monorise.dev/architecture) for the detailed design.
 
-```bash
-npx monorise dev
+## Project Structure
+
 ```
-
-This generates `.monorise/config.ts` and `.monorise/handle.ts` for runtime wiring.
-
-## Common commands
-
-From this repository root:
-
-```bash
-npm run dev            # watch/build workspace packages
-npm run build          # build all packages
-npm run start:test-env # start local test dependencies
-npm run test           # run core package tests
+├── packages/
+│   ├── base/          # Entity config + schemas (Zod)
+│   ├── core/          # Hono API, DynamoDB repos, processors
+│   ├── cli/           # CLI for generating artifacts
+│   ├── react/         # React hooks and client SDK
+│   └── sst/           # SST v3 infrastructure module
+├── www/               # Documentation site (VitePress)
+└── examples/          # Example projects
 ```
 
 ## How config becomes a running API
@@ -147,7 +208,7 @@ flowchart LR
   Api --> CoreSvc["Entity/Mutual/Tag services"]
   CoreSvc --> DDB[(DynamoDB single table)]
   CoreSvc --> Bus["EventBridge bus"]
-  Bus --> SQS["SQS processors (mutual/tag/prejoin)"]
+  Bus --> SQS["SQS processors (mutual/tag/tree)"]
   SQS --> DDB
   DDB --> Stream["DynamoDB stream"]
   Stream --> Replicator["replication processor"]
@@ -159,7 +220,7 @@ flowchart LR
 ```mermaid
 flowchart TB
   subgraph Build["Build-time"]
-    Config["Entity configs (zod + mutual/tag/prejoin)"]
+    Config["Entity configs (zod + mutual/tag/tree)"]
     Cli["monorise CLI (dev/build)"]
     Handle[".monorise/handle.ts"]
     Config --> Cli --> Handle
@@ -172,7 +233,7 @@ flowchart TB
     Bus["EventBridge bus"]
     MutualQ["Mutual processor"]
     TagQ["Tag processor"]
-    PrejoinQ["Prejoin processor"]
+    TreeQ["Tree processor"]
     Stream["DynamoDB stream"]
     Replicator["Replication processor"]
   end
@@ -183,7 +244,7 @@ flowchart TB
   Services --> Bus
   Bus --> MutualQ --> Table
   Bus --> TagQ --> Table
-  Bus --> PrejoinQ --> Bus
+  Bus --> TreeQ --> Bus
   Table --> Stream --> Replicator --> Table
 ```
 
@@ -191,7 +252,7 @@ Key behavior:
 - **Mutual processor**: creates/updates/removes relationship items in both
   directions with conditional checks and locking.
 - **Tag processor**: calculates tag diffs and syncs tag items.
-- **Prejoin processor**: walks configured relationship paths and publishes
+- **Tree processor**: walks configured relationship paths and publishes
   derived mutual updates.
 - **Replication processor**: keeps denormalized copies aligned via stream
   updates (uses replication indexes).
@@ -311,8 +372,8 @@ Compatibility notes:
 
 ## Contributing
 
-See [contributing guide](CONTRIBUTING.md) for workflow, changesets, and PR guidelines.
+See [Contributing Guide](CONTRIBUTING.md) for workflow, changesets, and PR guidelines.
 
 ## License
 
-Distributed under the MIT License. See `LICENSE`.
+Distributed under the MIT License. See [LICENSE](./LICENSE).

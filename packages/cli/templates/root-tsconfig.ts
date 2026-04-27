@@ -1,0 +1,17 @@
+export const ROOT_TSCONFIG_TEMPLATE = {
+  compilerOptions: {
+    target: 'ES2022',
+    module: 'ESNext',
+    moduleResolution: 'bundler',
+    esModuleInterop: true,
+    strict: true,
+    skipLibCheck: true,
+    jsx: 'preserve',
+    paths: {
+      '#/shared/*': ['./shared/*'],
+      '#/monorise/*': ['./.monorise/*'],
+    },
+  },
+  include: ['**/*.ts', '.monorise/**/*.ts'],
+  exclude: ['node_modules', 'apps'],
+};

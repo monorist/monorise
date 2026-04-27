@@ -6,8 +6,8 @@ Monorise is an open-source DynamoDB single-table toolkit that powers the core da
 
 - **Single-table DynamoDB modeling** without hand-writing complex queries.
 - **Relational-style access** via `Entity`, `Mutual`, and `Tag` concepts.
-- **Event-driven maintenance** (mutual/tag/prejoin processors + replication).
-- **Shared schema + types** across backend and frontend.
+- **Event-driven maintenance** (mutual/tag/tree processors + replication).
+- **Zero schema drift** — One Zod config drives DB, API, and frontend types. `monorise dev` auto-regenerates on every change.
 
 ## Prerequisites
 
@@ -15,45 +15,66 @@ Monorise is an open-source DynamoDB single-table toolkit that powers the core da
 - npm 10+
 - AWS account/infrastructure context for runtime integration (SST + DynamoDB)
 
-## Installation
-
-Install the combined package:
-
-```bash
-npm install monorise zod
-```
-
-### Peer dependencies
-
-Depending on which parts of monorise you use, you may need additional peer dependencies:
-
-| Use case | Peer dependency | Install |
-|----------|----------------|---------|
-| Backend API | `hono` | `npm install hono` |
-| Frontend (React) | `react`, `react-dom` | Included with Next.js/CRA |
-| Infrastructure | `sst` | `npm install sst` |
-
-::: tip
-Frontend-only projects (e.g., a Next.js app consuming the monorise API) only need `monorise` and `zod` — no need to install `hono` or `sst`.
-:::
-
-### Individual packages (alternative)
-
-```bash
-npm install @monorise/base @monorise/core @monorise/cli zod hono
-npm install @monorise/react   # optional: React SDK
-npm install @monorise/sst sst # optional: SST v3 infra module
-```
-
 ## Quickstart
 
-Initialize a project skeleton (creates `monorise.config.ts` and a starter entity):
+### 1. Create a new project
 
 ```bash
-npx monorise init
+npx monorise init --name my-app
 ```
 
-Example entity config:
+This single command creates a production-ready monorepo:
+
+```
+my-app/
+├── apps/web/                        # Next.js frontend (Tailwind CSS)
+│   └── src/
+│       ├── app/
+│       │   ├── layout.tsx           # GlobalInitializer + GlobalLoader wired in
+│       │   ├── page.tsx             # Example page with useEntities + createEntity
+│       │   ├── globals.css          # Shadcn theme variables (oklch)
+│       │   └── api/
+│       │       ├── proxy-request.ts # Rewrites /api/* to monorise backend
+│       │       └── [...proxy]/route.ts  # Catch-all route (GET/POST/PUT/PATCH/DELETE)
+│       ├── components/
+│       │   ├── global-initializer.tsx   # Monorise store configuration
+│       │   ├── global-loader.tsx        # Full-screen interruptive loading overlay
+│       │   └── ui/                      # Shadcn UI components (button, card, input, label)
+│       └── lib/utils.ts             # cn() — clsx + tailwind-merge helper
+├── services/core/         # Hono backend routes
+│   └── routes.ts
+├── monorise/configs/      # Entity definitions
+│   └── user.ts            # Starter User entity (displayName, email)
+├── monorise.config.ts     # Points to configs dir + custom routes
+├── sst.config.ts          # SST v3 + Monorise module configured
+├── tsconfig.json          # Path aliases (#/monorise/*, #/*)
+└── .monorise/             # Generated types + handlers (do not edit)
+```
+
+### What's included out of the box
+
+| Feature | Description |
+|---------|-------------|
+| **Shadcn UI** | Pre-installed button, card, input, label components with theme variables |
+| **Global Loader** | `useInterruptiveLoadStore` → full-screen loading overlay via portal |
+| **Global Initializer** | Calls `Monorise.config()` with your entity config on app mount |
+| **API Proxy** | Next.js catch-all route at `/api/*` that proxies requests to monorise backend |
+| **Path Aliases** | `#/monorise/*` for generated types, `#/*` for app-local imports |
+
+### 2. Start development
+
+```bash
+cd my-app
+npx sst dev
+```
+
+That's it! Open http://localhost:3000 to see the example app.
+
+## Understanding the structure
+
+### Entity config (`monorise/configs/user.ts`)
+
+Define your data model with Zod:
 
 ```ts
 import { createEntityConfig } from 'monorise/base';
@@ -83,19 +104,54 @@ const config = createEntityConfig({
 export default config;
 ```
 
-Generate monorise artifacts from your config:
+### Frontend page (`apps/web/src/app/page.tsx`)
+
+Use the React hooks to interact with your data:
+
+```tsx
+'use client';
+
+import { useEntities, createEntity } from 'monorise/react';
+import { Entity } from '#/monorise/config';
+
+export default function Home() {
+  const { entities: users, isLoading } = useEntities(Entity.USER);
+
+  const handleCreate = async () => {
+    await createEntity(Entity.USER, {
+      displayName: 'John Doe',
+      email: 'john@example.com',
+    });
+    // The list automatically updates via the store!
+  };
+
+  return (
+    <div>
+      {users?.map((user) => (
+        <div key={user.entityId}>
+          {user.data.displayName} — {user.data.email}
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+### Build and watch commands
+
+Generate types from entity configs:
 
 ```bash
 npx monorise build
 ```
 
-For watch mode while developing entity configs:
+Watch mode for development:
 
 ```bash
 npx monorise dev
 ```
 
-This generates `.monorise/config.ts` and `.monorise/handle.ts` for runtime wiring.
+---
 
 ## Project config (`monorise.config.ts`)
 
@@ -106,8 +162,8 @@ export default {
   // Directory containing your entity config files
   configDir: './monorise/configs',
 
-  // (Optional) Hono app instance for custom API routes (mounted at /core/app/*)
-  customRoutes: './src/routes',
+  // (Optional) Hono app for custom API routes (mounted at /core/app/*)
+  customRoutes: './services/core/routes.ts',
 };
 ```
 
@@ -179,40 +235,9 @@ declare module 'monorise/base' {
 You never need to write this manually — the CLI generates it from your entity configs.
 :::
 
-## Deploy with SST v3
+## SST Configuration Reference
 
-Monorise is designed to run on AWS with [SST v3](https://sst.dev). The `monorise/sst` module provisions everything you need — API Gateway, DynamoDB table, EventBridge bus, SQS queues for processors, and DynamoDB streams for replication — in a single construct.
-
-```bash
-npm install sst
-```
-
-In your `sst.config.ts`:
-
-```ts
-/// <reference path="./.sst/platform/config.d.ts" />
-export default $config({
-  app(input) {
-    return {
-      name: 'my-app',
-      removal: input?.stage === 'production' ? 'retain' : 'remove',
-      home: 'aws',
-    };
-  },
-  async run() {
-    const { monorise } = await import('monorise/sst');
-
-    const { bus, api, table, alarmTopic } = new monorise.module.Core('core', {
-      allowOrigins: ['http://localhost:3000'],
-    });
-
-    // Link to your frontend
-    new sst.aws.Nextjs('Web', {
-      link: [api],
-    });
-  },
-});
-```
+The `monorise.module.Core` construct provisions everything you need — API Gateway, DynamoDB table, EventBridge bus, SQS queues for processors, and DynamoDB streams for replication — in a single construct.
 
 ### What `monorise.module.Core` creates
 
@@ -224,7 +249,7 @@ export default $config({
 | `alarmTopic` | SNS topic for processor error alerts |
 | Mutual processor | SQS + Lambda for mutual relationship sync |
 | Tag processor | SQS + Lambda for tag index sync |
-| Prejoin processor | SQS + Lambda for computed relationship sync |
+| Tree processor | SQS + Lambda for computed relationship sync |
 | Replication processor | DynamoDB stream + Lambda for denormalized data sync |
 | CloudWatch dashboard | Pre-built dashboard with Lambda metrics, DLQ depth, and table stats |
 
@@ -252,11 +277,22 @@ npx sst dev
 
 This starts your local dev environment with live Lambda functions and auto-regenerating monorise config.
 
+### Deployment
+
+Deploy to production using SST:
+
+```bash
+npx sst deploy --stage prod
+```
+
+For comprehensive deployment guides, environment management, and CI/CD setup, see the [SST documentation](https://sst.dev/docs).
+
 ::: warning Before you start building
 Read the [Best Practices](/best-practices) guide first — especially the **edge-auth proxy pattern**. How you connect your frontend to the monorise API Gateway has significant security implications.
 :::
 
-## Common commands
+
+## CLI Commands
 
 ```bash
 npx monorise init     # scaffold a new project

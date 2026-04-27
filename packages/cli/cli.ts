@@ -1,11 +1,21 @@
 #!/usr/bin/env node
 
 import 'tsx';
-import 'tsconfig-paths/register.js';
 import fs from 'node:fs';
 import path from 'node:path';
+import { execSync, spawn } from 'node:child_process';
 import chokidar from 'chokidar';
+import { fileURLToPath } from 'node:url';
 import { detectCombinedPackage } from './commands/utils/detect-package';
+import { ROOT_TSCONFIG_TEMPLATE } from './templates/root-tsconfig';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const TEMPLATES_DIR = path.join(__dirname, 'templates', 'files');
+
+function readTemplate(filename: string): string {
+  return fs.readFileSync(path.join(TEMPLATES_DIR, filename), 'utf-8');
+}
 
 function kebabToCamel(str: string): string {
   return str.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
@@ -16,6 +26,15 @@ function kebabToPascal(kebab: string): string {
     .split('-')
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join('');
+}
+
+function execCommand(
+  command: string,
+  cwd?: string,
+  stdio: 'inherit' | 'pipe' = 'inherit',
+): void {
+  console.log(`Running: ${command}`);
+  execSync(command, { cwd, stdio });
 }
 
 async function generateConfigFile(
@@ -336,137 +355,324 @@ const MONORISE_LOGO = `
 `;
 
 async function runInitCommand(rootPath?: string) {
-  const projectRoot = rootPath ? path.resolve(rootPath) : process.cwd();
   console.log(MONORISE_LOGO);
-  console.log(`Initializing Monorise project in ${projectRoot}...`);
 
-  // 1. Create monorise.config.ts
-  const monoriseConfigTsPath = path.join(projectRoot, 'monorise.config.ts');
-  const monoriseConfigContent = `
-const config = {
-  configDir: './monorise/entities',
-  // custom route file should export default an Hono object.
-  // customRoutes: './path/to/custom/routes.ts'
-};
+  // Determine project name and root
+  let projectName = 'my-app';
+  let projectRoot: string;
 
-export default config;
-`;
-  if (!fs.existsSync(monoriseConfigTsPath)) {
-    fs.writeFileSync(monoriseConfigTsPath, monoriseConfigContent.trimStart());
-    console.log(`Created ${path.relative(projectRoot, monoriseConfigTsPath)}`);
+  if (rootPath) {
+    projectRoot = path.resolve(rootPath);
+    projectName = path.basename(projectRoot);
   } else {
-    console.log(
-      `${path.relative(projectRoot, monoriseConfigTsPath)} already exists. Skipping.`,
-    );
+    // Prompt for project name (simple approach for now)
+    const args = process.argv.slice(2);
+    const nameIndex = args.indexOf('--name');
+    if (nameIndex > -1 && args[nameIndex + 1]) {
+      projectName = args[nameIndex + 1];
+    }
+    projectRoot = path.resolve(projectName);
   }
 
-  // 2. Create ./monorise/entities/user.ts
-  const monoriseEntitiesDir = path.join(projectRoot, 'monorise', 'entities');
-  fs.mkdirSync(monoriseEntitiesDir, { recursive: true });
+  console.log(`\n🚀 Creating Monorise project: ${projectName}\n`);
 
-  const userEntityTsPath = path.join(monoriseEntitiesDir, 'user.ts');
-  const userEntityContent = `
-import { createEntityConfig } from 'monorise/base';
-import { z } from 'zod';
-
-const baseSchema = z
-  .object({
-    displayName: z
-      .string()
-      .min(1, 'Please provide a name for this user account'),
-    firstName: z.string().min(1, 'Please provide first name'),
-    lastName: z.string().min(1, 'Please provide last name'),
-    jobTitle: z.string(),
-  })
-  .partial();
-
-const config = createEntityConfig({
-  name: 'user',
-  baseSchema,
-});
-
-export default config;
-`;
-  if (!fs.existsSync(userEntityTsPath)) {
-    fs.writeFileSync(userEntityTsPath, userEntityContent.trimStart());
-    console.log(`Created ${path.relative(projectRoot, userEntityTsPath)}`);
-  } else {
-    console.log(
-      `${path.relative(projectRoot, userEntityTsPath)} already exists. Skipping.`,
-    );
+  // Check if directory exists
+  if (fs.existsSync(projectRoot)) {
+    console.error(`Error: Directory ${projectName} already exists.`);
+    process.exit(1);
   }
 
-  // 3. Update package.json
-  const packageJsonPath = path.join(projectRoot, 'package.json');
-  if (fs.existsSync(packageJsonPath)) {
+  // Step 1: Create project directory structure
+  console.log('📁 Creating project structure...');
+  fs.mkdirSync(projectRoot, { recursive: true });
+  fs.mkdirSync(path.join(projectRoot, 'apps'), { recursive: true });
+  fs.mkdirSync(path.join(projectRoot, 'services', 'core'), { recursive: true });
+  fs.mkdirSync(path.join(projectRoot, 'monorise', 'configs'), { recursive: true });
+
+  // Step 2: Create root package.json
+  console.log('📦 Initializing root package.json...');
+  const rootPackageJson = {
+    name: projectName,
+    version: '0.0.0',
+    type: 'module',
+    private: true,
+    workspaces: ['apps/*', 'services/*'],
+  };
+  fs.writeFileSync(
+    path.join(projectRoot, 'package.json'),
+    JSON.stringify(rootPackageJson, null, 2),
+  );
+
+  // Step 3: Create root tsconfig.json
+  console.log('⚙️  Creating root tsconfig.json...');
+  fs.writeFileSync(
+    path.join(projectRoot, 'tsconfig.json'),
+    JSON.stringify(ROOT_TSCONFIG_TEMPLATE, null, 2),
+  );
+
+  // Step 4: Create Next.js app in apps/web
+  console.log('\n📱 Creating Next.js app in apps/web...');
+  const nextAppDir = path.join(projectRoot, 'apps', 'web');
+  try {
+    execCommand(
+      `npx create-next-app@latest web --typescript --tailwind --eslint --app --no-src-dir --import-alias "#/*" --no-turbopack --yes`,
+      path.join(projectRoot, 'apps'),
+    );
+  } catch (error) {
+    console.error('Failed to create Next.js app:', error);
+    process.exit(1);
+  }
+
+  // Step 5: Install SST v3
+  console.log('\n☁️  Installing SST v4...');
+  try {
+    execCommand('npm install sst@^4 --save-dev', projectRoot);
+  } catch (error) {
+    console.error('Failed to install SST:', error);
+    process.exit(1);
+  }
+
+  // Step 6: Install dependencies
+  console.log('\n📦 Installing dependencies (monorise, hono, zod, shadcn utilities)...');
+  try {
+    execCommand('npm install monorise hono zod clsx class-variance-authority radix-ui lucide-react tailwind-merge react-hook-form @hookform/resolvers', projectRoot);
+  } catch (error) {
+    console.error('Failed to install dependencies:', error);
+    process.exit(1);
+  }
+
+  // Step 7: Create monorise.config.ts
+  console.log('⚙️  Creating monorise.config.ts...');
+  fs.writeFileSync(
+    path.join(projectRoot, 'monorise.config.ts'),
+    readTemplate('monorise.config.ts'),
+  );
+
+  // Step 9: Create starter entity
+  console.log('👤 Creating starter User entity...');
+  fs.writeFileSync(
+    path.join(projectRoot, 'monorise', 'configs', 'user.ts'),
+    readTemplate('user-entity.ts'),
+  );
+
+  // Step 10: Create services/core/routes.ts
+  console.log('🔧 Creating services/core/routes.ts...');
+  fs.writeFileSync(
+    path.join(projectRoot, 'services', 'core', 'routes.ts'),
+    readTemplate('core-routes.ts'),
+  );
+
+  // Step 11: Create services package.json
+  const servicesPackageJson = {
+    name: '@my-app/services',
+    version: '0.0.0',
+    type: 'module',
+  };
+  fs.writeFileSync(
+    path.join(projectRoot, 'services', 'core', 'package.json'),
+    JSON.stringify(servicesPackageJson, null, 2),
+  );
+
+  // Step 12: Create sst.config.ts with monorise
+  console.log('⚙️  Creating sst.config.ts with Monorise...');
+  const sstConfigPath = path.join(projectRoot, 'sst.config.ts');
+  fs.writeFileSync(sstConfigPath, readTemplate('sst.config.ts').replace('{{PROJECT_NAME}}', projectName));
+
+  // Step 13: Install SST providers (after sst.config.ts exists)
+  console.log('\n☁️  Installing SST providers...');
+  try {
+    execCommand('npx sst install', projectRoot);
+  } catch (error) {
+    console.warn('Warning: SST install failed, continuing anyway...');
+  }
+
+  // Step 14: Create example page in apps/web
+  console.log('📄 Creating example page in apps/web...');
+  const webSrcAppDir = path.join(projectRoot, 'apps', 'web', 'src', 'app');
+  const webAppDir = path.join(projectRoot, 'apps', 'web', 'app');
+  const pagePath = fs.existsSync(webSrcAppDir)
+    ? path.join(webSrcAppDir, 'page.tsx')
+    : fs.existsSync(webAppDir)
+      ? path.join(webAppDir, 'page.tsx')
+      : null;
+
+  if (pagePath) {
     try {
-      const packageJsonContent = fs.readFileSync(packageJsonPath, 'utf8');
-      const packageJson = JSON.parse(packageJsonContent);
-
-      if (packageJson.type !== 'module') {
-        packageJson.type = 'module';
-        fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
-        console.log(
-          `Updated 'type' to 'module' in ${path.relative(projectRoot, packageJsonPath)}`,
-        );
-      } else {
-        console.log(
-          `'type: "module"' already set in ${path.relative(projectRoot, packageJsonPath)}. Skipping.`,
-        );
-      }
+      fs.writeFileSync(pagePath, readTemplate('example-page.tsx'));
+      console.log(`Created example page at ${path.relative(projectRoot, pagePath)}`);
     } catch (error) {
-      console.error(
-        `Error reading or parsing ${path.relative(projectRoot, packageJsonPath)}:`,
-        error,
-      );
+      console.warn('Warning: Could not create example page:', error);
     }
   } else {
-    console.warn(
-      `Warning: ${path.relative(projectRoot, packageJsonPath)} not found. Cannot update 'type'.`,
-    );
+    console.warn('Warning: Could not find apps/web/src/app or apps/web/app directory');
   }
 
-  // 4. Add tsconfig path alias for .monorise directory
-  const tsconfigPath = path.join(projectRoot, 'tsconfig.json');
-  if (fs.existsSync(tsconfigPath)) {
-    try {
-      const tsconfigContent = fs.readFileSync(tsconfigPath, 'utf8');
-      const tsconfig = JSON.parse(tsconfigContent);
+  // Step 15: Create global components, lib/utils, UI components, and globals.css
+  const webRoot = fs.existsSync(webSrcAppDir)
+    ? path.join(projectRoot, 'apps', 'web', 'src')
+    : fs.existsSync(webAppDir)
+      ? path.join(projectRoot, 'apps', 'web')
+      : null;
 
-      if (!tsconfig.compilerOptions) {
-        tsconfig.compilerOptions = {};
-      }
-      if (!tsconfig.compilerOptions.paths) {
-        tsconfig.compilerOptions.paths = {};
-      }
+  if (webRoot) {
+    const appDir = fs.existsSync(webSrcAppDir) ? webSrcAppDir : webAppDir;
 
-      const pathKey = '#/monorise/*';
-      const pathValue = ['./.monorise/*'];
+    // Create directories
+    fs.mkdirSync(path.join(webRoot, 'components', 'ui'), { recursive: true });
+    fs.mkdirSync(path.join(webRoot, 'lib'), { recursive: true });
 
-      if (!tsconfig.compilerOptions.paths[pathKey]) {
-        tsconfig.compilerOptions.paths[pathKey] = pathValue;
-        fs.writeFileSync(tsconfigPath, JSON.stringify(tsconfig, null, 2));
-        console.log(
-          `Added '${pathKey}' path alias in ${path.relative(projectRoot, tsconfigPath)}`,
+    // Global components
+    console.log('🌐 Creating global components...');
+    fs.writeFileSync(
+      path.join(webRoot, 'components', 'global-initializer.tsx'),
+      readTemplate('global-initializer.tsx'),
+    );
+    fs.writeFileSync(
+      path.join(webRoot, 'components', 'global-loader.tsx'),
+      readTemplate('global-loader.tsx'),
+    );
+
+    // lib/utils.ts
+    console.log('🔧 Creating lib/utils.ts...');
+    fs.writeFileSync(
+      path.join(webRoot, 'lib', 'utils.ts'),
+      readTemplate('lib-utils.ts'),
+    );
+
+    // Shadcn UI components
+    console.log('🎨 Creating shadcn UI components...');
+    fs.writeFileSync(
+      path.join(webRoot, 'components', 'ui', 'button.tsx'),
+      readTemplate('ui-button.tsx'),
+    );
+    fs.writeFileSync(
+      path.join(webRoot, 'components', 'ui', 'card.tsx'),
+      readTemplate('ui-card.tsx'),
+    );
+    fs.writeFileSync(
+      path.join(webRoot, 'components', 'ui', 'input.tsx'),
+      readTemplate('ui-input.tsx'),
+    );
+    fs.writeFileSync(
+      path.join(webRoot, 'components', 'ui', 'label.tsx'),
+      readTemplate('ui-label.tsx'),
+    );
+
+    // Replace globals.css with shadcn theme
+    console.log('🎨 Setting up shadcn globals.css...');
+    const globalsCssPath = path.join(appDir, 'globals.css');
+    fs.writeFileSync(globalsCssPath, readTemplate('globals.css'));
+
+    // Update layout.tsx with GlobalInitializer, GlobalLoader, and loader-portal
+    console.log('📐 Updating layout.tsx with global components...');
+    const layoutPath = path.join(appDir, 'layout.tsx');
+    if (fs.existsSync(layoutPath)) {
+      try {
+        let layoutContent = fs.readFileSync(layoutPath, 'utf8');
+
+        // Add imports after existing imports
+        const globalImports = `import GlobalInitializer from '#/components/global-initializer';\nimport GlobalLoader from '#/components/global-loader';`;
+        // Insert after the last import statement
+        const lastImportIndex = layoutContent.lastIndexOf('import ');
+        const lineEnd = layoutContent.indexOf('\n', lastImportIndex);
+        layoutContent =
+          layoutContent.slice(0, lineEnd + 1) +
+          globalImports +
+          '\n' +
+          layoutContent.slice(lineEnd + 1);
+
+        // Add loader-portal div and global components inside <body>
+        layoutContent = layoutContent.replace(
+          /(<body[^>]*>)/,
+          `$1\n        <div id="loader-portal" />\n        <GlobalInitializer />\n        <GlobalLoader />`,
         );
-      } else {
-        console.log(
-          `'${pathKey}' path alias already set in ${path.relative(projectRoot, tsconfigPath)}. Skipping.`,
-        );
+
+        fs.writeFileSync(layoutPath, layoutContent);
+      } catch (error) {
+        console.warn('Warning: Could not update layout.tsx:', error);
       }
-    } catch (error) {
-      console.error(
-        `Error updating ${path.relative(projectRoot, tsconfigPath)}:`,
-        error,
+    }
+
+    // Replace postcss.config.mjs with @tailwindcss/postcss
+    const postcssPath = path.join(projectRoot, 'apps', 'web', 'postcss.config.mjs');
+    if (fs.existsSync(postcssPath)) {
+      fs.writeFileSync(
+        postcssPath,
+        `const config = {\n  plugins: {\n    '@tailwindcss/postcss': {},\n  },\n};\n\nexport default config;\n`,
       );
     }
-  } else {
-    console.warn(
-      `Warning: ${path.relative(projectRoot, tsconfigPath)} not found. Cannot add path alias.`,
+
+    // Create API proxy routes
+    console.log('🔀 Creating API proxy routes...');
+    const apiDir = path.join(appDir, 'api');
+    const catchAllDir = path.join(apiDir, '[...proxy]');
+    fs.mkdirSync(catchAllDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(apiDir, 'proxy-request.ts'),
+      readTemplate('proxy-request.ts'),
+    );
+    fs.writeFileSync(
+      path.join(catchAllDir, 'route.ts'),
+      readTemplate('proxy-route.ts'),
     );
   }
 
-  console.log('Monorise initialization complete!');
+  // Step 16: Update apps/web tsconfig.json with monorise path alias
+  console.log('⚙️  Updating apps/web tsconfig.json...');
+  const webTsconfigPath = path.join(projectRoot, 'apps', 'web', 'tsconfig.json');
+  if (fs.existsSync(webTsconfigPath)) {
+    try {
+      const webTsconfigContent = fs.readFileSync(webTsconfigPath, 'utf8');
+      const webTsconfig = JSON.parse(webTsconfigContent);
+
+      if (!webTsconfig.compilerOptions) {
+        webTsconfig.compilerOptions = {};
+      }
+      if (!webTsconfig.compilerOptions.paths) {
+        webTsconfig.compilerOptions.paths = {};
+      }
+
+      // Add path aliases
+      webTsconfig.compilerOptions.paths['#/shared/*'] = ['../../shared/*'];
+      webTsconfig.compilerOptions.paths['#/monorise/*'] = ['../../.monorise/*'];
+      const hasSrcDir = fs.existsSync(path.join(projectRoot, 'apps', 'web', 'src'));
+      webTsconfig.compilerOptions.paths['#/*'] = [hasSrcDir ? './src/*' : './*'];
+
+      fs.writeFileSync(webTsconfigPath, JSON.stringify(webTsconfig, null, 2));
+    } catch (error) {
+      console.warn('Warning: Could not update apps/web tsconfig.json:', error);
+    }
+  }
+
+  // Step 16: Run initial monorise build to generate .monorise files
+  console.log('\n🔨 Running initial Monorise build...');
+  try {
+    execCommand('npx monorise build', projectRoot);
+  } catch (error) {
+    console.warn('Warning: Initial monorise build failed. You can run it manually later.');
+  }
+
+  console.log('\n' + '='.repeat(60));
+  console.log('✅ Monorise project created successfully!');
+  console.log('='.repeat(60));
+  console.log(`\n📁 Project structure:`);
+  console.log(`  ${projectName}/`);
+  console.log(`  ├── apps/web/           # Next.js frontend`);
+  console.log(`  ├── services/core/      # Backend routes (Hono)`);
+  console.log(`  ├── monorise/configs/   # Entity definitions`);
+  console.log(`  └── .monorise/          # Generated files`);
+  console.log(`\n📂 Where to start coding:`);
+  console.log(`  • Edit your data model → monorise/configs/user.ts`);
+  console.log(`    (Add fields like phone, role, status to the User entity)`);
+  console.log(`  • Build your UI → apps/web/src/app/page.tsx`);
+  console.log(`    (React components using useEntities and createEntity)`);
+  console.log(`  • Add backend logic → services/core/routes.ts`);
+  console.log(`    (Custom API endpoints with Hono)`);
+  console.log(`\n🚀 Next steps:`);
+  console.log(`  cd ${projectName}`);
+  console.log(`  npx sst dev`);
+  console.log('\n📚 Documentation: https://monorise.dev');
+  console.log('');
 }
 
 async function runDevCommand(configDir: string, rootPath?: string) {
@@ -554,7 +760,7 @@ async function main() {
       await runInitCommand(rootPath);
     } else {
       console.error(
-        'Unknown command. Usage: monorise [dev|build|init] [--config-root <path>]',
+        'Unknown command. Usage: monorise [dev|build|init] [--config-root <path>] [--name <project-name>]',
       );
       process.exit(1);
     }
