@@ -207,6 +207,76 @@ describe('MutualService schema validation integration', () => {
     ).resolves.toBeDefined();
   });
 
+  it('should reject invalid mutualPayload in createMutual with reversed entity pair', async () => {
+    const mockEntityRepo = {
+      getEntity: async () => ({ data: {} }),
+    };
+    const mockMutualRepo = {
+      checkMutualExist: async () => {},
+      createMutualTransactItems: () => [],
+    };
+    const mockDdbUtils = {
+      executeTransactWrite: async () => {},
+    };
+    const mockPublishEvent = async () => {};
+    const mockLifecycle = {};
+
+    const service = new MutualService(
+      mockEntityConfig,
+      mockEntityRepo as any,
+      mockMutualRepo as any,
+      mockPublishEvent as any,
+      mockDdbUtils as any,
+      mockLifecycle as any,
+    );
+
+    // Reversed: COURSE as byEntityType, STUDENT as entityType
+    await expect(
+      service.createMutual({
+        byEntityType: TestEntity.COURSE as unknown as EntityType,
+        byEntityId: 'course-1',
+        entityType: TestEntity.STUDENT as unknown as EntityType,
+        entityId: 'student-1',
+        mutualPayload: { role: 'invalid-role', enrolledAt: '2026-01-01' },
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('should accept valid mutualPayload in createMutual with reversed entity pair', async () => {
+    const mockEntityRepo = {
+      getEntity: async () => ({ data: {} }),
+    };
+    const mockMutualRepo = {
+      checkMutualExist: async () => {},
+      createMutualTransactItems: () => [],
+    };
+    const mockDdbUtils = {
+      executeTransactWrite: async () => {},
+    };
+    const mockPublishEvent = async () => {};
+    const mockLifecycle = {};
+
+    const service = new MutualService(
+      mockEntityConfig,
+      mockEntityRepo as any,
+      mockMutualRepo as any,
+      mockPublishEvent as any,
+      mockDdbUtils as any,
+      mockLifecycle as any,
+    );
+
+    // Reversed: COURSE as byEntityType, STUDENT as entityType
+    await expect(
+      service.createMutual({
+        byEntityType: TestEntity.COURSE as unknown as EntityType,
+        byEntityId: 'course-1',
+        entityType: TestEntity.STUDENT as unknown as EntityType,
+        entityId: 'student-1',
+        mutualPayload: { role: 'auditor', enrolledAt: '2026-01-01' },
+      }),
+    ).resolves.toBeDefined();
+  });
+
   it('should allow any payload when no mutualDataSchema defined', async () => {
     const mockEntityRepo = {
       getEntity: async () => ({ data: {} }),
