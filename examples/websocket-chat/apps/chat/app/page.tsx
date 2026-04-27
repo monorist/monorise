@@ -12,7 +12,7 @@ import {
   useEntitySocket,
   useEphemeralSocket,
 } from 'monorise/react';
-import { Entity } from '#/monorise/entities';
+import { Entity } from '#/monorise/config';
 import GlobalInitializer from '#/components/global-initializer';
 
 const DEMO_USERS = [

@@ -23,8 +23,11 @@
       }
     ],
     "paths": {
+      "#/shared/*": [
+        "../../shared/*"
+      ],
       "#/monorise/*": [
-        "../../monorise/*"
+        "../../.monorise/*"
       ],
       "#/*": [
         "./*"
