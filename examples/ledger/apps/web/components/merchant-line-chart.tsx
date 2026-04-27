@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 
 import type { CreatedEntity } from 'monorise/base';
-import { Entity } from '#/monorise/entities';
+import { Entity } from '#/monorise/config';
 
 type Summary = CreatedEntity<Entity.MONTHLY_SUMMARY>;
 type Merchant = CreatedEntity<Entity.MERCHANT>;

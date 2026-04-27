@@ -91,7 +91,7 @@
     "hono": "^4.7.10",
     "react": "^19",
     "react-dom": "^19",
-    "sst": "4.7.3"
+    "sst": "^4.7.3"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.147",
