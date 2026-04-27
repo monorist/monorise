@@ -8,6 +8,11 @@ import {
 } from './types/monorise.type';
 
 import { createEntityConfig } from './utils';
+import type {
+  WhereClause,
+  WhereConditions,
+  WhereOperator,
+} from './types/where.type';
 
 export {
   Entity,
@@ -18,3 +23,5 @@ export {
   NumericFields,
   createEntityConfig,
 };
+
+export type { WhereClause, WhereConditions, WhereOperator };
