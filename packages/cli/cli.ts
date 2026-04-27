@@ -5,23 +5,17 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execSync, spawn } from 'node:child_process';
 import chokidar from 'chokidar';
+import { fileURLToPath } from 'node:url';
 import { detectCombinedPackage } from './commands/utils/detect-package';
-import { CORE_ROUTES_TEMPLATE } from './templates/core-routes';
-import { EXAMPLE_PAGE_TEMPLATE } from './templates/example-page';
-import { MONORISE_CONFIG_TEMPLATE } from './templates/monorise-config';
-import { USER_ENTITY_TEMPLATE } from './templates/user-entity';
 import { ROOT_TSCONFIG_TEMPLATE } from './templates/root-tsconfig';
-import { getSstConfigContent } from './templates/sst-config';
-import { GLOBAL_INITIALIZER_TEMPLATE } from './templates/global-initializer';
-import { GLOBAL_LOADER_TEMPLATE } from './templates/global-loader';
-import { LIB_UTILS_TEMPLATE } from './templates/lib-utils';
-import { GLOBALS_CSS_TEMPLATE } from './templates/globals-css';
-import { UI_BUTTON_TEMPLATE } from './templates/ui-button';
-import { UI_CARD_TEMPLATE } from './templates/ui-card';
-import { UI_INPUT_TEMPLATE } from './templates/ui-input';
-import { UI_LABEL_TEMPLATE } from './templates/ui-label';
-import { PROXY_REQUEST_TEMPLATE } from './templates/proxy-request';
-import { PROXY_ROUTE_TEMPLATE } from './templates/proxy-route';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const TEMPLATES_DIR = path.join(__dirname, 'templates', 'files');
+
+function readTemplate(filename: string): string {
+  return fs.readFileSync(path.join(TEMPLATES_DIR, filename), 'utf-8');
+}
 
 function kebabToCamel(str: string): string {
   return str.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase());
@@ -421,7 +415,7 @@ async function runInitCommand(rootPath?: string) {
   const nextAppDir = path.join(projectRoot, 'apps', 'web');
   try {
     execCommand(
-      `npx create-next-app@latest web --typescript --tailwind --eslint --app --src-dir --import-alias "@/*" --no-turbopack --yes`,
+      `npx create-next-app@latest web --typescript --tailwind --eslint --app --no-src-dir --import-alias "#/*" --no-turbopack --yes`,
       path.join(projectRoot, 'apps'),
     );
   } catch (error) {
@@ -430,9 +424,9 @@ async function runInitCommand(rootPath?: string) {
   }
 
   // Step 5: Install SST v3
-  console.log('\n☁️  Installing SST v3...');
+  console.log('\n☁️  Installing SST v4...');
   try {
-    execCommand('npm install sst@3.19.3 --save-dev', projectRoot);
+    execCommand('npm install sst@^4 --save-dev', projectRoot);
   } catch (error) {
     console.error('Failed to install SST:', error);
     process.exit(1);
@@ -441,7 +435,7 @@ async function runInitCommand(rootPath?: string) {
   // Step 6: Install dependencies
   console.log('\n📦 Installing dependencies (monorise, hono, zod, shadcn utilities)...');
   try {
-    execCommand('npm install monorise hono zod clsx class-variance-authority radix-ui lucide-react tailwind-merge', projectRoot);
+    execCommand('npm install monorise hono zod clsx class-variance-authority radix-ui lucide-react tailwind-merge react-hook-form @hookform/resolvers', projectRoot);
   } catch (error) {
     console.error('Failed to install dependencies:', error);
     process.exit(1);
@@ -451,21 +445,21 @@ async function runInitCommand(rootPath?: string) {
   console.log('⚙️  Creating monorise.config.ts...');
   fs.writeFileSync(
     path.join(projectRoot, 'monorise.config.ts'),
-    MONORISE_CONFIG_TEMPLATE,
+    readTemplate('monorise.config.ts'),
   );
 
   // Step 9: Create starter entity
   console.log('👤 Creating starter User entity...');
   fs.writeFileSync(
     path.join(projectRoot, 'monorise', 'configs', 'user.ts'),
-    USER_ENTITY_TEMPLATE,
+    readTemplate('user-entity.ts'),
   );
 
   // Step 10: Create services/core/routes.ts
   console.log('🔧 Creating services/core/routes.ts...');
   fs.writeFileSync(
     path.join(projectRoot, 'services', 'core', 'routes.ts'),
-    CORE_ROUTES_TEMPLATE,
+    readTemplate('core-routes.ts'),
   );
 
   // Step 11: Create services package.json
@@ -482,7 +476,7 @@ async function runInitCommand(rootPath?: string) {
   // Step 12: Create sst.config.ts with monorise
   console.log('⚙️  Creating sst.config.ts with Monorise...');
   const sstConfigPath = path.join(projectRoot, 'sst.config.ts');
-  fs.writeFileSync(sstConfigPath, getSstConfigContent(projectName));
+  fs.writeFileSync(sstConfigPath, readTemplate('sst.config.ts').replace('{{PROJECT_NAME}}', projectName));
 
   // Step 13: Install SST providers (after sst.config.ts exists)
   console.log('\n☁️  Installing SST providers...');
@@ -504,7 +498,7 @@ async function runInitCommand(rootPath?: string) {
 
   if (pagePath) {
     try {
-      fs.writeFileSync(pagePath, EXAMPLE_PAGE_TEMPLATE);
+      fs.writeFileSync(pagePath, readTemplate('example-page.tsx'));
       console.log(`Created example page at ${path.relative(projectRoot, pagePath)}`);
     } catch (error) {
       console.warn('Warning: Could not create example page:', error);
@@ -531,43 +525,43 @@ async function runInitCommand(rootPath?: string) {
     console.log('🌐 Creating global components...');
     fs.writeFileSync(
       path.join(webRoot, 'components', 'global-initializer.tsx'),
-      GLOBAL_INITIALIZER_TEMPLATE,
+      readTemplate('global-initializer.tsx'),
     );
     fs.writeFileSync(
       path.join(webRoot, 'components', 'global-loader.tsx'),
-      GLOBAL_LOADER_TEMPLATE,
+      readTemplate('global-loader.tsx'),
     );
 
     // lib/utils.ts
     console.log('🔧 Creating lib/utils.ts...');
     fs.writeFileSync(
       path.join(webRoot, 'lib', 'utils.ts'),
-      LIB_UTILS_TEMPLATE,
+      readTemplate('lib-utils.ts'),
     );
 
     // Shadcn UI components
     console.log('🎨 Creating shadcn UI components...');
     fs.writeFileSync(
       path.join(webRoot, 'components', 'ui', 'button.tsx'),
-      UI_BUTTON_TEMPLATE,
+      readTemplate('ui-button.tsx'),
     );
     fs.writeFileSync(
       path.join(webRoot, 'components', 'ui', 'card.tsx'),
-      UI_CARD_TEMPLATE,
+      readTemplate('ui-card.tsx'),
     );
     fs.writeFileSync(
       path.join(webRoot, 'components', 'ui', 'input.tsx'),
-      UI_INPUT_TEMPLATE,
+      readTemplate('ui-input.tsx'),
     );
     fs.writeFileSync(
       path.join(webRoot, 'components', 'ui', 'label.tsx'),
-      UI_LABEL_TEMPLATE,
+      readTemplate('ui-label.tsx'),
     );
 
     // Replace globals.css with shadcn theme
     console.log('🎨 Setting up shadcn globals.css...');
     const globalsCssPath = path.join(appDir, 'globals.css');
-    fs.writeFileSync(globalsCssPath, GLOBALS_CSS_TEMPLATE);
+    fs.writeFileSync(globalsCssPath, readTemplate('globals.css'));
 
     // Update layout.tsx with GlobalInitializer, GlobalLoader, and loader-portal
     console.log('📐 Updating layout.tsx with global components...');
@@ -615,11 +609,11 @@ async function runInitCommand(rootPath?: string) {
     fs.mkdirSync(catchAllDir, { recursive: true });
     fs.writeFileSync(
       path.join(apiDir, 'proxy-request.ts'),
-      PROXY_REQUEST_TEMPLATE,
+      readTemplate('proxy-request.ts'),
     );
     fs.writeFileSync(
       path.join(catchAllDir, 'route.ts'),
-      PROXY_ROUTE_TEMPLATE,
+      readTemplate('proxy-route.ts'),
     );
   }
 

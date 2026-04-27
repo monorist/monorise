@@ -1,4 +1,4 @@
-export const GLOBAL_INITIALIZER_TEMPLATE = `'use client';
+'use client';
 
 import type { Entity, MonoriseEntityConfig } from 'monorise/base';
 import Monorise from 'monorise/react';
@@ -14,4 +14,3 @@ const GlobalInitializer = () => {
 };
 
 export default GlobalInitializer;
-`;

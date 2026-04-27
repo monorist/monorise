@@ -1,4 +1,4 @@
-export const USER_ENTITY_TEMPLATE = `import { createEntityConfig } from 'monorise/base';
+import { createEntityConfig } from 'monorise/base';
 import { z } from 'zod';
 
 const baseSchema = z
@@ -25,4 +25,3 @@ const config = createEntityConfig({
 });
 
 export default config;
-`;

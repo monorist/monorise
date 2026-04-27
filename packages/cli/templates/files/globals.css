@@ -1,4 +1,4 @@
-export const GLOBALS_CSS_TEMPLATE = `@import "tailwindcss";
+@import "tailwindcss";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -70,4 +70,3 @@ export const GLOBALS_CSS_TEMPLATE = `@import "tailwindcss";
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
 }
-`;

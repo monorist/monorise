@@ -1,10 +1,9 @@
-export function getSstConfigContent(projectName: string): string {
-  return `/// <reference path='./.sst/platform/config.d.ts' />
+/// <reference path='./.sst/platform/config.d.ts' />
 
 export default $config({
   app(input) {
     return {
-      name: '${projectName}',
+      name: '{{PROJECT_NAME}}',
       removal: input?.stage === 'production' ? 'retain' : 'remove',
       protect: ['production'].includes(input?.stage),
       home: 'aws',
@@ -25,5 +24,3 @@ export default $config({
     });
   },
 });
-`;
-}

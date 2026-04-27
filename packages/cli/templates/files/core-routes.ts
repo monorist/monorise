@@ -1,4 +1,4 @@
-export const CORE_ROUTES_TEMPLATE = `import { Hono } from 'hono';
+import { Hono } from 'hono';
 import { DependencyContainer } from 'monorise/core';
 import config, { Entity } from '#/monorise/config';
 
@@ -20,4 +20,3 @@ app.get('/test', async (c) => {
 });
 
 export default app;
-`;

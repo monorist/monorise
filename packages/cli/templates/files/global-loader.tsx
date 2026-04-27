@@ -1,4 +1,4 @@
-export const GLOBAL_LOADER_TEMPLATE = `'use client';
+'use client';
 
 import { useInterruptiveLoadStore } from 'monorise/react';
 import { useEffect, useState } from 'react';
@@ -43,4 +43,3 @@ const GlobalLoader = () => {
 };
 
 export default GlobalLoader;
-`;

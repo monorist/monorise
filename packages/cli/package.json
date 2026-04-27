@@ -9,7 +9,7 @@
     "monorise": "dist/cli.js"
   },
   "scripts": {
-    "build": "tsup && chmod +x dist/cli.js",
+    "build": "tsup && chmod +x dist/cli.js && mkdir -p dist/templates && cp -r templates/files dist/templates/files",
     "dev": "tsup --watch"
   },
   "keywords": [],

@@ -1,4 +1,4 @@
-export const PROXY_ROUTE_TEMPLATE = `import type { NextRequest } from 'next/server';
+import type { NextRequest } from 'next/server';
 import { proxyRequest } from '../proxy-request';
 
 export async function GET(req: NextRequest) {
@@ -20,4 +20,3 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   return proxyRequest({ req });
 }
-`;
