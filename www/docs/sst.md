@@ -46,6 +46,7 @@ new MonoriseCore(id: string, args?: MonoriseCoreArgs)
 | `tableTtl` | `string` | — | DynamoDB TTL attribute name |
 | `slackWebhook` | `string` | — | Slack webhook URL for DLQ alerts |
 | `configRoot` | `string` | — | Custom root path for monorise config |
+| `webSocket` | `{ enabled: true, handler?: { memory?, timeout? } }` | Disabled | Enable WebSocket support for real-time updates. See [WebSocket](/websocket) |
 
 ### Exposed resources
 
@@ -73,6 +74,7 @@ bus.subscribe('custom-handler', {
 | `table` | `SingleTable` | DynamoDB single table with GSIs and replication |
 | `table.table` | `sst.aws.Dynamo` | The underlying DynamoDB table resource |
 | `alarmTopic` | `sst.aws.SnsTopic` | SNS topic for DLQ alarms — connected to Slack webhook notifications when `slackWebhook` is configured. Reuse this when creating custom `QFunction` processors to get alerts in the same Slack channel |
+| `websocket` | `sst.aws.ApiGatewayWebSocket \| undefined` | WebSocket API Gateway — only present when `webSocket.enabled` is set. Provides `.url` (client connection URL) and `.managementEndpoint` (server-side push URL) |
 
 ### What it provisions
 

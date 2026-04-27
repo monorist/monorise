@@ -22,6 +22,7 @@ export default defineConfig({
       { text: 'Guide', link: '/getting-started' },
       { text: 'Concepts', link: '/concepts/' },
       { text: 'React SDK', link: '/react' },
+      { text: 'WebSocket', link: '/websocket' },
       { text: 'Roadmap', link: '/roadmap' },
     ],
 
@@ -59,6 +60,7 @@ export default defineConfig({
         items: [
           { text: 'Package Map', link: '/packages' },
           { text: 'React SDK', link: '/react' },
+          { text: 'WebSocket', link: '/websocket' },
           { text: 'SST SDK', link: '/sst' },
         ],
       },
