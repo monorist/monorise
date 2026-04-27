@@ -9,7 +9,7 @@
     "lib": "lib"
   },
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && node fix-dts.cjs",
     "dev": "tsup --watch"
   },
   "keywords": [],
