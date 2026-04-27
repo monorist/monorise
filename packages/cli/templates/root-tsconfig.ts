@@ -12,4 +12,6 @@ export const ROOT_TSCONFIG_TEMPLATE = {
       '#/monorise/*': ['./.monorise/*'],
     },
   },
+  include: ['**/*.ts', '.monorise/**/*.ts'],
+  exclude: ['node_modules', 'apps'],
 };
