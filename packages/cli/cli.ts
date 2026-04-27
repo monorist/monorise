@@ -639,6 +639,7 @@ async function runInitCommand(rootPath?: string) {
       }
 
       // Add path aliases
+      webTsconfig.compilerOptions.paths['#/shared/*'] = ['../../shared/*'];
       webTsconfig.compilerOptions.paths['#/monorise/*'] = ['../../.monorise/*'];
       const hasSrcDir = fs.existsSync(path.join(projectRoot, 'apps', 'web', 'src'));
       webTsconfig.compilerOptions.paths['#/*'] = [hasSrcDir ? './src/*' : './*'];
