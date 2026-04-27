@@ -208,7 +208,7 @@ const initCoreService = (
   const editEntity = <T extends Entity>(
     entityType: T,
     id: string,
-    values: Partial<DraftEntity<T>>,
+    values: Partial<DraftEntity<T>> & { $condition?: string },
     opts: CommonOptions = {},
   ) => {
     const { entityApiBaseUrl = ENTITY_API_BASE_URL } = options;
@@ -232,13 +232,16 @@ const initCoreService = (
     entityType: T,
     id: string,
     adjustments: Record<string, number>,
-    opts: CommonOptions = {},
+    opts: CommonOptions & { condition?: string } = {},
   ) => {
     const { entityApiBaseUrl = ENTITY_API_BASE_URL } = options;
     const entityConfig = monoriseStore.getState().config;
+    const body = opts.condition
+      ? { ...adjustments, $condition: opts.condition }
+      : adjustments;
     return axios.post<CreatedEntity<T>>(
       opts.customUrl || `${entityApiBaseUrl}/${entityType}/${id}/adjust`,
-      adjustments,
+      body,
       {
         requestKey: getEntityRequestKey('adjust', entityType, id),
         isInterruptive: opts.isInterruptive ?? true,
@@ -442,7 +445,7 @@ const initCoreService = (
     ) => upsertEntity(entityType, id, values, opts),
     editEntity: (
       id: string,
-      values: Partial<DraftEntity<T>>,
+      values: Partial<DraftEntity<T>> & { $condition?: string },
       opts: CommonOptions = {},
     ) => editEntity(entityType, id, values, opts),
     updateEntity: (

@@ -739,11 +739,15 @@ export class EntityRepository extends Repository {
     entityType: T,
     entityId: string,
     adjustments: Record<string, number>,
-    constraints?: { [field: string]: { min?: number; max?: number } },
+    opts?: {
+      ConditionExpression?: string;
+      ExpressionAttributeNames?: Record<string, string>;
+      ExpressionAttributeValues?: Record<string, AttributeValue>;
+    },
   ): Promise<Entity<T>> {
     const entity = new Entity(entityType, entityId);
-    const { UpdateExpression, ConditionExpression, ExpressionAttributeNames, ExpressionAttributeValues } =
-      this.toAdjustUpdate(adjustments, constraints);
+    const { UpdateExpression, ExpressionAttributeNames, ExpressionAttributeValues } =
+      this.toAdjustUpdate(adjustments);
 
     const updatedAtExpression = ', #updatedAt = :updatedAt';
     ExpressionAttributeNames['#updatedAt'] = 'updatedAt';
@@ -753,9 +757,15 @@ export class EntityRepository extends Repository {
       TableName: this.TABLE_NAME,
       Key: entity.keys(),
       UpdateExpression: UpdateExpression + updatedAtExpression,
-      ...(ConditionExpression && { ConditionExpression }),
-      ExpressionAttributeNames,
-      ExpressionAttributeValues,
+      ConditionExpression: opts?.ConditionExpression || 'attribute_exists(PK)',
+      ExpressionAttributeNames: {
+        ...ExpressionAttributeNames,
+        ...opts?.ExpressionAttributeNames,
+      },
+      ExpressionAttributeValues: {
+        ...ExpressionAttributeValues,
+        ...opts?.ExpressionAttributeValues,
+      },
       ReturnValues: 'ALL_NEW',
     });
 

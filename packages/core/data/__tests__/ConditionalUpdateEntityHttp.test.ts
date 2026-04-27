@@ -465,6 +465,77 @@ describe('HTTP — conditional updateEntity ($where body key)', () => {
     });
   });
 
+  // ─── Group 9: Named conditions ($condition) ───────────────────────────────
+
+  describe('Group 9: named conditions ($condition)', () => {
+    it('9.1 — static condition match → 200', async () => {
+      const entity = await entityRepository.createEntity(WALLET, {
+        balance: 100,
+        status: 'draft',
+      });
+      const { status, data } = await patch(
+        MockEntityType.WALLET,
+        entity.entityId as string,
+        { status: 'published', $condition: 'publish' },
+      );
+      expect(status).toBe(200);
+      expect(data.data.status).toBe('published');
+    });
+
+    it('9.2 — static condition mismatch → 409', async () => {
+      const entity = await entityRepository.createEntity(WALLET, {
+        balance: 100,
+        status: 'published',
+      });
+      const { status, data } = await patch(
+        MockEntityType.WALLET,
+        entity.entityId as string,
+        { status: 'archived', $condition: 'publish' },
+      );
+      expect(status).toBe(409);
+      expect(data.code).toBe('CONDITIONAL_CHECK_FAILED');
+    });
+
+    it('9.3 — unknown condition name → 400', async () => {
+      const entity = await entityRepository.createEntity(WALLET, { balance: 100 });
+      const { status, data } = await patch(
+        MockEntityType.WALLET,
+        entity.entityId as string,
+        { balance: 200, $condition: 'nonexistent' },
+      );
+      expect(status).toBe(400);
+      expect(data.code).toBe('INVALID_CONDITION');
+    });
+
+    it('9.4 — no $condition with no conditions defined → 200 (backward compat)', async () => {
+      const entity = await entityRepository.createEntity(USER, {
+        name: 'test',
+        username: `user-no-condition-${Date.now()}`,
+      });
+      const { status, data } = await patch(
+        MockEntityType.USER,
+        entity.entityId as string,
+        { name: 'updated' },
+      );
+      expect(status).toBe(200);
+      expect(data.data.name).toBe('updated');
+    });
+
+    it('9.5 — $condition on entity with no conditions defined → 400', async () => {
+      const entity = await entityRepository.createEntity(USER, {
+        name: 'test',
+        username: `user-bad-condition-${Date.now()}`,
+      });
+      const { status, data } = await patch(
+        MockEntityType.USER,
+        entity.entityId as string,
+        { name: 'updated', $condition: 'publish' },
+      );
+      expect(status).toBe(400);
+      expect(data.code).toBe('INVALID_CONDITION');
+    });
+  });
+
   // ─── Group 7: Concurrency ─────────────────────────────────────────────────
 
   describe('Group 7: Concurrency', () => {
