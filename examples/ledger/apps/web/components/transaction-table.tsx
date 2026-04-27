@@ -2,7 +2,7 @@
 
 import { useEntity } from 'monorise/react';
 import type { CreatedEntity } from 'monorise/base';
-import { Entity } from '#/monorise/entities';
+import { Entity } from '#/monorise/config';
 import { Badge } from '#/components/ui/badge';
 
 type Transaction = CreatedEntity<Entity.TRANSACTION>;

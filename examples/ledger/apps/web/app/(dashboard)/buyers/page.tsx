@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useEntities, useTaggedEntities } from 'monorise/react';
-import { Entity } from '#/monorise/entities';
+import { Entity } from '#/monorise/config';
 import {
   Select,
   SelectContent,

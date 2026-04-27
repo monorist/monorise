@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { useEntities, useTaggedEntities } from 'monorise/react';
-import { Entity } from '#/monorise/entities';
+import { Entity } from '#/monorise/config';
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card';
 import { Button } from '#/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '#/components/ui/tabs';
