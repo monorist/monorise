@@ -1,5 +1,11 @@
 # monorise
 
+## 1.0.1
+
+### Patch Changes
+
+- 9e351bc: Loosen sst peer dependency from exact `4.7.3` to `^4.7.3` to allow newer minor/patch versions.
+
 ## 1.0.0
 
 ### Major Changes
