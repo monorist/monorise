@@ -13,6 +13,50 @@ function kebabToPascal(kebab: string): string {
     .join('');
 }
 
+function generateMutualDataMappingDeclarations(
+  mutualPairs: {
+    byEnumKey: string;
+    entityEnumKey: string;
+    variableName: string;
+    fieldKey: string;
+  }[],
+): string {
+  if (mutualPairs.length === 0) return '';
+
+  // Group by byEnumKey → { entityEnumKey: schemaPath }
+  const grouped = new Map<string, string[]>();
+  for (const pair of mutualPairs) {
+    const schemaPath = `z.infer<(typeof ${pair.variableName})['mutual']['mutualFields']['${pair.fieldKey}']['mutual']['mutualDataSchema']>`;
+    const entry = `[Entity.${pair.entityEnumKey}]: ${schemaPath};`;
+    if (!grouped.has(pair.byEnumKey)) {
+      grouped.set(pair.byEnumKey, []);
+    }
+    grouped.get(pair.byEnumKey)!.push(entry);
+  }
+
+  const mappingEntries = Array.from(grouped.entries())
+    .map(
+      ([enumKey, entries]) =>
+        `    [Entity.${enumKey}]: {\n      ${entries.join('\n      ')}\n    };`,
+    )
+    .join('\n');
+
+  const block = `
+  export interface MutualDataMapping {
+${mappingEntries}
+  }`;
+
+  return `
+declare module '@monorise/react' {
+${block}
+}
+
+declare module 'monorise/react' {
+${block}
+}
+`;
+}
+
 async function generateConfigFile(
   configDir: string,
   monoriseOutputDir: string,
@@ -38,6 +82,19 @@ export enum Entity {}
   const schemaEntries: string[] = [];
   const allowedEntityEntries: string[] = [];
   const entityWithEmailAuthEntries: string[] = [];
+
+  // Track mutual pairs for MutualDataMapping codegen and duplicate detection
+  // Each entry: { byEnumKey, entityEnumKey, variableName, fieldKey, mutualRef }
+  const mutualPairs: {
+    byEnumKey: string;
+    entityEnumKey: string;
+    variableName: string;
+    fieldKey: string;
+    mutualRef: any;
+    file: string;
+  }[] = [];
+  // Map of normalized pair key → first seen mutualRef for duplicate detection
+  const seenMutualPairs = new Map<string, { mutualRef: any; file: string; fieldKey: string }>();
 
   const relativePathToConfigDir = path.relative(monoriseOutputDir, configDir);
   const importPathPrefix = relativePathToConfigDir
@@ -84,6 +141,37 @@ export enum Entity {}
 
     if (config.authMethod?.email) {
       entityWithEmailAuthEntries.push(`Entity.${enumKey}`);
+    }
+
+    // Collect mutual pairs for codegen and duplicate detection
+    if (config.mutual?.mutualFields) {
+      for (const [fieldKey, fieldConfig] of Object.entries(config.mutual.mutualFields) as [string, any][]) {
+        if (fieldConfig.mutual?.mutualDataSchema) {
+          const targetName = fieldConfig.entityType as string;
+          const entityEnumKey = targetName.toUpperCase().replace(/-/g, '_');
+
+          // Duplicate detection: normalize pair alphabetically
+          const pairKey = [config.name, targetName].sort().join('::');
+          const existing = seenMutualPairs.get(pairKey);
+          if (existing && existing.mutualRef !== fieldConfig.mutual) {
+            throw new Error(
+              `Conflicting mutual configs for entity pair [${config.name}, ${targetName}]: ` +
+              `found in ${file} (field: ${fieldKey}) and ${existing.file} (field: ${existing.fieldKey}). ` +
+              `Use the same createMutualConfig instance for both sides.`,
+            );
+          }
+          seenMutualPairs.set(pairKey, { mutualRef: fieldConfig.mutual, file, fieldKey });
+
+          mutualPairs.push({
+            byEnumKey: enumKey,
+            entityEnumKey,
+            variableName,
+            fieldKey,
+            mutualRef: fieldConfig.mutual,
+            file,
+          });
+        }
+      }
     }
   }
 
@@ -154,6 +242,7 @@ declare module 'monorise/base' {
     ${schemaMapEntries.join('\n    ')}
   }
 }
+${generateMutualDataMappingDeclarations(mutualPairs)}
 `;
 
   fs.writeFileSync(configOutputPath, configOutputContent);
