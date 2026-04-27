@@ -2,7 +2,7 @@
 
 import { useMemo } from 'react';
 import type { CreatedEntity } from 'monorise/base';
-import { Entity } from '#/monorise/entities';
+import { Entity } from '#/monorise/config';
 
 type Transaction = CreatedEntity<Entity.TRANSACTION>;
 

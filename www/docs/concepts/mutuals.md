@@ -284,6 +284,114 @@ Invalid payloads will throw a Zod validation error.
 `createMutualConfig` is optional. Existing configs without it continue to work as before — any data shape is accepted.
 :::
 
+## Advanced: `toMutualIds`
+
+By default, each field in `mutualSchema` is expected to be a plain array of entity IDs:
+
+```ts
+mutualSchema: z.object({
+  courseIds: z.string().array(), // ['course-1', 'course-2']
+}).partial(),
+mutualFields: {
+  courseIds: { entityType: Entity.COURSE },
+},
+```
+
+Sometimes you need to pass richer data alongside the IDs — for example, a role or status per relationship. Use `toMutualIds` to extract the IDs from a complex payload:
+
+```ts
+mutual: {
+  mutualSchema: z.object({
+    enrollments: z.array(z.object({
+      courseId: z.string(),
+      role: z.enum(['student', 'auditor']),
+    })).optional(),
+  }).partial(),
+  mutualFields: {
+    enrollments: {
+      entityType: Entity.COURSE,
+      toMutualIds: (payload) => payload.map((e) => e.courseId),
+    },
+  },
+},
+```
+
+When you create the entity:
+
+```ts
+await createEntity(Entity.STUDENT, {
+  name: 'Alice',
+  enrollments: [
+    { courseId: 'course-1', role: 'student' },
+    { courseId: 'course-2', role: 'auditor' },
+  ],
+});
+```
+
+Monorise calls `toMutualIds(payload)` to get `['course-1', 'course-2']` and creates the mutual records. The original payload is forwarded as `customContext` to `mutualDataProcessor` (see below), so you can use it to store per-relationship data.
+
+## Advanced: `mutualDataProcessor`
+
+By default, `mutualData` on each mutual record is an empty object `{}`. Use `mutualDataProcessor` to compute data that should be stored on the relationship itself.
+
+**Signature:**
+
+```ts
+mutualDataProcessor: (
+  mutualIds: string[],
+  currentMutual: Mutual,
+  customContext?: Record<string, any>,
+) => Record<string, any>
+```
+
+- `mutualIds` — all entity IDs in this batch
+- `currentMutual` — the Mutual object being created/updated (contains `byEntityType`, `byEntityId`, `entityType`, `entityId`, and entity data from both sides)
+- `customContext` — the original payload when `toMutualIds` is used; empty object otherwise
+
+**Example — store a role on each enrollment:**
+
+```ts
+mutual: {
+  mutualSchema: z.object({
+    enrollments: z.array(z.object({
+      courseId: z.string(),
+      role: z.enum(['student', 'auditor']),
+    })).optional(),
+  }).partial(),
+  mutualFields: {
+    enrollments: {
+      entityType: Entity.COURSE,
+      toMutualIds: (payload) => payload.map((e) => e.courseId),
+      mutualDataProcessor: (mutualIds, currentMutual, customContext) => {
+        const enrollment = customContext?.find(
+          (e) => e.courseId === currentMutual.entityId,
+        );
+        return {
+          role: enrollment?.role ?? 'student',
+          enrolledAt: new Date().toISOString(),
+        };
+      },
+    },
+  },
+},
+```
+
+The returned object becomes the `mutualData` on the mutual record, accessible via `mutual.mutualData` when querying:
+
+```ts
+const { mutuals: courses } = useMutuals(
+  Entity.STUDENT,
+  Entity.COURSE,
+  studentId,
+);
+
+// courses[0].mutualData → { role: 'student', enrolledAt: '2026-04-24T...' }
+```
+
+::: tip
+`mutualDataProcessor` runs for both newly created and existing mutual records during an update. This means you can change relationship data by re-submitting the mutual payload.
+:::
+
 ## Data layout
 
 | Pattern | Key structure |

@@ -1,6 +1,6 @@
 {
   "name": "monorise",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Monorise - A unified package for all Monorise functionality",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -91,7 +91,7 @@
     "hono": "^4.7.10",
     "react": "^19",
     "react-dom": "^19",
-    "sst": "4.7.3"
+    "sst": "^4.7.3"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.147",
