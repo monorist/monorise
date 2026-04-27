@@ -1,5 +1,11 @@
 # monorise
 
+## 1.1.0-dev.2
+
+### Minor Changes
+
+- 8c1c228: Add `createMutualConfig` for centralized mutualData schema validation. Codegen `MutualDataMapping` for frontend type narrowing. Build-time duplicate detection for conflicting mutual configs.
+
 ## 1.1.0-dev.1
 
 ### Minor Changes

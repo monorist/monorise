@@ -17,6 +17,7 @@
     "entity-feed-subscriptions",
     "entity-feed-ticket",
     "happy-shrimps-kick",
+    "mutual-config-codegen",
     "transactional-writes",
     "unified-conditions"
   ]
