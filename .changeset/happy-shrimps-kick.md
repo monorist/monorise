@@ -1,5 +1,5 @@
 ---
-'@monorise/core': major
+'@monorise/core': minor
 '@monorise/react': minor
 '@monorise/sst': minor
 ---
@@ -13,10 +13,6 @@ Add WebSocket layer for real-time entity updates
 - Auto-refetch on reconnect to catch missed events during disconnect
 - Lambda handlers: $connect, $disconnect, $default, broadcast
 - DynamoDB Streams integration for change broadcasting
-
-### Breaking Changes
-- **@monorise/core**: Removed WebSocketManager and OptimisticEngine exports (moved to @monorise/react)
-- Import WebSocketManager from `@monorise/react` instead of `@monorise/core`
 
 ### Migration
 ```typescript
