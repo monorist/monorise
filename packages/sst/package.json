@@ -1,6 +1,6 @@
 {
   "name": "@monorise/sst",
-  "version": "4.0.1",
+  "version": "4.0.2",
   "description": "",
   "type": "module",
   "main": "dist/index.js",
