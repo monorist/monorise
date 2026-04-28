@@ -13,7 +13,7 @@ type SingleTableArgs = {
    * The table must already have DynamoDB Streams enabled with NEW_AND_OLD_IMAGES
    * and the GSIs (R1, R2) expected by monorise.
    */
-  existingTableName?: $util.Input<string>;
+  fromTableName?: $util.Input<string>;
 };
 
 export class SingleTable {
@@ -26,8 +26,8 @@ export class SingleTable {
     this.id = id;
     this.replicatorFunctionName = `${$app.stage}-${$app.name}-${id}-core-replicator`;
     this.dlq = new sst.aws.Queue(`${id}-core-replicator-dlq`);
-    this.table = args?.existingTableName
-      ? sst.aws.Dynamo.get(`${id}-core-table`, args.existingTableName)
+    this.table = args?.fromTableName
+      ? sst.aws.Dynamo.get(`${id}-core-table`, args.fromTableName)
       : new sst.aws.Dynamo(`${id}-core-table`, {
           fields: {
             PK: 'string',

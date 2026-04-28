@@ -6,6 +6,7 @@ import { SingleTable } from './single-table';
 
 type MonoriseCoreArgs = {
   tableTtl?: string;
+  fromTableName?: $util.Input<string>;
   slackWebhook?: string;
   allowHeaders?: string[];
   allowOrigins?: string[];
@@ -53,6 +54,7 @@ export class MonoriseCore {
       ttl: args?.tableTtl,
       runtime,
       configRoot: args?.configRoot,
+      fromTableName: args?.fromTableName,
     });
 
     const secretApiKeys = new sst.Secret('API_KEYS', '["secret1", "secret2"]');
