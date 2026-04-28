@@ -8,6 +8,12 @@ type SingleTableArgs = {
   ttl?: string;
   runtime?: sst.aws.FunctionArgs['runtime'];
   configRoot?: string;
+  /**
+   * Name of an existing DynamoDB table to use instead of creating a new one.
+   * The table must already have DynamoDB Streams enabled with NEW_AND_OLD_IMAGES
+   * and the GSIs (R1, R2) expected by monorise.
+   */
+  fromTableName?: $util.Input<string>;
 };
 
 export class SingleTable {
@@ -20,45 +26,47 @@ export class SingleTable {
     this.id = id;
     this.replicatorFunctionName = `${$app.stage}-${$app.name}-${id}-core-replicator`;
     this.dlq = new sst.aws.Queue(`${id}-core-replicator-dlq`);
-    this.table = new sst.aws.Dynamo(`${id}-core-table`, {
-      fields: {
-        PK: 'string',
-        SK: 'string',
-        R1PK: 'string',
-        R1SK: 'string',
-        R2PK: 'string',
-        R2SK: 'string',
-      },
-      primaryIndex: { hashKey: 'PK', rangeKey: 'SK' },
-      globalIndexes: {
-        [ENTITY_REPLICATION_INDEX]: {
-          hashKey: 'R1PK',
-          rangeKey: 'R1SK',
-          projection: [
-            'PK',
-            'SK',
-            'R2PK',
-            'R2SK',
-            'updatedAt',
-            'mutualUpdatedAt',
-          ],
-        },
-        [MUTUAL_REPLICATION_INDEX]: {
-          hashKey: 'R2PK',
-          rangeKey: 'R2SK',
-          projection: [
-            'PK',
-            'SK',
-            'R2PK',
-            'R2SK',
-            'updatedAt',
-            'mutualUpdatedAt',
-          ],
-        },
-      },
-      stream: 'new-and-old-images',
-      ttl: args?.ttl,
-    });
+    this.table = args?.fromTableName
+      ? sst.aws.Dynamo.get(`${id}-core-table`, args.fromTableName)
+      : new sst.aws.Dynamo(`${id}-core-table`, {
+          fields: {
+            PK: 'string',
+            SK: 'string',
+            R1PK: 'string',
+            R1SK: 'string',
+            R2PK: 'string',
+            R2SK: 'string',
+          },
+          primaryIndex: { hashKey: 'PK', rangeKey: 'SK' },
+          globalIndexes: {
+            [ENTITY_REPLICATION_INDEX]: {
+              hashKey: 'R1PK',
+              rangeKey: 'R1SK',
+              projection: [
+                'PK',
+                'SK',
+                'R2PK',
+                'R2SK',
+                'updatedAt',
+                'mutualUpdatedAt',
+              ],
+            },
+            [MUTUAL_REPLICATION_INDEX]: {
+              hashKey: 'R2PK',
+              rangeKey: 'R2SK',
+              projection: [
+                'PK',
+                'SK',
+                'R2PK',
+                'R2SK',
+                'updatedAt',
+                'mutualUpdatedAt',
+              ],
+            },
+          },
+          stream: 'new-and-old-images',
+          ttl: args?.ttl,
+        });
 
     const environment = {
       CORE_TABLE: this.table.name,
