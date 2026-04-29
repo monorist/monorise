@@ -116,7 +116,9 @@ export const createMockEntityConfig = () => ({
           $gte: (data.minBalance ?? 0) + Math.abs(adjustments.balance ?? 0),
         },
       }),
-      deposit: { balance: { $lte: 10000 } },
+      deposit: (data, adjustments) => ({
+        balance: { $lte: 10000 - (adjustments.balance ?? 0) },
+      }),
     },
     updateConditions: {
       publish: { status: { $eq: 'draft' } },

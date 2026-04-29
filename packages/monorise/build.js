@@ -41,24 +41,28 @@ const packageMap = {
   '@monorise/cli': 'cli',
 };
 
-function rewriteImports(dir, currentPkg) {
+function rewriteImports(dir, currentPkg, extensions = ['.d.ts']) {
   const entries = fs.readdirSync(dir, { withFileTypes: true });
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      rewriteImports(fullPath, currentPkg);
-    } else if (entry.name.endsWith('.d.ts')) {
+      rewriteImports(fullPath, currentPkg, extensions);
+    } else if (extensions.some((ext) => entry.name.endsWith(ext))) {
       let content = fs.readFileSync(fullPath, 'utf-8');
       const original = content;
       for (const [pkg, folder] of Object.entries(packageMap)) {
-        if (folder === currentPkg) continue;
+        if (folder === currentPkg && extensions.includes(".js")) continue;
         const relativePath = path.relative(
           path.dirname(fullPath),
           path.join(distDir, folder, 'index'),
         );
-        const relativeImport = relativePath.startsWith('.')
+        let relativeImport = relativePath.startsWith('.')
           ? relativePath
           : `./${relativePath}`;
+        // Add .js extension for JS files (ESM requires explicit extension)
+        if (extensions.includes('.js')) {
+          relativeImport += '.js';
+        }
         const escapedPkg = pkg.replace('/', '\\/');
         // Match both single and double quoted from/import patterns
         // e.g. from '@monorise/base', from "@monorise/base", import("@monorise/base")
@@ -81,8 +85,10 @@ function rewriteImports(dir, currentPkg) {
 packages.forEach((pkg) => {
   const targetDir = path.join(distDir, pkg);
   if (fs.existsSync(targetDir)) {
-    rewriteImports(targetDir, pkg);
+    rewriteImports(targetDir, pkg, ['.d.ts']);
     console.log(`Rewrote @monorise/* imports in ${pkg} .d.ts files`);
+    rewriteImports(targetDir, pkg, ['.js']);
+    console.log(`Rewrote @monorise/* imports in ${pkg} .js files`);
   }
 });
 

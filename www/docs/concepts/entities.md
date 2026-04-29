@@ -100,6 +100,21 @@ const { entities, searchField } = useEntities(Entity.USER);
 <input {...searchField} placeholder="Search users..." />
 ```
 
+## Transactional writes
+
+Multiple entity operations can be executed atomically using the [`transaction`](/react#transaction) API. All operations succeed or all fail — no partial writes.
+
+```ts
+import { transaction, transactional } from 'monorise/react';
+
+await transaction([
+  transactional.createEntity('order', { ... }),
+  transactional.adjustEntity('wallet', '...', { balance: -100, $condition: 'withdraw' }),
+]);
+```
+
+Supported operations: `createEntity`, `updateEntity`, `adjustEntity`, `deleteEntity`. Conditions from `adjustmentConditions` and `updateConditions` are supported within transactions. Events are published only after the transaction commits.
+
 ## Data layout
 
 In DynamoDB, entities use these access patterns:
