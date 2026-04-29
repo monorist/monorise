@@ -16,7 +16,9 @@
     "entity-feed-hook",
     "entity-feed-subscriptions",
     "entity-feed-ticket",
+    "fix-sst-peer-dep",
     "happy-shrimps-kick",
+    "move-transactional-to-base",
     "mutual-config-codegen",
     "transactional-writes",
     "unified-conditions"

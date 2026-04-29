@@ -1,5 +1,11 @@
 # @monorise/base
 
+## 4.1.0-dev.3
+
+### Patch Changes
+
+- e8e134c: Move transactional helper and transaction types to @monorise/base to prevent React bundling issues. The transactional helper was previously exported from @monorise/core, which caused Next.js builds to bundle Node.js-only AWS SDK modules (fs, async_hooks) when importing from @monorise/react.
+
 ## 4.1.0-dev.2
 
 ### Minor Changes

@@ -1,5 +1,12 @@
 # monorise
 
+## 1.1.0-dev.3
+
+### Patch Changes
+
+- 000ae70: Loosen sst peer dependency from exact `4.7.3` to `^4.7.3` to allow newer minor/patch versions.
+- e8e134c: Move transactional helper and transaction types to @monorise/base to prevent React bundling issues. The transactional helper was previously exported from @monorise/core, which caused Next.js builds to bundle Node.js-only AWS SDK modules (fs, async_hooks) when importing from @monorise/react.
+
 ## 1.1.0-dev.2
 
 ### Minor Changes
