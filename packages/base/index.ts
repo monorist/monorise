@@ -18,6 +18,7 @@ import type {
 } from './types/conditions.type';
 
 import { createEntityConfig } from './utils';
+import { transactional } from './transactional';
 
 export {
   Entity,
@@ -27,6 +28,7 @@ export {
   MonoriseEntityConfig,
   NumericFields,
   createEntityConfig,
+  transactional,
 };
 
 export type {
@@ -37,4 +39,14 @@ export type {
   WhereClause,
   WhereConditions,
   WhereOperator,
-};
+} from './types/conditions.type';
+
+export type {
+  TransactionCreateEntity,
+  TransactionUpdateEntity,
+  TransactionAdjustEntity,
+  TransactionDeleteEntity,
+  TransactionOperation,
+  TransactionResultEntry,
+  TransactionResult,
+} from './types/transaction.type';

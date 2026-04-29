@@ -208,7 +208,7 @@ export {
 
 export default Monorise;
 
-export { transactional } from '@monorise/core';
+export { transactional } from '@monorise/base';
 export { MutualDataWithIndex, MutualDataMapping, MutualData, Mutual };
 
 export type {

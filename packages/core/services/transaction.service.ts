@@ -28,7 +28,7 @@ import type {
   TransactionResult,
   TransactionResultEntry,
   TransactionUpdateEntity,
-} from '../types/transaction';
+} from '@monorise/base';
 import type { EntityServiceLifeCycle } from './entity-service-lifecycle';
 import {
   resolveAdjustmentCondition,
