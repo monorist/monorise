@@ -1,5 +1,11 @@
 # @monorise/sst
 
+## 4.1.0-dev.1
+
+### Patch Changes
+
+- 000ae70: Loosen sst peer dependency from exact `4.7.3` to `^4.7.3` to allow newer minor/patch versions.
+
 ## 4.1.0-dev.0
 
 ### Minor Changes
