@@ -19,6 +19,7 @@ import type {
 } from './types/conditions.type';
 
 import { createEntityConfig, createMutualConfig } from './utils';
+import { transactional } from './transactional';
 
 export {
   Entity,
@@ -30,6 +31,7 @@ export {
   NumericFields,
   createEntityConfig,
   createMutualConfig,
+  transactional,
 };
 
 export type {
@@ -40,4 +42,14 @@ export type {
   WhereClause,
   WhereConditions,
   WhereOperator,
-};
+} from './types/conditions.type';
+
+export type {
+  TransactionCreateEntity,
+  TransactionUpdateEntity,
+  TransactionAdjustEntity,
+  TransactionDeleteEntity,
+  TransactionOperation,
+  TransactionResultEntry,
+  TransactionResult,
+} from './types/transaction.type';

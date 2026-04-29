@@ -5,7 +5,7 @@ import type {
   TransactionDeleteEntity,
   TransactionOperation,
   TransactionUpdateEntity,
-} from '../types/transaction';
+} from './types/transaction.type';
 
 export const transactional = {
   createEntity: <T extends EntityType>(

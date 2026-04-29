@@ -21,7 +21,7 @@ import {
 import { DependencyContainer } from './services/DependencyContainer';
 import { EntityService } from './services/entity.service';
 import { MutualService } from './services/mutual.service';
-import { transactional } from './helpers/transactional';
+import { transactional } from '@monorise/base';
 import { TransactionService } from './services/transaction.service';
 
 class CoreFactory {
