@@ -1,5 +1,11 @@
 # monorise
 
+## 1.1.0-dev.4
+
+### Patch Changes
+
+- 0f8eb02: fix build script to rewrite imports for js files
+
 ## 1.1.0-dev.3
 
 ### Patch Changes
