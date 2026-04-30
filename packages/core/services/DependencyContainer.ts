@@ -9,6 +9,7 @@ import { EntityRepository } from '../data/Entity';
 import { EventUtils } from '../data/EventUtils';
 import { MutualRepository } from '../data/Mutual';
 import { TagRepository } from '../data/Tag';
+import { WebSocketRepository } from '../data/WebSocket';
 
 import { CreateEntityController } from '../controllers/entity/create-entity.controller';
 import { DeleteEntityController } from '../controllers/entity/delete-entity.controller';
@@ -146,6 +147,14 @@ export class DependencyContainer {
   get tagRepository(): TagRepository {
     return this.createCachedInstance(
       TagRepository,
+      this.coreTable,
+      this.dynamodbClient,
+    );
+  }
+
+  get websocketRepository(): WebSocketRepository {
+    return this.createCachedInstance(
+      WebSocketRepository,
       this.coreTable,
       this.dynamodbClient,
     );

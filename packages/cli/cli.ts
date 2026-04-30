@@ -93,8 +93,12 @@ export enum Entity {}
   }
 
   // Detect whether the consumer uses the combined 'monorise' package or scoped '@monorise/*' packages
-  const usesCombinedPackage = fs.existsSync(path.join(projectRoot, 'node_modules', 'monorise'));
-  const baseModuleName = usesCombinedPackage ? 'monorise/base' : '@monorise/base';
+  const usesCombinedPackage = fs.existsSync(
+    path.join(projectRoot, 'node_modules', 'monorise'),
+  );
+  const baseModuleName = usesCombinedPackage
+    ? 'monorise/base'
+    : '@monorise/base';
 
   const configOutputContent = `
 import type { z } from 'zod';
@@ -227,8 +231,12 @@ async function generateHandleFile(
   // If customRoutesPath is not provided, routesImportLine remains empty and appHandlerPayload remains `{}`
 
   // Detect whether the consumer uses the combined 'monorise' package or scoped '@monorise/*' packages
-  const usesCombinedPackage = fs.existsSync(path.join(projectRoot, 'node_modules', 'monorise'));
-  const coreImportPath = usesCombinedPackage ? 'monorise/core' : '@monorise/core';
+  const usesCombinedPackage = fs.existsSync(
+    path.join(projectRoot, 'node_modules', 'monorise'),
+  );
+  const coreImportPath = usesCombinedPackage
+    ? 'monorise/core'
+    : '@monorise/core';
   const sstImportPath = usesCombinedPackage ? 'monorise/sst' : '@monorise/sst';
 
   const combinedContent = `
@@ -242,8 +250,11 @@ export const tagHandler = coreFactory.tagProcessor;
 export const treeHandler = coreFactory.prejoinProcessor;
 export const appHandler = coreFactory.appHandler(${appHandlerPayload});
 
-// WebSocket handlers (re-exported for SST to resolve)
-export { wsConnect, wsDisconnect, wsDefault, wsBroadcast } from '${coreImportPath}';
+// WebSocket handlers (wrapped with DependencyContainer for SST to resolve)
+export const wsConnect = coreFactory.wsConnect;
+export const wsDisconnect = coreFactory.wsDisconnect;
+export const wsDefault = coreFactory.wsDefault;
+export const wsBroadcast = coreFactory.wsBroadcast;
 `;
   fs.writeFileSync(handleOutputPath, combinedContent);
   console.log('Successfully generated handle.ts!');

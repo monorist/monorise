@@ -81,7 +81,9 @@
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.758.0",
     "@aws-sdk/client-dynamodb-streams": "^3.758.0",
+    "@aws-sdk/client-apigatewaymanagementapi": "^3.758.0",
     "@aws-sdk/client-eventbridge": "^3.758.0",
+    "@aws-sdk/lib-dynamodb": "^3.758.0",
     "@aws-sdk/util-dynamodb": "^3.758.0",
     "axios": "^1.8.1",
     "chokidar": "^4.0.3",
@@ -99,7 +101,7 @@
     "hono": "^4.7.10",
     "react": "^19",
     "react-dom": "^19",
-    "sst": "^3.16.3"
+    "sst": "4.7.3"
   },
   "devDependencies": {
     "@types/aws-lambda": "^8.10.147",
