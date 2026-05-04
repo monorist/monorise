@@ -21,6 +21,7 @@ type MonoriseCoreArgs = {
   allowOrigins?: string[];
   configRoot?: string;
   webSocket?: WebSocketConfig;
+  link?: $util.Input<any[]>;
 };
 
 export class MonoriseCore {
@@ -76,6 +77,16 @@ export class MonoriseCore {
       CORE_EVENT_BUS: this.bus.name,
     };
     const appHandlerLinks: any[] = [this.table.table, this.bus, secretApiKeys];
+    this.api.route('ANY /core/{proxy+}', {
+      name: appHandlerName,
+      handler: `${dotMonorisePath}/handle.appHandler`,
+      link: [this.table.table, this.bus, secretApiKeys, ...(args?.link ?? [])],
+      environment: {
+        API_KEYS: secretApiKeys.value,
+        CORE_TABLE: this.table.table.name,
+        CORE_EVENT_BUS: this.bus.name,
+      },
+    });
 
     this.alarmTopic = new sst.aws.SnsTopic(`${id}-monorise-dlq-alarm-topic`);
 
