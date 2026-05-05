@@ -1,5 +1,11 @@
 # monorise
 
+## 1.1.0-dev.5
+
+### Minor Changes
+
+- 1f71129: Add link prop to MonoriseCoreArgs to forward extra SST links to the app handler Lambda
+
 ## 1.1.0-dev.4
 
 ### Patch Changes
