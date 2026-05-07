@@ -76,17 +76,7 @@ export class MonoriseCore {
       CORE_TABLE: this.table.table.name,
       CORE_EVENT_BUS: this.bus.name,
     };
-    const appHandlerLinks: any[] = [this.table.table, this.bus, secretApiKeys];
-    this.api.route('ANY /core/{proxy+}', {
-      name: appHandlerName,
-      handler: `${dotMonorisePath}/handle.appHandler`,
-      link: [this.table.table, this.bus, secretApiKeys, ...(args?.link ?? [])],
-      environment: {
-        API_KEYS: secretApiKeys.value,
-        CORE_TABLE: this.table.table.name,
-        CORE_EVENT_BUS: this.bus.name,
-      },
-    });
+    const appHandlerLinks: any[] = [this.table.table, this.bus, secretApiKeys, ...(args?.link ?? [])];
 
     this.alarmTopic = new sst.aws.SnsTopic(`${id}-monorise-dlq-alarm-topic`);
 
