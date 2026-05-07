@@ -1,5 +1,11 @@
 # @monorise/sst
 
+## 4.1.0-dev.3
+
+### Patch Changes
+
+- 27d3d8f: Fix duplicate api route subscription in monorise core component
+
 ## 4.1.0-dev.2
 
 ### Minor Changes

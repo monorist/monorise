@@ -1,5 +1,11 @@
 # monorise
 
+## 1.1.0-dev.6
+
+### Patch Changes
+
+- 27d3d8f: Fix duplicate api route subscription in monorise core component
+
 ## 1.1.0-dev.5
 
 ### Minor Changes
