@@ -1498,11 +1498,24 @@ const initCoreActions = (
     }, [entityType, query]);
 
     useEffect(() => {
-      if (!query && dataMap.size !== entities?.length) {
-        setIsSearching(false);
-        setEntities(
-          Array.from(dataMap.values()).sort(byEntityId) as CreatedEntity<T>[],
-        );
+      if (!query) {
+        const dataMapArray = Array.from(dataMap.values()).sort(
+          byEntityId,
+        ) as CreatedEntity<T>[];
+        // Compare size AND content so that edits which keep the same set of
+        // entityIds but mutate their data (e.g. editEntity) still propagate
+        // to the local `entities` snapshot. Matches the comparison already
+        // used in `useMutuals`.
+        if (
+          dataMap.size !== entities?.length ||
+          dataMapArray.some(
+            (item, index) =>
+              JSON.stringify(item) !== JSON.stringify(entities?.[index]),
+          )
+        ) {
+          setIsSearching(false);
+          setEntities(dataMapArray);
+        }
       }
 
       if (query) {
@@ -1511,6 +1524,7 @@ const initCoreActions = (
     }, [
       dataMap,
       dataMap.size,
+      entities,
       entities?.length,
       query,
       searchResults,
