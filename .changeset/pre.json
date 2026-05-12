@@ -24,6 +24,7 @@
     "shaky-facts-stand",
     "sharp-planes-arrive",
     "transactional-writes",
-    "unified-conditions"
+    "unified-conditions",
+    "use-entities-content-aware"
   ]
 }
