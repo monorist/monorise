@@ -105,24 +105,43 @@ export class MutualService {
       },
     };
 
+    console.log('[MONORISE_DEBUG] createMutual service start:', {
+      byEntityType,
+      byEntityId,
+      entityType,
+      entityId,
+      mutualPayload,
+      options,
+    });
+
     const schema =
       this.getMutualDataSchema(byEntityType, entityType) ??
       z.record(z.string(), z.any());
+    console.log('[MONORISE_DEBUG] createMutual schema resolved');
+    
     const parsedMutualPayload = schema.parse(mutualPayload);
+    console.log('[MONORISE_DEBUG] createMutual payload parsed:', parsedMutualPayload);
 
+    console.log('[MONORISE_DEBUG] createMutual fetching entities...');
     const [{ data: byEntityData }, { data: entityData }] = await Promise.all([
       this.entityRepository.getEntity(byEntityType, byEntityId),
       this.entityRepository.getEntity(entityType, entityId),
     ]);
+    console.log('[MONORISE_DEBUG] createMutual entities fetched:', {
+      hasByEntityData: !!byEntityData,
+      hasEntityData: !!entityData,
+    });
     errorContext.byEntityData = byEntityData;
     errorContext.entityData = entityData;
 
+    console.log('[MONORISE_DEBUG] createMutual checking mutual exist...');
     await this.mutualRepository.checkMutualExist(
       byEntityType,
       byEntityId,
       entityType,
       entityId,
     );
+    console.log('[MONORISE_DEBUG] createMutual mutual does not exist (ok)');
 
     const currentDatetime = createAndUpdateDatetime || new Date();
 
@@ -139,6 +158,9 @@ export class MutualService {
       currentDatetime,
       currentDatetime,
     );
+    console.log('[MONORISE_DEBUG] createMutual mutual object created:', {
+      mutualId: mutual.mutualId,
+    });
 
     const mutualTransactions = skipMutualCreation
       ? []
@@ -172,9 +194,13 @@ export class MutualService {
     const createTransactItems = [...mutualTransactions, ...entityTransactions];
     errorContext.createTransactItems = createTransactItems;
 
+    console.log('[MONORISE_DEBUG] createMutual executing transaction:', {
+      transactItemCount: createTransactItems.length,
+    });
     await this.ddbUtils.executeTransactWrite({
       TransactItems: createTransactItems,
     });
+    console.log('[MONORISE_DEBUG] createMutual transaction succeeded');
 
     // duplicated behaviour from entityService.createEntity after write success
     if (asEntity && entity && ensureEntityStrongConsistentWrite) {
@@ -222,6 +248,7 @@ export class MutualService {
     ];
 
     await Promise.all(eventPromises);
+    console.log('[MONORISE_DEBUG] createMutual service complete');
 
     return { mutual, eventPayload };
   };
@@ -250,10 +277,24 @@ export class MutualService {
       returnUpdatedValue?: boolean;
     };
   }) => {
+    console.log('[MONORISE_DEBUG] updateMutual service start:', {
+      byEntityType,
+      byEntityId,
+      entityType,
+      entityId,
+      mutualPayload,
+      options,
+    });
+
     const schema =
       this.getMutualDataSchema(byEntityType, entityType) ??
       z.record(z.string(), z.any());
+    console.log('[MONORISE_DEBUG] updateMutual schema resolved');
+    
     const parsedMutualPayload = schema.parse(mutualPayload);
+    console.log('[MONORISE_DEBUG] updateMutual payload parsed:', parsedMutualPayload);
+
+    console.log('[MONORISE_DEBUG] updateMutual calling repository...');
     const mutual = await this.mutualRepository.updateMutual(
       byEntityType,
       byEntityId,
@@ -262,6 +303,10 @@ export class MutualService {
       { mutualData: parsedMutualPayload },
       options,
     );
+    console.log('[MONORISE_DEBUG] updateMutual repository result:', {
+      hasMutual: !!mutual,
+      mutualId: mutual?.mutualId,
+    });
 
     await this.publishEvent({
       event: EVENT.CORE.MUTUAL_UPDATED(byEntityType, entityType),
@@ -274,6 +319,7 @@ export class MutualService {
         updatedByAccountId: accountId,
       },
     });
+    console.log('[MONORISE_DEBUG] updateMutual service complete');
 
     return mutual;
   };
