@@ -1,8 +1,7 @@
 import type { Entity as EntityType } from '@monorise/base';
 import { createMiddleware } from 'hono/factory';
 import httpStatus from 'http-status';
-import { ZodError } from 'zod';
-import { StandardError, StandardErrorCode } from '../../errors/standard-error';
+import { StandardError } from '../../errors/standard-error';
 import type { MutualService } from '../../services/mutual.service';
 
 export class CreateMutualController {
@@ -35,8 +34,8 @@ export class CreateMutualController {
       });
 
       return c.json(mutual);
-    } catch (err) {
-      if (err instanceof ZodError) {
+    } catch (err: any) {
+      if (err?.constructor?.name === 'ZodError') {
         c.status(httpStatus.BAD_REQUEST);
         return c.json({
           code: 'API_VALIDATION_ERROR',
@@ -45,27 +44,18 @@ export class CreateMutualController {
         });
       }
 
-      if (
-        err instanceof StandardError &&
-        err.code === StandardErrorCode.MUTUAL_EXISTS
-      ) {
+      if (err instanceof StandardError) {
         c.status(httpStatus.BAD_REQUEST);
         return c.json({
           ...err.toJSON(),
         });
       }
 
-      if (
-        err instanceof StandardError &&
-        err.code === StandardErrorCode.ENTITY_IS_UNDEFINED
-      ) {
-        c.status(httpStatus.BAD_REQUEST);
-        return c.json({
-          ...err.toJSON(),
-        });
-      }
-
-      throw err;
+      c.status(httpStatus.INTERNAL_SERVER_ERROR);
+      return c.json({
+        code: 'INTERNAL_SERVER_ERROR',
+        message: err?.message || 'An unexpected error occurred',
+      });
     }
   });
 }
