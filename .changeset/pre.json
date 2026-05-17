@@ -21,6 +21,7 @@
     "happy-shrimps-kick",
     "move-transactional-to-base",
     "mutual-config-codegen",
+    "mutual-error-handling",
     "shaky-facts-stand",
     "sharp-planes-arrive",
     "transactional-writes",
