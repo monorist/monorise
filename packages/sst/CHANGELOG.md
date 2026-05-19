@@ -1,5 +1,11 @@
 # @monorise/sst
 
+## 4.1.0-dev.4
+
+### Patch Changes
+
+- cea4efd: feat(sst): support reusing existing DynamoDB table in SingleTable
+
 ## 4.1.0-dev.3
 
 ### Patch Changes
