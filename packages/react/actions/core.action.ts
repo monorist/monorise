@@ -997,9 +997,12 @@ const initCoreActions = (
             };
           }
 
+          const byEntityData =
+            state.entity[mutual.byEntityType]?.dataMap.get(mutual.byEntityId)
+              ?.data ?? {};
           state.mutual[side].dataMap = new Map(state.mutual[side]?.dataMap).set(
             mutual.byEntityId,
-            flipMutual(mutual),
+            flipMutual(mutual, byEntityData),
           );
         }),
         undefined,
@@ -1052,9 +1055,12 @@ const initCoreActions = (
           };
         }
 
+        const byEntityData =
+          state.entity[mutual.byEntityType]?.dataMap.get(mutual.byEntityId)
+            ?.data ?? {};
         state.mutual[side].dataMap = new Map(state.mutual[side]?.dataMap).set(
           mutual.byEntityId,
-          flipMutual(mutual),
+          flipMutual(mutual, byEntityData),
         );
       }),
       undefined,
@@ -1116,9 +1122,12 @@ const initCoreActions = (
           };
         }
 
+        const byEntityData =
+          state.entity[mutual.byEntityType]?.dataMap.get(mutual.byEntityId)
+            ?.data ?? {};
         state.mutual[side].dataMap = new Map(state.mutual[side]?.dataMap).set(
           byEntityId,
-          flipMutual(mutual),
+          flipMutual(mutual, byEntityData),
         );
       }),
       undefined,
@@ -1170,9 +1179,12 @@ const initCoreActions = (
             };
           }
 
+          const byEntityData =
+            state.entity[mutual.byEntityType]?.dataMap.get(mutual.byEntityId)
+              ?.data ?? {};
           state.mutual[side].dataMap = new Map(state.mutual[side]?.dataMap).set(
             mutual.byEntityId,
-            flipMutual(mutual),
+            flipMutual(mutual, byEntityData),
           );
         }),
         undefined,
