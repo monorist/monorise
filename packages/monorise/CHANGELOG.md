@@ -1,5 +1,12 @@
 # monorise
 
+## 1.1.0-dev.9
+
+### Patch Changes
+
+- 499b119: Fix `flipMutual` so the flipped-side mutual cache entry's `data` describes the correct entity. Previously the flipped record reused the original side's `data`, which made `useMutuals` on the opposite view briefly render the wrong entity's fields after `createMutual`/`editMutual`/`upsertLocalMutual`/`createLocalMutual` — until a refresh refetched that side from the server.
+- cea4efd: support reusing existing DynamoDB table in SingleTable
+
 ## 1.1.0-dev.8
 
 ### Patch Changes

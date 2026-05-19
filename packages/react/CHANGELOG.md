@@ -1,5 +1,11 @@
 # @monorise/react
 
+## 5.0.0-dev.5
+
+### Patch Changes
+
+- 499b119: Fix `flipMutual` so the flipped-side mutual cache entry's `data` describes the correct entity. Previously the flipped record reused the original side's `data`, which made `useMutuals` on the opposite view briefly render the wrong entity's fields after `createMutual`/`editMutual`/`upsertLocalMutual`/`createLocalMutual` — until a refresh refetched that side from the server.
+
 ## 5.0.0-dev.4
 
 ### Patch Changes
