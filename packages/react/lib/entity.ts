@@ -37,13 +37,27 @@ export const constructMutual = <B extends Entity, T extends Entity>(
   };
 };
 
-export const flipMutual = (mutual: Mutual): Mutual => {
+// A mutual is stored under two cache keys — one per direction. When we mirror
+// a record from the `BY/byId/OTHER` side to the `OTHER/otherId/BY` side, the
+// `data` field has to be substituted: on the original side `data` describes
+// the OTHER entity (the one at `entityType/entityId`); after flipping, the
+// new `entityType/entityId` points to what *was* the BY entity, so `data`
+// must now describe that entity. Callers look up the BY entity from the
+// entity store and pass its data in here. `{}` is an accepted fallback for
+// the case where the BY entity hasn't been hydrated locally yet — better to
+// surface an empty record than to leak the OTHER entity's fields onto a
+// record that no longer describes it.
+export const flipMutual = (
+  mutual: Mutual,
+  byEntityData: Record<string, unknown>,
+): Mutual => {
   return {
     ...mutual,
     entityId: mutual.byEntityId,
     entityType: mutual.byEntityType,
     byEntityId: mutual.entityId,
     byEntityType: mutual.entityType,
+    data: byEntityData as Mutual['data'],
   };
 };
 
