@@ -13,6 +13,7 @@
   },
   "changesets": [
     "create-mutual-config",
+    "edit-adjust-tag-rebucket",
     "entity-feed-hook",
     "entity-feed-subscriptions",
     "entity-feed-ticket",
