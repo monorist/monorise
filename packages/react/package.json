@@ -1,6 +1,6 @@
 {
   "name": "@monorise/react",
-  "version": "5.0.0-dev.5",
+  "version": "5.0.0-dev.6",
   "description": "",
   "type": "module",
   "main": "dist/index.js",
