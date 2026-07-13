@@ -1,6 +1,11 @@
 {
   "name": "@monorise/base",
   "version": "4.1.0-dev.3",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/monorist/monorise.git",
+    "directory": "packages/base"
+  },
   "description": "",
   "type": "module",
   "main": "dist/index.js",
