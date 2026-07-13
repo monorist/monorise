@@ -1814,6 +1814,47 @@ const initCoreActions = (
     };
   };
 
+  // Order a loaded tag slice the same way the server does, so optimistic
+  // edits/adjusts land in their true position instead of appending to the end.
+  // The backend queries tags with ScanIndexForward:false — i.e. descending by
+  // the tag sort key `${sortValue}#${entityType}#${entityId}` (see
+  // TaggedEntity.get sk()). We rebuild that exact key per entity from the tag's
+  // processor and sort descending, reproducing DynamoDB's ordering (sortValue
+  // first, entityId tiebreak, identical string coercion). This only re-orders
+  // the loaded window; on a paginated list an item whose new sortValue belongs
+  // on an unfetched page may sit at the boundary until the next fetch — a
+  // per-user, self-healing approximation, strictly better than not sorting.
+  const sortTaggedEntitiesLikeServer = <T extends Entity>(
+    arr: CreatedEntity<T>[],
+    entityType: Entity,
+    tagName: string,
+    group?: string,
+  ): CreatedEntity<T>[] => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tagConfig = (monoriseStore.getState().config[entityType] as any)
+      ?.tags?.find((t: { name: string }) => t.name === tagName);
+
+    const keyOf = (entity: CreatedEntity<T>): string => {
+      let sortValue: unknown;
+      if (tagConfig?.processor) {
+        const results = tagConfig.processor(entity) as {
+          group?: string;
+          sortValue?: unknown;
+        }[];
+        const match = group
+          ? results.find((r) => r.group === group)
+          : results[0];
+        sortValue = match?.sortValue;
+      }
+      return `${sortValue ? `${sortValue}#` : ''}${entityType}#${entity.entityId}`;
+    };
+
+    return arr
+      .map((entity) => ({ entity, key: keyOf(entity) }))
+      .sort((a, b) => (a.key === b.key ? 0 : a.key < b.key ? 1 : -1))
+      .map((x) => x.entity);
+  };
+
   const useTaggedEntities = <T extends Entity>(
     entityType: T,
     tagName: string,
@@ -1837,7 +1878,12 @@ const initCoreActions = (
     }, [entityType, opts, tagName, params, opts?.forceFetch]);
 
     useEffect(() => {
-      const dataMapArray = Array.from(dataMap.values());
+      const dataMapArray = sortTaggedEntitiesLikeServer(
+        Array.from(dataMap.values()) as CreatedEntity<T>[],
+        entityType,
+        tagName,
+        params?.group,
+      );
       if (
         dataMap.size !== entities?.length ||
         dataMapArray.some(
@@ -1845,7 +1891,7 @@ const initCoreActions = (
             JSON.stringify(item) !== JSON.stringify(entities[index]),
         )
       ) {
-        setEntities(dataMapArray as CreatedEntity<T>[]);
+        setEntities(dataMapArray);
       }
     }, [dataMap, dataMap.size, entities?.length]);
 
