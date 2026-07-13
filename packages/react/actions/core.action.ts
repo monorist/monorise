@@ -568,6 +568,96 @@ const initCoreActions = (
     }
   };
 
+  // Reconcile an entity's membership across already-loaded tag slices after a
+  // data change (edit/adjust). Runs each tag's processor against the new data
+  // and, per slice, keeps/adds the entity where it now matches and removes it
+  // where it no longer does — so the UI re-buckets optimistically instead of
+  // leaving stale members (e.g. a resolved item still sitting in the "open"
+  // list) until the backend tag processor catches up. Mirrors the add-only
+  // matcher in createEntity, extended with delete-on-mismatch.
+  const reconcileTaggedEntityStore = (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    state: any,
+    entityType: Entity,
+    id: string,
+    data: CreatedEntity<Entity>,
+  ) => {
+    const tagConfigs = state.config[entityType]?.tags;
+    if (!tagConfigs) return;
+
+    for (const tagConfig of tagConfigs) {
+      const { name, processor } = tagConfig;
+      const processorResults = processor(data);
+
+      for (const tagKey of Object.keys(state.tag)) {
+        const [tagEntityType, tagName, ...paramParts] = tagKey.split('/');
+        if (
+          (tagEntityType as unknown as Entity) !== entityType ||
+          tagName !== name
+        ) {
+          continue;
+        }
+
+        const slice = state.tag[tagKey];
+        if (!slice?.dataMap) {
+          continue;
+        }
+
+        // parse params (group/start/end/query/...) back out of the key
+        const keyParams: Record<string, string> = {};
+        for (const part of paramParts) {
+          const colonIdx = part.indexOf(':');
+          if (colonIdx > 0) {
+            keyParams[part.substring(0, colonIdx)] = part.substring(
+              colonIdx + 1,
+            );
+          }
+        }
+
+        // query-filtered slices can't be evaluated client-side — only patch an
+        // existing member's data in place; never add or remove.
+        if (keyParams.query) {
+          if (slice.dataMap.has(id)) {
+            slice.dataMap.set(id, data);
+          }
+          continue;
+        }
+
+        const matches = processorResults.some(
+          (result: { group?: string; sortValue?: string }) => {
+            if (keyParams.group && result.group !== keyParams.group) {
+              return false;
+            }
+            if (
+              keyParams.start &&
+              (!result.sortValue || result.sortValue < keyParams.start)
+            ) {
+              return false;
+            }
+            if (
+              keyParams.end &&
+              (!result.sortValue || result.sortValue > keyParams.end)
+            ) {
+              return false;
+            }
+            return true;
+          },
+        );
+
+        if (matches) {
+          // keep/patch existing members, and add to newly-matching loaded
+          // slices (appended; a later fetch restores exact sort order)
+          if (slice.isFirstFetched || slice.dataMap.has(id)) {
+            slice.dataMap.set(id, data);
+          }
+        } else if (slice.dataMap.has(id)) {
+          // no longer belongs here — drop the stale member (the re-bucket)
+          slice.dataMap.delete(id);
+        }
+      }
+    }
+  };
+
   const editEntity = async <T extends Entity>(
     entityType: T,
     id: string,
@@ -609,15 +699,14 @@ const initCoreActions = (
             }
           }
 
-          // update tag store entries
-          for (const tagKey of Object.keys(state.tag)) {
-            const [tagEntityType] = tagKey.split('/');
-            if ((tagEntityType as unknown as Entity) === entityType) {
-              if (state.tag[tagKey]?.dataMap?.has(id)) {
-                state.tag[tagKey].dataMap.set(id, data);
-              }
-            }
-          }
+          // re-bucket across loaded tag slices (add where now matches, drop
+          // where it no longer does) instead of only patching in place
+          reconcileTaggedEntityStore(
+            state,
+            entityType,
+            id,
+            data as CreatedEntity<Entity>,
+          );
         }),
         undefined,
         `mr/entity/edit/${entityType}/${id}`,
@@ -672,15 +761,15 @@ const initCoreActions = (
             }
           }
 
-          // Propagate to tag stores
-          for (const tagKey of Object.keys(state.tag)) {
-            const [tagEntityType] = tagKey.split('/');
-            if ((tagEntityType as unknown as Entity) === entityType) {
-              if (state.tag[tagKey]?.dataMap?.has(id)) {
-                state.tag[tagKey].dataMap.set(id, data);
-              }
-            }
-          }
+          // Propagate to tag stores — re-bucket across loaded slices (an
+          // adjustment can move an entity between groups when group/sortValue
+          // derive from the adjusted fields), not just patch in place.
+          reconcileTaggedEntityStore(
+            state,
+            entityType,
+            id,
+            data as CreatedEntity<Entity>,
+          );
         }),
         undefined,
         `mr/entity/adjust/${entityType}/${id}`,
