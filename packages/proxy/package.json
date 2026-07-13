@@ -1,6 +1,11 @@
 {
   "name": "@monorise/proxy",
   "version": "3.1.0-dev.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/monorist/monorise.git",
+    "directory": "packages/proxy"
+  },
   "description": "Proxy helpers for monorise - used in Next.js API routes and similar proxy layers",
   "type": "module",
   "main": "dist/index.js",

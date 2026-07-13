@@ -1,6 +1,11 @@
 {
   "name": "@monorise/react",
   "version": "5.0.0-dev.6",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/monorist/monorise.git",
+    "directory": "packages/react"
+  },
   "description": "",
   "type": "module",
   "main": "dist/index.js",
