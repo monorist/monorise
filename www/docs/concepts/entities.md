@@ -56,6 +56,7 @@ export default config;
 | `mutual` | `object` | No | Mutual relationship configuration (see [Mutuals](/concepts/mutuals)) |
 | `tags` | `array` | No | Tag access patterns (see [Tags](/concepts/tags)) |
 | `adjustmentConstraints` | `object` | No | Bounds for numeric fields when using [`adjustEntity`](/react#adjustentity) |
+| `ttl` | `object` | No | DynamoDB TTL config — see [TTL](#ttl-time-to-live) below |
 
 ## Unique fields
 
@@ -98,6 +99,43 @@ const { entities, searchField } = useEntities(Entity.USER);
 // Bind to an input
 <input {...searchField} placeholder="Search users..." />
 ```
+
+## TTL (time-to-live)
+
+Use `ttl.processor` to have DynamoDB automatically delete an entity once it expires. The processor returns the expiry as epoch seconds or a `Date` — return `undefined` for no expiry.
+
+```ts
+const config = createEntityConfig({
+  name: 'session',
+  displayName: 'Session',
+  baseSchema,
+  ttl: {
+    // fixed 30-day TTL from creation/each update
+    processor: () => Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+  },
+});
+```
+
+TTL can also be data-driven, computed from the entity's own fields:
+
+```ts
+const config = createEntityConfig({
+  name: 'invite',
+  displayName: 'Invite',
+  baseSchema,
+  ttl: {
+    processor: (entity) => {
+      return entity.data.expiresOn
+        ? new Date(entity.data.expiresOn)
+        : undefined;
+    },
+  },
+});
+```
+
+`processor` is called again on every update/upsert, using the entity's data as it will be *after* the update is applied — so a sliding-expiration TTL (e.g. extending a session on activity) works out of the box. If `processor` returns `undefined` on an update, any existing `expiresAt` is left untouched rather than cleared.
+
+Internally, this always writes to an `expiresAt` attribute — the same attribute name the DynamoDB table's TTL is configured on (see [SST SDK](/sst)), so there's nothing else to wire up.
 
 ## Data layout
 

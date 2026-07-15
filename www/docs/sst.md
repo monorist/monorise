@@ -43,7 +43,6 @@ new MonoriseCore(id: string, args?: MonoriseCoreArgs)
 | `id` | `string` | — | Unique identifier for the construct (used in resource naming) |
 | `allowOrigins` | `string[]` | — | CORS allowed origins |
 | `allowHeaders` | `string[]` | `['Content-Type', 'Authorization']` | Additional CORS headers |
-| `tableTtl` | `string` | — | DynamoDB TTL attribute name |
 | `slackWebhook` | `string` | — | Slack webhook URL for DLQ alerts |
 | `configRoot` | `string` | — | Custom root path for monorise config |
 
@@ -98,6 +97,8 @@ The single table uses the following key schema:
 | `R2PK` / `R2SK` | `string` | Mutual replication GSI |
 
 DynamoDB streams are enabled with `new-and-old-images` to power the replication processor.
+
+TTL is always enabled on the `expiresAt` attribute — it isn't user-configurable, since monorise's own internals (mutual/tag locks) and entity-level TTL (see [Entities: TTL](/concepts/entities#ttl-time-to-live)) already assume that attribute name. If you use `fromTableName` to import an existing table, make sure it already has TTL enabled on `expiresAt`.
 
 ---
 

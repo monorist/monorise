@@ -5,13 +5,13 @@ import {
 } from '../constants/table';
 
 type SingleTableArgs = {
-  ttl?: string;
   runtime?: sst.aws.FunctionArgs['runtime'];
   configRoot?: string;
   /**
    * Name of an existing DynamoDB table to use instead of creating a new one.
-   * The table must already have DynamoDB Streams enabled with NEW_AND_OLD_IMAGES
-   * and the GSIs (R1, R2) expected by monorise.
+   * The table must already have DynamoDB Streams enabled with NEW_AND_OLD_IMAGES,
+   * the GSIs (R1, R2) expected by monorise, and TTL enabled on the `expiresAt`
+   * attribute (monorise always uses `expiresAt` as the TTL attribute name).
    */
   fromTableName?: $util.Input<string>;
 };
@@ -65,7 +65,7 @@ export class SingleTable {
             },
           },
           stream: 'new-and-old-images',
-          ttl: args?.ttl,
+          ttl: 'expiresAt',
         });
 
     const environment = {
