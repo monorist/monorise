@@ -233,6 +233,49 @@ export interface MonoriseEntityConfig<
   }[];
 
   /**
+   * @description (Optional) Configure a DynamoDB TTL for this entity. When set, `expiresAt`
+   * is computed via `processor` on create, and recomputed on every update/upsert. Once past,
+   * DynamoDB automatically deletes the item (and its derived index rows, since they all carry
+   * the same `expiresAt`).
+   *
+   * `processor` returning `undefined` means "no TTL" for that record. On updates, an `undefined`
+   * result leaves any existing `expiresAt` untouched rather than clearing it.
+   *
+   * @example
+   * ```ts
+   * // fixed 30-day TTL from creation/each update
+   * ttl: {
+   *   processor: () => Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+   * }
+   * ```
+   *
+   * @example
+   * ```ts
+   * // data-driven TTL, eg. expire when a subscription ends
+   * ttl: {
+   *   processor: (entity) => {
+   *     return entity.data.subscriptionEndsAt
+   *       ? new Date(entity.data.subscriptionEndsAt)
+   *       : undefined;
+   *   },
+   * }
+   * ```
+   */
+  ttl?: {
+    /**
+     * @description Returns the expiry as epoch seconds (absolute) or a `Date`.
+     * Return `undefined` for no expiry.
+     */
+    processor: (entity: {
+      entityId: string;
+      entityType: string;
+      data: Record<string, any>;
+      createdAt: string;
+      updatedAt: string;
+    }) => number | Date | undefined;
+  };
+
+  /**
    * @description (Optional) Constraints for `adjustEntity` operations.
    * When adjusting numeric fields, these constraints are enforced at the database level.
    * If an adjustment would violate a constraint, the operation is rejected.

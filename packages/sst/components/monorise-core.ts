@@ -5,7 +5,6 @@ import { QFunction } from './q-function';
 import { SingleTable } from './single-table';
 
 type MonoriseCoreArgs = {
-  tableTtl?: string;
   fromTableName?: $util.Input<string>;
   slackWebhook?: string;
   allowHeaders?: string[];
@@ -51,7 +50,6 @@ export class MonoriseCore {
 
     this.bus = new sst.aws.Bus(`${id}-monorise-bus`);
     this.table = new SingleTable(id, {
-      ttl: args?.tableTtl,
       runtime,
       configRoot: args?.configRoot,
       fromTableName: args?.fromTableName,

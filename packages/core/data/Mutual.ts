@@ -67,7 +67,8 @@ export class Mutual<
       parsedItem.mutualUpdatedAt
         ? new Date(parsedItem.mutualUpdatedAt)
         : undefined,
-      parsedItem.expiresAt ? new Date(parsedItem.expiresAt) : undefined,
+      // expiresAt is stored as epoch seconds (DynamoDB TTL requires type N)
+      parsedItem.expiresAt ? new Date(parsedItem.expiresAt * 1000) : undefined,
     );
   }
 
@@ -117,8 +118,10 @@ export class Mutual<
     return this._mutualUpdatedAt?.toISOString();
   }
 
-  get expiresAt(): string | undefined {
-    return this._expiresAt?.toISOString();
+  get expiresAt(): number | undefined {
+    return this._expiresAt
+      ? Math.floor(this._expiresAt.getTime() / 1000)
+      : undefined;
   }
 
   toItem(): Record<string, AttributeValue> {

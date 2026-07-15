@@ -122,6 +122,40 @@ describe('Entity & EntityRepository', () => {
     it('should throw error if item is undefined in fromItem', () => {
       expect(() => Entity.fromItem(undefined)).toThrow('Entity item empty');
     });
+
+    it('should marshall/unmarshall expiresAt as epoch seconds (DynamoDB type N)', () => {
+      const userId = ulid();
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + 60_000); // 60s later
+      const entity = new Entity(
+        MockEntityType.USER as unknown as EntityType,
+        userId,
+        { name: 'TTL User' },
+        now,
+        now,
+        expiresAt,
+      );
+
+      const expectedEpochSeconds = Math.floor(expiresAt.getTime() / 1000);
+      const item = entity.toItem();
+      expect(item.expiresAt).toEqual({ N: String(expectedEpochSeconds) });
+
+      const reconstructed = Entity.fromItem(item);
+      expect(reconstructed.expiresAt).toBe(expectedEpochSeconds);
+    });
+
+    it('should omit expiresAt entirely when not set', () => {
+      const userId = ulid();
+      const entity = new Entity(
+        MockEntityType.USER as unknown as EntityType,
+        userId,
+        { name: 'No TTL User' },
+      );
+
+      const item = entity.toItem();
+      expect(item.expiresAt).toBeUndefined();
+      expect(entity.expiresAt).toBeUndefined();
+    });
   });
 
   describe('EntityRepository', () => {
@@ -309,6 +343,165 @@ describe('Entity & EntityRepository', () => {
 
     // Additional tests omitted for brevity
     // ... (remaining tests for EntityRepository)
+
+    describe('TTL / expiresAt', () => {
+      it('should omit expiresAt when the entity type has no ttl config', async () => {
+        const user = await entityRepository.createEntity(
+          MockEntityType.USER as unknown as EntityType,
+          { name: 'No TTL User', email: `no-ttl-${ulid()}@example.com` },
+        );
+
+        const resp = await dynamodbClient.getItem({
+          TableName: TABLE_NAME,
+          Key: new Entity(
+            MockEntityType.USER as unknown as EntityType,
+            user.entityId as string,
+          ).keys(),
+        });
+        expect(resp.Item?.expiresAt).toBeUndefined();
+
+        await entityRepository.deleteEntity(
+          MockEntityType.USER as unknown as EntityType,
+          user.entityId as string,
+        );
+      });
+
+      it('should set expiresAt on create when ttl.processor is configured', async () => {
+        const session = await entityRepository.createEntity(
+          MockEntityType.SESSION as unknown as EntityType,
+          { token: 'tok-1', expiresInSeconds: 3600 },
+        );
+
+        expect(session.expiresAt).toBeDefined();
+        const expectedApprox = Math.floor(Date.now() / 1000) + 3600;
+        expect(session.expiresAt).toBeGreaterThanOrEqual(expectedApprox - 5);
+        expect(session.expiresAt).toBeLessThanOrEqual(expectedApprox + 5);
+
+        const resp = await dynamodbClient.getItem({
+          TableName: TABLE_NAME,
+          Key: new Entity(
+            MockEntityType.SESSION as unknown as EntityType,
+            session.entityId as string,
+          ).keys(),
+        });
+        expect(resp.Item?.expiresAt?.N).toBeDefined();
+
+        await entityRepository.deleteEntity(
+          MockEntityType.SESSION as unknown as EntityType,
+          session.entityId as string,
+        );
+      });
+
+      it('should not set expiresAt on create when the processor returns undefined', async () => {
+        const session = await entityRepository.createEntity(
+          MockEntityType.SESSION as unknown as EntityType,
+          { token: 'tok-no-expiry' }, // no expiresInSeconds
+        );
+
+        expect(session.expiresAt).toBeUndefined();
+
+        await entityRepository.deleteEntity(
+          MockEntityType.SESSION as unknown as EntityType,
+          session.entityId as string,
+        );
+      });
+
+      it('should recompute expiresAt on update using merged data', async () => {
+        const session = await entityRepository.createEntity(
+          MockEntityType.SESSION as unknown as EntityType,
+          { token: 'tok-2' }, // no TTL initially
+        );
+        expect(session.expiresAt).toBeUndefined();
+
+        const updated = await entityRepository.updateEntity(
+          MockEntityType.SESSION as unknown as EntityType,
+          session.entityId as string,
+          { data: { expiresInSeconds: 120 } },
+        );
+
+        expect(updated.expiresAt).toBeDefined();
+        const expectedApprox = Math.floor(Date.now() / 1000) + 120;
+        expect(updated.expiresAt).toBeGreaterThanOrEqual(expectedApprox - 5);
+        expect(updated.expiresAt).toBeLessThanOrEqual(expectedApprox + 5);
+        // previously-set field should survive the merge, not be wiped
+        expect(updated.data.token).toBe('tok-2');
+
+        await entityRepository.deleteEntity(
+          MockEntityType.SESSION as unknown as EntityType,
+          session.entityId as string,
+        );
+      });
+
+      it('should recompute expiresAt via upsertEntity on an existing entity, merging data', async () => {
+        const session = await entityRepository.createEntity(
+          MockEntityType.SESSION as unknown as EntityType,
+          { token: 'tok-3' }, // no TTL initially
+        );
+        expect(session.expiresAt).toBeUndefined();
+
+        const upserted = await entityRepository.upsertEntity(
+          MockEntityType.SESSION as unknown as EntityType,
+          session.entityId as string,
+          { expiresInSeconds: 60 },
+        );
+
+        expect(upserted.expiresAt).toBeDefined();
+        const expectedApprox = Math.floor(Date.now() / 1000) + 60;
+        expect(upserted.expiresAt).toBeGreaterThanOrEqual(expectedApprox - 5);
+        expect(upserted.expiresAt).toBeLessThanOrEqual(expectedApprox + 5);
+        expect(upserted.data.token).toBe('tok-3');
+
+        await entityRepository.deleteEntity(
+          MockEntityType.SESSION as unknown as EntityType,
+          session.entityId as string,
+        );
+      });
+
+      it('should compute expiresAt via upsertEntity on a brand-new entityId (create fallback)', async () => {
+        const entityId = ulid();
+        const upserted = await entityRepository.upsertEntity(
+          MockEntityType.SESSION as unknown as EntityType,
+          entityId,
+          { token: 'tok-4', expiresInSeconds: 60 },
+        );
+
+        expect(upserted.entityId).toBe(entityId);
+        expect(upserted.data.token).toBe('tok-4');
+        expect(upserted.expiresAt).toBeDefined();
+        const expectedApprox = Math.floor(Date.now() / 1000) + 60;
+        expect(upserted.expiresAt).toBeGreaterThanOrEqual(expectedApprox - 5);
+        expect(upserted.expiresAt).toBeLessThanOrEqual(expectedApprox + 5);
+
+        const fetched = await entityRepository.getEntity(
+          MockEntityType.SESSION as unknown as EntityType,
+          entityId,
+        );
+        expect(fetched.data).toEqual({ token: 'tok-4', expiresInSeconds: 60 });
+
+        await entityRepository.deleteEntity(
+          MockEntityType.SESSION as unknown as EntityType,
+          entityId,
+        );
+      });
+
+      it('should upsert-as-create on a plain entity with no ttl config', async () => {
+        const entityId = ulid();
+        const upserted = await entityRepository.upsertEntity(
+          MockEntityType.USER as unknown as EntityType,
+          entityId,
+          { name: 'Upserted User', email: `upsert-${ulid()}@example.com` },
+        );
+
+        expect(upserted.entityId).toBe(entityId);
+        expect(upserted.data.name).toBe('Upserted User');
+        expect(upserted.expiresAt).toBeUndefined();
+
+        await entityRepository.deleteEntity(
+          MockEntityType.USER as unknown as EntityType,
+          entityId,
+        );
+      });
+    });
 
     describe('listEntities', () => {
       const productIds: string[] = [];

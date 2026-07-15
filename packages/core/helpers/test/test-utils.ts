@@ -28,6 +28,7 @@ export enum MockEntityType {
   ADMIN = 'admin',
   COURSE = 'course',
   WALLET = 'wallet',
+  SESSION = 'session',
 }
 
 // --- Configuration ---
@@ -109,6 +110,24 @@ export const createMockEntityConfig = () => ({
         score: z.number(),
       })
       .partial(),
+  }),
+  [MockEntityType.SESSION]: createEntityConfig({
+    name: MockEntityType.SESSION,
+    displayName: 'Session',
+    baseSchema: z
+      .object({
+        token: z.string(),
+        expiresInSeconds: z.number(),
+      })
+      .partial(),
+    ttl: {
+      // data-driven: no `expiresInSeconds` field means no TTL for that record
+      processor: (entity) => {
+        const expiresInSeconds = entity.data.expiresInSeconds;
+        if (typeof expiresInSeconds !== 'number') return undefined;
+        return Math.floor(Date.now() / 1000) + expiresInSeconds;
+      },
+    },
   }),
 });
 

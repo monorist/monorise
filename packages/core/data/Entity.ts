@@ -31,6 +31,7 @@ export class Entity<T extends EntityType> extends Item {
     public data: Partial<EntitySchemaMap[T]> = {},
     private _createdAt?: Date,
     private _updatedAt?: Date,
+    private _expiresAt?: Date,
   ) {
     super();
     this.fullId = this.pk;
@@ -53,6 +54,8 @@ export class Entity<T extends EntityType> extends Item {
       parsedItem.data,
       parsedItem.createdAt ? new Date(parsedItem.createdAt) : undefined,
       parsedItem.updatedAt ? new Date(parsedItem.updatedAt) : undefined,
+      // expiresAt is stored as epoch seconds (DynamoDB TTL requires type N)
+      parsedItem.expiresAt ? new Date(parsedItem.expiresAt * 1000) : undefined,
     );
   }
 
@@ -87,6 +90,12 @@ export class Entity<T extends EntityType> extends Item {
     return this._updatedAt?.toISOString();
   }
 
+  get expiresAt(): number | undefined {
+    return this._expiresAt
+      ? Math.floor(this._expiresAt.getTime() / 1000)
+      : undefined;
+  }
+
   toItem(): Record<string, AttributeValue> {
     return {
       ...marshall(this.toJSON(), { removeUndefinedValues: true }),
@@ -101,6 +110,7 @@ export class Entity<T extends EntityType> extends Item {
       data: this.data,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
+      expiresAt: this.expiresAt,
     };
   }
 }
@@ -116,6 +126,44 @@ export class EntityRepository extends Repository {
     private readonly EmailAuthEnabledEntities: EntityType[],
   ) {
     super();
+  }
+
+  /**
+   * Computes the `expiresAt` Date for an entity via its `ttl.processor` config, if any.
+   * When `mergeWithExisting` is true, the processor receives the previous entity's data
+   * merged with `incomingData` (falls back to `incomingData` alone if no previous entity
+   * exists yet, eg. an upsert-as-create).
+   */
+  private async computeExpiresAt<T extends EntityType>(
+    entityType: T,
+    entityId: string,
+    incomingData: Partial<EntitySchemaMap[T]>,
+    updatedAt: string,
+    opts: { mergeWithExisting: boolean },
+  ): Promise<Date | undefined> {
+    const processor = this.EntityConfig[entityType]?.ttl?.processor;
+    if (!processor) return undefined;
+
+    let data: Record<string, any> = incomingData as Record<string, any>;
+    if (opts.mergeWithExisting) {
+      try {
+        const previous = await this.getEntity(entityType, entityId);
+        data = { ...previous.data, ...incomingData };
+      } catch {
+        // entity doesn't exist yet (upsert-as-create) — use incoming data as-is
+      }
+    }
+
+    const result = processor({
+      entityId,
+      entityType: entityType as unknown as string,
+      data,
+      createdAt: updatedAt,
+      updatedAt,
+    });
+
+    if (result === undefined) return undefined;
+    return result instanceof Date ? result : new Date(result * 1000);
   }
 
   async listEntities<T extends EntityType>({
@@ -415,12 +463,21 @@ export class EntityRepository extends Repository {
     },
   ): Promise<Entity<T>> {
     const currentDatetime = opts?.createAndUpdateDatetime ?? new Date();
+    const finalEntityId = entityId || ulid();
+    const expiresAt = await this.computeExpiresAt(
+      entityType,
+      finalEntityId,
+      entityPayload,
+      currentDatetime.toISOString(),
+      { mergeWithExisting: false },
+    );
     const entity = new Entity<T>(
       entityType,
-      entityId || ulid(),
+      finalEntityId,
       entityPayload,
       currentDatetime,
       currentDatetime,
+      expiresAt,
     );
 
     const uniqueFields = (this.EntityConfig[entityType].uniqueFields ||
@@ -485,15 +542,32 @@ export class EntityRepository extends Repository {
     payload: Partial<EntitySchemaMap[T]>,
   ): Promise<Entity<T>> {
     const currentDatetime = new Date().toISOString();
+
+    // Try the update path first (the common case): a nested `data.<field>` SET
+    // document path only works if `data` already exists as a Map, so we guard
+    // it with `attribute_exists(PK)` and fall back to a fresh create below when
+    // it doesn't — rather than merging data ourselves (which would need a read
+    // and risks clobbering concurrent partial updates to other fields).
+    const expiresAtForUpdate = await this.computeExpiresAt(
+      entityType,
+      entityId,
+      payload,
+      currentDatetime,
+      { mergeWithExisting: true },
+    );
     const toUpdateExpressions = this.toUpdate({
       entityType,
       entityId,
       data: payload,
       updatedAt: currentDatetime,
+      ...(expiresAtForUpdate && {
+        expiresAt: Math.floor(expiresAtForUpdate.getTime() / 1000),
+      }),
     });
     const params: UpdateItemCommandInput = {
       TableName: this.TABLE_NAME,
       ReturnValues: 'ALL_NEW',
+      ConditionExpression: 'attribute_exists(PK)',
       Key: new Entity(entityType, entityId).keys(),
       UpdateExpression: toUpdateExpressions.UpdateExpression,
       ExpressionAttributeNames: {
@@ -504,9 +578,40 @@ export class EntityRepository extends Repository {
       },
     };
 
-    const resp = await this.dynamodbClient.updateItem(params);
-    const updatedEntity = Entity.fromItem<T>(resp.Attributes);
-    return updatedEntity;
+    try {
+      const resp = await this.dynamodbClient.updateItem(params);
+      return Entity.fromItem<T>(resp.Attributes);
+    } catch (err) {
+      if (!(err instanceof ConditionalCheckFailedException)) {
+        throw err;
+      }
+    }
+
+    // entity doesn't exist yet — create it fresh
+    const currentDate = new Date(currentDatetime);
+    const expiresAtForCreate = await this.computeExpiresAt(
+      entityType,
+      entityId,
+      payload,
+      currentDatetime,
+      { mergeWithExisting: false },
+    );
+    const newEntity = new Entity<T>(
+      entityType,
+      entityId,
+      payload,
+      currentDate,
+      currentDate,
+      expiresAtForCreate,
+    );
+
+    await this.dynamodbClient.putItem({
+      TableName: this.TABLE_NAME,
+      Item: newEntity.toItem(),
+      ConditionExpression: 'attribute_not_exists(PK)',
+    });
+
+    return newEntity;
   }
 
   updateEntityTransactItems<T extends EntityType>(
@@ -514,6 +619,7 @@ export class EntityRepository extends Repository {
     updateParams: UpdateItemCommandInput,
     previousUniqueFieldValues: Record<string, string>,
     previousEntity: Entity<T>,
+    expiresAt?: Date,
   ) {
     const transactItems: TransactWriteItem[] = [
       {
@@ -560,6 +666,11 @@ export class EntityRepository extends Repository {
                   new Date().toISOString(),
               },
               updatedAt: { S: entity.updatedAt || new Date().toISOString() },
+              ...(expiresAt && {
+                expiresAt: {
+                  N: String(Math.floor(expiresAt.getTime() / 1000)),
+                },
+              }),
             },
           },
         },
@@ -584,9 +695,19 @@ export class EntityRepository extends Repository {
   ): Promise<Entity<T>> {
     try {
       const currentDatetime = new Date().toISOString();
+      const expiresAtDate = await this.computeExpiresAt(
+        entityType,
+        entityId,
+        toUpdate.data,
+        currentDatetime,
+        { mergeWithExisting: true },
+      );
       const toUpdateExpressions = this.toUpdate({
         updatedAt: currentDatetime,
         ...toUpdate,
+        ...(expiresAtDate && {
+          expiresAt: Math.floor(expiresAtDate.getTime() / 1000),
+        }),
       });
 
       const params: UpdateItemCommandInput = {
@@ -656,6 +777,7 @@ export class EntityRepository extends Repository {
             params,
             previousUniqueFieldValues,
             previousEntity,
+            expiresAtDate,
           );
 
           try {
