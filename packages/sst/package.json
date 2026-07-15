@@ -1,6 +1,11 @@
 {
   "name": "@monorise/sst",
   "version": "4.0.2",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/monorist/monorise.git",
+    "directory": "packages/sst"
+  },
   "description": "",
   "type": "module",
   "main": "dist/index.js",
