@@ -572,6 +572,60 @@ describe('Entity & EntityRepository', () => {
           created.entityId as string,
         );
       });
+
+      it('should carry the previous expiresAt onto a unique-field replica row when the processor returns undefined', async () => {
+        const licenseKeyA = `license-a-${ulid()}`;
+        const licenseKeyB = `license-b-${ulid()}`;
+
+        const created = await entityRepository.createEntity(
+          MockEntityType.LICENSE as unknown as EntityType,
+          { licenseKey: licenseKeyA, expiresInSeconds: 3600 },
+        );
+        expect(created.expiresAt).toBeDefined();
+        const originalExpiresAt = created.expiresAt;
+
+        // change the unique field while making expiresInSeconds non-numeric,
+        // so the ttl.processor returns undefined for this specific update
+        const updated = await entityRepository.updateEntity(
+          MockEntityType.LICENSE as unknown as EntityType,
+          created.entityId as string,
+          {
+            data: {
+              licenseKey: licenseKeyB,
+              expiresInSeconds: null as unknown as number,
+            },
+          },
+        );
+
+        // the returned entity must reflect the actual persisted expiresAt,
+        // not silently report it as cleared
+        expect(updated.expiresAt).toBe(originalExpiresAt);
+
+        // the main row must still carry its original expiresAt
+        const fetchedMain = await entityRepository.getEntity(
+          MockEntityType.LICENSE as unknown as EntityType,
+          created.entityId as string,
+        );
+        expect(fetchedMain.expiresAt).toBe(originalExpiresAt);
+
+        // the fresh UNIQUE# replica row for the new licenseKey must also
+        // carry the same expiresAt, not be created without one
+        const uniqueRowResp = await dynamodbClient.getItem({
+          TableName: TABLE_NAME,
+          Key: {
+            PK: { S: `UNIQUE#licenseKey#${licenseKeyB}` },
+            SK: { S: MockEntityType.LICENSE },
+          },
+        });
+        expect(uniqueRowResp.Item?.expiresAt?.N).toBe(
+          String(originalExpiresAt),
+        );
+
+        await entityRepository.deleteEntity(
+          MockEntityType.LICENSE as unknown as EntityType,
+          created.entityId as string,
+        );
+      });
     });
 
     describe('listEntities', () => {

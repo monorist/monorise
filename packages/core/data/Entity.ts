@@ -606,7 +606,12 @@ export class EntityRepository extends Repository {
 
     // entity doesn't exist yet — delegate to createEntity so it gets the same
     // LIST#/UNIQUE#/EMAIL# replica rows, uniqueFields registration, and typed
-    // ID-collision error as any other newly created entity.
+    // ID-collision error as any other newly created entity. `payload` is
+    // only Partial<EntitySchemaMap[T]> here — upsert-as-create treats
+    // whatever was given as the entity's complete initial data (matching
+    // upsertEntity's pre-existing contract); there's no required-field
+    // validation at this repository layer (UpsertEntityController parses
+    // against createSchema/baseSchema before calling this).
     return this.createEntity(
       entityType,
       payload as EntitySchemaMap[T],
@@ -794,12 +799,25 @@ export class EntityRepository extends Repository {
         }
 
         if (updatedUniqueFields.length > 0) {
+          // The main row's UpdateExpression leaves `expiresAt` untouched when
+          // the processor returns undefined this update (it just omits the
+          // SET clause), so it retains its previous value. The new UNIQUE#
+          // replica row below is a fresh Put, not an update — it has no
+          // "leave untouched" to fall back on, so it needs that same
+          // previous value carried over explicitly, or it and the return
+          // value would both disagree with what the main row actually holds.
+          const effectiveExpiresAtDate =
+            expiresAtDate ??
+            (previousEntity.expiresAt !== undefined
+              ? new Date(previousEntity.expiresAt * 1000)
+              : undefined);
+
           const TransactItems = this.updateEntityTransactItems(
             entity,
             params,
             previousUniqueFieldValues,
             previousEntity,
-            expiresAtDate,
+            effectiveExpiresAtDate,
           );
 
           try {
@@ -857,7 +875,7 @@ export class EntityRepository extends Repository {
               ? new Date(previousEntity.createdAt)
               : undefined,
             new Date(currentDatetime),
-            expiresAtDate,
+            effectiveExpiresAtDate,
           );
         }
       }
