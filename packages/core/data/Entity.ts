@@ -139,18 +139,35 @@ export class EntityRepository extends Repository {
     entityId: string,
     incomingData: Partial<EntitySchemaMap[T]>,
     updatedAt: string,
-    opts: { mergeWithExisting: boolean },
+    opts: { mergeWithExisting: boolean; previousEntity?: Entity<T> },
   ): Promise<Date | undefined> {
     const processor = this.EntityConfig[entityType]?.ttl?.processor;
     if (!processor) return undefined;
 
     let data: Record<string, any> = incomingData as Record<string, any>;
+    let createdAt = updatedAt;
+
     if (opts.mergeWithExisting) {
-      try {
-        const previous = await this.getEntity(entityType, entityId);
+      let previous = opts.previousEntity;
+      if (!previous) {
+        try {
+          previous = await this.getEntity(entityType, entityId);
+        } catch (err) {
+          if (
+            !(
+              err instanceof StandardError &&
+              err.code === StandardErrorCode.ENTITY_IS_UNDEFINED
+            )
+          ) {
+            throw err;
+          }
+          // entity doesn't exist yet (upsert-as-create) — use incoming data as-is
+        }
+      }
+
+      if (previous) {
         data = { ...previous.data, ...incomingData };
-      } catch {
-        // entity doesn't exist yet (upsert-as-create) — use incoming data as-is
+        createdAt = previous.createdAt || updatedAt;
       }
     }
 
@@ -158,7 +175,7 @@ export class EntityRepository extends Repository {
       entityId,
       entityType: entityType as unknown as string,
       data,
-      createdAt: updatedAt,
+      createdAt,
       updatedAt,
     });
 
@@ -587,31 +604,15 @@ export class EntityRepository extends Repository {
       }
     }
 
-    // entity doesn't exist yet — create it fresh
-    const currentDate = new Date(currentDatetime);
-    const expiresAtForCreate = await this.computeExpiresAt(
+    // entity doesn't exist yet — delegate to createEntity so it gets the same
+    // LIST#/UNIQUE#/EMAIL# replica rows, uniqueFields registration, and typed
+    // ID-collision error as any other newly created entity.
+    return this.createEntity(
       entityType,
+      payload as EntitySchemaMap[T],
       entityId,
-      payload,
-      currentDatetime,
-      { mergeWithExisting: false },
+      { createAndUpdateDatetime: new Date(currentDatetime) },
     );
-    const newEntity = new Entity<T>(
-      entityType,
-      entityId,
-      payload,
-      currentDate,
-      currentDate,
-      expiresAtForCreate,
-    );
-
-    await this.dynamodbClient.putItem({
-      TableName: this.TABLE_NAME,
-      Item: newEntity.toItem(),
-      ConditionExpression: 'attribute_not_exists(PK)',
-    });
-
-    return newEntity;
   }
 
   updateEntityTransactItems<T extends EntityType>(
@@ -695,12 +696,43 @@ export class EntityRepository extends Repository {
   ): Promise<Entity<T>> {
     try {
       const currentDatetime = new Date().toISOString();
+
+      const uniqueFields = (this.EntityConfig[entityType].uniqueFields ||
+        []) as string[];
+
+      const hasUniqueFields = Object.keys(toUpdate.data).some((field) =>
+        uniqueFields.includes(field),
+      );
+      const hasTtlProcessor = !!this.EntityConfig[entityType]?.ttl?.processor;
+
+      // Fetched once and shared between TTL merging and uniqueFields
+      // diffing below, instead of each doing its own independent read.
+      let previousEntity: Entity<T> | undefined;
+      if (hasUniqueFields || hasTtlProcessor) {
+        try {
+          previousEntity = await this.getEntity(entityType, entityId);
+        } catch (err) {
+          if (
+            err instanceof StandardError &&
+            err.code === StandardErrorCode.ENTITY_IS_UNDEFINED
+          ) {
+            throw new StandardError(
+              StandardErrorCode.ENTITY_NOT_FOUND,
+              'Entity not found',
+              err,
+              { entityId, toUpdate },
+            );
+          }
+          throw err;
+        }
+      }
+
       const expiresAtDate = await this.computeExpiresAt(
         entityType,
         entityId,
         toUpdate.data,
         currentDatetime,
-        { mergeWithExisting: true },
+        { mergeWithExisting: true, previousEntity },
       );
       const toUpdateExpressions = this.toUpdate({
         updatedAt: currentDatetime,
@@ -729,32 +761,22 @@ export class EntityRepository extends Repository {
 
       const entity = new Entity(entityType, entityId, toUpdate.data);
 
-      const uniqueFields = (this.EntityConfig[entityType].uniqueFields ||
-        []) as string[];
-
-      const hasUniqueFields = Object.keys(toUpdate.data).some((field) =>
-        uniqueFields.includes(field),
-      );
-
       let updatedUniqueFields: string[] = [];
       let previousUniqueFieldValues: Record<string, string> = {};
-      let previousEntity: Entity<T>;
 
-      if (hasUniqueFields) {
-        previousEntity = await this.getEntity(entityType, entityId);
-
+      if (hasUniqueFields && previousEntity) {
         // check if any of the unique fields has changed
         updatedUniqueFields = uniqueFields.filter(
           (field) =>
             toUpdate.data[field] !== undefined &&
             (toUpdate.data as Record<string, unknown>)[field] !==
-              (previousEntity.data as Record<string, unknown>)[field],
+              (previousEntity!.data as Record<string, unknown>)[field],
         );
 
         previousUniqueFieldValues = updatedUniqueFields.reduce(
           (acc, field) => ({
             ...acc,
-            [field]: (previousEntity.data as Record<string, unknown>)[field],
+            [field]: (previousEntity!.data as Record<string, unknown>)[field],
           }),
           {},
         );
@@ -825,7 +847,18 @@ export class EntityRepository extends Repository {
             throw err;
           }
 
-          return await this.getEntity(entityType, entityId);
+          // transactWriteItems doesn't return item attributes, so construct
+          // the result locally instead of re-fetching.
+          return new Entity<T>(
+            entityType,
+            entityId,
+            { ...previousEntity.data, ...toUpdate.data },
+            previousEntity.createdAt
+              ? new Date(previousEntity.createdAt)
+              : undefined,
+            new Date(currentDatetime),
+            expiresAtDate,
+          );
         }
       }
 

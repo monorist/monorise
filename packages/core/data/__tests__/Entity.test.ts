@@ -478,27 +478,98 @@ describe('Entity & EntityRepository', () => {
         );
         expect(fetched.data).toEqual({ token: 'tok-4', expiresInSeconds: 60 });
 
+        const { items } = await entityRepository.listEntities({
+          entityType: MockEntityType.SESSION as unknown as EntityType,
+        });
+        expect(items.some((item) => item.entityId === entityId)).toBe(true);
+
         await entityRepository.deleteEntity(
           MockEntityType.SESSION as unknown as EntityType,
           entityId,
         );
       });
 
-      it('should upsert-as-create on a plain entity with no ttl config', async () => {
+      it('should upsert-as-create on a plain entity with no ttl config, including its replica rows', async () => {
         const entityId = ulid();
+        const username = `upsert-create-${ulid()}`;
         const upserted = await entityRepository.upsertEntity(
           MockEntityType.USER as unknown as EntityType,
           entityId,
-          { name: 'Upserted User', email: `upsert-${ulid()}@example.com` },
+          {
+            name: 'Upserted User',
+            email: `upsert-${ulid()}@example.com`,
+            username,
+          },
         );
 
         expect(upserted.entityId).toBe(entityId);
         expect(upserted.data.name).toBe('Upserted User');
         expect(upserted.expiresAt).toBeUndefined();
 
+        // must be discoverable via listEntities (LIST# row) and unique fields
+        // must be enforced (UNIQUE# row) — both require the same transactional
+        // creation path createEntity uses, not a bare put of the main item.
+        const { items } = await entityRepository.listEntities({
+          entityType: MockEntityType.USER as unknown as EntityType,
+        });
+        expect(items.some((item) => item.entityId === entityId)).toBe(true);
+
+        await expect(
+          entityRepository.getUniqueFieldValueAvailability(
+            MockEntityType.USER as unknown as EntityType,
+            'username',
+            username,
+          ),
+        ).rejects.toThrow(`username '${username}' already exists`);
+
         await entityRepository.deleteEntity(
           MockEntityType.USER as unknown as EntityType,
           entityId,
+        );
+      });
+
+      it('should give ttl.processor the true original createdAt, not the update timestamp', async () => {
+        const capturedCreatedAts: (string | undefined)[] = [];
+        const customConfig = {
+          ...mockEntityConfig,
+          [MockEntityType.SESSION]: {
+            ...mockEntityConfig[MockEntityType.SESSION],
+            ttl: {
+              processor: (entity: { createdAt: string }) => {
+                capturedCreatedAts.push(entity.createdAt);
+                return undefined;
+              },
+            },
+          },
+        };
+        const customRepo = new EntityRepository(
+          customConfig,
+          TABLE_NAME,
+          dynamodbClient,
+          EmailAuthEnabledEntities,
+        );
+
+        const created = await customRepo.createEntity(
+          MockEntityType.SESSION as unknown as EntityType,
+          { token: 'created-at-test' },
+        );
+
+        await new Promise((resolve) => setTimeout(resolve, 50));
+
+        await customRepo.updateEntity(
+          MockEntityType.SESSION as unknown as EntityType,
+          created.entityId as string,
+          { data: { token: 'updated' } },
+        );
+
+        expect(capturedCreatedAts).toHaveLength(2);
+        expect(capturedCreatedAts[0]).toBe(created.createdAt);
+        // should still be the original createdAt, not the update's timestamp
+        expect(capturedCreatedAts[1]).toBe(created.createdAt);
+
+        await entityRepository.deleteEntity(
+          MockEntityType.SESSION as unknown as EntityType,
+          created.entityId as string,
         );
       });
     });
