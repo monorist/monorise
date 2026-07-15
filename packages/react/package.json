@@ -1,6 +1,6 @@
 {
   "name": "@monorise/react",
-  "version": "4.0.0",
+  "version": "5.0.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/monorist/monorise.git",
@@ -37,7 +37,7 @@
     "@types/react-dom": "^19"
   },
   "peerDependencies": {
-    "@monorise/base": "^4.0.0",
+    "@monorise/base": "^4.1.0",
     "react": "^18 || ^19",
     "react-dom": "^18 || ^19"
   },

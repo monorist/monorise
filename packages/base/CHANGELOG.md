@@ -1,5 +1,11 @@
 # @monorise/base
 
+## 4.1.0
+
+### Minor Changes
+
+- 9d175ef: Add `ttl` config to `createEntityConfig` for setting a DynamoDB TTL on an entity. Define `ttl.processor` to compute `expiresAt` (epoch seconds or a `Date`) from the entity's data; it's recomputed on every create/update/upsert. Returning `undefined` means no expiry for that record.
+
 ## 4.0.0
 
 ### Major Changes
