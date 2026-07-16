@@ -1,8 +1,8 @@
 ---
 '@monorise/base': minor
-'@monorise/core': major
+'@monorise/core': minor
 '@monorise/react': minor
-'monorise': major
+'monorise': minor
 ---
 
 Add named conditions system for conditional entity writes
