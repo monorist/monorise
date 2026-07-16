@@ -10,6 +10,7 @@ type MonoriseCoreArgs = {
   allowHeaders?: string[];
   allowOrigins?: string[];
   configRoot?: string;
+  link?: $util.Input<any[]>;
 };
 
 export class MonoriseCore {
@@ -61,7 +62,7 @@ export class MonoriseCore {
     this.api.route('ANY /core/{proxy+}', {
       name: appHandlerName,
       handler: `${dotMonorisePath}/handle.appHandler`,
-      link: [this.table.table, this.bus, secretApiKeys],
+      link: [this.table.table, this.bus, secretApiKeys, ...(args?.link ?? [])],
       environment: {
         API_KEYS: secretApiKeys.value,
         CORE_TABLE: this.table.table.name,
