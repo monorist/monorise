@@ -4,7 +4,6 @@ import type {
   TransactWriteItem,
 } from '@aws-sdk/client-dynamodb';
 import { TransactionCanceledException } from '@aws-sdk/client-dynamodb';
-import { marshall } from '@aws-sdk/util-dynamodb';
 import type {
   AdjustmentCondition,
   EntitySchemaMap,
@@ -13,7 +12,6 @@ import type {
   createEntityConfig,
 } from '@monorise/base';
 import { ulid } from 'ulid';
-import { z } from 'zod';
 import { Entity, type EntityRepository } from '../data/Entity';
 import type { EventUtils } from '../data/EventUtils';
 import { StandardError, StandardErrorCode } from '../errors/standard-error';
@@ -71,87 +69,16 @@ export class TransactionService {
     const pendingEvents: PendingEvent[] = [];
     const resultEntries: TransactionResultEntry[] = [];
 
-    // Phase 1: Validate and build TransactWriteItems for each operation
-    for (const op of operations) {
-      switch (op.operation) {
-        case 'createEntity': {
-          const { items, entity } = await this.buildCreateItems(op);
-          allTransactItems.push(...items);
-          pendingEvents.push(
-            ...this.collectCreateEvents(
-              entity,
-              op.payload,
-              accountId,
-            ),
-          );
-          resultEntries.push({
-            operation: 'createEntity',
-            entityType: op.entityType,
-            entityId: entity.entityId as string,
-            data: entity.data as Record<string, unknown>,
-          });
-          break;
-        }
-        case 'updateEntity': {
-          const { item, updatedAt } = await this.buildUpdateItem(op);
-          allTransactItems.push(item);
-          pendingEvents.push(
-            ...this.collectUpdateEvents(
-              op,
-              updatedAt,
-              accountId,
-            ),
-          );
-          resultEntries.push({
-            operation: 'updateEntity',
-            entityType: op.entityType,
-            entityId: op.entityId,
-          });
-          break;
-        }
-        case 'adjustEntity': {
-          const { item, updatedAt } = await this.buildAdjustItem(op);
-          allTransactItems.push(item);
-          pendingEvents.push({
-            event: EVENT.CORE.ENTITY_UPDATED,
-            payload: {
-              entityType: op.entityType,
-              entityId: op.entityId,
-              updatedByAccountId: accountId,
-              publishedAt: updatedAt,
-            },
-          });
-          resultEntries.push({
-            operation: 'adjustEntity',
-            entityType: op.entityType,
-            entityId: op.entityId,
-          });
-          break;
-        }
-        case 'deleteEntity': {
-          const item = this.buildDeleteItem(op);
-          allTransactItems.push(item);
-          pendingEvents.push({
-            event: EVENT.CORE.ENTITY_DELETED,
-            payload: {
-              entityType: op.entityType,
-              entityId: op.entityId,
-              deletedByAccountId: accountId,
-            },
-          });
-          resultEntries.push({
-            operation: 'deleteEntity',
-            entityType: op.entityType,
-            entityId: op.entityId,
-          });
-          break;
-        }
-        default:
-          throw new StandardError(
-            StandardErrorCode.INVALID_ENTITY_TYPE,
-            `Unknown operation: '${(op as TransactionOperation).operation}'`,
-          );
-      }
+    // Phase 1: Validate and build TransactWriteItems for each operation.
+    // Operations are independent (each scoped to its own entity/condition read),
+    // so build them concurrently rather than one round-trip at a time.
+    const processed = await Promise.all(
+      operations.map((op) => this.processOperation(op, accountId)),
+    );
+    for (const { items, events, resultEntry } of processed) {
+      allTransactItems.push(...items);
+      pendingEvents.push(...events);
+      resultEntries.push(resultEntry);
     }
 
     // Phase 2: Validate item count
@@ -182,6 +109,16 @@ export class TransactionService {
           },
         );
       }
+      // DynamoDB rejects a TransactWriteItems call with >1 operation on the
+      // same item (and other request-shape issues) as a plain ValidationException
+      // before any cancellation reasons exist — it isn't a TransactionCanceledException.
+      if ((err as { name?: string })?.name === 'ValidationException') {
+        throw new StandardError(
+          StandardErrorCode.TRANSACTION_VALIDATION_ERROR,
+          'Transaction request is invalid (e.g. multiple operations on the same item, or an item exceeds a DynamoDB limit)',
+          err,
+        );
+      }
       throw err;
     }
 
@@ -205,11 +142,112 @@ export class TransactionService {
     });
     await Promise.all(readPromises);
 
-    // Phase 5: Publish events (fire-and-forget, same pattern as existing operations)
-    await Promise.allSettled(pendingEvents.map((ev) => this.publishEvent(ev)));
+    // Phase 5: Publish events (fire-and-forget, same pattern as existing operations).
+    // The transaction has already committed at this point, so a publish failure
+    // can't be rolled back — surface it instead of swallowing it silently.
+    const eventResults = await Promise.allSettled(
+      pendingEvents.map((ev) => this.publishEvent(ev)),
+    );
+    for (const [i, result] of eventResults.entries()) {
+      if (result.status === 'rejected') {
+        console.error(
+          '[monorise] Failed to publish event after transaction commit:',
+          {
+            event: pendingEvents[i].event,
+            payload: pendingEvents[i].payload,
+            reason: result.reason,
+          },
+        );
+      }
+    }
 
     return { results: resultEntries };
   };
+
+  private async processOperation(
+    op: TransactionOperation,
+    accountId?: string,
+  ): Promise<{
+    items: TransactWriteItem[];
+    events: PendingEvent[];
+    resultEntry: TransactionResultEntry;
+  }> {
+    switch (op.operation) {
+      case 'createEntity': {
+        const { items, entity } = await this.buildCreateItems(op);
+        return {
+          items,
+          events: this.collectCreateEvents(entity, op.payload, accountId),
+          resultEntry: {
+            operation: 'createEntity',
+            entityType: op.entityType,
+            entityId: entity.entityId as string,
+            data: entity.data as Record<string, unknown>,
+          },
+        };
+      }
+      case 'updateEntity': {
+        const { item, updatedAt } = await this.buildUpdateItem(op);
+        return {
+          items: [item],
+          events: this.collectUpdateEvents(op, updatedAt, accountId),
+          resultEntry: {
+            operation: 'updateEntity',
+            entityType: op.entityType,
+            entityId: op.entityId,
+          },
+        };
+      }
+      case 'adjustEntity': {
+        const { item, updatedAt } = await this.buildAdjustItem(op);
+        return {
+          items: [item],
+          events: [
+            {
+              event: EVENT.CORE.ENTITY_UPDATED,
+              payload: {
+                entityType: op.entityType,
+                entityId: op.entityId,
+                updatedByAccountId: accountId,
+                publishedAt: updatedAt,
+              },
+            },
+          ],
+          resultEntry: {
+            operation: 'adjustEntity',
+            entityType: op.entityType,
+            entityId: op.entityId,
+          },
+        };
+      }
+      case 'deleteEntity': {
+        const item = this.buildDeleteItem(op);
+        return {
+          items: [item],
+          events: [
+            {
+              event: EVENT.CORE.ENTITY_DELETED,
+              payload: {
+                entityType: op.entityType,
+                entityId: op.entityId,
+                deletedByAccountId: accountId,
+              },
+            },
+          ],
+          resultEntry: {
+            operation: 'deleteEntity',
+            entityType: op.entityType,
+            entityId: op.entityId,
+          },
+        };
+      }
+      default:
+        throw new StandardError(
+          StandardErrorCode.TRANSACTION_INVALID_OPERATION,
+          `Unknown operation: '${(op as TransactionOperation).operation}'`,
+        );
+    }
+  }
 
   private async buildCreateItems(
     op: TransactionCreateEntity,
@@ -378,7 +416,7 @@ export class TransactionService {
     for (const [key, value] of Object.entries(op.adjustments)) {
       if (typeof value !== 'number' || !Number.isFinite(value)) {
         throw new StandardError(
-          StandardErrorCode.INVALID_ENTITY_TYPE,
+          StandardErrorCode.TRANSACTION_INVALID_OPERATION,
           `Adjustment field "${key}" must be a finite number`,
         );
       }

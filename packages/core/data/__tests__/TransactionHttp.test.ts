@@ -53,6 +53,18 @@ const post = async (body: object): Promise<PostResult> => {
   };
 };
 
+const postRaw = async (rawBody: string): Promise<PostResult> => {
+  const res = await app.request('/transaction', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: rawBody,
+  });
+  return {
+    status: res.status,
+    data: (await res.json()) as Record<string, unknown>,
+  };
+};
+
 const WALLET = MockEntityType.WALLET as unknown as EntityType;
 const PRODUCT = MockEntityType.PRODUCT as unknown as EntityType;
 const USER = MockEntityType.USER as unknown as EntityType;
@@ -76,6 +88,79 @@ describe('POST /transaction', () => {
     const { status, data } = await post({});
     expect(status).toBe(400);
     expect(data.code).toBe('API_VALIDATION_ERROR');
+  });
+
+  it('should return 400 (not 500) for malformed JSON body', async () => {
+    const { status, data } = await postRaw('{ this is not json');
+    expect(status).toBe(400);
+    expect(data.code).toBe('API_VALIDATION_ERROR');
+  });
+
+  it('should return 400 for a non-numeric adjustment value', async () => {
+    const wallet = await entityRepository.createEntity(WALLET, { balance: 100 });
+    const { status, data } = await post({
+      operations: [
+        {
+          operation: 'adjustEntity',
+          entityType: MockEntityType.WALLET,
+          entityId: wallet.entityId,
+          adjustments: { balance: 'not-a-number' },
+        },
+      ],
+    });
+    expect(status).toBe(400);
+    expect(data.code).toBe('TRANSACTION_INVALID_OPERATION');
+  });
+
+  it('should return 400 for an unknown operation type', async () => {
+    const { status, data } = await post({
+      operations: [{ operation: 'renameEntity', entityType: 'wallet', entityId: 'x' }],
+    });
+    expect(status).toBe(400);
+    expect(data.code).toBe('TRANSACTION_INVALID_OPERATION');
+  });
+
+  it('should return 404 (not 500) when a function-based condition reads a nonexistent entity', async () => {
+    // withdraw/deposit are functions — resolving them reads the entity's current data.
+    // If the entity doesn't exist, that read throws ENTITY_IS_UNDEFINED (same code
+    // adjust-entity.controller.ts maps to 404 for the non-transactional path).
+    const { status, data } = await post({
+      operations: [
+        {
+          operation: 'adjustEntity',
+          entityType: MockEntityType.WALLET,
+          entityId: 'nonexistent-wallet-for-condition-test',
+          adjustments: { balance: -10 },
+          condition: 'withdraw',
+        },
+      ],
+    });
+    expect(status).toBe(404);
+    expect(data.code).toBe('ENTITY_IS_UNDEFINED');
+  });
+
+  it('should return 400 (not 500) when DynamoDB rejects the request as invalid', async () => {
+    const spy = vi
+      .spyOn(dynamodbClient, 'transactWriteItems')
+      .mockRejectedValueOnce(
+        Object.assign(new Error('Transaction request cannot include multiple operations on one item'), {
+          name: 'ValidationException',
+        }),
+      );
+
+    const { status, data } = await post({
+      operations: [
+        {
+          operation: 'createEntity',
+          entityType: MockEntityType.PRODUCT,
+          payload: { name: 'validation-exception-test', description: 'test', price: 1 },
+        },
+      ],
+    });
+
+    expect(status).toBe(400);
+    expect(data.code).toBe('TRANSACTION_VALIDATION_ERROR');
+    spy.mockRestore();
   });
 
   it('should return 400 for empty operations array', async () => {

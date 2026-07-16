@@ -12,7 +12,6 @@ export type TransactionUpdateEntity<T extends EntityType = EntityType> = {
   entityType: T;
   entityId: string;
   payload: Partial<EntitySchemaMap[T]>;
-  accountId?: string;
   condition?: string;
 };
 
@@ -21,7 +20,6 @@ export type TransactionAdjustEntity<T extends EntityType = EntityType> = {
   entityType: T;
   entityId: string;
   adjustments: Record<string, number>;
-  accountId?: string;
   condition?: string;
 };
 
