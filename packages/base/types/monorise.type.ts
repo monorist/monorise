@@ -403,4 +403,17 @@ export interface MonoriseEntityConfig<
       | WhereConditions
       | ((data: Partial<z.infer<z.ZodObject<B>>>) => WhereConditions);
   };
+
+  /**
+   * @description (Optional) Opt in to accepting legacy raw `$where` on updateEntity.
+   * Disabled by default: raw DynamoDB condition operators must never be
+   * client-facing — an authenticated client could otherwise probe field
+   * existence or guess values via the 200-vs-409 response status.
+   *
+   * Only enable this if you trust the caller (e.g. server-to-server) or have
+   * your own validation in front of it. Prefer `updateConditions` instead.
+   *
+   * @default false
+   */
+  allowLegacyWhere?: boolean;
 }

@@ -78,7 +78,7 @@ describe('HTTP — conditional adjustEntity ($condition)', () => {
     expect(data.code).toBe('INVALID_CONDITION');
   });
 
-  it('should succeed with valid $condition (static)', async () => {
+  it('should succeed with valid $condition (deposit within cap)', async () => {
     const entity = await entityRepository.createEntity(WALLET, {
       balance: 100,
     });
@@ -91,7 +91,7 @@ describe('HTTP — conditional adjustEntity ($condition)', () => {
     expect((data.data as Record<string, unknown>).balance).toBe(150);
   });
 
-  it('should fail when static condition violated', async () => {
+  it('should fail when condition violated (current balance already over cap)', async () => {
     const entity = await entityRepository.createEntity(WALLET, {
       balance: 10001,
     });
@@ -102,6 +102,33 @@ describe('HTTP — conditional adjustEntity ($condition)', () => {
     );
     // balance is 10001, deposit condition: balance <= 10000 → fails
     expect(status).toBe(409);
+  });
+
+  it('should fail when deposit delta would push balance over cap, even though current balance is under cap', async () => {
+    const entity = await entityRepository.createEntity(WALLET, {
+      balance: 9960,
+    });
+    const { status } = await adjust(
+      MockEntityType.WALLET,
+      entity.entityId as string,
+      { balance: 50, $condition: 'deposit' },
+    );
+    // current balance (9960) is under the 10000 cap, but 9960 + 50 = 10010 exceeds it —
+    // the condition must account for the delta, not just the pre-adjustment value.
+    expect(status).toBe(409);
+  });
+
+  it('should succeed when a deposit lands exactly at the cap', async () => {
+    const entity = await entityRepository.createEntity(WALLET, {
+      balance: 9950,
+    });
+    const { status, data } = await adjust(
+      MockEntityType.WALLET,
+      entity.entityId as string,
+      { balance: 50, $condition: 'deposit' },
+    );
+    expect(status).toBe(200);
+    expect((data.data as Record<string, unknown>).balance).toBe(10000);
   });
 
   it('should succeed with dynamic $condition (function)', async () => {
@@ -158,6 +185,21 @@ describe('HTTP — conditional adjustEntity ($condition)', () => {
     );
     expect(status).toBe(200);
     expect((data.data as Record<string, unknown>).age).toBe(30);
+  });
+
+  it('should reject $condition on an entity with no adjustmentConditions defined (symmetric with updateEntity)', async () => {
+    const entity = await entityRepository.createEntity(USER, {
+      name: 'test',
+      username: `user-adjust-bad-condition-${Date.now()}`,
+      age: 25,
+    });
+    const { status, data } = await adjust(
+      MockEntityType.USER,
+      entity.entityId as string,
+      { age: 5, $condition: 'publish' },
+    );
+    expect(status).toBe(400);
+    expect(data.code).toBe('INVALID_CONDITION');
   });
 
   it('should handle concurrent withdraw with condition', async () => {

@@ -78,6 +78,8 @@ export const createMockEntityConfig = () => ({
     uniqueFields: ['username'],
     searchableFields: ['name', 'email'],
     authMethod: { email: { tokenExpiresIn: 3600000 } },
+    // Opted in so the legacy $where test suite can still exercise its mechanics.
+    allowLegacyWhere: true,
   }),
   [MockEntityType.PRODUCT]: createEntityConfig({
     name: MockEntityType.PRODUCT,
@@ -125,6 +127,8 @@ export const createMockEntityConfig = () => ({
     updateConditions: {
       publish: { status: { $eq: 'draft' } },
     },
+    // Opted in so the legacy $where test suite can still exercise its mechanics.
+    allowLegacyWhere: true,
   }),
   [MockEntityType.SESSION]: createEntityConfig({
     name: MockEntityType.SESSION,

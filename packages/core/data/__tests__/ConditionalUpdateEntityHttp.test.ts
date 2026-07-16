@@ -48,6 +48,7 @@ const patch = async (entityType: string, entityId: string, body: object): Promis
 
 const WALLET = MockEntityType.WALLET as unknown as EntityType;
 const USER = MockEntityType.USER as unknown as EntityType;
+const COURSE = MockEntityType.COURSE as unknown as EntityType;
 
 describe('HTTP — conditional updateEntity ($where body key)', () => {
   beforeAll(async () => {
@@ -533,6 +534,31 @@ describe('HTTP — conditional updateEntity ($where body key)', () => {
       );
       expect(status).toBe(400);
       expect(data.code).toBe('INVALID_CONDITION');
+    });
+  });
+
+  // ─── Group 10: allowLegacyWhere (security default) ────────────────────────
+
+  describe('Group 10: allowLegacyWhere disabled by default', () => {
+    it('10.1 — $where on an entity without allowLegacyWhere → 400 INVALID_CONDITION, update rejected', async () => {
+      const entity = await entityRepository.createEntity(COURSE, {});
+      const { status, data } = await patch(
+        MockEntityType.COURSE,
+        entity.entityId as string,
+        { $where: { anyField: { $exists: true } } },
+      );
+      expect(status).toBe(400);
+      expect(data.code).toBe('INVALID_CONDITION');
+    });
+
+    it('10.2 — $where on an entity with allowLegacyWhere: true is still accepted', async () => {
+      const entity = await entityRepository.createEntity(WALLET, { balance: 10 });
+      const { status, data } = await patch(MockEntityType.WALLET, entity.entityId as string, {
+        balance: 20,
+        $where: { balance: { $eq: 10 } },
+      });
+      expect(status).toBe(200);
+      expect(data.data.balance).toBe(20);
     });
   });
 

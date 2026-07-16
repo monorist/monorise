@@ -57,6 +57,7 @@ export default config;
 | `tags` | `array` | No | Tag access patterns (see [Tags](/concepts/tags)) |
 | `adjustmentConditions` | `object` | No | Named conditions for [`adjustEntity`](/react#adjustentity) — enforces preconditions on numeric adjustments |
 | `updateConditions` | `object` | No | Named conditions for [`editEntity`](/react#editentity) — enforces preconditions on updates |
+| `allowLegacyWhere` | `boolean` | No | Opt in to accepting raw `$where` on `editEntity` (deprecated, disabled by default — see [Conditional updates](/react#editentity)) |
 | `ttl` | `object` | No | DynamoDB TTL config — see [TTL](#ttl-time-to-live) below |
 
 ## Unique fields

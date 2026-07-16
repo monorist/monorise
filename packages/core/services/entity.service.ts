@@ -21,6 +21,13 @@ import {
   resolveUpdateCondition,
 } from './resolve-condition';
 
+const warnedOnce = new Set<string>();
+const deprecationWarnOnce = (key: string, message: string) => {
+  if (warnedOnce.has(key)) return;
+  warnedOnce.add(key);
+  console.warn(message);
+};
+
 export class EntityService {
   constructor(
     private EntityConfig: Record<
@@ -143,8 +150,16 @@ export class EntityService {
           return entity?.data ?? {};
         },
       });
+    } else if (condition) {
+      // Client sent $condition but this entity has no adjustmentConditions —
+      // mirrors updateEntity's handling of an unknown condition below.
+      throw new StandardError(
+        StandardErrorCode.INVALID_CONDITION,
+        `Entity '${entityType}' has no adjustmentConditions defined`,
+      );
     } else if (rawConstraints) {
-      console.warn(
+      deprecationWarnOnce(
+        'adjustmentConstraints',
         '[monorise] adjustmentConstraints is deprecated. Use adjustmentConditions instead.',
       );
       // Legacy adjustmentConstraints — backward compatibility
@@ -251,8 +266,17 @@ export class EntityService {
           },
         });
       } else if (where && Object.keys(where).length > 0) {
-        // Legacy $where — backward compatibility
-        console.warn(
+        // Legacy $where — disabled by default. Raw DynamoDB operators must
+        // never be client-facing (field probing via 200-vs-409 status codes),
+        // so this requires an explicit per-entity opt-in.
+        if (!this.EntityConfig[entityType]?.allowLegacyWhere) {
+          throw new StandardError(
+            StandardErrorCode.INVALID_CONDITION,
+            `Entity '${entityType}' has legacy $where disabled by default. Use named conditions via $condition, or set allowLegacyWhere: true to opt in (not recommended — re-exposes condition operators to clients).`,
+          );
+        }
+        deprecationWarnOnce(
+          'where',
           '[monorise] $where is deprecated. Use named conditions via $condition instead.',
         );
         opts = buildConditionExpression(where);

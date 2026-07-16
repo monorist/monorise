@@ -320,6 +320,10 @@ await editEntity(Entity.POST, postId, {
 
 `$condition` is always **optional** for `editEntity` — omitting it performs an unconditioned update (current behavior). If the condition is not met, the API returns a 409 Conflict error.
 
+::: warning
+`editEntity` also supports a legacy `$where` key that takes raw condition operators directly (e.g. `{ $where: { status: { $eq: 'draft' } } }`). It's deprecated and **disabled by default** — raw operators let a client probe field existence or values via the response status, which `$condition` is designed to prevent. Only enable it per-entity via `allowLegacyWhere: true` in that entity's config if you trust the caller.
+:::
+
 ### `adjustEntity`
 
 Safely increment or decrement numeric fields on an entity. Unlike `editEntity` which sets a field to a specific value, `adjustEntity` adds or subtracts a delta — meaning multiple concurrent adjustments never overwrite each other.
