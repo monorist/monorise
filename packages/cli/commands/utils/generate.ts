@@ -150,6 +150,22 @@ export enum Entity {}
           const targetName = fieldConfig.entityType as string;
           const entityEnumKey = targetName.toUpperCase().replace(/-/g, '_');
 
+          // Validate declared entities match how the mutual is actually wired,
+          // so the two can't silently drift apart.
+          const declaredEntities = fieldConfig.mutual.entities as
+            | [string, string]
+            | undefined;
+          if (
+            declaredEntities &&
+            [...declaredEntities].sort().join('::') !==
+              [config.name, targetName].sort().join('::')
+          ) {
+            throw new Error(
+              `Mutual config entities mismatch in ${file} (field: ${fieldKey}): ` +
+              `declared entities [${declaredEntities.join(', ')}] but wired as [${config.name}, ${targetName}].`,
+            );
+          }
+
           // Duplicate detection: normalize pair alphabetically
           const pairKey = [config.name, targetName].sort().join('::');
           const existing = seenMutualPairs.get(pairKey);

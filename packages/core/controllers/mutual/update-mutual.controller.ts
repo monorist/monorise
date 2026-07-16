@@ -1,7 +1,8 @@
 import type { Entity } from '@monorise/base';
 import { createMiddleware } from 'hono/factory';
 import httpStatus from 'http-status';
-import { StandardError } from '../../errors/standard-error';
+import { ZodError } from 'zod';
+import { StandardError, StandardErrorCode } from '../../errors/standard-error';
 import type { MutualService } from '../../services/mutual.service';
 
 export class UpdateMutualController {
@@ -33,8 +34,8 @@ export class UpdateMutualController {
       });
 
       return c.json(mutual);
-    } catch (err: any) {
-      if (err?.constructor?.name === 'ZodError') {
+    } catch (err) {
+      if (err instanceof ZodError) {
         c.status(httpStatus.BAD_REQUEST);
         return c.json({
           code: 'API_VALIDATION_ERROR',
@@ -43,18 +44,17 @@ export class UpdateMutualController {
         });
       }
 
-      if (err instanceof StandardError) {
+      if (
+        err instanceof StandardError &&
+        err.code === StandardErrorCode.MUTUAL_NOT_FOUND
+      ) {
         c.status(httpStatus.BAD_REQUEST);
         return c.json({
           ...err.toJSON(),
         });
       }
 
-      c.status(httpStatus.INTERNAL_SERVER_ERROR);
-      return c.json({
-        code: 'INTERNAL_SERVER_ERROR',
-        message: err?.message || 'An unexpected error occurred',
-      });
+      throw err;
     }
   });
 }
