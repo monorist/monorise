@@ -60,6 +60,7 @@ export const handler =
 
           const mutualDataProcessor =
             config.mutualDataProcessor ?? (() => ({}));
+          const mutualDataSchema = config.mutual?.mutualDataSchema;
 
           // Create a lock to prevent concurrent modifications
           await mutualRepository.createMutualLock({
@@ -104,6 +105,22 @@ export const handler =
             addedEntityIds,
             async (id) => {
               const entity = await entityRepository.getEntity(entityType, id);
+              const processedMutualData = mutualDataProcessor(
+                mutualIds,
+                new Mutual(
+                  byEntityType,
+                  byEntityId,
+                  byEntity.data,
+                  entityType,
+                  id,
+                  entity.data,
+                  {},
+                ),
+                customContext,
+              );
+              const parsedMutualData = mutualDataSchema
+                ? mutualDataSchema.parse(processedMutualData)
+                : processedMutualData;
               await mutualRepository.createMutual(
                 byEntityType,
                 byEntityId,
@@ -111,19 +128,7 @@ export const handler =
                 entityType,
                 id,
                 entity.data,
-                mutualDataProcessor(
-                  mutualIds,
-                  new Mutual(
-                    byEntityType,
-                    byEntityId,
-                    byEntity.data,
-                    entityType,
-                    id,
-                    entity.data,
-                    {},
-                  ),
-                  customContext,
-                ),
+                parsedMutualData,
                 {
                   ConditionExpression:
                     'attribute_not_exists(#mutualUpdatedAt) OR #mutualUpdatedAt < :publishedAt',
@@ -164,25 +169,29 @@ export const handler =
           const updateEntities = await processEntities(
             toUpdateEntityIds,
             async (id) => {
+              const processedMutualData = mutualDataProcessor(
+                mutualIds,
+                new Mutual(
+                  byEntityType,
+                  byEntityId,
+                  byEntity.data,
+                  entityType,
+                  id,
+                  {},
+                  {},
+                ),
+                customContext,
+              );
+              const parsedMutualData = mutualDataSchema
+                ? mutualDataSchema.parse(processedMutualData)
+                : processedMutualData;
               await mutualRepository.updateMutual(
                 byEntityType,
                 byEntityId,
                 entityType,
                 id,
                 {
-                  mutualData: mutualDataProcessor(
-                    mutualIds,
-                    new Mutual(
-                      byEntityType,
-                      byEntityId,
-                      byEntity.data,
-                      entityType,
-                      id,
-                      {},
-                      {},
-                    ),
-                    customContext,
-                  ),
+                  mutualData: parsedMutualData,
                   mutualUpdatedAt: publishedAt,
                 },
                 {

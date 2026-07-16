@@ -135,6 +135,7 @@ export class DependencyContainer {
   get mutualService(): MutualService {
     return this.createCachedInstance(
       MutualService,
+      this.config.EntityConfig,
       this.entityRepository,
       this.mutualRepository,
       this.publishEvent,

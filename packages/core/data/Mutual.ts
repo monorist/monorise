@@ -272,6 +272,13 @@ export class MutualRepository extends Repository {
       ProjectionExpression?: string;
     },
   ): Promise<Mutual<B, T, M>> {
+    console.log('[MONORISE_DEBUG] getMutual start:', {
+      byEntityType,
+      byEntityId,
+      entityType,
+      entityId,
+      opts,
+    });
     const mutual = new Mutual(
       byEntityType,
       byEntityId,
@@ -282,6 +289,11 @@ export class MutualRepository extends Repository {
       {},
     );
 
+    console.log('[MONORISE_DEBUG] getMutual querying:', {
+      byFullEntityId: mutual.byFullEntityId,
+      fullEntityId: mutual.fullEntityId,
+      tableName: this.TABLE_NAME,
+    });
     const resp = await this.dynamodbClient.query({
       TableName: this.TABLE_NAME,
       KeyConditionExpression: '#PK = :PK and begins_with(#SK, :SK)',
@@ -299,6 +311,11 @@ export class MutualRepository extends Repository {
       },
       Limit: 1,
     });
+    console.log('[MONORISE_DEBUG] getMutual query result:', {
+      hasItems: !!resp.Items?.length,
+      itemCount: resp.Items?.length ?? 0,
+      hasLastEvaluatedKey: !!resp.LastEvaluatedKey,
+    });
 
     let mutualMetadata: Mutual<B, T, M> | null = null;
     if (opts?.isFromMetadata) {
@@ -312,7 +329,17 @@ export class MutualRepository extends Repository {
       mutualMetadata = Mutual.fromItem(respMetadataMutual.Item);
     }
 
-    return mutualMetadata || Mutual.fromItem<B, T, M>(resp.Items?.[0]);
+    console.log('[MONORISE_DEBUG] getMutual fromItem:', {
+      hasMutualMetadata: !!mutualMetadata,
+      hasFirstItem: !!resp.Items?.[0],
+    });
+    const result = mutualMetadata || Mutual.fromItem<B, T, M>(resp.Items?.[0]);
+    console.log('[MONORISE_DEBUG] getMutual complete:', {
+      mutualId: result.mutualId,
+      byEntityType: result.byEntityType,
+      entityType: result.entityType,
+    });
+    return result;
   }
 
   async checkMutualExist<B extends Entity, T extends Entity>(
@@ -321,6 +348,12 @@ export class MutualRepository extends Repository {
     entityType: T,
     entityId: string,
   ): Promise<void> {
+    console.log('[MONORISE_DEBUG] checkMutualExist:', {
+      byEntityType,
+      byEntityId,
+      entityType,
+      entityId,
+    });
     const mutual = new Mutual(
       byEntityType,
       byEntityId,
@@ -334,6 +367,10 @@ export class MutualRepository extends Repository {
       TableName: this.TABLE_NAME,
       Key: mutual.subKeys(),
       ProjectionExpression: 'PK, SK, expiresAt',
+    });
+    console.log('[MONORISE_DEBUG] checkMutualExist result:', {
+      hasItem: !!resp.Item,
+      hasExpiresAt: !!resp.Item?.expiresAt,
     });
 
     if (resp.Item && !resp.Item?.expiresAt) {
@@ -358,6 +395,14 @@ export class MutualRepository extends Repository {
       ExpressionAttributeValues?: Record<string, AttributeValue>;
     },
   ): TransactWriteItem[] {
+    console.log('[MONORISE_DEBUG] createMutualTransactItems:', {
+      mutualId: mutual.mutualId,
+      byEntityType: mutual.byEntityType,
+      byEntityId: mutual.byEntityId,
+      entityType: mutual.entityType,
+      entityId: mutual.entityId,
+      hasOpts: !!opts,
+    });
     const TransactItems: TransactWriteItem[] = [
       {
         Put: {
@@ -481,10 +526,19 @@ export class MutualRepository extends Repository {
       maxObjectUpdateLevel?: number;
     },
   ): Promise<Mutual<B, T, M> | undefined> {
+    console.log('[MONORISE_DEBUG] updateMutual repository start:', {
+      byEntityType,
+      byEntityId,
+      entityType,
+      entityId,
+      toUpdateKeys: Object.keys(toUpdate),
+      opts,
+    });
     const returnUpdatedValue = opts?.returnUpdatedValue ?? false;
     const errorContext: Record<string, unknown> = {};
 
     try {
+      console.log('[MONORISE_DEBUG] updateMutual fetching mutual...');
       const mutual = await this.getMutual<B, T, M>(
         byEntityType,
         byEntityId,
@@ -492,6 +546,12 @@ export class MutualRepository extends Repository {
         entityId,
         { ProjectionExpression: PROJECTION_EXPRESSION.NO_DATA },
       );
+      console.log('[MONORISE_DEBUG] updateMutual mutual found:', {
+        mutualId: mutual.mutualId,
+        mainPk: mutual.mainPk,
+        byFullEntityId: mutual.byFullEntityId,
+        fullEntityId: mutual.fullEntityId,
+      });
 
       const currentDatetime = new Date().toISOString();
       const toUpdateExpressions = this.toUpdate(
@@ -501,6 +561,12 @@ export class MutualRepository extends Repository {
         },
         { maxLevel: opts?.maxObjectUpdateLevel },
       );
+      console.log('[MONORISE_DEBUG] updateMutual update expression:', {
+        UpdateExpression: toUpdateExpressions.UpdateExpression,
+        ExpressionAttributeNames: toUpdateExpressions.ExpressionAttributeNames,
+        hasExpressionAttributeValues: !!toUpdateExpressions.ExpressionAttributeValues,
+      });
+      
       const updateExpression = {
         ConditionExpression:
           opts?.ConditionExpression || 'attribute_exists(PK)',
@@ -545,22 +611,37 @@ export class MutualRepository extends Repository {
         },
       ];
       errorContext.TransactItems = TransactItems;
+      console.log('[MONORISE_DEBUG] updateMutual transact items prepared:', {
+        itemCount: TransactItems.length,
+        tableName: this.TABLE_NAME,
+      });
 
+      console.log('[MONORISE_DEBUG] updateMutual executing transaction...');
       await this.ddbUtils.executeTransactWrite({ TransactItems });
+      console.log('[MONORISE_DEBUG] updateMutual transaction succeeded');
 
       if (!returnUpdatedValue) {
+        console.log('[MONORISE_DEBUG] updateMutual returning (no value)');
         return;
       }
 
+      console.log('[MONORISE_DEBUG] updateMutual fetching updated mutual...');
       const updatedMutual = await this.getMutual<B, T, M>(
         byEntityType,
         byEntityId,
         entityType,
         entityId,
       );
+      console.log('[MONORISE_DEBUG] updateMutual repository complete');
 
       return updatedMutual;
     } catch (err) {
+      console.error('[MONORISE_DEBUG] updateMutual repository error:', {
+        errorName: (err as any)?.constructor?.name,
+        errorMessage: (err as any)?.message,
+        errorCode: (err as any)?.code,
+        isStandardError: err instanceof StandardError,
+      });
       if (
         err instanceof StandardError &&
         err.code === StandardErrorCode.CONDITIONAL_CHECK_FAILED
