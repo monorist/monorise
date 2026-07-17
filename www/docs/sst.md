@@ -29,6 +29,7 @@ const { monorise } = await import('monorise/sst');
 
 const { bus, api, table, alarmTopic } = new monorise.module.Core('core', {
   allowOrigins: ['http://localhost:3000'],
+  cloudwatchLogRetention: '1 week',
 });
 ```
 
@@ -45,6 +46,9 @@ new MonoriseCore(id: string, args?: MonoriseCoreArgs)
 | `allowHeaders` | `string[]` | `['Content-Type', 'Authorization']` | Additional CORS headers |
 | `slackWebhook` | `string` | — | Slack webhook URL for DLQ alerts |
 | `configRoot` | `string` | — | Custom root path for monorise config |
+| `cloudwatchLogRetention` | `sst.aws.FunctionArgs['logging']['retention']` | `'1 month'` | CloudWatch log retention period for Monorise-owned Lambda functions |
+
+`cloudwatchLogRetention` is passed to SST's Lambda logging configuration for the API handler, replication processor, and built-in event processors. It accepts SST's supported retention values, for example `'1 day'`, `'1 week'`, `'1 month'`, `'1 year'`, or `'forever'`.
 
 ### Exposed resources
 
