@@ -4,12 +4,17 @@ import { createFunctionWidgets } from './dashboard';
 import { QFunction } from './q-function';
 import { SingleTable } from './single-table';
 
+type CloudWatchLogRetention = NonNullable<
+  Extract<sst.aws.FunctionArgs['logging'], { retention?: unknown }>['retention']
+>;
+
 type MonoriseCoreArgs = {
   fromTableName?: $util.Input<string>;
   slackWebhook?: string;
   allowHeaders?: string[];
   allowOrigins?: string[];
   configRoot?: string;
+  cloudwatchLogRetention?: CloudWatchLogRetention;
   cloudwatchDashboard?: {
     enabled?: boolean;
   };
@@ -28,6 +33,9 @@ export class MonoriseCore {
       ? `--config-root ${args.configRoot}`
       : '';
     const dotMonorisePath = path.join(args?.configRoot ?? '', '.monorise');
+    const logging = args?.cloudwatchLogRetention
+      ? { retention: args.cloudwatchLogRetention }
+      : undefined;
 
     new sst.x.DevCommand('Monorise', {
       dev: {
@@ -56,6 +64,7 @@ export class MonoriseCore {
       runtime,
       configRoot: args?.configRoot,
       fromTableName: args?.fromTableName,
+      logging,
     });
 
     const secretApiKeys = new sst.Secret('API_KEYS', '["secret1", "secret2"]');
@@ -70,6 +79,7 @@ export class MonoriseCore {
         CORE_TABLE: this.table.table.name,
         CORE_EVENT_BUS: this.bus.name,
       },
+      logging,
     });
 
     this.alarmTopic = new sst.aws.SnsTopic(`${id}-monorise-dlq-alarm-topic`);
@@ -96,6 +106,7 @@ export class MonoriseCore {
       runtime,
       environment,
       link: [this.table.table, this.bus],
+      logging,
     });
 
     const tagProcessor = new QFunction('tag', {
@@ -108,6 +119,7 @@ export class MonoriseCore {
       runtime,
       environment,
       link: [this.table.table],
+      logging,
     });
 
     const treeProcessor = new QFunction('tree', {
@@ -120,6 +132,7 @@ export class MonoriseCore {
       runtime,
       environment,
       link: [this.table.table],
+      logging,
     });
 
     this.bus.subscribeQueue(`${id}-mutual-queue-rule`, mutualProcessor.queue, {

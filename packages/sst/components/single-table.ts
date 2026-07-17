@@ -6,6 +6,7 @@ import {
 
 type SingleTableArgs = {
   runtime?: sst.aws.FunctionArgs['runtime'];
+  logging?: sst.aws.FunctionArgs['logging'];
   configRoot?: string;
   /**
    * Name of an existing DynamoDB table to use instead of creating a new one.
@@ -83,6 +84,7 @@ export class SingleTable {
         timeout: '60 seconds',
         memory: '512 MB',
         runtime: args?.runtime,
+        logging: args?.logging,
         environment,
         link: [this.table, this.dlq],
       },
