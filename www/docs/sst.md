@@ -45,6 +45,17 @@ new MonoriseCore(id: string, args?: MonoriseCoreArgs)
 | `allowHeaders` | `string[]` | `['Content-Type', 'Authorization']` | Additional CORS headers |
 | `slackWebhook` | `string` | — | Slack webhook URL for DLQ alerts |
 | `configRoot` | `string` | — | Custom root path for monorise config |
+| `cloudwatchDashboard` | `{ enabled?: boolean }` | `{ enabled: true }` | Built-in CloudWatch dashboard. Disable to skip creating it |
+
+`cloudwatchDashboard` controls whether the built-in CloudWatch dashboard is created. It defaults to enabled for backward compatibility, but short-lived stages (test, personal dev) rarely need a dashboard and each one adds cost, so a common pattern is to enable it only for production:
+
+```ts
+const { bus, api, table, alarmTopic } = new monorise.module.Core('core', {
+  cloudwatchDashboard: { enabled: $app.stage === 'production' },
+});
+```
+
+Disabling it on a stage where the dashboard already exists will destroy the dashboard on the next deploy.
 
 ### Exposed resources
 
@@ -82,7 +93,7 @@ Under the hood, `MonoriseCore` creates:
 - **EventBridge bus** for publishing entity events
 - **3 QFunction processors** (mutual, tag, prejoin) — each with SQS queue, Lambda, DLQ, and CloudWatch alarm
 - **Replication processor** — DynamoDB stream subscriber that keeps denormalized data in sync
-- **CloudWatch dashboard** with metrics for all Lambda functions, DLQ depths, and a link to DynamoDB table monitoring
+- **CloudWatch dashboard** with metrics for all Lambda functions, DLQ depths, and a link to DynamoDB table monitoring (can be disabled via `cloudwatchDashboard`)
 - **SST DevCommand** — automatically runs `monorise dev` in watch mode during `sst dev`
 
 ### DynamoDB table structure
