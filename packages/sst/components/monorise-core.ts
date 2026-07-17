@@ -4,30 +4,9 @@ import { createFunctionWidgets } from './dashboard';
 import { QFunction } from './q-function';
 import { SingleTable } from './single-table';
 
-type CloudWatchLogRetention =
-  | '1 day'
-  | '3 days'
-  | '5 days'
-  | '1 week'
-  | '2 weeks'
-  | '1 month'
-  | '2 months'
-  | '3 months'
-  | '4 months'
-  | '5 months'
-  | '6 months'
-  | '1 year'
-  | '13 months'
-  | '18 months'
-  | '2 years'
-  | '3 years'
-  | '5 years'
-  | '6 years'
-  | '7 years'
-  | '8 years'
-  | '9 years'
-  | '10 years'
-  | 'forever';
+type CloudWatchLogRetention = NonNullable<
+  Extract<sst.aws.FunctionArgs['logging'], { retention?: unknown }>['retention']
+>;
 
 type MonoriseCoreArgs = {
   fromTableName?: $util.Input<string>;
@@ -35,7 +14,10 @@ type MonoriseCoreArgs = {
   allowHeaders?: string[];
   allowOrigins?: string[];
   configRoot?: string;
-  cloudwatchLogRetention?: $util.Input<CloudWatchLogRetention>;
+  cloudwatchLogRetention?: CloudWatchLogRetention;
+  cloudwatchDashboard?: {
+    enabled?: boolean;
+  };
 };
 
 export class MonoriseCore {
@@ -186,69 +168,71 @@ export class MonoriseCore {
     /**
      * CloudWatch Dashboard
      */
-    new aws.cloudwatch.Dashboard(`${id}-monorise-dashboard`, {
-      dashboardName: `${$app.stage}-${$app.name}-${id}-monorise`,
-      dashboardBody: $resolve([
-        aws.getRegionOutput().name,
-        this.table.table.name,
-        mutualProcessor.dlq.nodes.queue.name,
-        tagProcessor.dlq.nodes.queue.name,
-        treeProcessor.dlq.nodes.queue.name,
-        this.table.dlq.nodes.queue.name,
-      ]).apply(
-        ([region, tableName, mutualDlq, tagDlq, treeDlq, replicatorDlq]) => {
-          const dynamoDbUrl = `https://${region}.console.aws.amazon.com/dynamodbv2/home?region=${region}#table?name=${tableName}&tab=monitoring`;
+    if (args?.cloudwatchDashboard?.enabled !== false) {
+      new aws.cloudwatch.Dashboard(`${id}-monorise-dashboard`, {
+        dashboardName: `${$app.stage}-${$app.name}-${id}-monorise`,
+        dashboardBody: $resolve([
+          aws.getRegionOutput().name,
+          this.table.table.name,
+          mutualProcessor.dlq.nodes.queue.name,
+          tagProcessor.dlq.nodes.queue.name,
+          treeProcessor.dlq.nodes.queue.name,
+          this.table.dlq.nodes.queue.name,
+        ]).apply(
+          ([region, tableName, mutualDlq, tagDlq, treeDlq, replicatorDlq]) => {
+            const dynamoDbUrl = `https://${region}.console.aws.amazon.com/dynamodbv2/home?region=${region}#table?name=${tableName}&tab=monitoring`;
 
-          return JSON.stringify({
-            widgets: [
-              {
-                type: 'text',
-                x: 0,
-                y: 0,
-                width: 24,
-                height: 2,
-                properties: {
-                  markdown: `### Related Resources\n[View DynamoDB Table Metrics](${dynamoDbUrl})`,
+            return JSON.stringify({
+              widgets: [
+                {
+                  type: 'text',
+                  x: 0,
+                  y: 0,
+                  width: 24,
+                  height: 2,
+                  properties: {
+                    markdown: `### Related Resources\n[View DynamoDB Table Metrics](${dynamoDbUrl})`,
+                  },
                 },
-              },
-              ...createFunctionWidgets(
-                'API Handler',
-                appHandlerName,
-                2,
-                region,
-              ),
-              ...createFunctionWidgets(
-                'Replicator',
-                this.table.replicatorFunctionName,
-                9,
-                region,
-                replicatorDlq,
-              ),
-              ...createFunctionWidgets(
-                'Mutual Processor',
-                mutualProcessorName,
-                16,
-                region,
-                mutualDlq,
-              ),
-              ...createFunctionWidgets(
-                'Tag Processor',
-                tagProcessorName,
-                23,
-                region,
-                tagDlq,
-              ),
-              ...createFunctionWidgets(
-                'Tree Processor',
-                treeProcessorName,
-                30,
-                region,
-                treeDlq,
-              ),
-            ],
-          });
-        },
-      ),
-    });
+                ...createFunctionWidgets(
+                  'API Handler',
+                  appHandlerName,
+                  2,
+                  region,
+                ),
+                ...createFunctionWidgets(
+                  'Replicator',
+                  this.table.replicatorFunctionName,
+                  9,
+                  region,
+                  replicatorDlq,
+                ),
+                ...createFunctionWidgets(
+                  'Mutual Processor',
+                  mutualProcessorName,
+                  16,
+                  region,
+                  mutualDlq,
+                ),
+                ...createFunctionWidgets(
+                  'Tag Processor',
+                  tagProcessorName,
+                  23,
+                  region,
+                  tagDlq,
+                ),
+                ...createFunctionWidgets(
+                  'Tree Processor',
+                  treeProcessorName,
+                  30,
+                  region,
+                  treeDlq,
+                ),
+              ],
+            });
+          },
+        ),
+      });
+    }
   }
 }
