@@ -236,6 +236,7 @@ new monorise.module.Core('core', {
   allowHeaders: ['x-custom-header'],     // Additional CORS headers
   slackWebhook: 'https://hooks...',     // Slack alerts for processor errors
   configRoot: './services/api',          // Custom config root path
+  cloudwatchDashboard: { enabled: $app.stage === 'production' },  // Dashboard only on prod
 });
 ```
 

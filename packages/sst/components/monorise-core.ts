@@ -10,6 +10,9 @@ type MonoriseCoreArgs = {
   allowHeaders?: string[];
   allowOrigins?: string[];
   configRoot?: string;
+  cloudwatchDashboard?: {
+    enabled?: boolean;
+  };
 };
 
 export class MonoriseCore {
@@ -152,69 +155,71 @@ export class MonoriseCore {
     /**
      * CloudWatch Dashboard
      */
-    new aws.cloudwatch.Dashboard(`${id}-monorise-dashboard`, {
-      dashboardName: `${$app.stage}-${$app.name}-${id}-monorise`,
-      dashboardBody: $resolve([
-        aws.getRegionOutput().name,
-        this.table.table.name,
-        mutualProcessor.dlq.nodes.queue.name,
-        tagProcessor.dlq.nodes.queue.name,
-        treeProcessor.dlq.nodes.queue.name,
-        this.table.dlq.nodes.queue.name,
-      ]).apply(
-        ([region, tableName, mutualDlq, tagDlq, treeDlq, replicatorDlq]) => {
-          const dynamoDbUrl = `https://${region}.console.aws.amazon.com/dynamodbv2/home?region=${region}#table?name=${tableName}&tab=monitoring`;
+    if (args?.cloudwatchDashboard?.enabled !== false) {
+      new aws.cloudwatch.Dashboard(`${id}-monorise-dashboard`, {
+        dashboardName: `${$app.stage}-${$app.name}-${id}-monorise`,
+        dashboardBody: $resolve([
+          aws.getRegionOutput().name,
+          this.table.table.name,
+          mutualProcessor.dlq.nodes.queue.name,
+          tagProcessor.dlq.nodes.queue.name,
+          treeProcessor.dlq.nodes.queue.name,
+          this.table.dlq.nodes.queue.name,
+        ]).apply(
+          ([region, tableName, mutualDlq, tagDlq, treeDlq, replicatorDlq]) => {
+            const dynamoDbUrl = `https://${region}.console.aws.amazon.com/dynamodbv2/home?region=${region}#table?name=${tableName}&tab=monitoring`;
 
-          return JSON.stringify({
-            widgets: [
-              {
-                type: 'text',
-                x: 0,
-                y: 0,
-                width: 24,
-                height: 2,
-                properties: {
-                  markdown: `### Related Resources\n[View DynamoDB Table Metrics](${dynamoDbUrl})`,
+            return JSON.stringify({
+              widgets: [
+                {
+                  type: 'text',
+                  x: 0,
+                  y: 0,
+                  width: 24,
+                  height: 2,
+                  properties: {
+                    markdown: `### Related Resources\n[View DynamoDB Table Metrics](${dynamoDbUrl})`,
+                  },
                 },
-              },
-              ...createFunctionWidgets(
-                'API Handler',
-                appHandlerName,
-                2,
-                region,
-              ),
-              ...createFunctionWidgets(
-                'Replicator',
-                this.table.replicatorFunctionName,
-                9,
-                region,
-                replicatorDlq,
-              ),
-              ...createFunctionWidgets(
-                'Mutual Processor',
-                mutualProcessorName,
-                16,
-                region,
-                mutualDlq,
-              ),
-              ...createFunctionWidgets(
-                'Tag Processor',
-                tagProcessorName,
-                23,
-                region,
-                tagDlq,
-              ),
-              ...createFunctionWidgets(
-                'Tree Processor',
-                treeProcessorName,
-                30,
-                region,
-                treeDlq,
-              ),
-            ],
-          });
-        },
-      ),
-    });
+                ...createFunctionWidgets(
+                  'API Handler',
+                  appHandlerName,
+                  2,
+                  region,
+                ),
+                ...createFunctionWidgets(
+                  'Replicator',
+                  this.table.replicatorFunctionName,
+                  9,
+                  region,
+                  replicatorDlq,
+                ),
+                ...createFunctionWidgets(
+                  'Mutual Processor',
+                  mutualProcessorName,
+                  16,
+                  region,
+                  mutualDlq,
+                ),
+                ...createFunctionWidgets(
+                  'Tag Processor',
+                  tagProcessorName,
+                  23,
+                  region,
+                  tagDlq,
+                ),
+                ...createFunctionWidgets(
+                  'Tree Processor',
+                  treeProcessorName,
+                  30,
+                  region,
+                  treeDlq,
+                ),
+              ],
+            });
+          },
+        ),
+      });
+    }
   }
 }
