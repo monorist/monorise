@@ -4,12 +4,38 @@ import { createFunctionWidgets } from './dashboard';
 import { QFunction } from './q-function';
 import { SingleTable } from './single-table';
 
+type CloudWatchLogRetention =
+  | '1 day'
+  | '3 days'
+  | '5 days'
+  | '1 week'
+  | '2 weeks'
+  | '1 month'
+  | '2 months'
+  | '3 months'
+  | '4 months'
+  | '5 months'
+  | '6 months'
+  | '1 year'
+  | '13 months'
+  | '18 months'
+  | '2 years'
+  | '3 years'
+  | '5 years'
+  | '6 years'
+  | '7 years'
+  | '8 years'
+  | '9 years'
+  | '10 years'
+  | 'forever';
+
 type MonoriseCoreArgs = {
   fromTableName?: $util.Input<string>;
   slackWebhook?: string;
   allowHeaders?: string[];
   allowOrigins?: string[];
   configRoot?: string;
+  cloudwatchLogRetention?: $util.Input<CloudWatchLogRetention>;
 };
 
 export class MonoriseCore {
@@ -25,6 +51,9 @@ export class MonoriseCore {
       ? `--config-root ${args.configRoot}`
       : '';
     const dotMonorisePath = path.join(args?.configRoot ?? '', '.monorise');
+    const logging = args?.cloudwatchLogRetention
+      ? { retention: args.cloudwatchLogRetention }
+      : undefined;
 
     new sst.x.DevCommand('Monorise', {
       dev: {
@@ -53,6 +82,7 @@ export class MonoriseCore {
       runtime,
       configRoot: args?.configRoot,
       fromTableName: args?.fromTableName,
+      logging,
     });
 
     const secretApiKeys = new sst.Secret('API_KEYS', '["secret1", "secret2"]');
@@ -67,6 +97,7 @@ export class MonoriseCore {
         CORE_TABLE: this.table.table.name,
         CORE_EVENT_BUS: this.bus.name,
       },
+      logging,
     });
 
     this.alarmTopic = new sst.aws.SnsTopic(`${id}-monorise-dlq-alarm-topic`);
@@ -93,6 +124,7 @@ export class MonoriseCore {
       runtime,
       environment,
       link: [this.table.table, this.bus],
+      logging,
     });
 
     const tagProcessor = new QFunction('tag', {
@@ -105,6 +137,7 @@ export class MonoriseCore {
       runtime,
       environment,
       link: [this.table.table],
+      logging,
     });
 
     const treeProcessor = new QFunction('tree', {
@@ -117,6 +150,7 @@ export class MonoriseCore {
       runtime,
       environment,
       link: [this.table.table],
+      logging,
     });
 
     this.bus.subscribeQueue(`${id}-mutual-queue-rule`, mutualProcessor.queue, {
