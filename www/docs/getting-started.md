@@ -232,9 +232,9 @@ export default $config({
 
 ```ts
 new monorise.module.Core('core', {
-  allowOrigins: ['https://myapp.com'],  // CORS origins
+  allowOrigins: ['https://myapp.com'],   // CORS origins
   allowHeaders: ['x-custom-header'],     // Additional CORS headers
-  slackWebhook: 'https://hooks...',     // Slack alerts for processor errors
+  slackWebhook: 'https://hooks...',      // Slack alerts for processor errors
   configRoot: './services/api',          // Custom config root path
   cloudwatchDashboard: { enabled: $app.stage === 'production' },  // Dashboard only on prod
 });
