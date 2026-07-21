@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { EVENT, SOURCE } from '../constants/event';
 import { createFunctionWidgets } from './dashboard';
+import { Analytics, type AnalyticsArgs } from './analytics';
 import { QFunction } from './q-function';
 import { SingleTable } from './single-table';
 
@@ -8,7 +9,7 @@ type CloudWatchLogRetention = NonNullable<
   Extract<sst.aws.FunctionArgs['logging'], { retention?: unknown }>['retention']
 >;
 
-type MonoriseCoreArgs = {
+export type MonoriseCoreArgs = {
   fromTableName?: $util.Input<string>;
   slackWebhook?: string;
   allowHeaders?: string[];
@@ -18,6 +19,8 @@ type MonoriseCoreArgs = {
   cloudwatchDashboard?: {
     enabled?: boolean;
   };
+  /** Disabled by default. Requires `.monorise/analytics-manifest.json`. */
+  analytics?: AnalyticsArgs;
 };
 
 export class MonoriseCore {
@@ -26,6 +29,7 @@ export class MonoriseCore {
   public readonly bus: sst.aws.Bus;
   public readonly table: SingleTable;
   public readonly alarmTopic: sst.aws.SnsTopic;
+  public readonly analytics?: Analytics;
 
   constructor(id: string, args?: MonoriseCoreArgs) {
     const runtime: sst.aws.FunctionArgs['runtime'] = 'nodejs22.x';
@@ -83,6 +87,25 @@ export class MonoriseCore {
     });
 
     this.alarmTopic = new sst.aws.SnsTopic(`${id}-monorise-dlq-alarm-topic`);
+
+    if (args?.analytics?.enabled !== false && args?.analytics) {
+      if (
+        args.fromTableName &&
+        args.analytics.importedTable?.pointInTimeRecoveryEnabled !== true
+      ) {
+        throw new Error(
+          'Analytics backfill requires point-in-time recovery on fromTableName. Enable it on the imported table and set analytics.importedTable.pointInTimeRecoveryEnabled to true.',
+        );
+      }
+      this.analytics = new Analytics(
+        id,
+        args.analytics,
+        this.table.table,
+        this.alarmTopic,
+        args.configRoot,
+        logging,
+      );
+    }
 
     const environment = {
       CORE_TABLE: this.table.table.name,

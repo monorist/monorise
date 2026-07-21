@@ -7,6 +7,12 @@ import { TagRepository } from './data/Tag';
 import { StandardError, StandardErrorCode } from './errors/standard-error';
 import { appHandler } from './handles/app';
 import { handler as createEntityProcessor } from './processors/create-entity-processor';
+import { handler as analyticsProcessor } from './processors/analytics-processor';
+import {
+  handler as analyticsBackfillProcessor,
+  startBackfill as startAnalyticsBackfill,
+} from './processors/analytics-backfill-processor';
+import { handler as analyticsMaterializationProcessor } from './processors/analytics-materialization-processor';
 import { handler as mutualProcessor } from './processors/mutual-processor';
 import { handler as prejoinProcessor } from './processors/prejoin-processor';
 import { handler as replicationProcessor } from './processors/replication-processor';
@@ -22,6 +28,8 @@ class CoreFactory {
   public mutualProcessor: ReturnType<typeof mutualProcessor>;
   public replicationProcessor: ReturnType<typeof replicationProcessor>;
   public createEntityProcessor: ReturnType<typeof createEntityProcessor>;
+  public analyticsProcessor: ReturnType<typeof analyticsProcessor>;
+  public analyticsBackfillProcessor: ReturnType<typeof analyticsBackfillProcessor>;
   public prejoinProcessor: ReturnType<typeof prejoinProcessor>;
   public tagProcessor: ReturnType<typeof tagProcessor>;
   public appHandler: ReturnType<typeof appHandler>;
@@ -41,6 +49,8 @@ class CoreFactory {
     this.mutualProcessor = mutualProcessor(dependencyContainer);
     this.replicationProcessor = replicationProcessor(dependencyContainer);
     this.createEntityProcessor = createEntityProcessor(dependencyContainer);
+    this.analyticsProcessor = analyticsProcessor(this.config.EntityConfig);
+    this.analyticsBackfillProcessor = analyticsBackfillProcessor(this.config.EntityConfig);
     this.prejoinProcessor = prejoinProcessor(dependencyContainer);
     this.tagProcessor = tagProcessor(dependencyContainer);
     this.appHandler = appHandler(dependencyContainer);
@@ -58,6 +68,10 @@ export {
   TagRepository,
   PROJECTION_EXPRESSION,
   createEntityProcessor,
+  analyticsProcessor,
+  analyticsBackfillProcessor,
+  analyticsMaterializationProcessor,
+  startAnalyticsBackfill,
   mutualProcessor,
   prejoinProcessor,
   replicationProcessor,

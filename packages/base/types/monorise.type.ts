@@ -25,6 +25,11 @@ export interface EntitySchemaMap {
 export interface MutualConfig<
   MD extends z.ZodRawShape = z.ZodRawShape,
 > {
+  /**
+   * Stable analytics dataset name. When provided, it must be lower-kebab-case;
+   * the generator validates this so unnamed mutuals remain backwards compatible.
+   */
+  name?: string;
   entities: [Entity, Entity];
   mutualDataSchema: z.ZodObject<MD>;
 }

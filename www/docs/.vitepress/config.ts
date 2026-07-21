@@ -39,6 +39,7 @@ export default defineConfig({
           { text: 'Design Philosophy', link: '/concepts/' },
           { text: 'Entities', link: '/concepts/entities' },
           { text: 'Mutuals', link: '/concepts/mutuals' },
+          { text: 'Analytics', link: '/concepts/analytics' },
           { text: 'Tags', link: '/concepts/tags' },
           { text: 'Tree Processors', link: '/concepts/prejoins' },
         ],
