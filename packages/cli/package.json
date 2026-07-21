@@ -15,7 +15,8 @@
   },
   "scripts": {
     "build": "tsup && chmod +x dist/cli.js",
-    "dev": "tsup --watch"
+    "dev": "tsup --watch",
+    "test": "tsx --test commands/**/*.test.ts"
   },
   "keywords": [],
   "author": "",

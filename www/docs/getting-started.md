@@ -214,6 +214,29 @@ export default $config({
 });
 ```
 
+### Enable Athena analytics
+
+After defining your entity configs and any mutual configs, generate the analytics manifest and enable analytics in the core construct:
+
+```bash
+npx monorise build
+```
+
+```ts
+const { monorise } = await import('monorise/sst');
+
+new monorise.module.Core('core', {
+  allowOrigins: ['http://localhost:3000'],
+  analytics: {
+    fields: {
+      omit: ['passwordHash'],
+    },
+  },
+});
+```
+
+Analytics is opt-in. It creates Athena-queryable current-state and history tables for configured entities and named mutuals, backfills existing state with `SNAPSHOT` events, and refreshes current state daily. Tables imported with `fromTableName` need DynamoDB point-in-time recovery enabled and `analytics.importedTable: { pointInTimeRecoveryEnabled: true }` before deployment. See [Analytics](/concepts/analytics) for table names, partitions, retention, and migration rules.
+
 ### What `monorise.module.Core` creates
 
 | Resource | Description |
@@ -226,6 +249,7 @@ export default $config({
 | Tag processor | SQS + Lambda for tag index sync |
 | Prejoin processor | SQS + Lambda for computed relationship sync |
 | Replication processor | DynamoDB stream + Lambda for denormalized data sync |
+| Analytics delivery (when enabled) | DynamoDB stream capture, Firehose-to-S3 history, and daily Athena materialization |
 | CloudWatch dashboard | Pre-built dashboard with Lambda metrics, DLQ depth, and table stats |
 
 ### Configuration options

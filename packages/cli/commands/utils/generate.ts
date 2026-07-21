@@ -1,5 +1,11 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  createAnalyticsManifest,
+  validateSchemaEvolution,
+  type AnalyticsConfig,
+  type AnalyticsManifest,
+} from './analytics-manifest';
 import { detectCombinedPackage } from './detect-package';
 
 function kebabToCamel(str: string): string {
@@ -82,6 +88,7 @@ export enum Entity {}
   const schemaEntries: string[] = [];
   const allowedEntityEntries: string[] = [];
   const entityWithEmailAuthEntries: string[] = [];
+  const analyticsConfigs: AnalyticsConfig[] = [];
 
   // Track mutual pairs for MutualDataMapping codegen and duplicate detection
   // Each entry: { byEnumKey, entityEnumKey, variableName, fieldKey, mutualRef }
@@ -116,6 +123,7 @@ export enum Entity {}
       throw new Error(`Duplicate name found: ${config.name} in ${file}`);
     }
     names.add(config.name);
+    analyticsConfigs.push(config as AnalyticsConfig);
 
     const fileName = file.replace(/\.ts$/, '');
     const variableName = kebabToCamel(fileName);
@@ -262,6 +270,15 @@ ${generateMutualDataMappingDeclarations(mutualPairs)}
 `;
 
   fs.writeFileSync(configOutputPath, configOutputContent);
+  const analyticsManifestPath = path.join(monoriseOutputDir, 'analytics-manifest.json');
+  const analyticsManifest = createAnalyticsManifest(analyticsConfigs);
+  if (fs.existsSync(analyticsManifestPath)) {
+    validateSchemaEvolution(
+      JSON.parse(fs.readFileSync(analyticsManifestPath, 'utf8')) as AnalyticsManifest,
+      analyticsManifest,
+    );
+  }
+  fs.writeFileSync(analyticsManifestPath, `${JSON.stringify(analyticsManifest, null, 2)}\n`);
   console.log('Successfully generated config.ts!');
   return configOutputPath;
 }
@@ -324,20 +341,20 @@ async function generateHandleFile(
   const coreImportPath = usesCombinedPackage ? 'monorise/core' : '@monorise/core';
 
   const combinedContent = `
-import { AppHandler, CoreFactory } from '${coreImportPath}';
+import CoreFactory, { analyticsMaterializationProcessor } from '${coreImportPath}';
 import config from './config';
 import routes from '${relativePathToRoutes}';
 
 const coreFactory = new CoreFactory(config);
 
 export const replicationHandler = coreFactory.replicationProcessor;
+export const analyticsHandler = coreFactory.analyticsProcessor;
+export const analyticsBackfillHandler = coreFactory.analyticsBackfillProcessor;
+export const analyticsMaterializationHandler = analyticsMaterializationProcessor;
 export const mutualHandler = coreFactory.mutualProcessor;
 export const tagHandler = coreFactory.tagProcessor;
-export const treeHandler = coreFactory.treeProcessor;
-export const appHandler = AppHandler({
-  config,
-  routes
-});
+export const treeHandler = coreFactory.prejoinProcessor;
+export const appHandler = coreFactory.appHandler({ routes });
 `;
   fs.writeFileSync(handleOutputPath, combinedContent);
   console.log('Successfully generated handle.ts!');

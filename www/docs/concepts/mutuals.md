@@ -212,6 +212,7 @@ import { createMutualConfig } from 'monorise/base';
 
 // Define once
 const enrollmentMutual = createMutualConfig({
+  name: 'enrollment',
   entities: [Entity.STUDENT, Entity.COURSE],
   mutualDataSchema: z.object({
     role: z.enum(['student', 'auditor']),
@@ -219,6 +220,12 @@ const enrollmentMutual = createMutualConfig({
   }),
 });
 ```
+
+### Naming mutuals for analytics
+
+`name` is optional for ordinary mutual usage. When Athena analytics is enabled, every exported mutual relationship must reference a named mutual config. Names must be lower-kebab-case and become stable analytics dataset names: `name: 'enrollment'` creates `enrollment_mutuals` for current state and `enrollment_mutual_changes` for history.
+
+Names are normalized for SQL identifiers, so they must also be unique after normalization. Analytics validation fails at generation or deployment when a name is invalid, collides with another dataset name, or an exported mutual has no name. Use the same named `createMutualConfig` instance from both sides of the relationship.
 
 ### Referencing from entity configs
 
