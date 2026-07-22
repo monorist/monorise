@@ -59,7 +59,7 @@ export default createEntityConfig({
 ```tsx
 // apps/web/app/page.tsx
 import { useEntities, createEntity } from 'monorise/react';
-import { Entity } from '#/monorise/config';
+import { Entity } from '#/monorise';
 
 export default function MembersPage() {
   const { entities: members, isLoading } = useEntities(Entity.MEMBER);
@@ -110,10 +110,15 @@ my-app/
 ├── services/core/
 │   └── routes.ts                    # Hono backend routes
 ├── monorise/configs/
-│   └── user.ts                      # Starter entity definition
+│   ├── user.ts                      # Starter entity — has a Team mutual
+│   └── team.ts                      # Starter entity — has a User mutual
+├── monorise/mutuals/
+│   └── team-membership.ts           # createMutualConfig, shared by both sides
 ├── sst.config.ts                    # SST + Monorise configured
-└── .monorise/                       # Generated types
+└── .monorise/                       # Generated types (config.ts + index.ts)
 ```
+
+Import generated types via `#/monorise` (or `#/monorise/config` — both work, `#/monorise` is just shorter).
 
 Read the [Getting Started Guide](https://monorise.dev/getting-started) for the complete walkthrough.
 
@@ -357,7 +362,7 @@ Compatibility notes:
 |---|---|
 | `@monorise/base` | Entity config + schema/types (zod). |
 | `@monorise/core` | Hono API, DynamoDB repositories, processors, event utils. |
-| `@monorise/cli` | Generates `.monorise/config.ts` + `.monorise/handle.ts`. |
+| `@monorise/cli` | Generates `.monorise/config.ts` + `.monorise/index.ts` + `.monorise/handle.ts`. |
 | `@monorise/react` | Client SDK, hooks, stores, axios helpers. |
 | `@monorise/sst` | SST v4 module: API, bus, table, queues, processors. |
 

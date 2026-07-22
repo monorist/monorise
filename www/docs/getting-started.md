@@ -43,11 +43,17 @@ my-app/
 ├── services/core/         # Hono backend routes
 │   └── routes.ts
 ├── monorise/configs/      # Entity definitions
-│   └── user.ts            # Starter User entity (displayName, email)
+│   ├── user.ts            # Starter User entity — mutual with Team
+│   └── team.ts            # Starter Team entity — mutual with User
+├── monorise/mutuals/      # Shared mutual relationship configs
+│   └── team-membership.ts # createMutualConfig — referenced by both sides
 ├── monorise.config.ts     # Points to configs dir + custom routes
 ├── sst.config.ts          # SST v4 + Monorise module configured
-├── tsconfig.json          # Path aliases (#/monorise/*, #/*)
+├── tsconfig.json          # Path aliases (#/monorise, #/monorise/*, #/*)
 └── .monorise/             # Generated types + handlers (do not edit)
+    ├── config.ts          # Entity enum, types, EntityConfig
+    ├── index.ts           # Re-exports config.ts — import from '#/monorise'
+    └── handle.ts
 ```
 
 ### What's included out of the box
@@ -58,7 +64,8 @@ my-app/
 | **Global Loader** | `useInterruptiveLoadStore` → full-screen loading overlay via portal |
 | **Global Initializer** | Calls `Monorise.config()` with your entity config on app mount |
 | **API Proxy** | Next.js catch-all route at `/api/*` that proxies requests to monorise backend |
-| **Path Aliases** | `#/monorise/*` for generated types, `#/*` for app-local imports |
+| **Mutual relationship** | `User` <-> `Team` via `createMutualConfig`, showing a shared, validated mutual schema |
+| **Path Aliases** | `#/monorise` (or `#/monorise/*`) for generated types, `#/*` for app-local imports |
 
 ### 2. Start development
 
@@ -111,7 +118,7 @@ Use the React hooks to interact with your data:
 'use client';
 
 import { useEntities, createEntity } from 'monorise/react';
-import { Entity } from '#/monorise/config';
+import { Entity } from '#/monorise';
 
 export default function Home() {
   const { entities: users, isLoading } = useEntities(Entity.USER);
@@ -135,6 +142,27 @@ export default function Home() {
   );
 }
 ```
+
+### Mutual relationship (`monorise/mutuals/team-membership.ts`)
+
+The scaffold also demonstrates [`createMutualConfig`](/concepts/mutuals) — a schema defined once and referenced from both sides of a relationship:
+
+```ts
+import { createMutualConfig } from 'monorise/base';
+import type { Entity } from 'monorise/base';
+import { z } from 'zod/v4';
+
+const teamMembership = createMutualConfig({
+  entities: ['user', 'team'] as unknown as [Entity, Entity],
+  mutualDataSchema: z.object({
+    role: z.enum(['member', 'admin']),
+  }),
+});
+
+export default teamMembership;
+```
+
+`user.ts` and `team.ts` both import `teamMembership` and reference it in their `mutual.mutualFields`, so `mutualData` (the `role` field) is validated identically from either direction. Entity types are referenced as plain strings cast to `Entity` (`'team' as unknown as Entity`) rather than imported from `#/monorise` — that avoids a circular import, since the generated `Entity` enum is itself built from these config files.
 
 ### Build and watch commands
 

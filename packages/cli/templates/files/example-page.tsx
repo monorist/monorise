@@ -4,7 +4,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useForm } from 'react-hook-form';
 import type { z } from 'zod';
 import { useEntities, createEntity } from 'monorise/react';
-import { Entity, FormSchema } from '#/monorise/config';
+import { Entity, FormSchema } from '#/monorise';
 import { Button } from '#/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card';
 import { Input } from '#/components/ui/input';

@@ -182,6 +182,17 @@ ${moduleAugmentations}
 
   fs.writeFileSync(configOutputPath, configOutputContent);
   console.log('Successfully generated config.ts!');
+
+  // Also generate index.ts re-exporting everything from config.ts, so consumers
+  // can import from '#/monorise' directly instead of '#/monorise/config'.
+  // config.ts keeps being generated for backward compatibility.
+  const indexOutputPath = path.join(monoriseOutputDir, 'index.ts');
+  fs.writeFileSync(
+    indexOutputPath,
+    `export * from './config';\nexport { default } from './config';\n`,
+  );
+  console.log('Successfully generated index.ts!');
+
   return configOutputPath;
 }
 
@@ -388,6 +399,7 @@ async function runInitCommand(rootPath?: string) {
   fs.mkdirSync(path.join(projectRoot, 'apps'), { recursive: true });
   fs.mkdirSync(path.join(projectRoot, 'services', 'core'), { recursive: true });
   fs.mkdirSync(path.join(projectRoot, 'monorise', 'configs'), { recursive: true });
+  fs.mkdirSync(path.join(projectRoot, 'monorise', 'mutuals'), { recursive: true });
 
   // Step 2: Create root package.json
   console.log('📦 Initializing root package.json...');
@@ -448,11 +460,23 @@ async function runInitCommand(rootPath?: string) {
     readTemplate('monorise.config.ts'),
   );
 
-  // Step 9: Create starter entity
+  // Step 8: Create shared mutual config (referenced by both User and Team)
+  console.log('🔗 Creating team-membership mutual config...');
+  fs.writeFileSync(
+    path.join(projectRoot, 'monorise', 'mutuals', 'team-membership.ts'),
+    readTemplate('team-membership.mutual.ts'),
+  );
+
+  // Step 9: Create starter entities (User <-> Team mutual relationship)
   console.log('👤 Creating starter User entity...');
   fs.writeFileSync(
     path.join(projectRoot, 'monorise', 'configs', 'user.ts'),
     readTemplate('user-entity.ts'),
+  );
+  console.log('👥 Creating starter Team entity...');
+  fs.writeFileSync(
+    path.join(projectRoot, 'monorise', 'configs', 'team.ts'),
+    readTemplate('team-entity.ts'),
   );
 
   // Step 10: Create services/core/routes.ts
@@ -635,6 +659,9 @@ async function runInitCommand(rootPath?: string) {
       // Add path aliases
       webTsconfig.compilerOptions.paths['#/shared/*'] = ['../../shared/*'];
       webTsconfig.compilerOptions.paths['#/monorise/*'] = ['../../.monorise/*'];
+      // Exact-match alias so `import { Entity } from '#/monorise'` resolves to
+      // the generated index.ts (re-exports config.ts, kept for backward compat).
+      webTsconfig.compilerOptions.paths['#/monorise'] = ['../../.monorise/index'];
       const hasSrcDir = fs.existsSync(path.join(projectRoot, 'apps', 'web', 'src'));
       webTsconfig.compilerOptions.paths['#/*'] = [hasSrcDir ? './src/*' : './*'];
 
@@ -659,7 +686,8 @@ async function runInitCommand(rootPath?: string) {
   console.log(`  ${projectName}/`);
   console.log(`  ├── apps/web/           # Next.js frontend`);
   console.log(`  ├── services/core/      # Backend routes (Hono)`);
-  console.log(`  ├── monorise/configs/   # Entity definitions`);
+  console.log(`  ├── monorise/configs/   # Entity definitions (User, Team)`);
+  console.log(`  ├── monorise/mutuals/   # Shared mutual relationship configs`);
   console.log(`  └── .monorise/          # Generated files`);
   console.log(`\n📂 Where to start coding:`);
   console.log(`  • Edit your data model → monorise/configs/user.ts`);
@@ -670,6 +698,8 @@ async function runInitCommand(rootPath?: string) {
   console.log(`    (React components using useEntities and createEntity)`);
   console.log(`  • Add backend logic → services/core/routes.ts`);
   console.log(`    (Custom API endpoints with Hono)`);
+  console.log(`  • See the User <-> Team relationship → monorise/mutuals/team-membership.ts`);
+  console.log(`    (createMutualConfig — shared schema, referenced from both entity configs)`);
   console.log(`\n🚀 Next steps:`);
   console.log(`  cd ${projectName}`);
   console.log(`  npx sst dev`);

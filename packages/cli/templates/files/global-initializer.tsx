@@ -2,7 +2,7 @@
 
 import type { Entity, MonoriseEntityConfig } from 'monorise/base';
 import Monorise from 'monorise/react';
-import { EntityConfig } from '#/monorise/config';
+import { EntityConfig } from '#/monorise';
 
 Monorise.config({
   modals: {},

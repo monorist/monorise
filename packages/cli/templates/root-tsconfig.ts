@@ -10,6 +10,7 @@ export const ROOT_TSCONFIG_TEMPLATE = {
     paths: {
       '#/shared/*': ['./shared/*'],
       '#/monorise/*': ['./.monorise/*'],
+      '#/monorise': ['./.monorise/index'],
     },
   },
   include: ['**/*.ts', '.monorise/**/*.ts'],

@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { DependencyContainer } from 'monorise/core';
-import config, { Entity } from '#/monorise/config';
+import config, { Entity } from '#/monorise';
 
 const container = new DependencyContainer(config);
 
