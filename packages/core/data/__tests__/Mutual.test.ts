@@ -126,6 +126,35 @@ describe('Mutual class', () => {
   it('should throw error on fromItem(undefined)', () => {
     expect(() => Mutual.fromItem(undefined)).toThrowError(StandardError);
   });
+
+  it('should marshall/unmarshall expiresAt as epoch seconds (DynamoDB type N)', () => {
+    const expiresAt = new Date(now.getTime() + 60_000); // 60s later
+    const mutual = new Mutual(
+      baseData.byEntityType,
+      baseData.byEntityId,
+      baseData.byData,
+      baseData.entityType,
+      baseData.entityId,
+      baseData.data,
+      baseData.mutualData,
+      baseData.mutualId,
+      baseData.createdAt,
+      baseData.updatedAt,
+      baseData.mutualUpdatedAt,
+      expiresAt,
+    );
+
+    const expectedEpochSeconds = Math.floor(expiresAt.getTime() / 1000);
+    const item = mutual.toItem();
+    expect(item.expiresAt).toEqual({ N: String(expectedEpochSeconds) });
+
+    const restored = Mutual.fromItem<
+      typeof baseData.byEntityType,
+      typeof baseData.entityType,
+      typeof baseData.mutualData
+    >(item);
+    expect(restored.expiresAt).toBe(expectedEpochSeconds);
+  });
 });
 
 // Initialize constants and clients

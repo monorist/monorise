@@ -256,13 +256,16 @@ The `monorise.module.Core` construct provisions everything you need — API Gate
 
 ```ts
 new monorise.module.Core('core', {
-  allowOrigins: ['https://myapp.com'],  // CORS origins
+  allowOrigins: ['https://myapp.com'],   // CORS origins
   allowHeaders: ['x-custom-header'],     // Additional CORS headers
-  tableTtl: 'expiresAt',                // DynamoDB TTL attribute name
-  slackWebhook: 'https://hooks...',     // Slack alerts for processor errors
+  slackWebhook: 'https://hooks...',      // Slack alerts for processor errors
   configRoot: './services/api',          // Custom config root path
+  cloudwatchLogRetention: '1 week',      // Lambda log retention period
+  cloudwatchDashboard: { enabled: $app.stage === 'production' },  // Dashboard only on prod
 });
 ```
+
+The DynamoDB table's TTL attribute is always `expiresAt` — see [Entities: TTL](/concepts/entities#ttl-time-to-live) for how to set an expiry on an entity.
 
 For the full SST SDK reference including `QFunction`, see the [SST SDK](/sst) page.
 

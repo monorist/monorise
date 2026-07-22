@@ -4,12 +4,20 @@ import { createFunctionWidgets } from './dashboard';
 import { QFunction } from './q-function';
 import { SingleTable } from './single-table';
 
+type CloudWatchLogRetention = NonNullable<
+  Extract<sst.aws.FunctionArgs['logging'], { retention?: unknown }>['retention']
+>;
+
 type MonoriseCoreArgs = {
-  tableTtl?: string;
+  fromTableName?: $util.Input<string>;
   slackWebhook?: string;
   allowHeaders?: string[];
   allowOrigins?: string[];
   configRoot?: string;
+  cloudwatchLogRetention?: CloudWatchLogRetention;
+  cloudwatchDashboard?: {
+    enabled?: boolean;
+  };
 };
 
 export class MonoriseCore {
@@ -25,6 +33,9 @@ export class MonoriseCore {
       ? `--config-root ${args.configRoot}`
       : '';
     const dotMonorisePath = path.join(args?.configRoot ?? '', '.monorise');
+    const logging = args?.cloudwatchLogRetention
+      ? { retention: args.cloudwatchLogRetention }
+      : undefined;
 
     new sst.x.DevCommand('Monorise', {
       dev: {
@@ -50,9 +61,10 @@ export class MonoriseCore {
 
     this.bus = new sst.aws.Bus(`${id}-monorise-bus`);
     this.table = new SingleTable(id, {
-      ttl: args?.tableTtl,
       runtime,
       configRoot: args?.configRoot,
+      fromTableName: args?.fromTableName,
+      logging,
     });
 
     const secretApiKeys = new sst.Secret('API_KEYS', '["secret1", "secret2"]');
@@ -67,6 +79,7 @@ export class MonoriseCore {
         CORE_TABLE: this.table.table.name,
         CORE_EVENT_BUS: this.bus.name,
       },
+      logging,
     });
 
     this.alarmTopic = new sst.aws.SnsTopic(`${id}-monorise-dlq-alarm-topic`);
@@ -93,6 +106,7 @@ export class MonoriseCore {
       runtime,
       environment,
       link: [this.table.table, this.bus],
+      logging,
     });
 
     const tagProcessor = new QFunction('tag', {
@@ -105,6 +119,7 @@ export class MonoriseCore {
       runtime,
       environment,
       link: [this.table.table],
+      logging,
     });
 
     const treeProcessor = new QFunction('tree', {
@@ -117,6 +132,7 @@ export class MonoriseCore {
       runtime,
       environment,
       link: [this.table.table],
+      logging,
     });
 
     this.bus.subscribeQueue(`${id}-mutual-queue-rule`, mutualProcessor.queue, {
@@ -152,69 +168,71 @@ export class MonoriseCore {
     /**
      * CloudWatch Dashboard
      */
-    new aws.cloudwatch.Dashboard(`${id}-monorise-dashboard`, {
-      dashboardName: `${$app.stage}-${$app.name}-${id}-monorise`,
-      dashboardBody: $resolve([
-        aws.getRegionOutput().name,
-        this.table.table.name,
-        mutualProcessor.dlq.nodes.queue.name,
-        tagProcessor.dlq.nodes.queue.name,
-        treeProcessor.dlq.nodes.queue.name,
-        this.table.dlq.nodes.queue.name,
-      ]).apply(
-        ([region, tableName, mutualDlq, tagDlq, treeDlq, replicatorDlq]) => {
-          const dynamoDbUrl = `https://${region}.console.aws.amazon.com/dynamodbv2/home?region=${region}#table?name=${tableName}&tab=monitoring`;
+    if (args?.cloudwatchDashboard?.enabled !== false) {
+      new aws.cloudwatch.Dashboard(`${id}-monorise-dashboard`, {
+        dashboardName: `${$app.stage}-${$app.name}-${id}-monorise`,
+        dashboardBody: $resolve([
+          aws.getRegionOutput().name,
+          this.table.table.name,
+          mutualProcessor.dlq.nodes.queue.name,
+          tagProcessor.dlq.nodes.queue.name,
+          treeProcessor.dlq.nodes.queue.name,
+          this.table.dlq.nodes.queue.name,
+        ]).apply(
+          ([region, tableName, mutualDlq, tagDlq, treeDlq, replicatorDlq]) => {
+            const dynamoDbUrl = `https://${region}.console.aws.amazon.com/dynamodbv2/home?region=${region}#table?name=${tableName}&tab=monitoring`;
 
-          return JSON.stringify({
-            widgets: [
-              {
-                type: 'text',
-                x: 0,
-                y: 0,
-                width: 24,
-                height: 2,
-                properties: {
-                  markdown: `### Related Resources\n[View DynamoDB Table Metrics](${dynamoDbUrl})`,
+            return JSON.stringify({
+              widgets: [
+                {
+                  type: 'text',
+                  x: 0,
+                  y: 0,
+                  width: 24,
+                  height: 2,
+                  properties: {
+                    markdown: `### Related Resources\n[View DynamoDB Table Metrics](${dynamoDbUrl})`,
+                  },
                 },
-              },
-              ...createFunctionWidgets(
-                'API Handler',
-                appHandlerName,
-                2,
-                region,
-              ),
-              ...createFunctionWidgets(
-                'Replicator',
-                this.table.replicatorFunctionName,
-                9,
-                region,
-                replicatorDlq,
-              ),
-              ...createFunctionWidgets(
-                'Mutual Processor',
-                mutualProcessorName,
-                16,
-                region,
-                mutualDlq,
-              ),
-              ...createFunctionWidgets(
-                'Tag Processor',
-                tagProcessorName,
-                23,
-                region,
-                tagDlq,
-              ),
-              ...createFunctionWidgets(
-                'Tree Processor',
-                treeProcessorName,
-                30,
-                region,
-                treeDlq,
-              ),
-            ],
-          });
-        },
-      ),
-    });
+                ...createFunctionWidgets(
+                  'API Handler',
+                  appHandlerName,
+                  2,
+                  region,
+                ),
+                ...createFunctionWidgets(
+                  'Replicator',
+                  this.table.replicatorFunctionName,
+                  9,
+                  region,
+                  replicatorDlq,
+                ),
+                ...createFunctionWidgets(
+                  'Mutual Processor',
+                  mutualProcessorName,
+                  16,
+                  region,
+                  mutualDlq,
+                ),
+                ...createFunctionWidgets(
+                  'Tag Processor',
+                  tagProcessorName,
+                  23,
+                  region,
+                  tagDlq,
+                ),
+                ...createFunctionWidgets(
+                  'Tree Processor',
+                  treeProcessorName,
+                  30,
+                  region,
+                  treeDlq,
+                ),
+              ],
+            });
+          },
+        ),
+      });
+    }
   }
 }

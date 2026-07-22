@@ -568,6 +568,96 @@ const initCoreActions = (
     }
   };
 
+  // Reconcile an entity's membership across already-loaded tag slices after a
+  // data change (edit/adjust). Runs each tag's processor against the new data
+  // and, per slice, keeps/adds the entity where it now matches and removes it
+  // where it no longer does — so the UI re-buckets optimistically instead of
+  // leaving stale members (e.g. a resolved item still sitting in the "open"
+  // list) until the backend tag processor catches up. Mirrors the add-only
+  // matcher in createEntity, extended with delete-on-mismatch.
+  const reconcileTaggedEntityStore = (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    state: any,
+    entityType: Entity,
+    id: string,
+    data: CreatedEntity<Entity>,
+  ) => {
+    const tagConfigs = state.config[entityType]?.tags;
+    if (!tagConfigs) return;
+
+    for (const tagConfig of tagConfigs) {
+      const { name, processor } = tagConfig;
+      const processorResults = processor(data);
+
+      for (const tagKey of Object.keys(state.tag)) {
+        const [tagEntityType, tagName, ...paramParts] = tagKey.split('/');
+        if (
+          (tagEntityType as unknown as Entity) !== entityType ||
+          tagName !== name
+        ) {
+          continue;
+        }
+
+        const slice = state.tag[tagKey];
+        if (!slice?.dataMap) {
+          continue;
+        }
+
+        // parse params (group/start/end/query/...) back out of the key
+        const keyParams: Record<string, string> = {};
+        for (const part of paramParts) {
+          const colonIdx = part.indexOf(':');
+          if (colonIdx > 0) {
+            keyParams[part.substring(0, colonIdx)] = part.substring(
+              colonIdx + 1,
+            );
+          }
+        }
+
+        // query-filtered slices can't be evaluated client-side — only patch an
+        // existing member's data in place; never add or remove.
+        if (keyParams.query) {
+          if (slice.dataMap.has(id)) {
+            slice.dataMap.set(id, data);
+          }
+          continue;
+        }
+
+        const matches = processorResults.some(
+          (result: { group?: string; sortValue?: string }) => {
+            if (keyParams.group && result.group !== keyParams.group) {
+              return false;
+            }
+            if (
+              keyParams.start &&
+              (!result.sortValue || result.sortValue < keyParams.start)
+            ) {
+              return false;
+            }
+            if (
+              keyParams.end &&
+              (!result.sortValue || result.sortValue > keyParams.end)
+            ) {
+              return false;
+            }
+            return true;
+          },
+        );
+
+        if (matches) {
+          // keep/patch existing members, and add to newly-matching loaded
+          // slices (appended; a later fetch restores exact sort order)
+          if (slice.isFirstFetched || slice.dataMap.has(id)) {
+            slice.dataMap.set(id, data);
+          }
+        } else if (slice.dataMap.has(id)) {
+          // no longer belongs here — drop the stale member (the re-bucket)
+          slice.dataMap.delete(id);
+        }
+      }
+    }
+  };
+
   const editEntity = async <T extends Entity>(
     entityType: T,
     id: string,
@@ -609,15 +699,14 @@ const initCoreActions = (
             }
           }
 
-          // update tag store entries
-          for (const tagKey of Object.keys(state.tag)) {
-            const [tagEntityType] = tagKey.split('/');
-            if ((tagEntityType as unknown as Entity) === entityType) {
-              if (state.tag[tagKey]?.dataMap?.has(id)) {
-                state.tag[tagKey].dataMap.set(id, data);
-              }
-            }
-          }
+          // re-bucket across loaded tag slices (add where now matches, drop
+          // where it no longer does) instead of only patching in place
+          reconcileTaggedEntityStore(
+            state,
+            entityType,
+            id,
+            data as CreatedEntity<Entity>,
+          );
         }),
         undefined,
         `mr/entity/edit/${entityType}/${id}`,
@@ -672,15 +761,15 @@ const initCoreActions = (
             }
           }
 
-          // Propagate to tag stores
-          for (const tagKey of Object.keys(state.tag)) {
-            const [tagEntityType] = tagKey.split('/');
-            if ((tagEntityType as unknown as Entity) === entityType) {
-              if (state.tag[tagKey]?.dataMap?.has(id)) {
-                state.tag[tagKey].dataMap.set(id, data);
-              }
-            }
-          }
+          // Propagate to tag stores — re-bucket across loaded slices (an
+          // adjustment can move an entity between groups when group/sortValue
+          // derive from the adjusted fields), not just patch in place.
+          reconcileTaggedEntityStore(
+            state,
+            entityType,
+            id,
+            data as CreatedEntity<Entity>,
+          );
         }),
         undefined,
         `mr/entity/adjust/${entityType}/${id}`,
@@ -997,9 +1086,12 @@ const initCoreActions = (
             };
           }
 
+          const byEntityData =
+            state.entity[mutual.byEntityType]?.dataMap.get(mutual.byEntityId)
+              ?.data ?? {};
           state.mutual[side].dataMap = new Map(state.mutual[side]?.dataMap).set(
             mutual.byEntityId,
-            flipMutual(mutual),
+            flipMutual(mutual, byEntityData),
           );
         }),
         undefined,
@@ -1052,9 +1144,12 @@ const initCoreActions = (
           };
         }
 
+        const byEntityData =
+          state.entity[mutual.byEntityType]?.dataMap.get(mutual.byEntityId)
+            ?.data ?? {};
         state.mutual[side].dataMap = new Map(state.mutual[side]?.dataMap).set(
           mutual.byEntityId,
-          flipMutual(mutual),
+          flipMutual(mutual, byEntityData),
         );
       }),
       undefined,
@@ -1116,9 +1211,12 @@ const initCoreActions = (
           };
         }
 
+        const byEntityData =
+          state.entity[mutual.byEntityType]?.dataMap.get(mutual.byEntityId)
+            ?.data ?? {};
         state.mutual[side].dataMap = new Map(state.mutual[side]?.dataMap).set(
           byEntityId,
-          flipMutual(mutual),
+          flipMutual(mutual, byEntityData),
         );
       }),
       undefined,
@@ -1170,9 +1268,12 @@ const initCoreActions = (
             };
           }
 
+          const byEntityData =
+            state.entity[mutual.byEntityType]?.dataMap.get(mutual.byEntityId)
+              ?.data ?? {};
           state.mutual[side].dataMap = new Map(state.mutual[side]?.dataMap).set(
             mutual.byEntityId,
-            flipMutual(mutual),
+            flipMutual(mutual, byEntityData),
           );
         }),
         undefined,
@@ -1498,11 +1599,24 @@ const initCoreActions = (
     }, [entityType, query]);
 
     useEffect(() => {
-      if (!query && dataMap.size !== entities?.length) {
-        setIsSearching(false);
-        setEntities(
-          Array.from(dataMap.values()).sort(byEntityId) as CreatedEntity<T>[],
-        );
+      if (!query) {
+        const dataMapArray = Array.from(dataMap.values()).sort(
+          byEntityId,
+        ) as CreatedEntity<T>[];
+        // Compare size AND content so that edits which keep the same set of
+        // entityIds but mutate their data (e.g. editEntity) still propagate
+        // to the local `entities` snapshot. Matches the comparison already
+        // used in `useMutuals`.
+        if (
+          dataMap.size !== entities?.length ||
+          dataMapArray.some(
+            (item, index) =>
+              JSON.stringify(item) !== JSON.stringify(entities?.[index]),
+          )
+        ) {
+          setIsSearching(false);
+          setEntities(dataMapArray);
+        }
       }
 
       if (query) {
@@ -1511,6 +1625,7 @@ const initCoreActions = (
     }, [
       dataMap,
       dataMap.size,
+      entities,
       entities?.length,
       query,
       searchResults,
@@ -1725,6 +1840,47 @@ const initCoreActions = (
     };
   };
 
+  // Order a loaded tag slice the same way the server does, so optimistic
+  // edits/adjusts land in their true position instead of appending to the end.
+  // The backend queries tags with ScanIndexForward:false — i.e. descending by
+  // the tag sort key `${sortValue}#${entityType}#${entityId}` (see
+  // TaggedEntity.get sk()). We rebuild that exact key per entity from the tag's
+  // processor and sort descending, reproducing DynamoDB's ordering (sortValue
+  // first, entityId tiebreak, identical string coercion). This only re-orders
+  // the loaded window; on a paginated list an item whose new sortValue belongs
+  // on an unfetched page may sit at the boundary until the next fetch — a
+  // per-user, self-healing approximation, strictly better than not sorting.
+  const sortTaggedEntitiesLikeServer = <T extends Entity>(
+    arr: CreatedEntity<T>[],
+    entityType: Entity,
+    tagName: string,
+    group?: string,
+  ): CreatedEntity<T>[] => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tagConfig = (monoriseStore.getState().config[entityType] as any)
+      ?.tags?.find((t: { name: string }) => t.name === tagName);
+
+    const keyOf = (entity: CreatedEntity<T>): string => {
+      let sortValue: unknown;
+      if (tagConfig?.processor) {
+        const results = tagConfig.processor(entity) as {
+          group?: string;
+          sortValue?: unknown;
+        }[];
+        const match = group
+          ? results.find((r) => r.group === group)
+          : results[0];
+        sortValue = match?.sortValue;
+      }
+      return `${sortValue ? `${sortValue}#` : ''}${entityType}#${entity.entityId}`;
+    };
+
+    return arr
+      .map((entity) => ({ entity, key: keyOf(entity) }))
+      .sort((a, b) => (a.key === b.key ? 0 : a.key < b.key ? 1 : -1))
+      .map((x) => x.entity);
+  };
+
   const useTaggedEntities = <T extends Entity>(
     entityType: T,
     tagName: string,
@@ -1748,7 +1904,12 @@ const initCoreActions = (
     }, [entityType, opts, tagName, params, opts?.forceFetch]);
 
     useEffect(() => {
-      const dataMapArray = Array.from(dataMap.values());
+      const dataMapArray = sortTaggedEntitiesLikeServer(
+        Array.from(dataMap.values()) as CreatedEntity<T>[],
+        entityType,
+        tagName,
+        params?.group,
+      );
       if (
         dataMap.size !== entities?.length ||
         dataMapArray.some(
@@ -1756,7 +1917,7 @@ const initCoreActions = (
             JSON.stringify(item) !== JSON.stringify(entities[index]),
         )
       ) {
-        setEntities(dataMapArray as CreatedEntity<T>[]);
+        setEntities(dataMapArray);
       }
     }, [dataMap, dataMap.size, entities?.length]);
 

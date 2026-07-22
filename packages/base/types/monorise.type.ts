@@ -6,6 +6,28 @@ export interface EntitySchemaMap {
   [key: string]: Record<string, any>;
 }
 
+/**
+ * @description Configuration for a mutual relationship between two entities.
+ * Defines the schema for mutualData validation. Define once, reference from both entity configs.
+ *
+ * @example
+ * ```ts
+ * const enrollmentMutual = createMutualConfig({
+ *   entities: [Entity.STUDENT, Entity.COURSE],
+ *   mutualDataSchema: z.object({
+ *     role: z.enum(['student', 'auditor']),
+ *     enrolledAt: z.string().datetime(),
+ *   }),
+ * });
+ * ```
+ */
+export interface MutualConfig<
+  MD extends z.ZodRawShape = z.ZodRawShape,
+> {
+  entities: [Entity, Entity];
+  mutualDataSchema: z.ZodObject<MD>;
+}
+
 export type DraftEntity<T extends Entity = Entity> =
   T extends keyof EntitySchemaMap ? EntitySchemaMap[T] : never;
 
@@ -129,6 +151,11 @@ export interface MonoriseEntityConfig<
           currentMutual: any,
           customContext?: Record<string, any>,
         ) => Record<string, any>;
+        /**
+         * @description (Optional) Reference to a mutual config created by `createMutualConfig`.
+         * Provides mutualData schema validation for create/update operations on this mutual relationship.
+         */
+        mutual?: MutualConfig;
       };
     };
 
@@ -231,6 +258,49 @@ export interface MonoriseEntityConfig<
       sortValue?: string;
     }[];
   }[];
+
+  /**
+   * @description (Optional) Configure a DynamoDB TTL for this entity. When set, `expiresAt`
+   * is computed via `processor` on create, and recomputed on every update/upsert. Once past,
+   * DynamoDB automatically deletes the item (and its derived index rows, since they all carry
+   * the same `expiresAt`).
+   *
+   * `processor` returning `undefined` means "no TTL" for that record. On updates, an `undefined`
+   * result leaves any existing `expiresAt` untouched rather than clearing it.
+   *
+   * @example
+   * ```ts
+   * // fixed 30-day TTL from creation/each update
+   * ttl: {
+   *   processor: () => Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+   * }
+   * ```
+   *
+   * @example
+   * ```ts
+   * // data-driven TTL, eg. expire when a subscription ends
+   * ttl: {
+   *   processor: (entity) => {
+   *     return entity.data.subscriptionEndsAt
+   *       ? new Date(entity.data.subscriptionEndsAt)
+   *       : undefined;
+   *   },
+   * }
+   * ```
+   */
+  ttl?: {
+    /**
+     * @description Returns the expiry as epoch seconds (absolute) or a `Date`.
+     * Return `undefined` for no expiry.
+     */
+    processor: (entity: {
+      entityId: string;
+      entityType: string;
+      data: Record<string, any>;
+      createdAt: string;
+      updatedAt: string;
+    }) => number | Date | undefined;
+  };
 
   /**
    * @description (Optional) Constraints for `adjustEntity` operations.

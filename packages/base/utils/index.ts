@@ -1,4 +1,4 @@
-import type { Entity, MonoriseEntityConfig } from '../types/monorise.type';
+import type { Entity, MonoriseEntityConfig, MutualConfig } from '../types/monorise.type';
 import { z } from 'zod';
 
 function makeSchema<
@@ -47,4 +47,8 @@ const createEntityConfig = <
   finalSchema: makeSchema(config),
 });
 
-export { createEntityConfig };
+const createMutualConfig = <MD extends z.ZodRawShape>(
+  config: MutualConfig<MD>,
+) => config;
+
+export { createEntityConfig, createMutualConfig };
