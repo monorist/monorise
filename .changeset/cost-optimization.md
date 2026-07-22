@@ -1,5 +1,6 @@
 ---
 "@monorise/sst": minor
+"monorise": minor
 ---
 
 feat: add cost optimization support to SST components
