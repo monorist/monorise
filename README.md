@@ -21,7 +21,7 @@ Monorise is an open-source toolkit that powers the core data layer for applicati
 - **A ready-made REST API** for entities, relationships, and queries
 - **Event-driven processors** that keep denormalized data in sync
 - **Full type safety** from backend to frontend
-- **SST v3 integration** for one-command deployment to AWS
+- **SST v4 integration** for one-command deployment to AWS
 
 ## Full-Stack in Minutes
 
@@ -57,7 +57,7 @@ export default createEntityConfig({
 **3. Query from React:**
 
 ```tsx
-// apps/web/src/app/page.tsx
+// apps/web/app/page.tsx
 import { useEntities, createEntity } from 'monorise/react';
 import { Entity } from '#/monorise/config';
 
@@ -95,19 +95,18 @@ npx sst deploy --stage prod
 ```
 my-app/
 ├── apps/web/                        # Next.js frontend
-│   └── src/
-│       ├── app/
-│       │   ├── layout.tsx           # GlobalInitializer + GlobalLoader wired in
-│       │   ├── page.tsx             # Example page with useEntities
-│       │   ├── globals.css          # Shadcn theme variables
-│       │   └── api/
-│       │       ├── proxy-request.ts # API proxy utility
-│       │       └── [...proxy]/route.ts  # Catch-all proxy to monorise backend
-│       ├── components/
-│       │   ├── global-initializer.tsx   # Monorise store config
-│       │   ├── global-loader.tsx        # Interruptive loading overlay
-│       │   └── ui/                      # Shadcn UI (button, card, input, label)
-│       └── lib/utils.ts             # cn() helper
+│   ├── app/
+│   │   ├── layout.tsx                # GlobalInitializer + GlobalLoader wired in
+│   │   ├── page.tsx                  # Example page with useEntities
+│   │   ├── globals.css               # Shadcn theme variables
+│   │   └── api/
+│   │       ├── proxy-request.ts      # API proxy utility
+│   │       └── [...proxy]/route.ts   # Catch-all proxy to monorise backend
+│   ├── components/
+│   │   ├── global-initializer.tsx    # Monorise store config
+│   │   ├── global-loader.tsx         # Interruptive loading overlay
+│   │   └── ui/                       # Shadcn UI (button, card, input, label)
+│   └── lib/utils.ts                  # cn() helper
 ├── services/core/
 │   └── routes.ts                    # Hono backend routes
 ├── monorise/configs/
@@ -126,7 +125,7 @@ Read the [Getting Started Guide](https://monorise.dev/getting-started) for the c
 | **🔄 Zero Schema Drift** | One Zod config drives DB, backend, and frontend. `monorise dev` auto-regenerates types on every change. |
 | **🚀 Ship in Hours** | From `git init` to production API. No migration scripts, no access pattern spreadsheets.
 | **🔗 Relational Patterns** | Entity, Mutual, and Tag concepts for relational-style queries on DynamoDB. |
-| **📦 Full-Stack SDK** | Backend (Hono), React hooks, SST v3 infrastructure — one package. |
+| **📦 Full-Stack SDK** | Backend (Hono), React hooks, SST v4 infrastructure — one package. |
 | **🧠 Token-Efficient** | Built-in CRUD, relationships, and tagging. Less code to write, fewer tokens to generate/review. |
 
 ## Core Concepts
@@ -178,7 +177,7 @@ See [Architecture](https://monorise.dev/architecture) for the detailed design.
 │   ├── core/          # Hono API, DynamoDB repos, processors
 │   ├── cli/           # CLI for generating artifacts
 │   ├── react/         # React hooks and client SDK
-│   └── sst/           # SST v3 infrastructure module
+│   └── sst/           # SST v4 infrastructure module
 ├── www/               # Documentation site (VitePress)
 └── examples/          # Example projects
 ```
@@ -360,12 +359,12 @@ Compatibility notes:
 | `@monorise/core` | Hono API, DynamoDB repositories, processors, event utils. |
 | `@monorise/cli` | Generates `.monorise/config.ts` + `.monorise/handle.ts`. |
 | `@monorise/react` | Client SDK, hooks, stores, axios helpers. |
-| `@monorise/sst` | SST v3 module: API, bus, table, queues, processors. |
+| `@monorise/sst` | SST v4 module: API, bus, table, queues, processors. |
 
 ## Where to look next (within this repo)
 
 - Core API + processors: `packages/core/*`
-- SST v3 module: `packages/sst/*`
+- SST v4 module: `packages/sst/*`
 - CLI generator: `packages/cli/*`
 - Shared types: `packages/base/*`
 - React SDK: `packages/react/*`

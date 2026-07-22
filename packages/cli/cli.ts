@@ -423,7 +423,7 @@ async function runInitCommand(rootPath?: string) {
     process.exit(1);
   }
 
-  // Step 5: Install SST v3
+  // Step 5: Install SST v4
   console.log('\n☁️  Installing SST v4...');
   try {
     execCommand('npm install sst@^4 --save-dev', projectRoot);
@@ -664,7 +664,9 @@ async function runInitCommand(rootPath?: string) {
   console.log(`\n📂 Where to start coding:`);
   console.log(`  • Edit your data model → monorise/configs/user.ts`);
   console.log(`    (Add fields like phone, role, status to the User entity)`);
-  console.log(`  • Build your UI → apps/web/src/app/page.tsx`);
+  console.log(
+    `  • Build your UI → ${pagePath ? path.relative(projectRoot, pagePath) : 'apps/web/app/page.tsx'}`,
+  );
   console.log(`    (React components using useEntities and createEntity)`);
   console.log(`  • Add backend logic → services/core/routes.ts`);
   console.log(`    (Custom API endpoints with Hono)`);
@@ -757,10 +759,15 @@ async function main() {
     } else if (command === 'build') {
       await runBuildCommand(rootPath);
     } else if (command === 'init') {
-      await runInitCommand(rootPath);
+      // init is greenfield-only — it always creates a fresh directory named via
+      // --name, never an existing path. --config-root doesn't apply here.
+      await runInitCommand();
     } else {
       console.error(
-        'Unknown command. Usage: monorise [dev|build|init] [--config-root <path>] [--name <project-name>]',
+        'Unknown command. Usage:\n' +
+          '  monorise dev [--config-root <path>]\n' +
+          '  monorise build [--config-root <path>]\n' +
+          '  monorise init [--name <project-name>]',
       );
       process.exit(1);
     }

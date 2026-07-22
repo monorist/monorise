@@ -20,6 +20,10 @@ export default $config({
       path: 'apps/web',
       environment: {
         API_BASE_URL: api.url,
+        // Must match one of the values in the backend's API_KEYS secret
+        // (defaults to ["secret1", "secret2"] — override both with
+        // `npx sst secret set API_KEYS '["..."]'` before deploying).
+        API_KEY: 'secret1',
       },
     });
   },

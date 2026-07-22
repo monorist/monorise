@@ -28,25 +28,24 @@ This single command creates a production-ready monorepo:
 ```
 my-app/
 ├── apps/web/                        # Next.js frontend (Tailwind CSS)
-│   └── src/
-│       ├── app/
-│       │   ├── layout.tsx           # GlobalInitializer + GlobalLoader wired in
-│       │   ├── page.tsx             # Example page with useEntities + createEntity
-│       │   ├── globals.css          # Shadcn theme variables (oklch)
-│       │   └── api/
-│       │       ├── proxy-request.ts # Rewrites /api/* to monorise backend
-│       │       └── [...proxy]/route.ts  # Catch-all route (GET/POST/PUT/PATCH/DELETE)
-│       ├── components/
-│       │   ├── global-initializer.tsx   # Monorise store configuration
-│       │   ├── global-loader.tsx        # Full-screen interruptive loading overlay
-│       │   └── ui/                      # Shadcn UI components (button, card, input, label)
-│       └── lib/utils.ts             # cn() — clsx + tailwind-merge helper
+│   ├── app/
+│   │   ├── layout.tsx                # GlobalInitializer + GlobalLoader wired in
+│   │   ├── page.tsx                  # Example page with useEntities + createEntity
+│   │   ├── globals.css               # Shadcn theme variables (oklch)
+│   │   └── api/
+│   │       ├── proxy-request.ts      # Rewrites /api/* to monorise backend
+│   │       └── [...proxy]/route.ts   # Catch-all route (GET/POST/PUT/PATCH/DELETE)
+│   ├── components/
+│   │   ├── global-initializer.tsx    # Monorise store configuration
+│   │   ├── global-loader.tsx         # Full-screen interruptive loading overlay
+│   │   └── ui/                       # Shadcn UI components (button, card, input, label)
+│   └── lib/utils.ts                  # cn() — clsx + tailwind-merge helper
 ├── services/core/         # Hono backend routes
 │   └── routes.ts
 ├── monorise/configs/      # Entity definitions
 │   └── user.ts            # Starter User entity (displayName, email)
 ├── monorise.config.ts     # Points to configs dir + custom routes
-├── sst.config.ts          # SST v3 + Monorise module configured
+├── sst.config.ts          # SST v4 + Monorise module configured
 ├── tsconfig.json          # Path aliases (#/monorise/*, #/*)
 └── .monorise/             # Generated types + handlers (do not edit)
 ```
@@ -104,7 +103,7 @@ const config = createEntityConfig({
 export default config;
 ```
 
-### Frontend page (`apps/web/src/app/page.tsx`)
+### Frontend page (`apps/web/app/page.tsx`)
 
 Use the React hooks to interact with your data:
 

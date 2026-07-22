@@ -9,7 +9,7 @@ function rewriteUrl({
 }) {
   const API_BASE_URL = process.env.API_BASE_URL;
   const tobeReplacedPath =
-    replacePath ?? requestUrl.replace(/^https?:\/\/[^\/]+(:d+)?\/api\//, '');
+    replacePath ?? requestUrl.replace(/^https?:\/\/[^\/]+\/api\//, '');
 
   return `${API_BASE_URL}/${tobeReplacedPath}`;
 }
@@ -39,7 +39,7 @@ export const proxyRequest = async ({
       body,
       headers: {
         ...reqHeaders,
-        'x-api-key': 'secret1',
+        'x-api-key': process.env.API_KEY ?? '',
       },
       cache: 'no-store',
     },
