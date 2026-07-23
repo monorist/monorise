@@ -48,6 +48,7 @@ const patch = async (entityType: string, entityId: string, body: object): Promis
 
 const WALLET = MockEntityType.WALLET as unknown as EntityType;
 const USER = MockEntityType.USER as unknown as EntityType;
+const COURSE = MockEntityType.COURSE as unknown as EntityType;
 
 describe('HTTP — conditional updateEntity ($where body key)', () => {
   beforeAll(async () => {
@@ -462,6 +463,102 @@ describe('HTTP — conditional updateEntity ($where body key)', () => {
       expect(data.code).toBe('CONDITIONAL_CHECK_FAILED');
       const stored = await entityRepository.getEntity(USER, entity.entityId as string);
       expect(stored.data.name).toBe('final-report');
+    });
+  });
+
+  // ─── Group 9: Named conditions ($condition) ───────────────────────────────
+
+  describe('Group 9: named conditions ($condition)', () => {
+    it('9.1 — static condition match → 200', async () => {
+      const entity = await entityRepository.createEntity(WALLET, {
+        balance: 100,
+        status: 'draft',
+      });
+      const { status, data } = await patch(
+        MockEntityType.WALLET,
+        entity.entityId as string,
+        { status: 'published', $condition: 'publish' },
+      );
+      expect(status).toBe(200);
+      expect(data.data.status).toBe('published');
+    });
+
+    it('9.2 — static condition mismatch → 409', async () => {
+      const entity = await entityRepository.createEntity(WALLET, {
+        balance: 100,
+        status: 'published',
+      });
+      const { status, data } = await patch(
+        MockEntityType.WALLET,
+        entity.entityId as string,
+        { status: 'archived', $condition: 'publish' },
+      );
+      expect(status).toBe(409);
+      expect(data.code).toBe('CONDITIONAL_CHECK_FAILED');
+    });
+
+    it('9.3 — unknown condition name → 400', async () => {
+      const entity = await entityRepository.createEntity(WALLET, { balance: 100 });
+      const { status, data } = await patch(
+        MockEntityType.WALLET,
+        entity.entityId as string,
+        { balance: 200, $condition: 'nonexistent' },
+      );
+      expect(status).toBe(400);
+      expect(data.code).toBe('INVALID_CONDITION');
+    });
+
+    it('9.4 — no $condition with no conditions defined → 200 (backward compat)', async () => {
+      const entity = await entityRepository.createEntity(USER, {
+        name: 'test',
+        username: `user-no-condition-${Date.now()}`,
+      });
+      const { status, data } = await patch(
+        MockEntityType.USER,
+        entity.entityId as string,
+        { name: 'updated' },
+      );
+      expect(status).toBe(200);
+      expect(data.data.name).toBe('updated');
+    });
+
+    it('9.5 — $condition on entity with no conditions defined → 400', async () => {
+      const entity = await entityRepository.createEntity(USER, {
+        name: 'test',
+        username: `user-bad-condition-${Date.now()}`,
+      });
+      const { status, data } = await patch(
+        MockEntityType.USER,
+        entity.entityId as string,
+        { name: 'updated', $condition: 'publish' },
+      );
+      expect(status).toBe(400);
+      expect(data.code).toBe('INVALID_CONDITION');
+    });
+  });
+
+  // ─── Group 10: allowLegacyWhere (security default) ────────────────────────
+
+  describe('Group 10: allowLegacyWhere disabled by default', () => {
+    it('10.1 — $where on an entity without allowLegacyWhere → 400 INVALID_CONDITION, update rejected', async () => {
+      const entity = await entityRepository.createEntity(COURSE, {});
+      const { status, data } = await patch(
+        MockEntityType.COURSE,
+        entity.entityId as string,
+        { $where: { anyField: { $exists: true } } },
+      );
+      expect(status).toBe(400);
+      expect(data.code).toBe('INVALID_CONDITION');
+    });
+
+    it('10.2 — $where on an entity with allowLegacyWhere: true is still accepted', async () => {
+      const entity = await entityRepository.createEntity(WALLET, { balance: 10 });
+      const { status, data } = await patch(MockEntityType.WALLET, entity.entityId as string, {
+        balance: 20,
+        $where: { balance: { $eq: 10 } },
+      });
+      expect(status).toBe(200);
+      expect(data.data.balance).toBe(20);
     });
   });
 
