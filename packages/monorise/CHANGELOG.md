@@ -1,10 +1,74 @@
 # monorise
 
-## 1.4.0
+## 1.7.0
 
 ### Minor Changes
 
 - Add opt-in Athena analytics with schema-generated entity and mutual datasets, durable history, daily current-state materialization, and point-in-time backfill.
+
+## 1.6.0
+
+### Minor Changes
+
+- 7a95a4e: Add transactional writes for atomic multi-entity operations
+
+  - `POST /core/transaction` endpoint for atomic multi-entity operations
+  - Supports createEntity, updateEntity, adjustEntity, deleteEntity in single DynamoDB TransactWriteItems call
+  - All-or-nothing: if any operation fails, entire transaction rolls back
+  - Events (ENTITY_CREATED, ENTITY_UPDATED, ENTITY_DELETED) published only after commit succeeds
+  - Condition support: adjustmentConditions and updateConditions work within transactions
+  - React SDK: `transaction()` function for frontend usage
+  - DynamoDB limit enforced: max 100 items per transaction
+
+## 1.5.0
+
+### Minor Changes
+
+- 6488933: Add named conditions system for conditional entity writes
+
+  - `adjustmentConditions`: server-defined preconditions for `adjustEntity`. `$condition` required when defined. Condition functions receive `(data, adjustments)`.
+  - `updateConditions`: server-defined preconditions for `updateEntity`. `$condition` always optional. Condition functions receive `(data)`.
+  - Clients send a condition name (`$condition: 'withdraw'`), server resolves to DynamoDB ConditionExpression. Raw operators never exposed to frontend.
+  - Deprecates `adjustmentConstraints` (backward compatible — falls back automatically when no `adjustmentConditions` is defined).
+  - **Breaking (security):** raw `$where` on `updateEntity` is now rejected by default (`INVALID_CONDITION`, 400) instead of silently accepted with a warning. Opt in per entity with `allowLegacyWhere: true` (not recommended) or migrate to named `updateConditions`.
+
+## 1.4.0
+
+### Minor Changes
+
+- 78c369d: Enhanced CLI init command with full project scaffolding and example page
+
+  The `npx monorise init` command now creates a complete monorepo setup:
+
+  - Creates apps/ and services/ directory structure
+  - Scaffolds Next.js app in apps/web/
+  - Installs SST v4, monorise, hono, and zod
+  - Creates services/core/routes.ts with Hono app template
+  - Generates sst.config.ts with monorise module
+  - Configures monorise.config.ts with customRoutes
+  - Sets up tsconfig path aliases
+  - Creates example page.tsx demonstrating useEntities and createEntity
+  - Generates a starter Team entity and a shared createMutualConfig
+    (monorise/mutuals/team-membership.ts), demonstrating a User <-> Team mutual
+    relationship
+  - Runs initial monorise build
+
+  Simplified imports:
+
+  - `monorise dev`/`monorise build` now also generate `.monorise/index.ts`
+    (re-exporting `.monorise/config.ts`), so generated types can be imported via
+    `#/monorise` instead of `#/monorise/config`. The longer path keeps working
+    for backward compatibility.
+
+  Documentation updates:
+
+  - Updated messaging to emphasize time-to-production
+  - Added "Ship in Hours" benefit
+  - Simplified getting started guide
+
+  Bug fix:
+
+  - Fixed www/package.json version field
 
 ## 1.3.0
 

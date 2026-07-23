@@ -78,6 +78,8 @@ export const createMockEntityConfig = () => ({
     uniqueFields: ['username'],
     searchableFields: ['name', 'email'],
     authMethod: { email: { tokenExpiresIn: 3600000 } },
+    // Opted in so the legacy $where test suite can still exercise its mechanics.
+    allowLegacyWhere: true,
   }),
   [MockEntityType.PRODUCT]: createEntityConfig({
     name: MockEntityType.PRODUCT,
@@ -109,8 +111,24 @@ export const createMockEntityConfig = () => ({
         minBalance: z.number(),
         creditLimit: z.number(),
         score: z.number(),
+        status: z.string(),
       })
       .partial(),
+    adjustmentConditions: {
+      withdraw: (data, adjustments) => ({
+        balance: {
+          $gte: (data.minBalance ?? 0) + Math.abs(adjustments.balance ?? 0),
+        },
+      }),
+      deposit: (data, adjustments) => ({
+        balance: { $lte: 10000 - (adjustments.balance ?? 0) },
+      }),
+    },
+    updateConditions: {
+      publish: { status: { $eq: 'draft' } },
+    },
+    // Opted in so the legacy $where test suite can still exercise its mechanics.
+    allowLegacyWhere: true,
   }),
   [MockEntityType.SESSION]: createEntityConfig({
     name: MockEntityType.SESSION,
