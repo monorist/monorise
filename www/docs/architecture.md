@@ -8,7 +8,7 @@ Monorise uses a small build step to turn entity configs into runnable handlers.
 monorise.config.ts + entity configs  →  monorise dev/build (CLI)  →  .monorise/config.ts + handle.ts  →  SST stack
 ```
 
-- `monorise.config.ts` points to your entity config directory and optional custom routes (Hono).
+- `monorise.config.ts` points to your entity config directory and optional custom routes (Hono). When analytics is enabled, the CLI also generates its analytics schema manifest from entity and named mutual configs.
 - The CLI writes `.monorise/handle.ts` which exports Lambda handlers used by SST (API + processors + replication).
 
 ## SST infrastructure
@@ -24,6 +24,13 @@ The architecture consists of:
 - **EventBridge bus** — publishes entity lifecycle events (created, updated, mutual processed)
 - **Processors** — SQS-backed Lambda functions that react to events and maintain denormalized data
 - **DynamoDB Stream** — triggers the replication processor to keep denormalized copies in sync
+- **Analytics delivery (optional)** — a second DynamoDB Stream subscriber normalizes canonical entity and mutual metadata changes, sends buffered history through Firehose to S3, and materializes typed Athena current-state and history tables daily
+
+### Analytics path
+
+When `MonoriseCore.analytics` is enabled, DynamoDB Streams with `NEW_AND_OLD_IMAGES` are the canonical analytics source. The analytics subscriber records canonical `INSERT`, `MODIFY`, and `REMOVE` changes with available before and after state, excluding derived list, tag, unique, lock, and replication rows. Firehose stores the event history in S3 under daily `event_date` partitions, with an optional hourly partition for individual datasets. A daily job compacts history to Parquet and merges the latest records into Iceberg current-state tables.
+
+EventBridge is not used for canonical analytics capture because lifecycle events do not provide reliable before-images. It remains available for consumer-defined business-event analytics.
 
 ### QFunction (processor pattern)
 
@@ -46,6 +53,7 @@ Failed messages can be redriven from the DLQ once the issue is resolved.
 - **Tag processor**: calculates tag diffs and syncs tag items.
 - **Prejoin processor**: walks configured relationship paths and publishes derived mutual updates.
 - **Replication processor**: keeps denormalized copies aligned via stream updates (uses replication indexes).
+- **Analytics delivery**: captures canonical stream changes into durable S3 history and refreshes Athena current-state tables daily when enabled.
 
 ## API reference
 

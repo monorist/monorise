@@ -1,5 +1,11 @@
 # monorise
 
+## 1.7.0
+
+### Minor Changes
+
+- Add opt-in Athena analytics with schema-generated entity and mutual datasets, durable history, daily current-state materialization, and point-in-time backfill.
+
 ## 1.6.0
 
 ### Minor Changes

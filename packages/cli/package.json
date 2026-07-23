@@ -15,7 +15,8 @@
   },
   "scripts": {
     "build": "tsup && chmod +x dist/cli.js && mkdir -p dist/templates && cp -r templates/files dist/templates/files",
-    "dev": "tsup --watch"
+    "dev": "tsup --watch",
+    "test": "tsx --test commands/**/*.test.ts"
   },
   "keywords": [],
   "author": "",

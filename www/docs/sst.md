@@ -48,6 +48,7 @@ new MonoriseCore(id: string, args?: MonoriseCoreArgs)
 | `configRoot` | `string` | — | Custom root path for monorise config |
 | `cloudwatchLogRetention` | `sst.aws.FunctionArgs['logging']['retention']` | `'1 month'` | CloudWatch log retention period for Monorise-owned Lambda functions |
 | `cloudwatchDashboard` | `{ enabled?: boolean }` | `{ enabled: true }` | Built-in CloudWatch dashboard. Disable to skip creating it |
+| `analytics` | Analytics configuration | Disabled | Opt-in Athena analytics for canonical entity and named mutual data |
 
 `cloudwatchLogRetention` is passed to SST's Lambda logging configuration for the API handler, replication processor, and built-in event processors. It accepts SST's supported retention values, for example `'1 day'`, `'1 week'`, `'1 month'`, `'1 year'`, or `'forever'`.
 
@@ -60,6 +61,28 @@ const { bus, api, table, alarmTopic } = new monorise.module.Core('core', {
 ```
 
 Disabling it on a stage where the dashboard already exists will destroy the dashboard on the next deploy.
+
+### Analytics
+
+Set `analytics` to enable the built-in Athena analytics path. Run `monorise build` first so deployment can load the generated analytics manifest.
+
+```ts
+new monorise.module.Core('core', {
+  analytics: {
+    fields: {
+      omit: ['passwordHash'],
+    },
+  },
+});
+```
+
+Analytics is disabled by default. When enabled, it captures canonical DynamoDB Stream entity and mutual changes, writes history to S3, and materializes Athena current-state tables daily. Omitted field names apply only to top-level `data` and `mutualData` keys; all other schema fields are included by default.
+
+History uses daily `event_date` partitions by default. Individual entity and mutual datasets can use hourly partitions, which add `event_hour`; use them only when their query volume justifies the additional small-file and compaction overhead. Current-state tables are refreshed daily.
+
+By default, Monorise creates an encrypted, retained S3 bucket, Glue database, Athena workgroup, and KMS key. You can supply any of those resources independently; Monorise uses the supplied resource and grants only the permissions needed for ingestion, compaction, catalog management, or querying. Monorise-created analytics data resources are retained on stack removal and history is retained indefinitely. Apply a lifecycle policy to supplied storage when you need a different retention period.
+
+The first deployment backfills existing canonical state through a DynamoDB point-in-time export and writes `SNAPSHOT` baseline history events. Point-in-time recovery is enabled for Monorise-created tables. A table imported with `fromTableName` must already have point-in-time recovery enabled; acknowledge that prerequisite explicitly with `analytics.importedTable: { pointInTimeRecoveryEnabled: true }` or deployment fails before capture begins.
 
 ### Exposed resources
 
@@ -97,6 +120,7 @@ Under the hood, `MonoriseCore` creates:
 - **EventBridge bus** for publishing entity events
 - **3 QFunction processors** (mutual, tag, prejoin) — each with SQS queue, Lambda, DLQ, and CloudWatch alarm
 - **Replication processor** — DynamoDB stream subscriber that keeps denormalized data in sync
+- **Analytics delivery** (when enabled) — a second DynamoDB Stream subscriber, Firehose delivery to S3, and daily Athena/Glue materialization
 - **CloudWatch dashboard** with metrics for all Lambda functions, DLQ depths, and a link to DynamoDB table monitoring (can be disabled via `cloudwatchDashboard`)
 - **SST DevCommand** — automatically runs `monorise dev` in watch mode during `sst dev`
 

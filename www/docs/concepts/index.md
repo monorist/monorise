@@ -14,6 +14,7 @@ This system revolves around three core building blocks:
 |---------|-------------|
 | [Entity](/concepts/entities) | A first-class record (e.g., `learner`, `course`) |
 | [Mutual](/concepts/mutuals) | A relationship record between two entities that can hold data |
+| [Analytics](/concepts/analytics) | An opt-in Athena lake for current state and entity or mutual change history |
 | [Tag](/concepts/tags) | A key/value access pattern to quickly query subsets of entities |
 
 These are defined per entity in config files via `createEntityConfig` (Zod-based). Additionally, **Prejoins** are computed relationships that "join" through a chain of mutuals to avoid expensive multi-hop queries.
