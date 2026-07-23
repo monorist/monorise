@@ -14,6 +14,8 @@ import { handler as tagProcessor } from './processors/tag-processor';
 import { DependencyContainer } from './services/DependencyContainer';
 import { EntityService } from './services/entity.service';
 import { MutualService } from './services/mutual.service';
+import { transactional } from './helpers/transactional';
+import { TransactionService } from './services/transaction.service';
 
 class CoreFactory {
   public setupCommonRoutes: ReturnType<typeof setupCommonRoutes>;
@@ -62,6 +64,8 @@ export {
   tagProcessor,
   appHandler,
   DependencyContainer,
+  TransactionService,
+  transactional,
   StandardError,
   StandardErrorCode,
 };
