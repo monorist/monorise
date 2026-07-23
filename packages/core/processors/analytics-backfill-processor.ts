@@ -29,7 +29,7 @@ type S3ExportEvent = {
   Records: { s3: { bucket: { name: string }; object: { key: string } } }[];
 };
 
-type BackfillLaunchEvent = { action: 'start' };
+type BackfillLaunchEvent = { action: 'start' | 'reconcile' };
 
 const backfillMarker = { PK: '#ANALYTICS#', SK: '#BACKFILL#' };
 
@@ -49,17 +49,29 @@ function exportTimestamp(): Date {
 }
 
 /** Starts a consistent export after stream capture has been enabled by infrastructure. */
-export async function startBackfill() {
+export async function startBackfill(reconcile = false) {
   const timestamp = exportTimestamp();
   const tableName = required('ANALYTICS_BACKFILL_MARKER_TABLE');
   const marker = marshall({ ...backfillMarker, exportTime: timestamp.toISOString(), state: 'starting' });
+  let createdMarker = false;
   try {
     await dynamodb.send(new PutItemCommand({ TableName: tableName, Item: marker, ConditionExpression: 'attribute_not_exists(PK)' }));
+    createdMarker = true;
   } catch (error) {
     if ((error as { name?: string }).name !== 'ConditionalCheckFailedException') throw error;
+    if (reconcile) {
+      await dynamodb.send(new UpdateItemCommand({
+        TableName: tableName,
+        Key: marshall(backfillMarker),
+        UpdateExpression: 'SET exportTime = :exportTime, #state = :state REMOVE exportArn',
+        ExpressionAttributeNames: { '#state': 'state' },
+        ExpressionAttributeValues: marshall({ ':exportTime': timestamp.toISOString(), ':state': 'starting' }),
+      }));
+    } else {
     const existing = await dynamodb.send(new GetItemCommand({ TableName: tableName, Key: marshall(backfillMarker), ConsistentRead: true }));
     const value = existing.Item ? unmarshall(existing.Item) : {};
     return { exportArn: value.exportArn as string | undefined, exportTime: value.exportTime as string | undefined, started: false };
+    }
   }
 
   let result;
@@ -72,12 +84,23 @@ export async function startBackfill() {
       ExportFormat: 'DYNAMODB_JSON',
     }));
   } catch (error) {
-    await dynamodb.send(new DeleteItemCommand({
-      TableName: tableName,
-      Key: marshall(backfillMarker),
-      ConditionExpression: 'exportTime = :exportTime',
-      ExpressionAttributeValues: marshall({ ':exportTime': timestamp.toISOString() }),
-    }));
+    if (createdMarker) {
+      await dynamodb.send(new DeleteItemCommand({
+        TableName: tableName,
+        Key: marshall(backfillMarker),
+        ConditionExpression: 'exportTime = :exportTime',
+        ExpressionAttributeValues: marshall({ ':exportTime': timestamp.toISOString() }),
+      }));
+    } else {
+      await dynamodb.send(new UpdateItemCommand({
+        TableName: tableName,
+        Key: marshall(backfillMarker),
+        UpdateExpression: 'SET #state = :state',
+        ConditionExpression: 'exportTime = :exportTime',
+        ExpressionAttributeNames: { '#state': 'state' },
+        ExpressionAttributeValues: marshall({ ':state': 'failed', ':exportTime': timestamp.toISOString() }),
+      }));
+    }
     throw error;
   }
   await dynamodb.send(new UpdateItemCommand({
@@ -139,6 +162,7 @@ export function snapshotEvent(
 export const handler = (config: Config) => async (event: S3ExportEvent | BackfillLaunchEvent) => {
   if (!('Records' in event)) {
     if (event.action === 'start') return startBackfill();
+    if (event.action === 'reconcile') return startBackfill(true);
     throw new Error('Unsupported analytics backfill event.');
   }
   const timestamp = await backfillTimestamp();
