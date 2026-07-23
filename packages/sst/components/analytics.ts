@@ -289,7 +289,9 @@ export class Analytics {
     }, { dependsOn: [backfillPermission] });
     new aws.lambda.Invocation(`${id}-analytics-backfill-launch`, {
       functionName: backfillFunction.name,
-      input: JSON.stringify({ action: 'start' }),
+      // This resource is recreated after analytics is disabled, so reconcile
+      // current state when delivery is enabled again.
+      input: JSON.stringify({ action: 'reconcile' }),
     }, { dependsOn: [backfillNotification] });
     new aws.cloudwatch.MetricAlarm(`${id}-analytics-backfill-errors`, {
       name: `${id}-analytics-backfill-errors`, namespace: 'AWS/Lambda', metricName: 'Errors', statistic: 'Sum', period: 300, evaluationPeriods: 1, threshold: 1, comparisonOperator: 'GreaterThanOrEqualToThreshold', alarmActions: [alarmTopic.arn], dimensions: { FunctionName: this.backfillFunctionName },

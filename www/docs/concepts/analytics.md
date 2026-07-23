@@ -91,6 +91,8 @@ The first analytics deployment starts continuous capture and performs a point-in
 
 Analytics does not reconstruct mutations from before the export. Point-in-time recovery is required: Monorise enables it for tables it creates, while a table supplied with `fromTableName` must already have it enabled and set `analytics.importedTable: { pointInTimeRecoveryEnabled: true }` or deployment fails before capture starts. Exports and their storage can also incur DynamoDB and S3 cost.
 
+Disabling analytics stops capture. Re-enabling it runs another point-in-time `SNAPSHOT` reconciliation, restoring current state while leaving the disabled interval absent from change history.
+
 ## Schema migrations
 
 Analytics schema changes are validated against the generated manifest. Adding a supported field is additive and adds an Athena column on the next deployment. Renaming a field or changing it to an incompatible type requires an explicit analytics migration.
