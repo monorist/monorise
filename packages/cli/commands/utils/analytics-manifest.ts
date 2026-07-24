@@ -20,14 +20,22 @@ export type AnalyticsDataset = {
   kind: 'entity' | 'mutual';
   name: string;
   identifier: string;
+  idColumn: string;
+  endpoints: AnalyticsEndpoint[];
   currentTable: string;
   historyTable: string;
   columns: AnalyticsColumn[];
   partition: { granularity: 'day' };
 };
 
+export type AnalyticsEndpoint = {
+  entityName: string;
+  column: string;
+  role?: 'source' | 'target';
+};
+
 export type AnalyticsManifest = {
-  version: 1;
+  version: 2;
   datasets: AnalyticsDataset[];
   unnamedMutuals: string[];
   schemaFingerprint: string;
@@ -46,6 +54,7 @@ export type AnalyticsConfig = {
 
 type AnalyticsMutual = {
   name?: string;
+  entities?: [string, string];
   mutualDataSchema: ZodSchema;
 };
 
@@ -116,6 +125,24 @@ function columns(schema: ZodSchema, path: string): AnalyticsColumn[] {
   });
 }
 
+function endpoints(entities: [string, string]): AnalyticsEndpoint[] {
+  const [first, second] = entities;
+  if (first === second) {
+    const identifier = normalizeSqlIdentifier(first);
+    return [
+      { entityName: first, column: `${identifier}_source_id`, role: 'source' },
+      { entityName: second, column: `${identifier}_target_id`, role: 'target' },
+    ];
+  }
+
+  return [first, second]
+    .sort()
+    .map((entityName) => ({
+      entityName,
+      column: `${normalizeSqlIdentifier(entityName)}_id`,
+    }));
+}
+
 function fingerprint(datasets: AnalyticsDataset[]): string {
   return createHash('sha256').update(JSON.stringify(datasets)).digest('hex');
 }
@@ -165,6 +192,7 @@ export function createAnalyticsManifest(
     kind: AnalyticsDataset['kind'],
     name: string,
     schema: ZodSchema,
+    mutualEntities?: [string, string],
   ) => {
     if (!lowerKebabCase.test(name)) {
       throw new Error(
@@ -179,13 +207,39 @@ export function createAnalyticsManifest(
       );
     }
     identifiers.set(identifier, name);
+    const idColumn = `${identifier}_id`;
+    const datasetEndpoints =
+      kind === 'mutual' && mutualEntities ? endpoints(mutualEntities) : [];
+    const datasetColumns = columns(schema, `${kind} ${name}`);
+    const reservedNames = new Set([
+      idColumn,
+      ...datasetEndpoints.map((endpoint) => endpoint.column),
+      'event_id',
+      'idempotency_key',
+      'ordering_key',
+      'sequence_number',
+      'operation',
+      'occurred_at',
+      'before_json',
+      'after_json',
+    ]);
+    const collision = datasetColumns.find((column) =>
+      reservedNames.has(column.name),
+    );
+    if (collision) {
+      throw new Error(
+        `Analytics field ${kind} ${name}.${collision.sourceName} conflicts with generated column ${collision.name}.`,
+      );
+    }
     datasets.push({
       kind,
       name,
       identifier,
+      idColumn,
+      endpoints: datasetEndpoints,
       currentTable: `${identifier}_${kind === 'entity' ? 'entities' : 'mutuals'}`,
       historyTable: `${identifier}_${kind === 'entity' ? 'entity_changes' : 'mutual_changes'}`,
-      columns: columns(schema, `${kind} ${name}`),
+      columns: datasetColumns,
       partition: { granularity: 'day' },
     });
   };
@@ -200,12 +254,17 @@ export function createAnalyticsManifest(
       }
       if (mutuals.has(mutual)) continue;
       mutuals.add(mutual);
-      addDataset('mutual', mutual.name, mutual.mutualDataSchema);
+      addDataset(
+        'mutual',
+        mutual.name,
+        mutual.mutualDataSchema,
+        mutual.entities ?? [config.name, field.entityType],
+      );
     }
   }
 
   return {
-    version: 1,
+    version: 2,
     datasets,
     unnamedMutuals: [...unnamedMutuals].sort(),
     schemaFingerprint: fingerprint(datasets),
