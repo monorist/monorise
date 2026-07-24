@@ -37,6 +37,24 @@ For a mutual config named `enrollment`, Athena exposes:
 
 Kebab-case dataset names are normalized to SQL identifiers. For example, `learning-activity` produces `learning_activity_entities`. Names that are invalid or collide after normalization are rejected.
 
+### Column names
+
+Athena lowercases identifiers, so analytics tables use lowercase `snake_case` columns. Schema fields such as `displayName` and `createdAt` become `display_name` and `created_at`.
+
+Each entity table uses an entity-specific primary ID column. For example, `student_entities` contains `student_id`, and `talent_profile_entities` contains `talent_profile_id`; both map to Monorise's internal `entityId`.
+
+Each named mutual table uses its mutual name for the relationship identifier and includes both endpoint IDs. For example, `participant_mutuals` contains `participant_id` (the internal `mutualId`), `student_id`, and `talent_profile_id`. This supports direct Athena joins:
+
+```sql
+SELECT student.display_name, talent.headline
+FROM participant_mutuals AS participant
+JOIN student_entities AS student ON student.student_id = participant.student_id
+JOIN talent_profile_entities AS talent
+  ON talent.talent_profile_id = participant.talent_profile_id;
+```
+
+Self-relations use `<entity>_source_id` and `<entity>_target_id`. Generated metadata names are reserved: a configured schema field that normalizes to a generated name, such as `studentId` becoming `student_id`, fails manifest generation instead of silently changing the query contract.
+
 ## Query examples
 
 Query the current state when daily freshness is sufficient:

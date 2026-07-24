@@ -12,6 +12,8 @@ type ManifestDataset = {
   kind: 'entity' | 'mutual';
   name: string;
   identifier: string;
+  idColumn: string;
+  endpoints: { entityName: string; column: string; role?: 'source' | 'target' }[];
   currentTable: string;
   historyTable: string;
   columns: ManifestColumn[];
@@ -19,7 +21,7 @@ type ManifestDataset = {
 };
 
 type AnalyticsManifest = {
-  version: 1;
+  version: 2;
   datasets: ManifestDataset[];
   unnamedMutuals: string[];
   schemaFingerprint: string;
@@ -68,7 +70,7 @@ function loadManifest(configRoot?: string): AnalyticsManifest {
     );
   }
   if (
-    manifest.version !== 1 ||
+    manifest.version !== 2 ||
     !Array.isArray(manifest.datasets) ||
     !Array.isArray(manifest.unnamedMutuals) ||
     typeof manifest.schemaFingerprint !== 'string'
@@ -89,8 +91,10 @@ function loadManifest(configRoot?: string): AnalyticsManifest {
   for (const dataset of manifest.datasets) {
     if (
       !dataset.name ||
-      !dataset.identifier ||
-      !Array.isArray(dataset.columns) ||
+        !dataset.identifier ||
+        !dataset.idColumn ||
+        !Array.isArray(dataset.columns) ||
+        !Array.isArray(dataset.endpoints) ||
       identifiers.has(dataset.identifier)
     ) {
       throw new Error(

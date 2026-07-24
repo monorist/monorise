@@ -24,7 +24,11 @@ test('generates normalized entity and named mutual datasets', () => {
         scores: z.array(z.number()),
         startedAt: z.string().datetime(),
       }),
-      mutual: { mutualFields: { enrollments: { mutual: enrollment } } },
+      mutual: {
+        mutualFields: {
+          enrollments: { entityType: 'course', mutual: enrollment },
+        },
+      },
     },
   ]);
 
@@ -32,6 +36,8 @@ test('generates normalized entity and named mutual datasets', () => {
     kind: 'entity',
     name: 'learning-activity',
     identifier: 'learning_activity',
+    idColumn: 'learning_activity_id',
+    endpoints: [],
     currentTable: 'learning_activity_entities',
     historyTable: 'learning_activity_entity_changes',
     columns: [
@@ -42,7 +48,20 @@ test('generates normalized entity and named mutual datasets', () => {
     ],
     partition: { granularity: 'day' },
   });
-  assert.equal(manifest.datasets[1]?.currentTable, 'enrollment_mutuals');
+  assert.deepEqual(manifest.datasets[1], {
+    kind: 'mutual',
+    name: 'enrollment',
+    identifier: 'enrollment',
+    idColumn: 'enrollment_id',
+    endpoints: [
+      { entityName: 'course', column: 'course_id' },
+      { entityName: 'learning-activity', column: 'learning_activity_id' },
+    ],
+    currentTable: 'enrollment_mutuals',
+    historyTable: 'enrollment_mutual_changes',
+    columns: [{ name: 'enrolled_at', sourceName: 'enrolledAt', type: 'timestamp' }],
+    partition: { granularity: 'day' },
+  });
 });
 
 test('rejects invalid names, normalized columns, and unsupported types', () => {
@@ -62,6 +81,29 @@ test('rejects invalid names, normalized columns, and unsupported types', () => {
       createAnalyticsManifest([entity('item', { status: z.enum(['open']) })]),
     /Unsupported analytics schema field entity item.status/,
   );
+  assert.throws(
+    () => createAnalyticsManifest([entity('student', { studentId: z.string() })]),
+    /conflicts with generated column student_id/,
+  );
+});
+
+test('names self-relation endpoints by source and target', () => {
+  const mentor = {
+    name: 'mentor-link',
+    entities: ['student', 'student'] as [string, string],
+    mutualDataSchema: z.object({}),
+  };
+  const manifest = createAnalyticsManifest([
+    {
+      ...entity('student', {}),
+      mutual: { mutualFields: { mentors: { entityType: 'student', mutual: mentor } } },
+    },
+  ]);
+
+  assert.deepEqual(manifest.datasets[1]?.endpoints, [
+    { entityName: 'student', column: 'student_source_id', role: 'source' },
+    { entityName: 'student', column: 'student_target_id', role: 'target' },
+  ]);
 });
 
 test('permits additive fields and rejects breaking schema changes', () => {

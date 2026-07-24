@@ -14,6 +14,12 @@ type Column = {
 type Dataset = {
   kind: 'entity' | 'mutual';
   name: string;
+  idColumn: string;
+  endpoints: {
+    entityName: string;
+    column: string;
+    role?: 'source' | 'target';
+  }[];
   currentTable: string;
   historyTable: string;
   rawTable?: string;
@@ -60,6 +66,20 @@ function valueExpression(column: Column, kind: Dataset['kind']): string {
   }
 }
 
+function endpointExpression(
+  endpoint: Dataset['endpoints'][number],
+): string {
+  const payload = 'coalesce(after, before)';
+  if (endpoint.role === 'source') {
+    return `json_extract_scalar(${payload}, '$.byEntityId')`;
+  }
+  if (endpoint.role === 'target') {
+    return `json_extract_scalar(${payload}, '$.entityId')`;
+  }
+  const entityName = quoteLiteral(endpoint.entityName);
+  return `CASE WHEN json_extract_scalar(${payload}, '$.byEntityType') = ${entityName} THEN json_extract_scalar(${payload}, '$.byEntityId') WHEN json_extract_scalar(${payload}, '$.entityType') = ${entityName} THEN json_extract_scalar(${payload}, '$.entityId') END`;
+}
+
 function datasetSql(
   dataset: Dataset,
   database: string,
@@ -73,11 +93,14 @@ function datasetSql(
       `${quoteIdentifier(column.name)} ${column.type === 'json' ? 'varchar' : column.type}`,
   );
   const names = dataset.columns.map((column) => quoteIdentifier(column.name));
+  const endpointNames = dataset.endpoints.map((endpoint) =>
+    quoteIdentifier(endpoint.column),
+  );
   const values = dataset.columns.map((column) =>
     valueExpression(column, dataset.kind),
   );
   const payload = 'coalesce(after, before)';
-  const recordIdPath = dataset.kind === 'entity' ? '$.entityId' : '$.mutualId';
+  const idPath = dataset.kind === 'entity' ? '$.entityId' : '$.mutualId';
   const selected = [
     'event_id',
     'idempotency_key',
@@ -85,9 +108,12 @@ function datasetSql(
     'sequence_number',
     'operation',
     'try_cast(from_iso8601_timestamp(occurred_at) AS timestamp) AS occurred_at',
-    `json_extract_scalar(${payload}, ${quoteLiteral(recordIdPath)}) AS record_id`,
+    `json_extract_scalar(${payload}, ${quoteLiteral(idPath)}) AS ${quoteIdentifier(dataset.idColumn)}`,
     'before AS before_json',
     'after AS after_json',
+    ...dataset.endpoints.map(
+      (endpoint) => `${endpointExpression(endpoint)} AS ${quoteIdentifier(endpoint.column)}`,
+    ),
     ...values.map((value, index) => `${value} AS ${names[index]}`),
   ];
   const allColumns = [
@@ -97,9 +123,10 @@ function datasetSql(
     'sequence_number varchar',
     'operation varchar',
     'occurred_at timestamp',
-    'record_id varchar',
+    `${quoteIdentifier(dataset.idColumn)} varchar`,
     'before_json varchar',
     'after_json varchar',
+    ...endpointNames.map((name) => `${name} varchar`),
     ...typedColumns,
   ];
   const historyNames = [
@@ -109,10 +136,11 @@ function datasetSql(
     'sequence_number',
     'operation',
     'occurred_at',
-    'record_id',
+    dataset.idColumn,
     'before_json',
     'after_json',
-    ...names,
+    ...dataset.endpoints.map((endpoint) => endpoint.column),
+    ...dataset.columns.map((column) => column.name),
   ]
     .map(quoteIdentifier)
     .join(', ');
@@ -123,9 +151,10 @@ function datasetSql(
     's.sequence_number',
     's.operation',
     's.occurred_at',
-    's.record_id',
+    `s.${quoteIdentifier(dataset.idColumn)}`,
     's.before_json',
     's.after_json',
+    ...endpointNames.map((name) => `s.${name}`),
     ...names.map((name) => `s.${name}`),
   ].join(', ');
 
@@ -133,7 +162,7 @@ function datasetSql(
     `CREATE TABLE IF NOT EXISTS ${history} (${allColumns.join(', ')}) LOCATION ${quoteLiteral(`s3://${bucket}/curated/history/${dataset.kind === 'entity' ? 'entities' : 'mutuals'}/${dataset.name}/`)} TBLPROPERTIES ('table_type'='ICEBERG')`,
     `MERGE INTO ${history} h USING (SELECT * FROM (SELECT ${selected.join(', ')}, row_number() OVER (PARTITION BY event_id ORDER BY ordering_key DESC) AS row_number FROM ${raw}) WHERE row_number = 1) s ON h.event_id = s.event_id WHEN NOT MATCHED THEN INSERT (${historyNames}) VALUES (${insertValues})`,
     `CREATE TABLE IF NOT EXISTS ${current} (${allColumns.filter((column) => !column.startsWith('event_id ') && !column.startsWith('idempotency_key ') && !column.startsWith('sequence_number ') && !column.startsWith('before_json ') && !column.startsWith('after_json ')).join(', ')}) LOCATION ${quoteLiteral(`s3://${bucket}/current/${dataset.name}/`)} TBLPROPERTIES ('table_type'='ICEBERG')`,
-    `MERGE INTO ${current} c USING (SELECT * FROM (SELECT h.*, row_number() OVER (PARTITION BY record_id ORDER BY occurred_at DESC, ordering_key DESC) AS row_number FROM ${history} h) WHERE row_number = 1) s ON c.record_id = s.record_id WHEN MATCHED AND s.operation = 'REMOVE' THEN DELETE WHEN MATCHED THEN UPDATE SET operation = s.operation, occurred_at = s.occurred_at, ordering_key = s.ordering_key${names.map((name) => `, ${name} = s.${name}`).join('')} WHEN NOT MATCHED AND s.operation <> 'REMOVE' THEN INSERT (operation, occurred_at, ordering_key, record_id${names.length ? `, ${names.join(', ')}` : ''}) VALUES (s.operation, s.occurred_at, s.ordering_key, s.record_id${names.length ? `, ${names.map((name) => `s.${name}`).join(', ')}` : ''})`,
+    `MERGE INTO ${current} c USING (SELECT * FROM (SELECT h.*, row_number() OVER (PARTITION BY ${quoteIdentifier(dataset.idColumn)} ORDER BY occurred_at DESC, ordering_key DESC) AS row_number FROM ${history} h) WHERE row_number = 1) s ON c.${quoteIdentifier(dataset.idColumn)} = s.${quoteIdentifier(dataset.idColumn)} WHEN MATCHED AND s.operation = 'REMOVE' THEN DELETE WHEN MATCHED THEN UPDATE SET operation = s.operation, occurred_at = s.occurred_at, ordering_key = s.ordering_key${endpointNames.map((name) => `, ${name} = s.${name}`).join('')}${names.map((name) => `, ${name} = s.${name}`).join('')} WHEN NOT MATCHED AND s.operation <> 'REMOVE' THEN INSERT (operation, occurred_at, ordering_key, ${quoteIdentifier(dataset.idColumn)}${endpointNames.length ? `, ${endpointNames.join(', ')}` : ''}${names.length ? `, ${names.join(', ')}` : ''}) VALUES (s.operation, s.occurred_at, s.ordering_key, s.${quoteIdentifier(dataset.idColumn)}${endpointNames.length ? `, ${endpointNames.map((name) => `s.${name}`).join(', ')}` : ''}${names.length ? `, ${names.map((name) => `s.${name}`).join(', ')}` : ''})`,
   ];
 }
 
@@ -204,6 +233,15 @@ async function addMissingColumns(
     );
 }
 
+function generatedColumns(dataset: Dataset): string[] {
+  return [
+    `${quoteIdentifier(dataset.idColumn)} varchar`,
+    ...dataset.endpoints.map(
+      (endpoint) => `${quoteIdentifier(endpoint.column)} varchar`,
+    ),
+  ];
+}
+
 export const handler = async () => {
   const database = required('ANALYTICS_DATABASE');
   const bucket = required('ANALYTICS_BUCKET');
@@ -213,19 +251,19 @@ export const handler = async () => {
     await addMissingColumns(
       database,
       dataset.historyTable,
-      dataset.columns.map(
+      [...generatedColumns(dataset), ...dataset.columns.map(
         (column) =>
           `${quoteIdentifier(column.name)} ${column.type === 'json' ? 'varchar' : column.type}`,
-      ),
+      )],
     );
     await execute(statements[2]);
     await addMissingColumns(
       database,
       dataset.currentTable,
-      dataset.columns.map(
+      [...generatedColumns(dataset), ...dataset.columns.map(
         (column) =>
           `${quoteIdentifier(column.name)} ${column.type === 'json' ? 'varchar' : column.type}`,
-      ),
+      )],
     );
     for (const statement of [statements[1], statements[3]]) {
       await execute(statement);
