@@ -89,7 +89,7 @@ History partitions are daily by default. Configure hourly partitions only for in
 
 ## Retention and sensitive fields
 
-Monorise-created analytics S3, Glue, Athena, and KMS resources are encrypted and retained when a stack is removed. Analytics history is retained indefinitely. When using supplied storage, configure a separate lifecycle policy if retention must be limited.
+Monorise-created analytics S3, Glue, and Athena resources use AWS-managed encryption and are retained when a stack is removed. Analytics history is retained indefinitely. When using supplied storage, configure a separate lifecycle policy if retention must be limited.
 
 All schema fields are exported by default. Set `analytics.fields.omit` to remove sensitive top-level fields from both `data` and `mutualData` before stream delivery and backfill writes:
 

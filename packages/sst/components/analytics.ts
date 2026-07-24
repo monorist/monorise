@@ -34,7 +34,6 @@ export type SuppliedAnalyticsResources = {
     /** Set only when this bucket has no existing notifications and Monorise may manage them. */
     notificationsManaged?: boolean;
   };
-  key?: { arn: $util.Input<string> };
   glueDatabase?: { name: $util.Input<string> };
   workgroup?: { name: $util.Input<string> };
 };
@@ -117,7 +116,6 @@ function athenaType(type: ManifestColumn['type']): string {
 
 export class Analytics {
   public readonly bucket: { arn: $util.Input<string>; name: $util.Input<string> };
-  public readonly key: { arn: $util.Input<string> };
   public readonly glueDatabase: { name: $util.Input<string> };
   public readonly workgroup: { name: $util.Input<string> };
   public readonly deliveryStream: aws.kinesis.FirehoseDeliveryStream;
@@ -144,13 +142,6 @@ export class Analytics {
     this.processorFunctionName = `${$app.stage}-${$app.name}-${id}-analytics-processor`;
     this.backfillFunctionName = `${$app.stage}-${$app.name}-${id}-analytics-backfill`;
 
-    const managedKey = args.resources?.key
-      ? undefined
-      : new aws.kms.Key(`${id}-analytics-key`, {
-          description: 'Monorise analytics encryption key',
-          enableKeyRotation: true,
-          deletionWindowInDays: 30,
-        }, { retainOnDelete: true });
     const managedBucket = args.resources?.bucket
       ? undefined
       : new aws.s3.Bucket(`${id}-analytics-bucket`, {
@@ -158,8 +149,7 @@ export class Analytics {
           serverSideEncryptionConfiguration: {
             rule: {
               applyServerSideEncryptionByDefault: {
-                kmsMasterKeyId: managedKey?.arn,
-                sseAlgorithm: 'aws:kms',
+                sseAlgorithm: 'AES256',
               },
             },
           },
@@ -184,13 +174,12 @@ export class Analytics {
             publishCloudwatchMetricsEnabled: true,
             resultConfiguration: {
               outputLocation: $interpolate`s3://${managedBucket!.bucket}/athena-results/`,
-              encryptionConfiguration: { encryptionOption: 'SSE_KMS', kmsKeyArn: managedKey!.arn },
+              encryptionConfiguration: { encryptionOption: 'SSE_S3' },
             },
           },
         }, { retainOnDelete: true });
 
     this.bucket = args.resources?.bucket ?? { arn: managedBucket!.arn, name: managedBucket!.bucket };
-    this.key = args.resources?.key ?? { arn: managedKey!.arn };
     this.glueDatabase = args.resources?.glueDatabase ?? { name: managedDatabase!.name };
     this.workgroup = args.resources?.workgroup ?? { name: managedWorkgroup!.name };
 
@@ -199,9 +188,9 @@ export class Analytics {
     });
     new aws.iam.RolePolicy(`${id}-analytics-firehose-policy`, {
       role: firehoseRole.id,
-      policy: $resolve([this.bucket.arn, this.key.arn]).apply(([bucketArn, keyArn]) => JSON.stringify({
+      policy: $resolve([this.bucket.arn]).apply(([bucketArn]) => JSON.stringify({
         Version: '2012-10-17',
-        Statement: [{ Effect: 'Allow', Action: ['s3:AbortMultipartUpload', 's3:GetBucketLocation', 's3:GetObject', 's3:ListBucket', 's3:PutObject'], Resource: [bucketArn, `${bucketArn}/*`] }, { Effect: 'Allow', Action: ['kms:Decrypt', 'kms:GenerateDataKey'], Resource: keyArn }],
+        Statement: [{ Effect: 'Allow', Action: ['s3:AbortMultipartUpload', 's3:GetBucketLocation', 's3:GetObject', 's3:ListBucket', 's3:PutObject'], Resource: [bucketArn, `${bucketArn}/*`] }],
       })),
     });
     this.deliveryStream = new aws.kinesis.FirehoseDeliveryStream(`${id}-analytics-delivery`, {
@@ -212,7 +201,6 @@ export class Analytics {
         bufferingInterval: 300,
         bufferingSize: 5,
         compressionFormat: 'GZIP',
-        kmsKeyArn: this.key.arn,
         prefix: 'history/!{partitionKeyFromQuery:path}/',
         errorOutputPrefix: 'errors/!{firehose:error-output-type}/',
         dynamicPartitioningConfiguration: { enabled: true },
@@ -278,7 +266,6 @@ export class Analytics {
         { actions: ['dynamodb:ExportTableToPointInTime', 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:DeleteItem'], resources: [table.arn] },
         { actions: ['s3:GetObject'], resources: [$interpolate`${this.bucket.arn}/${backfillPrefix}/*`] },
         { actions: ['firehose:PutRecordBatch'], resources: [this.deliveryStream.arn] },
-        { actions: ['kms:Decrypt', 'kms:GenerateDataKey'], resources: [this.key.arn] },
       ],
     });
     const backfillPermission = new aws.lambda.Permission(`${id}-analytics-backfill-s3-permission`, {
@@ -374,7 +361,6 @@ export class Analytics {
           { actions: ['athena:StartQueryExecution', 'athena:GetQueryExecution', 'athena:GetQueryResults'], resources: ['*'] },
           { actions: ['glue:GetDatabase', 'glue:GetTable', 'glue:CreateTable', 'glue:UpdateTable'], resources: ['*'] },
           { actions: ['s3:GetObject', 's3:PutObject', 's3:ListBucket'], resources: [this.bucket.arn, $interpolate`${this.bucket.arn}/*`] },
-          { actions: ['kms:Decrypt', 'kms:GenerateDataKey'], resources: [this.key.arn] },
         ],
       },
     });
