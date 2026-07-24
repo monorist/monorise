@@ -53,7 +53,7 @@ JOIN talent_profile_entities AS talent
   ON talent.talent_profile_id = participant.talent_profile_id;
 ```
 
-Self-relations use `<entity>_source_id` and `<entity>_target_id`. Generated metadata names are reserved: a configured schema field that normalizes to a generated name, such as `studentId` becoming `student_id`, fails manifest generation instead of silently changing the query contract.
+Same-type relations, such as a `friend` mutual between two users, use `<entity>_source_id` and `<entity>_target_id`. Generated metadata names are reserved: a configured schema field that normalizes to a generated name, such as `studentId` becoming `student_id`, fails manifest generation instead of silently changing the query contract.
 
 ## Query examples
 
