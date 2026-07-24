@@ -1,5 +1,12 @@
 # @monorise/react
 
+## 8.0.0-dev.0
+
+### Patch Changes
+
+- Updated dependencies [9bb4f90]
+  - @monorise/base@4.4.0-dev.0
+
 ## 7.1.0
 
 ### Minor Changes

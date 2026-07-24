@@ -1,5 +1,11 @@
 # @monorise/core
 
+## 4.5.0-dev.0
+
+### Minor Changes
+
+- 9bb4f90: Add opt-in Athena analytics with schema-generated entity and mutual datasets, durable history, daily current-state materialization, and point-in-time backfill.
+
 ## 4.4.0
 
 ### Minor Changes
