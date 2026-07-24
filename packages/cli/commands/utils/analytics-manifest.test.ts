@@ -87,7 +87,7 @@ test('rejects invalid names, normalized columns, and unsupported types', () => {
   );
 });
 
-test('names self-relation endpoints by source and target', () => {
+test('names same-type relation endpoints by source and target', () => {
   const mentor = {
     name: 'mentor-link',
     entities: ['student', 'student'] as [string, string],
