@@ -10,5 +10,7 @@
     "@monorise/sst": "4.2.0",
     "@monorise/www": "0.0.0"
   },
-  "changesets": []
+  "changesets": [
+    "add-athena-analytics"
+  ]
 }
