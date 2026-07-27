@@ -46,7 +46,54 @@ export type AnalyticsArgs = {
   partitions?: Record<string, 'day' | 'hour'>;
   /** Required when `fromTableName` is used because DynamoDB does not expose PITR through table metadata. */
   importedTable?: { pointInTimeRecoveryEnabled: true };
+  /** Server-to-server API for executing only these named Athena queries. */
+  queryApi?: {
+    enabled?: boolean;
+    queries: Record<string, {
+      sql: string;
+      parameters?: Record<string, {
+        type: 'string' | 'number' | 'boolean' | 'date' | 'timestamp';
+      }>;
+      /** Reuse an identical Athena result for this many minutes. Athena does not detect source-data changes. */
+      resultReuse?: { maxAgeMinutes: number };
+    }>;
+  };
+  /** Deployment-managed reusable Athena views. */
+  views?: Record<string, { sql: string }>;
+  /** Scheduled Iceberg tables refreshed over a trailing time window. */
+  models?: Record<string, {
+    sql: string;
+    schedule: string;
+    partitionColumn: string;
+    lookbackDays?: number;
+  }>;
 };
+
+function validateQueries(queries: NonNullable<AnalyticsArgs['queryApi']>['queries']) {
+  for (const [name, query] of Object.entries(queries)) {
+    if (!/^[a-z][a-z0-9-]*$/.test(name)) {
+      throw new Error(`Invalid analytics query name: ${name}. Names must be lower-kebab-case.`);
+    }
+    if (!query.sql.trim() || !/^(select|with)\b/i.test(query.sql.trim()) || /;\s*\S/.test(query.sql)) {
+      throw new Error(`Analytics query ${name} must contain one read-only SELECT or WITH statement.`);
+    }
+    if ((query.sql.match(/\?/g) ?? []).length !== Object.keys(query.parameters ?? {}).length) {
+      throw new Error(`Analytics query ${name} must have one ? placeholder for each declared parameter.`);
+    }
+    if (query.resultReuse && (!Number.isInteger(query.resultReuse.maxAgeMinutes) || query.resultReuse.maxAgeMinutes < 1 || query.resultReuse.maxAgeMinutes > 10_080)) {
+      throw new Error(`Analytics query ${name} resultReuse.maxAgeMinutes must be between 1 and 10080.`);
+    }
+  }
+}
+
+function validateDefinitions(definitions: Record<string, unknown>, kind: 'view' | 'model') {
+  for (const [name, definition] of Object.entries(definitions)) {
+    if (!/^[a-z][a-z0-9-]*$/.test(name)) throw new Error(`Invalid analytics ${kind} name: ${name}. Names must be lower-kebab-case.`);
+    if (!definition || typeof definition !== 'object' || !('sql' in definition) || typeof definition.sql !== 'string' || !definition.sql.trim()) {
+      throw new Error(`Analytics ${kind} ${name} requires SQL.`);
+    }
+  }
+}
 
 function loadManifest(configRoot?: string): AnalyticsManifest {
   const manifestPath = path.join(
@@ -121,6 +168,7 @@ export class Analytics {
   public readonly deliveryStream: aws.kinesis.FirehoseDeliveryStream;
   public readonly dlq: sst.aws.Queue;
   public readonly schedule: sst.aws.CronV2;
+  public readonly queryApi?: sst.aws.ApiGatewayV2;
   public readonly processorFunctionName: string;
   public readonly backfillFunctionName: string;
 
@@ -182,6 +230,81 @@ export class Analytics {
     this.bucket = args.resources?.bucket ?? { arn: managedBucket!.arn, name: managedBucket!.bucket };
     this.glueDatabase = args.resources?.glueDatabase ?? { name: managedDatabase!.name };
     this.workgroup = args.resources?.workgroup ?? { name: managedWorkgroup!.name };
+
+    if (args.queryApi?.enabled !== false && args.queryApi) {
+      validateQueries(args.queryApi.queries);
+      const queryKeys = new sst.Secret('ANALYTICS_API_KEYS', '["analytics-secret-1", "analytics-secret-2"]');
+      const executions = new sst.aws.Dynamo(`${id}-analytics-executions`, {
+        fields: { id: 'string' },
+        primaryIndex: { hashKey: 'id' },
+        ttl: 'expiresAt',
+      });
+      this.queryApi = new sst.aws.ApiGatewayV2(`${id}-analytics-api`);
+      this.queryApi.route('ANY /analytics/{proxy+}', {
+        name: `${$app.stage}-${$app.name}-${id}-analytics-query-api`,
+        handler: path.join(configRoot ?? '', '.monorise/handle.analyticsQueryHandler'),
+        runtime: 'nodejs22.x',
+        timeout: '30 seconds',
+        memory: '512 MB',
+        logging,
+        link: [executions, queryKeys],
+        environment: {
+          ANALYTICS_API_KEYS: queryKeys.value,
+          ANALYTICS_EXECUTIONS_TABLE: executions.name,
+          ANALYTICS_QUERIES: JSON.stringify(args.queryApi.queries),
+          ANALYTICS_DATABASE: this.glueDatabase.name,
+          ANALYTICS_WORKGROUP: this.workgroup.name,
+          ANALYTICS_ATHENA_OUTPUT: $interpolate`s3://${this.bucket.name}/athena-results/`,
+        },
+        permissions: [
+          { actions: ['athena:StartQueryExecution', 'athena:GetQueryExecution', 'athena:GetQueryResults', 'athena:StopQueryExecution'], resources: ['*'] },
+          { actions: ['glue:GetDatabase', 'glue:GetTable'], resources: ['*'] },
+          { actions: ['s3:GetObject', 's3:ListBucket', 's3:PutObject'], resources: [this.bucket.arn, $interpolate`${this.bucket.arn}/*`] },
+        ],
+      });
+    }
+
+    const athenaPermissions = [
+      { actions: ['athena:StartQueryExecution', 'athena:GetQueryExecution'], resources: ['*'] },
+      { actions: ['glue:GetDatabase', 'glue:GetTable', 'glue:CreateTable', 'glue:UpdateTable'], resources: ['*'] },
+      { actions: ['s3:GetObject', 's3:ListBucket', 's3:PutObject', 's3:DeleteObject'], resources: [this.bucket.arn, $interpolate`${this.bucket.arn}/*`] },
+    ];
+    if (args.views) {
+      validateDefinitions(args.views, 'view');
+      for (const [name, view] of Object.entries(args.views)) {
+        const viewFunction = new sst.aws.Function(`${id}-${name}-analytics-view`, {
+          handler: path.join(configRoot ?? '', '.monorise/handle.analyticsViewHandler'),
+          runtime: 'nodejs22.x', timeout: '15 minutes', memory: '512 MB', logging,
+          environment: {
+            ANALYTICS_VIEW: JSON.stringify({ name, sql: view.sql }), ANALYTICS_DATABASE: this.glueDatabase.name,
+            ANALYTICS_WORKGROUP: this.workgroup.name, ANALYTICS_ATHENA_OUTPUT: $interpolate`s3://${this.bucket.name}/athena-results/`,
+          }, permissions: athenaPermissions,
+        });
+        new aws.lambda.Invocation(`${id}-${name}-analytics-view-apply`, {
+          // Changing the definition changes the invocation input and reapplies the view.
+          functionName: viewFunction.name, input: JSON.stringify({ sql: view.sql }),
+        });
+      }
+    }
+    if (args.models) {
+      validateDefinitions(args.models, 'model');
+      for (const [name, model] of Object.entries(args.models)) {
+        if (!model.partitionColumn || !/^[a-z][a-z0-9_]*$/.test(model.partitionColumn)) throw new Error(`Analytics model ${name} requires a snake_case partitionColumn.`);
+        if (model.lookbackDays !== undefined && (!Number.isInteger(model.lookbackDays) || model.lookbackDays < 1)) throw new Error(`Analytics model ${name} lookbackDays must be a positive integer.`);
+        new sst.aws.CronV2(`${id}-${name}-analytics-model`, {
+          schedule: model.schedule,
+          function: {
+            handler: path.join(configRoot ?? '', '.monorise/handle.analyticsModelHandler'),
+            runtime: 'nodejs22.x', timeout: '15 minutes', memory: '1024 MB', logging,
+            environment: {
+              ANALYTICS_MODEL: JSON.stringify({ name, sql: model.sql, partitionColumn: model.partitionColumn, lookbackDays: model.lookbackDays ?? 3 }),
+              ANALYTICS_DATABASE: this.glueDatabase.name, ANALYTICS_BUCKET: this.bucket.name,
+              ANALYTICS_WORKGROUP: this.workgroup.name, ANALYTICS_ATHENA_OUTPUT: $interpolate`s3://${this.bucket.name}/athena-results/`,
+            }, permissions: athenaPermissions,
+          },
+        });
+      }
+    }
 
     const firehoseRole = new aws.iam.Role(`${id}-analytics-firehose-role`, {
       assumeRolePolicy: aws.iam.assumeRolePolicyForPrincipal({ Service: 'firehose.amazonaws.com' }),

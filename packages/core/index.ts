@@ -6,6 +6,7 @@ import { PROJECTION_EXPRESSION } from './data/ProjectionExpression';
 import { TagRepository } from './data/Tag';
 import { StandardError, StandardErrorCode } from './errors/standard-error';
 import { appHandler } from './handles/app';
+import { analyticsQueryHandler } from './handles/analytics-query';
 import { handler as createEntityProcessor } from './processors/create-entity-processor';
 import { handler as analyticsProcessor } from './processors/analytics-processor';
 import {
@@ -13,6 +14,8 @@ import {
   startBackfill as startAnalyticsBackfill,
 } from './processors/analytics-backfill-processor';
 import { handler as analyticsMaterializationProcessor } from './processors/analytics-materialization-processor';
+import { handler as analyticsModelProcessor } from './processors/analytics-model-processor';
+import { handler as analyticsViewProcessor } from './processors/analytics-view-processor';
 import { handler as mutualProcessor } from './processors/mutual-processor';
 import { handler as prejoinProcessor } from './processors/prejoin-processor';
 import { handler as replicationProcessor } from './processors/replication-processor';
@@ -71,12 +74,15 @@ export {
   analyticsProcessor,
   analyticsBackfillProcessor,
   analyticsMaterializationProcessor,
+  analyticsModelProcessor,
+  analyticsViewProcessor,
   startAnalyticsBackfill,
   mutualProcessor,
   prejoinProcessor,
   replicationProcessor,
   tagProcessor,
   appHandler,
+  analyticsQueryHandler,
   DependencyContainer,
   TransactionService,
   transactional,
