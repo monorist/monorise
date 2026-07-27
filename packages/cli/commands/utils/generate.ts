@@ -341,7 +341,7 @@ async function generateHandleFile(
   const coreImportPath = usesCombinedPackage ? 'monorise/core' : '@monorise/core';
 
   const combinedContent = `
-import CoreFactory, { analyticsMaterializationProcessor } from '${coreImportPath}';
+import CoreFactory, { analyticsMaterializationProcessor, analyticsModelProcessor, analyticsQueryHandler as createAnalyticsQueryHandler, analyticsViewProcessor } from '${coreImportPath}';
 import config from './config';
 import routes from '${relativePathToRoutes}';
 
@@ -351,6 +351,9 @@ export const replicationHandler = coreFactory.replicationProcessor;
 export const analyticsHandler = coreFactory.analyticsProcessor;
 export const analyticsBackfillHandler = coreFactory.analyticsBackfillProcessor;
 export const analyticsMaterializationHandler = analyticsMaterializationProcessor;
+export const analyticsQueryHandler = createAnalyticsQueryHandler();
+export const analyticsModelHandler = analyticsModelProcessor;
+export const analyticsViewHandler = analyticsViewProcessor;
 export const mutualHandler = coreFactory.mutualProcessor;
 export const tagHandler = coreFactory.tagProcessor;
 export const treeHandler = coreFactory.prejoinProcessor;

@@ -6,4 +6,4 @@
 "monorise": minor
 ---
 
-Add opt-in Athena analytics with schema-generated entity and mutual datasets, durable history, daily current-state materialization, and point-in-time backfill.
+Add opt-in Athena analytics with schema-generated entity and mutual datasets, durable history, daily current-state materialization, point-in-time backfill, named query API, deployment-managed views, and scheduled Iceberg models.

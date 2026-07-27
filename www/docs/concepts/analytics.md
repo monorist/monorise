@@ -81,6 +81,97 @@ FROM enrollment_mutual_changes
 WHERE event_date BETWEEN DATE '2026-07-01' AND DATE '2026-07-07';
 ```
 
+## Dashboard query API
+
+`analytics.queryApi` creates a separate, server-to-server Athena API with its own `ANALYTICS_API_KEYS` secret. It accepts only named, deployment-defined queries; callers never submit SQL. Keep this key in an internal application server such as a Next.js route handler, never in browser code.
+
+Keep query, view, and model definitions in regular TypeScript modules to keep the infrastructure file small:
+
+```ts
+import { queries } from './analytics/queries';
+import { views } from './analytics/views';
+import { models } from './analytics/models';
+
+new monorise.aws.Core('Core', {
+  analytics: {
+    enabled: true,
+    queryApi: { queries },
+    views,
+    models,
+  },
+});
+```
+
+```ts
+// analytics/queries.ts
+export const queries = {
+  'daily-transaction-summary': {
+    sql: `
+      SELECT day, transaction_count, gross_amount
+      FROM daily_transactions
+      WHERE day >= ? AND day < ?
+      ORDER BY day
+    `,
+    parameters: {
+      from: { type: 'date' },
+      to: { type: 'date' },
+    },
+    resultReuse: { maxAgeMinutes: 60 },
+  },
+};
+```
+
+The query API supports execution, status, paginated results, and cancellation:
+
+```text
+POST /analytics/queries/daily-transaction-summary/executions
+GET  /analytics/executions/:id
+GET  /analytics/executions/:id/results
+POST /analytics/executions/:id/cancel
+```
+
+Query parameters are positional Athena execution parameters. Declare them in the same order as `?` placeholders. A query name must be lower-kebab-case, contain exactly one read-only `SELECT` or `WITH` statement, and have one placeholder per declared parameter. Monorise records executions for one day, so callers can retrieve only executions started through this API.
+
+Athena result reuse is optional per query. It can avoid repeat query cost for identical SQL and parameters within `maxAgeMinutes`, but Athena does not detect source-data changes. Choose a short age or disable reuse for freshness-sensitive dashboards.
+
+## Views and models
+
+Views are deployment-managed Athena views for reusable joins, filters, and semantic cleanup. They do not precompute data:
+
+```ts
+// analytics/views.ts
+export const views = {
+  'successful-transactions': {
+    sql: `SELECT * FROM transaction_entities WHERE status = 'succeeded'`,
+  },
+};
+```
+
+Models are scheduled Iceberg tables for aggregates that dashboards query frequently. A model SQL statement must return its configured partition column and uses `{{windowStart}}` and `{{windowEnd}}` for the UTC trailing refresh window:
+
+```ts
+// analytics/models.ts
+export const models = {
+  'daily-transactions': {
+    schedule: 'cron(0 1 * * ? *)',
+    partitionColumn: 'day',
+    lookbackDays: 3,
+    sql: `
+      SELECT
+        CAST(occurred_at AS date) AS day,
+        count(*) AS transaction_count,
+        sum(amount) AS gross_amount
+      FROM successful_transactions
+      WHERE occurred_at >= {{windowStart}}
+        AND occurred_at < {{windowEnd}}
+      GROUP BY 1
+    `,
+  },
+};
+```
+
+The first model run creates `<model_name>` as an Iceberg table. Later runs replace partitions from the trailing window, which accounts for late-arriving changes. Run a deliberate rebuild when changing a model schema or correcting data outside its lookback window.
+
 ## Freshness and cost
 
 History is continuously captured through the stream delivery path, while current-state tables are materialized daily. Use history for near-continuous change analysis and current-state tables for inexpensive daily snapshots.
