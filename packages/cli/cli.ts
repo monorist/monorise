@@ -45,6 +45,7 @@ async function generateConfigFile(
   const configOutputPath = path.join(monoriseOutputDir, 'config.ts');
   const initialConfigContent = `
 export enum Entity {}
+export default {};
 `;
   fs.writeFileSync(configOutputPath, initialConfigContent);
 
@@ -223,32 +224,6 @@ async function generateHandleFile(
       );
     }
 
-    let routesModule;
-    try {
-      routesModule = await import(absoluteCustomRoutesPath);
-    } catch (e: any) {
-      throw new Error(
-        `Failed to load custom routes file at '${absoluteCustomRoutesPath}'. Ensure it's a valid JavaScript/TypeScript module. Error: ${e.message}`,
-      );
-    }
-
-    const routesExport = routesModule.default;
-
-    if (
-      !routesExport ||
-      routesExport === null ||
-      (typeof routesExport === 'object' &&
-        !(
-          'get' in routesExport &&
-          'post' in routesExport &&
-          'use' in routesExport
-        ))
-    ) {
-      throw new Error(
-        `Custom routes file at '${absoluteCustomRoutesPath}' must default export an instance of Hono (or an object with .get, .post, .use methods). Or a function that consume the dependency container provided by route handler.`,
-      );
-    }
-
     let relativePathToRoutes = path.relative(
       monoriseOutputDir,
       absoluteCustomRoutesPath,
@@ -285,6 +260,67 @@ export const appHandler = coreFactory.appHandler(${appHandlerPayload});
   return handleOutputPath;
 }
 
+const TSCONFIG_SCAN_IGNORE = new Set([
+  'node_modules',
+  '.git',
+  '.monorise',
+  '.next',
+  '.turbo',
+  '.sst',
+  'dist',
+]);
+
+function findTsconfigFiles(dir: string): string[] {
+  const results: string[] = [];
+  let entries: fs.Dirent[];
+  try {
+    entries = fs.readdirSync(dir, { withFileTypes: true });
+  } catch {
+    return results;
+  }
+
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      if (TSCONFIG_SCAN_IGNORE.has(entry.name)) continue;
+      results.push(...findTsconfigFiles(path.join(dir, entry.name)));
+    } else if (entry.name === 'tsconfig.json') {
+      results.push(path.join(dir, entry.name));
+    }
+  }
+
+  return results;
+}
+
+// Existing projects (scaffolded before the '#/monorise' shorthand existed, or
+// upgrading @monorise/cli without re-running `init`) never get their
+// tsconfig.json touched again after scaffolding — so the exact-match alias
+// for '#/monorise' can be missing even though '#/monorise/*' already works.
+// Since this runs on every dev/build, it keeps any tsconfig that already
+// opted into the '#/monorise/*' wildcard in sync with the exact-match sibling.
+function syncMonoriseAliasInTsconfigs(projectRoot: string): void {
+  const wildcardKey = '#/monorise/*';
+  const exactKey = '#/monorise';
+
+  for (const tsconfigPath of findTsconfigFiles(projectRoot)) {
+    try {
+      const content = fs.readFileSync(tsconfigPath, 'utf8');
+      const tsconfig = JSON.parse(content);
+      const paths = tsconfig.compilerOptions?.paths;
+      const wildcardTarget = paths?.[wildcardKey]?.[0];
+
+      if (!wildcardTarget || paths[exactKey]) continue;
+
+      paths[exactKey] = [wildcardTarget.replace(/\*$/, 'index')];
+      fs.writeFileSync(tsconfigPath, JSON.stringify(tsconfig, null, 2));
+      console.log(
+        `Added '#/monorise' path alias to ${path.relative(projectRoot, tsconfigPath)}`,
+      );
+    } catch {
+      // Best-effort — a malformed or unreadable tsconfig shouldn't fail the build.
+    }
+  }
+}
+
 async function generateFiles(rootPath?: string): Promise<string> {
   const baseDir = rootPath ? path.resolve(rootPath) : process.cwd();
   const configFilePathTS = path.join(baseDir, 'monorise.config.ts');
@@ -312,6 +348,7 @@ async function generateFiles(rootPath?: string): Promise<string> {
 
   await generateConfigFile(configDir, monoriseOutputDir, projectRoot);
   await generateHandleFile(monoriseConfig, projectRoot, monoriseOutputDir);
+  syncMonoriseAliasInTsconfigs(projectRoot);
 
   return configDir;
 }
