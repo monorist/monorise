@@ -45,8 +45,13 @@ async function generateConfigFile(
   const configOutputPath = path.join(monoriseOutputDir, 'config.ts');
   const initialConfigContent = `
 export enum Entity {}
+export default {};
 `;
   fs.writeFileSync(configOutputPath, initialConfigContent);
+  fs.writeFileSync(
+    path.join(monoriseOutputDir, 'index.ts'),
+    `export * from './config';\nexport { default } from './config';\n`,
+  );
 
   const files = fs
     .readdirSync(configDir)
@@ -220,32 +225,6 @@ async function generateHandleFile(
     ) {
       throw new Error(
         `Custom routes file not found: '${absoluteCustomRoutesPath}'. Please ensure 'customRoutes' in monorise.config.ts points to a valid file.`,
-      );
-    }
-
-    let routesModule;
-    try {
-      routesModule = await import(absoluteCustomRoutesPath);
-    } catch (e: any) {
-      throw new Error(
-        `Failed to load custom routes file at '${absoluteCustomRoutesPath}'. Ensure it's a valid JavaScript/TypeScript module. Error: ${e.message}`,
-      );
-    }
-
-    const routesExport = routesModule.default;
-
-    if (
-      !routesExport ||
-      routesExport === null ||
-      (typeof routesExport === 'object' &&
-        !(
-          'get' in routesExport &&
-          'post' in routesExport &&
-          'use' in routesExport
-        ))
-    ) {
-      throw new Error(
-        `Custom routes file at '${absoluteCustomRoutesPath}' must default export an instance of Hono (or an object with .get, .post, .use methods). Or a function that consume the dependency container provided by route handler.`,
       );
     }
 
