@@ -5,6 +5,12 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execSync, spawn } from 'node:child_process';
 import chokidar from 'chokidar';
+import {
+  createAnalyticsManifest,
+  validateSchemaEvolution,
+  type AnalyticsConfig,
+  type AnalyticsManifest,
+} from './commands/utils/analytics-manifest';
 import { fileURLToPath } from 'node:url';
 import { detectCombinedPackage } from './commands/utils/detect-package';
 import { ROOT_TSCONFIG_TEMPLATE } from './templates/root-tsconfig';
@@ -68,6 +74,7 @@ export default {};
   const schemaEntries: string[] = [];
   const allowedEntityEntries: string[] = [];
   const entityWithEmailAuthEntries: string[] = [];
+  const analyticsConfigs: AnalyticsConfig[] = [];
 
   const relativePathToConfigDir = path.relative(monoriseOutputDir, configDir);
   const importPathPrefix = relativePathToConfigDir
@@ -89,6 +96,7 @@ export default {};
       throw new Error(`Duplicate name found: ${config.name} in ${file}`);
     }
     names.add(config.name);
+    analyticsConfigs.push(config as AnalyticsConfig);
 
     const fileName = file.replace(/\.ts$/, '');
     const variableName = kebabToCamel(fileName);
@@ -186,6 +194,18 @@ ${moduleAugmentations}
 `;
 
   fs.writeFileSync(configOutputPath, configOutputContent);
+  const analyticsManifestPath = path.join(
+    monoriseOutputDir,
+    'analytics-manifest.json',
+  );
+  const manifest = createAnalyticsManifest(analyticsConfigs);
+  if (fs.existsSync(analyticsManifestPath)) {
+    validateSchemaEvolution(
+      JSON.parse(fs.readFileSync(analyticsManifestPath, 'utf8')) as AnalyticsManifest,
+      manifest,
+    );
+  }
+  fs.writeFileSync(analyticsManifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   console.log('Successfully generated config.ts!');
 
   // Also generate index.ts re-exporting everything from config.ts, so consumers
@@ -248,11 +268,17 @@ async function generateHandleFile(
   const coreImportPath = usesCombinedPackage ? 'monorise/core' : '@monorise/core';
 
   const combinedContent = `
-import CoreFactory from '${coreImportPath}';
+import CoreFactory, { analyticsMaterializationProcessor, analyticsModelProcessor, analyticsQueryHandler as createAnalyticsQueryHandler, analyticsViewProcessor } from '${coreImportPath}';
 import config from './config';
 ${routesImportLine ? `${routesImportLine}\n` : ''}const coreFactory = new CoreFactory(config);
 
 export const replicationHandler = coreFactory.replicationProcessor;
+export const analyticsHandler = coreFactory.analyticsProcessor;
+export const analyticsBackfillHandler = coreFactory.analyticsBackfillProcessor;
+export { analyticsMaterializationProcessor as analyticsMaterializationHandler };
+export const analyticsQueryHandler = createAnalyticsQueryHandler();
+export const analyticsModelHandler = analyticsModelProcessor;
+export const analyticsViewHandler = analyticsViewProcessor;
 export const mutualHandler = coreFactory.mutualProcessor;
 export const tagHandler = coreFactory.tagProcessor;
 export const treeHandler = coreFactory.prejoinProcessor;
