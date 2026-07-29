@@ -1,5 +1,11 @@
 # monorise
 
+## 1.6.1
+
+### Patch Changes
+
+- 90e7486: Release CLI custom route generation fixes in the unified package.
+
 ## 1.6.0
 
 ### Minor Changes

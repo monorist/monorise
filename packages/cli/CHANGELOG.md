@@ -1,5 +1,11 @@
 # @monorise/cli
 
+## 4.1.1
+
+### Patch Changes
+
+- 90e7486: Release CLI custom route generation fixes in the unified package.
+
 ## 4.1.0
 
 ### Minor Changes
