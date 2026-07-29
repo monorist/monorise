@@ -1,11 +1,5 @@
 # monorise
 
-## 1.6.1
-
-### Patch Changes
-
-- Avoid evaluating custom routes while generating handlers.
-
 ## 1.6.0
 
 ### Minor Changes
