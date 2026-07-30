@@ -1,5 +1,6 @@
 import type { CreatedEntity, DraftEntity, Entity } from '@monorise/base';
 import type { AxiosRequestConfig } from 'axios';
+import type { TransactionOperation } from '../helpers/transactional';
 import {
   getEntityRequestKey,
   getMutualRequestKey,
@@ -277,18 +278,7 @@ const initCoreService = (
   };
 
   const transaction = (
-    operations: Array<{
-      operation:
-        | 'createEntity'
-        | 'updateEntity'
-        | 'adjustEntity'
-        | 'deleteEntity';
-      entityType: Entity;
-      entityId?: string;
-      payload?: Record<string, unknown>;
-      adjustments?: Record<string, number>;
-      condition?: string;
-    }>,
+    operations: TransactionOperation[],
     opts: CommonOptions = {},
   ) => {
     const { transactionApiBaseUrl = TRANSACTION_API_BASE_URL } =
