@@ -1,43 +1,99 @@
 # Tree Processors
 
-A **tree processor** is an event-driven traversal of mutual relationships. It materializes a derived direct mutual so a multi-hop relationship can be read with one query.
+A **tree processor** computes a relationship by traversing a chain of mutuals, avoiding expensive multi-hop queries at read time. Instead of querying A → B → C at runtime, Monorise computes the A → C relationship and stores it as a mutual.
 
-The configuration key is currently `mutual.prejoins` for compatibility. Older documentation and runtime names may call this feature a *prejoin*.
-
-```text
-Teacher -> Class -> Student
-   |                    ^
-   +-- tree processor --+
-
-Stored result: Teacher -> Student
-```
-
-::: warning Write-heavy
-Tree processors trade read latency for asynchronous write work. Every source relationship change can traverse the configured path and update derived mutuals. Use one only after a direct mutual is not possible and multi-hop reads are a demonstrated bottleneck.
+::: info Configuration name
+Tree processors were previously described as prejoins. The public configuration key remains `mutual.prejoins` for backward compatibility.
 :::
 
-## Choose a direct relationship first
+::: warning Write-heavy
+Tree processors are **write-heavy** — when a subscribed relationship changes, the tree processor recomputes the derived relationship. In most cases, you do **not** need a tree processor. Only use one when you have a proven need to eliminate multi-hop reads.
+:::
 
-If you know a relationship at creation time, model it directly instead of deriving it. For example, if every `Member` already knows its tenant, store `tenantIds` alongside `organisationIds` and query `Tenant -> Member` directly.
+## When to use tree processors
+
+Use tree processors when:
+- You have a **chain of mutual relationships** (A → B → C) and frequently query A → C directly
+- The **read frequency far exceeds change frequency** for the subscribed relationships
+- The alternative (multiple sequential API calls) creates unacceptable latency
+
+Do **not** use tree processors when:
+- You can tolerate two sequential API calls
+- The intermediate relationships change frequently (high write amplification)
+- The relationship is already direct (a single `useMutuals` call is sufficient)
+- You can add a **direct mutual field** instead (see below)
+
+## Alternative: direct mutual fields
+
+Before reaching for a tree processor, consider whether you can simply add a direct mutual relationship. This is often the simpler and more efficient solution.
+
+**Example:** You have three entities — `Tenant`, `Organisation`, and `Member`. A tenant has organisations, and organisations have members. You need to list all members by tenant.
+
+**Without a direct mutual**, you'd need two calls:
+1. Get all organisations for the tenant
+2. For each organisation, get all members
+
+**With a tree processor**, Monorise would compute `Tenant → Member` automatically — but this adds write overhead every time a subscribed relationship changes.
+
+**Better approach:** Add `tenantIds` as a mutual field directly on `Member`:
 
 ```ts
-mutual: {
-  mutualSchema: z.object({
-    organisationIds: z.string().array(),
-    tenantIds: z.string().array(),
-  }).partial(),
-  mutualFields: {
-    organisationIds: { entityType: Entity.ORGANISATION },
-    tenantIds: { entityType: Entity.TENANT },
+const config = createEntityConfig({
+  name: 'member',
+  displayName: 'Member',
+  baseSchema,
+  mutual: {
+    mutualSchema: z
+      .object({
+        organisationIds: z.string().array(),
+        tenantIds: z.string().array(), // direct link to tenant
+      })
+      .partial(),
+    mutualFields: {
+      organisationIds: { entityType: Entity.ORGANISATION },
+      tenantIds: { entityType: Entity.TENANT },
+    },
   },
-},
+});
 ```
 
-Use a tree processor only when the final relationship emerges from other relationships, such as students being assigned to classes and classes being assigned to teachers.
+When creating a member, pass both IDs:
 
-## Configure a tree processor
+```ts
+await createEntity(Entity.MEMBER, {
+  name: 'Alice',
+  organisationIds: [organisationId],
+  tenantIds: [tenantId],
+});
+```
 
-This configuration derives `Teacher -> Student` from `Teacher -> Class -> Student`:
+Now you can query directly in a single call:
+
+```ts
+// All members for a tenant — no tree processor needed
+const { mutuals: members } = useMutuals(Entity.TENANT, Entity.MEMBER, tenantId);
+```
+
+::: tip
+If you know the relationship at creation time, a direct mutual field is always cheaper and simpler than a tree processor. Reserve tree processors for relationships that are truly derived and cannot be known upfront.
+:::
+
+## When tree processors are necessary
+
+Tree processors are the right choice when the A → C relationship **cannot be established at creation time** — it only emerges from the chain of intermediate relationships. For example, if students are assigned to classes, and classes are assigned to teachers, the teacher-student relationship is purely derived.
+
+## Example
+
+Imagine a school system where:
+
+- `Teacher` has a mutual with `Class`
+- `Class` has a mutual with `Student`
+
+To show all students for a teacher, you'd normally need two queries:
+1. Get all classes for the teacher
+2. For each class, get all students
+
+With a tree processor, Monorise computes the `Teacher → Student` relationship:
 
 ```ts
 const config = createEntityConfig({
@@ -45,13 +101,15 @@ const config = createEntityConfig({
   displayName: 'Teacher',
   baseSchema,
   mutual: {
-    // Run when the Teacher -> Class relationship changes.
+    // Trigger this tree when the Teacher → Class relationship changes.
     subscribes: [{ entityType: Entity.CLASS }],
     mutualSchema: z.object({
       classIds: z.string().array(),
     }).partial(),
     mutualFields: {
-      classIds: { entityType: Entity.CLASS },
+      classIds: {
+        entityType: Entity.CLASS,
+      },
     },
     // `prejoins` remains the public configuration key.
     prejoins: [
@@ -59,7 +117,7 @@ const config = createEntityConfig({
         mutualField: 'classIds',
         targetEntityType: Entity.STUDENT,
         entityPaths: [
-          // The source is included first; it is already cached by the processor.
+          // Start with the source entity, then describe each traversal step.
           { entityType: Entity.TEACHER },
           { entityType: Entity.CLASS },
           { entityType: Entity.STUDENT },
@@ -70,34 +128,50 @@ const config = createEntityConfig({
 });
 ```
 
-The processor:
+### How it works
 
-1. Receives the `Teacher -> Class` relationship update.
-2. Traverses the path from the cached teacher through classes to students.
-3. Publishes an update for the derived `Teacher -> Student` mutual.
-4. Materializes that mutual asynchronously, so `useMutuals(Entity.TEACHER, Entity.STUDENT, teacherId)` becomes a direct read.
+1. When a `Teacher → Class` mutual changes, the tree processor is triggered
+2. The processor walks the configured path: `Teacher → Class → Student`
+3. It publishes derived mutual events for `Teacher → Student`
+4. These are processed as regular mutual records in DynamoDB
 
-### Path processors and cache control
+Now you can query `useMutuals(Entity.TEACHER, Entity.STUDENT, teacherId)` in a single call.
 
-Each path step can filter or transform the mutuals discovered at that step:
+### Custom processors
+
+Each entity path in a tree processor can have a custom `processor` function:
 
 ```ts
-{
-  entityType: Entity.STUDENT,
-  processor: (items, context) => ({
-    items: items.filter((item) => item.data.isActive),
-    context,
-  }),
-}
+prejoins: [
+  {
+    mutualField: 'classIds',
+    targetEntityType: Entity.STUDENT,
+    entityPaths: [
+      { entityType: Entity.TEACHER },
+      { entityType: Entity.CLASS },
+      {
+        entityType: Entity.STUDENT,
+        processor: (items, context) => {
+          // Filter or transform the joined items
+          return {
+            items: items.filter(item => item.mutualData.isActive),
+            context,
+          };
+        },
+      },
+    ],
+  },
+],
 ```
 
-By default, a tree processor reuses a relationship type it has already traversed during that invocation. Set `skipCache: true` on a path step only when the traversal must revisit that type. It does not change EventBridge/SQS delivery or make the derived relationship real-time.
+By default, a tree processor reuses an entity type already traversed during the same invocation. Set `skipCache: true` on a path only when that type must be traversed again. It does not make asynchronous processing real-time.
 
 ## Trade-offs
 
-| Aspect | Direct mutual | Tree processor |
-|--------|---------------|----------------|
-| Read path | One mutual query | One mutual query after materialization |
-| Write cost | Low | Higher due to traversal and derived writes |
-| Freshness | Direct relationship state | Eventually consistent derived state |
-| Use when | Relationship is known at write time | Relationship is genuinely derived |
+| Aspect | Without tree processors | With tree processors |
+|--------|-------------------------|----------------------|
+| Read latency | Multiple sequential calls | Single call |
+| Write cost | Low | High (recomputation on subscribed relationship changes) |
+| Data freshness | No additional derived projection | Eventually consistent derived projection |
+| Complexity | Simple | More moving parts |
+| DynamoDB cost | Higher read capacity | Higher write capacity |

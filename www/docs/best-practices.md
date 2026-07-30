@@ -14,11 +14,26 @@ The frontend server is a **thin proxy layer** — its only job is to authenticat
 
 SST provides seamless Next.js deployment via `sst.aws.Nextjs`. This means your Next.js app already has a server — use its API routes as the proxy layer. No extra infrastructure needed.
 
+Create an `X_API_KEY` secret and link it to the Next.js server. Its value must match one of the keys accepted by Monorise Core's `API_KEYS` secret:
+
+```ts
+const { api } = new monorise.module.Core('core');
+const xApiKey = new sst.Secret('X_API_KEY', 'secret1');
+
+new sst.aws.Nextjs('web', {
+  link: [api, xApiKey],
+  environment: {
+    API_BASE_URL: api.url,
+  },
+});
+```
+
 **1. Proxy utility** — rewrites client requests to the monorise API Gateway, validates auth, and attaches `x-api-key`:
 
 ```ts
 // app/api/proxy-request.ts
 import { type NextRequest, NextResponse } from 'next/server';
+import { Resource } from 'sst';
 import { validateToken } from './validate-token';
 
 function rewriteUrl(requestUrl: string, replacePath?: string) {
@@ -55,7 +70,7 @@ export const proxyRequest = async ({
     headers: {
       'content-type': 'application/json',
       'account-id': accountId,
-      'x-api-key': process.env.API_KEY ?? '',
+      'x-api-key': Resource.X_API_KEY.value,
     },
     cache: 'no-store',
   });
@@ -114,23 +129,25 @@ Now all client-side hooks (`useEntities`, `useMutuals`, etc.) route through your
 
 Don't reuse the same API key across environments. Configure separate keys for development, staging, and production via the `API_KEYS` SST secret:
 
-`API_KEYS` is used by the monorise API Gateway to authenticate incoming requests. The generated proxy reads the singular `API_KEY` environment variable, configured on the `sst.aws.Nextjs` resource in `sst.config.ts`; its value must match one entry in `API_KEYS`.
+The two secrets have separate responsibilities:
+
+| Secret | Purpose |
+|--------|---------|
+| `API_KEYS` | Rotatable allow-list used by Monorise Core to verify requests |
+| `X_API_KEY` | One selected key held by your backend proxy and attached as the `x-api-key` request header |
 
 ```bash
 # API Gateway accepts these keys (array of valid keys)
 npx sst secret set API_KEYS '["dev-key-123"]' --stage dev
 npx sst secret set API_KEYS '["prod-key-abc"]' --stage production
-```
 
-```ts
-// In sst.config.ts, replace the generated default for each stage:
-environment: {
-  API_KEY: 'dev-key-123',
-}
+# Backend proxy sends one accepted key
+npx sst secret set X_API_KEY 'dev-key-123' --stage dev
+npx sst secret set X_API_KEY 'prod-key-abc' --stage production
 ```
 
 ::: tip
-`API_KEYS` is an array because you may have multiple valid keys (e.g., for key rotation). `API_KEY` is the single key your generated proxy uses — it must match one of the values in `API_KEYS`.
+`API_KEYS` is an array so old and new keys can overlap during rotation. `X_API_KEY` is the single key sent by the proxy and must match one value in that array.
 :::
 
 ## Keep entity configs focused

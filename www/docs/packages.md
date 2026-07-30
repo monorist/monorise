@@ -13,7 +13,7 @@ Import from subpaths:
 ```ts
 import { createEntityConfig } from 'monorise/base';
 import { useEntities, useMutuals } from 'monorise/react';
-import { CoreFactory } from 'monorise/core';
+import CoreFactory from 'monorise/core';
 const { monorise } = await import('monorise/sst');
 ```
 

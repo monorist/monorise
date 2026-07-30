@@ -98,7 +98,7 @@ Define named `updateConditions` in the entity config, then send the permitted co
 `$condition` is optional for entity updates, but required for adjustments when the entity defines `adjustmentConditions`. A failed condition returns `409 CONFLICT`. See [Entities: Conditional writes](/concepts/entities#conditional-writes) for configuration examples.
 
 ::: warning Legacy `$where`
-Raw `$where` conditions are deprecated and disabled by default. Enable `allowLegacyWhere` only for trusted compatibility callers; new clients must use named conditions.
+Raw `$where` conditions are deprecated and disabled by default. Enable `allowLegacyWhere` only for trusted compatibility callers; new clients must use named conditions. A compatibility request places the raw clauses under `$where`, for example `{ "status": "confirmed", "$where": { "status": { "$eq": "pending" } } }`.
 :::
 
 ## Data layout cheat sheet

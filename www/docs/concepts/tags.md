@@ -115,7 +115,7 @@ GET /core/tag/:entityType/:tagName?group=...&query=...&start=...&end=...&limit=.
 | Parameter | Description |
 |-----------|-------------|
 | `group` | Filter by group value |
-| `query` | Prefix filter for the sort value; cannot be combined with `start` or `end` |
+| `query` | Match one exact sort value; cannot be combined with `start` or `end` |
 | `start` | Sort value range start (inclusive) |
 | `end` | Sort value upper bound; the current key encoding excludes an exact matching sort value |
 | `limit` | Max results per page |
@@ -192,7 +192,7 @@ if (lastKey) {
 ```
 
 ::: tip React hook limitation
-The raw API supports group, prefix, and range queries. `useTaggedEntities` requires at least one `params` filter for its initial fetch, and its current `refetch` and `listMore` helpers require `params.group`. Use the raw API through a custom request when paginating an ungrouped range or prefix query.
+The raw API supports group, exact sort-value, and range queries. `useTaggedEntities` requires at least one `params` filter for its initial fetch, and its current `refetch` and `listMore` helpers require `params.group`. Use the raw API through a custom request when paginating an ungrouped range or exact-value query.
 :::
 
 ## Data layout
