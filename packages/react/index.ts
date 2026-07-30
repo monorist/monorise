@@ -22,6 +22,8 @@ import {
   MutualDataWithIndex,
 } from './types/mutual.type';
 
+export { transactional } from './helpers/transactional';
+
 type Options<T extends Record<string, React.ComponentType<any>>> = {
   authBaseUrl?: string;
   filestoreBaseUrl?: string;
@@ -208,7 +210,6 @@ export {
 
 export default Monorise;
 
-export { transactional } from '@monorise/core';
 export { MutualDataWithIndex, MutualDataMapping, MutualData, Mutual };
 
 export type {
