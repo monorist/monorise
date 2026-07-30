@@ -14,7 +14,7 @@ Import from subpaths:
 import { createEntityConfig } from 'monorise/base';
 import { useEntities, useMutuals } from 'monorise/react';
 import { CoreFactory } from 'monorise/core';
-import { MonoriseCore } from 'monorise/sst';
+const { monorise } = await import('monorise/sst');
 ```
 
 ## Individual packages
@@ -25,7 +25,7 @@ import { MonoriseCore } from 'monorise/sst';
 | `@monorise/core` | Hono API, DynamoDB repositories, processors, event utils | `npm i @monorise/core` |
 | `@monorise/cli` | Generates `.monorise/config.ts` + `.monorise/handle.ts` | `npm i @monorise/cli` |
 | `@monorise/react` | Client SDK — hooks, stores, axios helpers | `npm i @monorise/react` |
-| `@monorise/sst` | SST v3 module — API, bus, table, queues, processors | `npm i @monorise/sst` |
+| `@monorise/sst` | SST v4 module — API, bus, table, queues, processors | `npm i @monorise/sst` |
 
 ## `monorise/base`
 
@@ -36,7 +36,7 @@ The foundation package. Exports `createEntityConfig`, `Entity` enum, `EntitySche
 The backend runtime. Provides:
 - **Hono API handlers** for entity, mutual, and tag CRUD
 - **DynamoDB repositories** for single-table access patterns
-- **Processors** (mutual, tag, prejoin, replication) for keeping denormalized data in sync
+- **Processors** (mutual, tag, tree, replication) for keeping denormalized data in sync
 - **Event utilities** for EventBridge integration
 
 ## `monorise/cli`
@@ -55,7 +55,7 @@ The frontend SDK for React applications. Provides:
 
 ## `monorise/sst`
 
-The SST v3 infrastructure module. Creates:
+The SST v4 infrastructure module. Creates:
 - API Gateway + Lambda (Hono)
 - DynamoDB single table with indexes
 - EventBridge bus
@@ -67,7 +67,7 @@ The SST v3 infrastructure module. Creates:
 | Area | Path |
 |------|------|
 | Core API + processors | `packages/core/*` |
-| SST v3 module | `packages/sst/*` |
+| SST v4 module | `packages/sst/*` |
 | CLI generator | `packages/cli/*` |
 | Shared types | `packages/base/*` |
 | React SDK | `packages/react/*` |

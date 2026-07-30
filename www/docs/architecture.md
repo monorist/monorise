@@ -27,7 +27,7 @@ The architecture consists of:
 
 ### QFunction (processor pattern)
 
-Each processor (mutual, tag, prejoin) uses the **QFunction** pattern — an SQS queue paired with a Lambda function, a Dead Letter Queue for failed messages, and a CloudWatch alarm that notifies via Slack when messages land in the DLQ:
+Each event-driven processor (mutual, tag, tree) uses the **QFunction** pattern — an SQS queue paired with a Lambda function, a Dead Letter Queue for failed messages, and a CloudWatch alarm that publishes to an SNS topic when messages land in the DLQ:
 
 ![Monorise QFunction](/monorise-q-function.png)
 
@@ -36,7 +36,7 @@ The flow:
 2. **Lambda** processes the message (e.g., syncs mutual records, recalculates tags)
 3. If processing fails, the message moves to the **DLQ** after retry exhaustion
 4. A **CloudWatch Alarm** fires when the DLQ depth exceeds 0
-5. The alarm sends a notification to **Slack** (if `slackWebhook` is configured)
+5. The alarm publishes to the configured **SNS topic**
 
 Failed messages can be redriven from the DLQ once the issue is resolved.
 
@@ -44,7 +44,7 @@ Failed messages can be redriven from the DLQ once the issue is resolved.
 
 - **Mutual processor**: creates/updates/removes relationship items in both directions with conditional checks and locking.
 - **Tag processor**: calculates tag diffs and syncs tag items.
-- **Prejoin processor**: walks configured relationship paths and publishes derived mutual updates.
+- **Tree processor**: walks configured relationship paths and publishes derived mutual updates.
 - **Replication processor**: keeps denormalized copies aligned via stream updates (uses replication indexes).
 
 ## API reference
@@ -60,9 +60,10 @@ The default Hono API exposes the following routes under `/core`. All entity rout
 | `GET` | `/entity/:entityType/unique/:field/:value` | Get entity by unique field |
 | `GET` | `/entity/:entityType/:entityId` | Get entity by ID |
 | `PUT` | `/entity/:entityType/:entityId` | Upsert entity (full replacement) |
-| `PATCH` | `/entity/:entityType/:entityId` | Update entity (partial); supports optional [`$where` conditions](#conditional-updates-where) |
+| `PATCH` | `/entity/:entityType/:entityId` | Update entity (partial); supports optional named `$condition` |
 | `DELETE` | `/entity/:entityType/:entityId` | Delete entity |
 | `POST` | `/entity/:entityType/:entityId/adjust` | Atomic numeric adjustment (body: `{ field: delta }`) |
+| `POST` | `/transaction` | Execute entity operations atomically |
 
 ### Mutual endpoints
 
@@ -82,71 +83,23 @@ The default Hono API exposes the following routes under `/core`. All entity rout
 
 Custom routes can be mounted under `/core/app/*` via `customRoutes` in your monorise config.
 
-### Conditional updates (`$where`)
+### Conditional updates (`$condition`)
 
-Use `$where` in `PATCH /core/entity/:entityType/:entityId` when updates should
-only apply if current values match your preconditions. Monorise compiles this
-to a DynamoDB `ConditionExpression` and executes it atomically in one write.
-
-Without `$where` (existing behavior):
-
-```json
-{
-  "status": "confirmed"
-}
-```
-
-With `$where`:
+Define named `updateConditions` in the entity config, then send the permitted condition name with the update. The server resolves the name to a DynamoDB `ConditionExpression`; raw operators never need to be client-facing.
 
 ```json
 {
   "status": "confirmed",
   "confirmedAt": "2026-04-13T00:00:00.000Z",
-  "$where": {
-    "status": { "$eq": "pending" },
-    "retryCount": { "$lt": 3 }
-  }
+  "$condition": "confirm"
 }
 ```
 
-Shorthand equality is supported:
+`$condition` is optional for entity updates, but required for adjustments when the entity defines `adjustmentConditions`. A failed condition returns `409 CONFLICT`. See [Entities: Conditional writes](/concepts/entities#conditional-writes) for configuration examples.
 
-```json
-{
-  "status": "confirmed",
-  "$where": {
-    "status": "pending"
-  }
-}
-```
-
-All `$where` clauses are combined with `AND`.
-
-Supported operators:
-
-| Operator | Meaning |
-|---|---|
-| `$eq` | Equals |
-| `$ne` | Not equals |
-| `$gt` | Greater than |
-| `$lt` | Less than |
-| `$gte` | Greater than or equal |
-| `$lte` | Less than or equal |
-| `$exists` | Field exists / does not exist |
-| `$beginsWith` | String prefix match |
-
-Response behavior for PATCH:
-
-- `200 OK`: update applied
-- `409 CONFLICT`: `$where` precondition failed (`CONDITIONAL_CHECK_FAILED`)
-  - in conditional mode, this also includes missing entities
-- `404 NOT_FOUND`: entity missing in non-conditional mode
-- `400 BAD_REQUEST`: validation errors and unique-value conflicts
-
-Compatibility notes:
-
-- Existing PATCH clients continue to work unchanged (no `$where` required).
-- Top-level `$where` is reserved for conditional update semantics.
+::: warning Legacy `$where`
+Raw `$where` conditions are deprecated and disabled by default. Enable `allowLegacyWhere` only for trusted compatibility callers; new clients must use named conditions.
+:::
 
 ## Data layout cheat sheet
 

@@ -28,7 +28,26 @@ Now `Enrollment` becomes a **mutual**, holding data about the relationship. Late
 
 ## Defining mutuals
 
-Mutuals are configured within an entity's config. You need to define both sides — the student knows about courses, and the course knows about students:
+For new projects, define relationship data once with `createMutualConfig` and reference that config from both entity sides. This gives `mutualData` one Zod schema for direct creates, updates, and processor output.
+
+`mutualSchema` and `mutualDataSchema` validate different inputs:
+
+```text
+student.courseIds / course.studentIds  -> entity input fields
+enrollmentMutual.mutualDataSchema      -> data stored on the relationship
+```
+
+```ts
+import { createEntityConfig, createMutualConfig } from 'monorise/base';
+
+const enrollmentMutual = createMutualConfig({
+  entities: [Entity.STUDENT, Entity.COURSE],
+  mutualDataSchema: z.object({
+    role: z.enum(['student', 'auditor']),
+    enrolledAt: z.string().datetime(),
+  }),
+});
+```
 
 **Student config:**
 
@@ -38,14 +57,13 @@ const config = createEntityConfig({
   displayName: 'Student',
   baseSchema,
   mutual: {
-    mutualSchema: z
-      .object({
-        courseIds: z.string().array(),
-      })
-      .partial(),
+    mutualSchema: z.object({
+      courseIds: z.string().array(),
+    }).partial(),
     mutualFields: {
       courseIds: {
         entityType: Entity.COURSE,
+        mutual: enrollmentMutual,
       },
     },
   },
@@ -60,21 +78,22 @@ const config = createEntityConfig({
   displayName: 'Course',
   baseSchema,
   mutual: {
-    mutualSchema: z
-      .object({
-        studentIds: z.string().array(),
-      })
-      .partial(),
+    mutualSchema: z.object({
+      studentIds: z.string().array(),
+    }).partial(),
     mutualFields: {
       studentIds: {
         entityType: Entity.STUDENT,
+        mutual: enrollmentMutual,
       },
     },
   },
 });
 ```
 
-When you create a student with `courseIds: ['course-1', 'course-2']`, monorise automatically creates the mutual records in **both directions**.
+::: tip Backward compatibility
+`createMutualConfig` was introduced after mutuals existed, so it remains optional. Existing inline mutual configurations continue to work and accept unvalidated `mutualData`. For new relationships that carry data, use a shared config from the start.
+:::
 
 ## Querying mutuals (API)
 
@@ -284,7 +303,7 @@ Invalid payloads will throw a Zod validation error.
 `createMutualConfig` is optional. Existing configs without it continue to work as before — any data shape is accepted.
 :::
 
-## Advanced: `toMutualIds`
+## Using `toMutualIds` with validated data
 
 By default, each field in `mutualSchema` is expected to be a plain array of entity IDs:
 
@@ -310,7 +329,21 @@ mutual: {
   mutualFields: {
     enrollments: {
       entityType: Entity.COURSE,
+      mutual: enrollmentMutual,
       toMutualIds: (payload) => payload.map((e) => e.courseId),
+      mutualDataProcessor: (_mutualIds, currentMutual, customContext) => {
+        const enrollments = customContext as Array<{
+          courseId: string;
+          role: 'student' | 'auditor';
+        }>;
+        const enrollment = enrollments?.find(
+          (item) => item.courseId === currentMutual.entityId,
+        );
+        return {
+          role: enrollment?.role ?? 'student',
+          enrolledAt: new Date().toISOString(),
+        };
+      },
     },
   },
 },
@@ -328,7 +361,7 @@ await createEntity(Entity.STUDENT, {
 });
 ```
 
-Monorise calls `toMutualIds(payload)` to get `['course-1', 'course-2']` and creates the mutual records. The original payload is forwarded as `customContext` to `mutualDataProcessor` (see below), so you can use it to store per-relationship data.
+Monorise calls `toMutualIds(payload)` to get `['course-1', 'course-2']` and creates the mutual records. The original payload is forwarded to `mutualDataProcessor`, which returns data accepted by `enrollmentMutual.mutualDataSchema`.
 
 ## Advanced: `mutualDataProcessor`
 

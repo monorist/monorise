@@ -28,9 +28,8 @@ Before your first deployment to a shared environment, set the API key secrets:
 npx sst secret set API_KEYS '["your-secure-key-here"]' --stage dev
 npx sst secret set API_KEYS '["your-secure-key-here"]' --stage production
 
-# Proxy server uses this key to call the API Gateway
-npx sst secret set X_API_KEY 'your-secure-key-here' --stage dev
-npx sst secret set X_API_KEY 'your-secure-key-here' --stage production
+# Update the generated `API_KEY` environment value in sst.config.ts to one
+# of the accepted API_KEYS values for each deployed stage.
 ```
 
 ::: danger
@@ -46,10 +45,12 @@ The default API keys (`secret1`, `secret2`) are public knowledge. Anyone who kno
    npx sst secret set API_KEYS '["old-key", "new-key"]' --stage production
    ```
 
-2. **Update your proxy** to use the new key:
-   ```bash
-   npx sst secret set X_API_KEY 'new-key' --stage production
-   ```
+2. **Update your proxy** to use the new key by replacing `API_KEY` in the generated `sst.aws.Nextjs` environment:
+    ```ts
+    environment: {
+      API_KEY: 'new-key',
+    }
+    ```
 
 3. **Remove the old key** once all services have switched:
    ```bash

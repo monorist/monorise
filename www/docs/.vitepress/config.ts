@@ -40,7 +40,7 @@ export default defineConfig({
           { text: 'Entities', link: '/concepts/entities' },
           { text: 'Mutuals', link: '/concepts/mutuals' },
           { text: 'Tags', link: '/concepts/tags' },
-          { text: 'Prejoins', link: '/concepts/prejoins' },
+          { text: 'Tree Processors', link: '/concepts/prejoins' },
         ],
       },
       {
