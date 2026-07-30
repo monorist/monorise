@@ -74,7 +74,7 @@ cd my-app
 npx sst dev
 ```
 
-That's it! Open http://localhost:3000 to see the example app.
+That's it! Open `http://localhost:3000` to see the example app.
 
 ## Understanding the structure
 
@@ -286,7 +286,6 @@ The `monorise.module.Core` construct provisions everything you need — API Gate
 new monorise.module.Core('core', {
   allowOrigins: ['https://myapp.com'],   // CORS origins
   allowHeaders: ['x-custom-header'],     // Additional CORS headers
-  slackWebhook: 'https://hooks...',      // Slack alerts for processor errors
   configRoot: './services/api',          // Custom config root path
   cloudwatchLogRetention: '1 week',      // Lambda log retention period
   cloudwatchDashboard: { enabled: $app.stage === 'production' },  // Dashboard only on prod

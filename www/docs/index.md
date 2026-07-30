@@ -75,7 +75,7 @@ export default createEntityConfig({
 
 ```tsx [app/members/page.tsx]
 import { useEntities, createEntity } from 'monorise/react';
-import { Entity } from '#/monorise/entities';
+import { Entity } from '#/monorise';
 
 export default function MembersPage() {
   const { entities: members, searchField, isLoading } = useEntities(Entity.MEMBER);
@@ -124,7 +124,7 @@ That's it — API, DynamoDB, EventBridge, processors, and a type-safe frontend. 
   </div>
   <div class="feature">
     <h3><span class="feature-icon">&#x1F4E6;</span> Full-Stack SDK</h3>
-    <p>Backend API (Hono), React hooks with caching, SST v3 infrastructure module — one package covers the entire stack.</p>
+    <p>Backend API (Hono), React hooks with caching, SST v4 infrastructure module — one package covers the entire stack.</p>
   </div>
   <div class="feature">
     <h3><span class="feature-icon">&#x1F6E0;&#xFE0F;</span> Seamless Dev Workflow</h3>

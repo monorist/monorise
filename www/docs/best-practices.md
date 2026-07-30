@@ -19,13 +19,12 @@ SST provides seamless Next.js deployment via `sst.aws.Nextjs`. This means your N
 ```ts
 // app/api/proxy-request.ts
 import { type NextRequest, NextResponse } from 'next/server';
-import { Resource } from 'sst';
 import { validateToken } from './validate-token';
 
 function rewriteUrl(requestUrl: string, replacePath?: string) {
   const path = replacePath
-    ?? requestUrl.replace(/^https?:\/\/[^\/]+(:d+)?\/api\//, '');
-  return `${Resource.CoreApi.url}/${path}`;
+    ?? requestUrl.replace(/^https?:\/\/[^\/]+\/api\//, '');
+  return `${process.env.API_BASE_URL}/${path}`;
 }
 
 export const proxyRequest = async ({
@@ -56,7 +55,7 @@ export const proxyRequest = async ({
     headers: {
       'content-type': 'application/json',
       'account-id': accountId,
-      'x-api-key': Resource.ApiKeys.value,
+      'x-api-key': process.env.API_KEY ?? '',
     },
     cache: 'no-store',
   });
@@ -80,10 +79,11 @@ export const DELETE = (req: NextRequest) => proxyRequest({ req });
 **3. Configure monorise/react** to point at your proxy:
 
 ```ts
-setMonoriseOptions({
-  entityApiBaseUrl: '/api/core/entity',
-  mutualApiBaseUrl: '/api/core/mutual',
-  tagApiBaseUrl: '/api/core/tag',
+Monorise.config({
+  entityConfig: EntityConfig,
+  entityBaseUrl: '/api/core/entity',
+  mutualBaseUrl: '/api/core/mutual',
+  tagBaseUrl: '/api/core/tag',
 });
 ```
 
@@ -114,20 +114,23 @@ Now all client-side hooks (`useEntities`, `useMutuals`, etc.) route through your
 
 Don't reuse the same API key across environments. Configure separate keys for development, staging, and production via the `API_KEYS` SST secret:
 
-`API_KEYS` is used by the monorise API Gateway to authenticate incoming requests. `X_API_KEY` is used by your proxy server to attach the key when forwarding requests to the API Gateway.
+`API_KEYS` is used by the monorise API Gateway to authenticate incoming requests. The generated proxy reads the singular `API_KEY` environment variable, configured on the `sst.aws.Nextjs` resource in `sst.config.ts`; its value must match one entry in `API_KEYS`.
 
 ```bash
 # API Gateway accepts these keys (array of valid keys)
 npx sst secret set API_KEYS '["dev-key-123"]' --stage dev
 npx sst secret set API_KEYS '["prod-key-abc"]' --stage production
+```
 
-# Proxy server uses this key to call the API Gateway
-npx sst secret set X_API_KEY 'dev-key-123' --stage dev
-npx sst secret set X_API_KEY 'prod-key-abc' --stage production
+```ts
+// In sst.config.ts, replace the generated default for each stage:
+environment: {
+  API_KEY: 'dev-key-123',
+}
 ```
 
 ::: tip
-`API_KEYS` is an array because you may have multiple valid keys (e.g., for key rotation). `X_API_KEY` is the single key your proxy uses — it must match one of the values in `API_KEYS`.
+`API_KEYS` is an array because you may have multiple valid keys (e.g., for key rotation). `API_KEY` is the single key your generated proxy uses — it must match one of the values in `API_KEYS`.
 :::
 
 ## Keep entity configs focused
@@ -141,9 +144,9 @@ monorise/configs/
   order.ts          ✓
 ```
 
-## Prefer direct mutuals over prejoins
+## Prefer direct mutuals over tree processors
 
-If you know the relationship at creation time, add a direct mutual field instead of using prejoins. Direct mutuals are cheaper (no write amplification) and simpler to reason about. See [Prejoins](/concepts/prejoins) for details.
+If you know the relationship at creation time, add a direct mutual field instead of using a tree processor. Direct mutuals are cheaper (no write amplification) and simpler to reason about. See [Tree Processors](/concepts/prejoins) for details.
 
 ## Use tags for access patterns, not data storage
 

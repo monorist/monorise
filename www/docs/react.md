@@ -9,18 +9,20 @@ Never point the React SDK directly at the monorise API Gateway. Always proxy thr
 ## Setup
 
 ```ts
-import { initMonorise } from 'monorise/react';
+import type { Entity, MonoriseEntityConfig } from 'monorise/base';
+import Monorise from 'monorise/react';
+import { EntityConfig } from '#/monorise';
 
-const monorise = initMonorise();
-export const {
-  useEntities,
-  useEntity,
-  useMutuals,
-  useTaggedEntities,
-  createEntity,
-  editEntity,
-  // ... all exports
-} = monorise;
+Monorise.config({
+  modals: {},
+  entityConfig: EntityConfig as Record<Entity, MonoriseEntityConfig>,
+});
+```
+
+Import hooks and actions as named exports after configuration:
+
+```ts
+import { createEntity, useEntities } from 'monorise/react';
 ```
 
 ## Caching
@@ -227,7 +229,7 @@ const {
 
 ### `useTaggedEntities`
 
-Fetch entities by tag with optional group and sort range filters.
+Fetch entities by tag using a group, prefix query, or sort range filter. Supply at least one filter in `params`; `refetch` and `listMore` currently require `params.group`.
 
 ```ts
 const {
@@ -406,9 +408,9 @@ Conditions are enforced at the database level via DynamoDB ConditionExpressions 
 Execute multiple entity operations atomically — all succeed or all fail. Uses DynamoDB `TransactWriteItems` under the hood.
 
 ```ts
-import { transaction, transactional } from 'monorise/react';
+import { coreService, transactional } from 'monorise/react';
 
-await transaction([
+await coreService.transaction([
   transactional.createEntity(Entity.ORDER, { customerId: '...', total: 5000 }),
   transactional.adjustEntity(Entity.WALLET, walletId, { balance: -5000, $condition: 'withdraw' }),
 ]);
@@ -419,7 +421,7 @@ The `transactional` builder provides autocomplete-friendly, type-safe operation 
 ```ts
 const tx = transactional;
 
-await transaction([
+await coreService.transaction([
   tx.createEntity(Entity.ORDER, { customerId: '...', total: 5000 }),
   tx.adjustEntity(Entity.WALLET, walletId, { balance: -5000, $condition: 'withdraw' }),
   tx.updateEntity(Entity.POST, postId, { status: 'published', $condition: 'publish' }),
@@ -464,4 +466,3 @@ When you call `createEntity`, `editEntity`, or `deleteEntity`, the store automat
 - **Delete**: Entity is removed from all mutual and tag stores
 
 This means `useMutuals` and `useTaggedEntities` reflect changes immediately without a manual refetch.
-
