@@ -229,7 +229,7 @@ const {
 
 ### `useTaggedEntities`
 
-Fetch entities by tag using a group, prefix query, or sort range filter. Supply at least one filter in `params`; `refetch` and `listMore` currently require `params.group`.
+Fetch entities by tag using a group, exact sort-value query, or sort range filter. Supply at least one filter in `params`; `refetch` and `listMore` currently require `params.group`.
 
 ```ts
 const {
