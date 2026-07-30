@@ -1,13 +1,13 @@
 import type { Entity, EntitySchemaMap } from '@monorise/base';
 
-type TransactionCreateEntity<T extends Entity> = {
+export type TransactionCreateEntity<T extends Entity = Entity> = {
   operation: 'createEntity';
   entityType: T;
   entityId?: string;
   payload: EntitySchemaMap[T];
 };
 
-type TransactionUpdateEntity<T extends Entity> = {
+export type TransactionUpdateEntity<T extends Entity = Entity> = {
   operation: 'updateEntity';
   entityType: T;
   entityId: string;
@@ -15,7 +15,7 @@ type TransactionUpdateEntity<T extends Entity> = {
   condition?: string;
 };
 
-type TransactionAdjustEntity<T extends Entity> = {
+export type TransactionAdjustEntity<T extends Entity = Entity> = {
   operation: 'adjustEntity';
   entityType: T;
   entityId: string;
@@ -23,11 +23,17 @@ type TransactionAdjustEntity<T extends Entity> = {
   condition?: string;
 };
 
-type TransactionDeleteEntity<T extends Entity> = {
+export type TransactionDeleteEntity<T extends Entity = Entity> = {
   operation: 'deleteEntity';
   entityType: T;
   entityId: string;
 };
+
+export type TransactionOperation =
+  | TransactionCreateEntity
+  | TransactionUpdateEntity
+  | TransactionAdjustEntity
+  | TransactionDeleteEntity;
 
 export const transactional = {
   createEntity: <T extends Entity>(
@@ -41,7 +47,7 @@ export const transactional = {
       operation: 'createEntity',
       entityType,
       payload: rest as EntitySchemaMap[T],
-      ...(entityId && { entityId }),
+      ...(entityId !== undefined && { entityId }),
     };
   },
 
@@ -58,7 +64,7 @@ export const transactional = {
       entityType,
       entityId,
       payload: rest as Partial<EntitySchemaMap[T]>,
-      ...($condition && { condition: $condition }),
+      ...($condition !== undefined && { condition: $condition }),
     };
   },
 
@@ -73,7 +79,7 @@ export const transactional = {
       entityType,
       entityId,
       adjustments: rest,
-      ...($condition && { condition: $condition }),
+      ...($condition !== undefined && { condition: $condition }),
     };
   },
 
