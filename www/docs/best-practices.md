@@ -14,10 +14,11 @@ The frontend server is a **thin proxy layer** — its only job is to authenticat
 
 SST provides seamless Next.js deployment via `sst.aws.Nextjs`. This means your Next.js app already has a server — use its API routes as the proxy layer. No extra infrastructure needed.
 
-Monorise Core creates both the `API_KEYS` allow-list and an `X_API_KEY` secret. Link `xApiKey` to the Next.js server so only your backend proxy can read the selected key:
+Monorise Core creates the `API_KEYS` allow-list. Create a separate `X_API_KEY` secret in your application and link it to the Next.js server so only your backend proxy can read the selected key:
 
 ```ts
-const { api, xApiKey } = new monorise.module.Core('core');
+const { api } = new monorise.module.Core('core');
+const xApiKey = new sst.Secret('X_API_KEY', 'secret1');
 
 new sst.aws.Nextjs('web', {
   link: [api, xApiKey],
