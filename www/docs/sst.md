@@ -1,6 +1,6 @@
 # SST SDK
 
-The SST SDK (`monorise/sst`) provides infrastructure constructs for deploying monorise on AWS using [SST v3](https://sst.dev). It exports two building blocks:
+The SST SDK (`monorise/sst`) provides infrastructure constructs for deploying monorise on AWS using [SST v4](https://sst.dev). It exports two building blocks:
 
 - **`monorise.module.Core`** — the main construct that provisions the entire monorise infrastructure
 - **`monorise.block.QFunction`** — a reusable SQS + Lambda + DLQ + alarm pattern for building your own event processors
@@ -36,7 +36,7 @@ const { bus, api, table, alarmTopic } = new monorise.module.Core('core', {
 ### Constructor
 
 ```ts
-new MonoriseCore(id: string, args?: MonoriseCoreArgs)
+new monorise.module.Core(id: string, args?: MonoriseCoreArgs)
 ```
 
 | Arg | Type | Default | Description |
@@ -44,7 +44,8 @@ new MonoriseCore(id: string, args?: MonoriseCoreArgs)
 | `id` | `string` | — | Unique identifier for the construct (used in resource naming) |
 | `allowOrigins` | `string[]` | — | CORS allowed origins |
 | `allowHeaders` | `string[]` | `['Content-Type', 'Authorization']` | Additional CORS headers |
-| `slackWebhook` | `string` | — | Slack webhook URL for DLQ alerts |
+| `fromTableName` | `string` | — | Existing DynamoDB table name to reuse |
+| `slackWebhook` | `string` | — | Accepted for compatibility; it does not currently configure alert delivery |
 | `configRoot` | `string` | — | Custom root path for monorise config |
 | `cloudwatchLogRetention` | `sst.aws.FunctionArgs['logging']['retention']` | `'1 month'` | CloudWatch log retention period for Monorise-owned Lambda functions |
 | `cloudwatchDashboard` | `{ enabled?: boolean }` | `{ enabled: true }` | Built-in CloudWatch dashboard. Disable to skip creating it |
@@ -60,6 +61,8 @@ const { bus, api, table, alarmTopic } = new monorise.module.Core('core', {
 ```
 
 Disabling it on a stage where the dashboard already exists will destroy the dashboard on the next deploy.
+
+When using `fromTableName`, the table must already enable DynamoDB Streams with `NEW_AND_OLD_IMAGES`, provide Monorise's `R1` and `R2` GSIs, and enable TTL on `expiresAt`.
 
 ### Exposed resources
 
@@ -86,7 +89,7 @@ bus.subscribe('custom-handler', {
 | `bus` | `sst.aws.Bus` | EventBridge bus for entity lifecycle events |
 | `table` | `SingleTable` | DynamoDB single table with GSIs and replication |
 | `table.table` | `sst.aws.Dynamo` | The underlying DynamoDB table resource |
-| `alarmTopic` | `sst.aws.SnsTopic` | SNS topic for DLQ alarms — connected to Slack webhook notifications when `slackWebhook` is configured. Reuse this when creating custom `QFunction` processors to get alerts in the same Slack channel |
+| `alarmTopic` | `sst.aws.SnsTopic` | SNS topic for DLQ alarms. Reuse it when creating custom `QFunction` processors or attach your own subscriptions |
 
 ### What it provisions
 
@@ -95,7 +98,7 @@ Under the hood, `MonoriseCore` creates:
 - **API Gateway v2** with CORS configuration
 - **DynamoDB single table** with primary index (`PK`/`SK`) and two GSIs for replication (`R1PK`/`R1SK`, `R2PK`/`R2SK`)
 - **EventBridge bus** for publishing entity events
-- **3 QFunction processors** (mutual, tag, prejoin) — each with SQS queue, Lambda, DLQ, and CloudWatch alarm
+- **3 QFunction processors** (mutual, tag, tree) — each with SQS queue, Lambda, DLQ, and CloudWatch alarm
 - **Replication processor** — DynamoDB stream subscriber that keeps denormalized data in sync
 - **CloudWatch dashboard** with metrics for all Lambda functions, DLQ depths, and a link to DynamoDB table monitoring (can be disabled via `cloudwatchDashboard`)
 - **SST DevCommand** — automatically runs `monorise dev` in watch mode during `sst dev`
@@ -182,7 +185,7 @@ processor.id     // string — the construct ID
 2. The **Lambda function** processes messages (with `partialResponses` enabled for batch processing)
 3. Failed messages are retried, then moved to the **DLQ**
 4. If an `alarmTopic` is provided, a **CloudWatch alarm** fires when the DLQ has messages (`ApproximateNumberOfMessagesVisible >= 1`)
-5. The alarm triggers the SNS topic (e.g., Slack notification)
+5. The alarm triggers the SNS topic, which you can subscribe to with your preferred notification integration
 
 ### Use cases
 

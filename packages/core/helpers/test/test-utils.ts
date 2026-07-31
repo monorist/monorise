@@ -126,6 +126,7 @@ export const createMockEntityConfig = () => ({
     },
     updateConditions: {
       publish: { status: { $eq: 'draft' } },
+      archive: (_data) => ({ status: { $ne: 'archived' } }),
     },
     // Opted in so the legacy $where test suite can still exercise its mechanics.
     allowLegacyWhere: true,

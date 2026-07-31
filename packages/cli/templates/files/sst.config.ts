@@ -15,15 +15,16 @@ export default $config({
     const { api } = new monorise.module.Core('core', {
       allowOrigins: ['http://localhost:3000'],
     });
+    // Must match one entry in Core's API_KEYS secret (defaults to
+    // ["secret1", "secret2"]). Override both before deploying:
+    // npx sst secret set X_API_KEY '...' && npx sst secret set API_KEYS '["..."]'
+    const xApiKey = new sst.Secret('X_API_KEY', 'secret1');
 
     new sst.aws.Nextjs('web', {
       path: 'apps/web',
+      link: [api, xApiKey],
       environment: {
         API_BASE_URL: api.url,
-        // Must match one of the values in the backend's API_KEYS secret
-        // (defaults to ["secret1", "secret2"] — override both with
-        // `npx sst secret set API_KEYS '["..."]'` before deploying).
-        API_KEY: 'secret1',
       },
     });
   },

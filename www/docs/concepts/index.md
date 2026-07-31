@@ -16,4 +16,4 @@ This system revolves around three core building blocks:
 | [Mutual](/concepts/mutuals) | A relationship record between two entities that can hold data |
 | [Tag](/concepts/tags) | A key/value access pattern to quickly query subsets of entities |
 
-These are defined per entity in config files via `createEntityConfig` (Zod-based). Additionally, **Prejoins** are computed relationships that "join" through a chain of mutuals to avoid expensive multi-hop queries.
+These are defined per entity in config files via `createEntityConfig` (Zod-based). Additionally, **tree processors** traverse a chain of mutuals asynchronously and materialize derived relationships for direct reads. The current configuration key for a tree processor is `mutual.prejoins`.

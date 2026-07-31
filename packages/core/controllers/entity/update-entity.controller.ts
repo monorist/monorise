@@ -59,7 +59,8 @@ export class UpdateEntityController {
 
       if (
         err instanceof StandardError &&
-        err.code === StandardErrorCode.ENTITY_NOT_FOUND
+        (err.code === StandardErrorCode.ENTITY_NOT_FOUND ||
+          err.code === StandardErrorCode.ENTITY_IS_UNDEFINED)
       ) {
         c.status(httpStatus.NOT_FOUND);
         return c.json({

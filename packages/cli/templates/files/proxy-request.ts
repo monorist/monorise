@@ -1,4 +1,5 @@
 import type { NextRequest } from 'next/server';
+import { Resource } from 'sst';
 
 function rewriteUrl({
   requestUrl,
@@ -39,7 +40,7 @@ export const proxyRequest = async ({
       body,
       headers: {
         ...reqHeaders,
-        'x-api-key': process.env.API_KEY ?? '',
+        'x-api-key': Resource.X_API_KEY.value,
       },
       cache: 'no-store',
     },
