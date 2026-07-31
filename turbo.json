@@ -3,6 +3,16 @@
     "build": {
       "outputs": ["dist/**"]
     },
+    "monorise#build": {
+      "dependsOn": [
+        "@monorise/base#build",
+        "@monorise/core#build",
+        "@monorise/react#build",
+        "@monorise/sst#build",
+        "@monorise/cli#build"
+      ],
+      "outputs": ["dist/**"]
+    },
     "dev": {
       "cache": false,
       "persistent": true
