@@ -92,8 +92,14 @@ packages.forEach((pkg) => {
   }
 });
 
-// Create a root entrypoint that exposes packages without flattening their APIs.
-const mainIndexContent = `// Provide named exports for each package
+// Create the main index.js file that re-exports everything.
+const mainIndexContent = `// Re-export all packages from their respective modules
+export * from './base/index.js';
+export * from './core/index.js';
+export * from './react/index.js';
+export * from './sst/index.js';
+
+// Also provide named exports for each package
 export * as base from './base/index.js';
 export * as core from './core/index.js';
 export * as react from './react/index.js';
@@ -103,7 +109,13 @@ export * as sst from './sst/index.js';
 fs.writeFileSync(path.join(distDir, 'index.js'), mainIndexContent);
 
 // Create the main index.d.ts file
-const mainIndexDtsContent = `// Provide named exports for each package
+const mainIndexDtsContent = `// Re-export all packages from their respective modules
+export * from './base/index';
+export * from './core/index';
+export * from './react/index';
+export * from './sst/index';
+
+// Also provide named exports for each package
 export * as base from './base/index';
 export * as core from './core/index';
 export * as react from './react/index';
