@@ -1,5 +1,12 @@
 # monorise
 
+## 1.6.2
+
+### Patch Changes
+
+- 90a45e2: Generate an application-owned `X_API_KEY` secret for backend proxies instead of embedding the selected Core API key in the Next.js environment.
+- ee44ed4: Return 404 instead of 500 when a named function update condition targets a missing entity.
+
 ## 1.6.1
 
 ### Patch Changes

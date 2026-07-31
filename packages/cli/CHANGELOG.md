@@ -1,5 +1,11 @@
 # @monorise/cli
 
+## 4.1.2
+
+### Patch Changes
+
+- 90a45e2: Generate an application-owned `X_API_KEY` secret for backend proxies instead of embedding the selected Core API key in the Next.js environment.
+
 ## 4.1.1
 
 ### Patch Changes
