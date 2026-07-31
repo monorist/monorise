@@ -1,5 +1,11 @@
 # @monorise/core
 
+## 4.4.1
+
+### Patch Changes
+
+- ee44ed4: Return 404 instead of 500 when a named function update condition targets a missing entity.
+
 ## 4.4.0
 
 ### Minor Changes
