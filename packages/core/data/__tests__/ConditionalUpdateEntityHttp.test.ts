@@ -535,6 +535,16 @@ describe('HTTP — conditional updateEntity ($where body key)', () => {
       expect(status).toBe(400);
       expect(data.code).toBe('INVALID_CONDITION');
     });
+
+    it('9.6 — function condition on missing entity → 404', async () => {
+      const { status, data } = await patch(
+        MockEntityType.WALLET,
+        'non-existent-id',
+        { status: 'archived', $condition: 'archive' },
+      );
+      expect(status).toBe(404);
+      expect(data.code).toBe('ENTITY_IS_UNDEFINED');
+    });
   });
 
   // ─── Group 10: allowLegacyWhere (security default) ────────────────────────

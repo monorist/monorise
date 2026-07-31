@@ -105,8 +105,8 @@ Define named `updateConditions` in the entity config, then send the permitted co
 Response behavior for `PATCH`:
 
 - `200 OK`: update applied
-- `409 CONFLICT`: condition failed (`CONDITIONAL_CHECK_FAILED`); in conditional mode this also covers a missing entity
-- `404 NOT_FOUND`: entity missing in non-conditional mode only
+- `409 CONFLICT`: condition failed (`CONDITIONAL_CHECK_FAILED`); a static condition on a missing entity also lands here
+- `404 NOT_FOUND`: entity missing without a condition or while resolving a function condition
 - `400 BAD_REQUEST`: validation errors, unique-value conflicts, or an unknown/undefined condition name
 
 ::: warning Legacy `$where`
