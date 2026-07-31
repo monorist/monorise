@@ -7,6 +7,9 @@ import type {
   TransactionUpdateEntity,
 } from '../types/transaction';
 
+// NOTE: packages/react/helpers/transactional.ts is a browser-safe copy of
+// this builder. Both emit the same wire format for the execute-transaction
+// endpoint — keep operation shapes in sync when changing either file.
 export const transactional = {
   createEntity: <T extends EntityType>(
     entityType: T,

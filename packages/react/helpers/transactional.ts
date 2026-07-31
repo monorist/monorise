@@ -35,6 +35,9 @@ export type TransactionOperation =
   | TransactionAdjustEntity
   | TransactionDeleteEntity;
 
+// NOTE: packages/core/helpers/transactional.ts is the server-side copy of
+// this builder. Both emit the same wire format for the execute-transaction
+// endpoint — keep operation shapes in sync when changing either file.
 export const transactional = {
   createEntity: <T extends Entity>(
     entityType: T,
