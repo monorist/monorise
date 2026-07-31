@@ -108,11 +108,50 @@ export * as sst from './sst/index.js';
 
 fs.writeFileSync(path.join(distDir, 'index.js'), mainIndexContent);
 
-// Create the main index.d.ts file
+// Create the main index.d.ts file.
+// Core and React declare different `transactional` builders, so star-exporting
+// both would emit TS2308. Runtime star-exports already drop the ambiguous name
+// (ESM semantics); enumerate Core and React exports here minus `transactional`
+// so the type surface matches the runtime surface. Names exported by both
+// (e.g. `Mutual`) resolve to Core's, matching star-export behavior.
+const getDtsExportNames = (pkg) => {
+  const dts = fs.readFileSync(path.join(distDir, pkg, 'index.d.ts'), 'utf-8');
+  const names = new Set();
+  const exportClause = /export\s+(?:type\s+)?\{([^}]*)\}/g;
+  let match;
+  while ((match = exportClause.exec(dts)) !== null) {
+    for (const part of match[1].split(',')) {
+      const name = part
+        .trim()
+        .split(/\s+as\s+/)
+        .pop()
+        .trim();
+      if (name && name !== 'default') {
+        names.add(name);
+      }
+    }
+  }
+  if (names.size === 0) {
+    throw new Error(`Failed to enumerate exports from ${pkg}/index.d.ts`);
+  }
+  return names;
+};
+
+const coreNames = getDtsExportNames('core');
+coreNames.delete('transactional');
+const reactNames = getDtsExportNames('react');
+reactNames.delete('transactional');
+for (const name of coreNames) {
+  reactNames.delete(name);
+}
+
+const toExportClause = (names, pkg) =>
+  `export {\n${[...names].map((name) => `  ${name},`).join('\n')}\n} from './${pkg}/index';`;
+
 const mainIndexDtsContent = `// Re-export all packages from their respective modules
 export * from './base/index';
-export * from './core/index';
-export * from './react/index';
+${toExportClause(coreNames, 'core')}
+${toExportClause(reactNames, 'react')}
 export * from './sst/index';
 
 // Also provide named exports for each package
