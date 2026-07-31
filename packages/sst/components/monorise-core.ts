@@ -26,6 +26,7 @@ export class MonoriseCore {
   public readonly bus: sst.aws.Bus;
   public readonly table: SingleTable;
   public readonly alarmTopic: sst.aws.SnsTopic;
+  public readonly xApiKey: sst.Secret;
 
   constructor(id: string, args?: MonoriseCoreArgs) {
     const runtime: sst.aws.FunctionArgs['runtime'] = 'nodejs22.x';
@@ -68,6 +69,7 @@ export class MonoriseCore {
     });
 
     const secretApiKeys = new sst.Secret('API_KEYS', '["secret1", "secret2"]');
+    this.xApiKey = new sst.Secret('X_API_KEY', 'secret1');
 
     const appHandlerName = `${$app.stage}-${$app.name}-${id}-app-handler`;
     this.api.route('ANY /core/{proxy+}', {

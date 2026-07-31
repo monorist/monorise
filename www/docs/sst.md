@@ -10,7 +10,7 @@ The SST SDK (`monorise/sst`) provides infrastructure constructs for deploying mo
 async run() {
   const { monorise } = await import('monorise/sst');
 
-  const { bus, api, table, alarmTopic } = new monorise.module.Core('core', {
+  const { bus, api, table, alarmTopic, xApiKey } = new monorise.module.Core('core', {
     allowOrigins: ['http://localhost:3000'],
   });
 
@@ -27,7 +27,7 @@ async run() {
 ```ts
 const { monorise } = await import('monorise/sst');
 
-const { bus, api, table, alarmTopic } = new monorise.module.Core('core', {
+const { bus, api, table, alarmTopic, xApiKey } = new monorise.module.Core('core', {
   allowOrigins: ['http://localhost:3000'],
   cloudwatchLogRetention: '1 week',
 });
@@ -69,7 +69,7 @@ When using `fromTableName`, the table must already enable DynamoDB Streams with 
 After construction, you can access the created resources to link them to other parts of your stack:
 
 ```ts
-const { bus, api, table, alarmTopic } = new monorise.module.Core('core', { ... });
+const { bus, api, table, alarmTopic, xApiKey } = new monorise.module.Core('core', { ... });
 
 // Link the API to a frontend
 new sst.aws.Nextjs('Web', {
@@ -90,6 +90,7 @@ bus.subscribe('custom-handler', {
 | `table` | `SingleTable` | DynamoDB single table with GSIs and replication |
 | `table.table` | `sst.aws.Dynamo` | The underlying DynamoDB table resource |
 | `alarmTopic` | `sst.aws.SnsTopic` | SNS topic for DLQ alarms. Reuse it when creating custom `QFunction` processors or attach your own subscriptions |
+| `xApiKey` | `sst.Secret` | Selected backend proxy key. Link it to the proxy and send its value as the `x-api-key` header |
 
 ### What it provisions
 
@@ -98,6 +99,7 @@ Under the hood, `MonoriseCore` creates:
 - **API Gateway v2** with CORS configuration
 - **DynamoDB single table** with primary index (`PK`/`SK`) and two GSIs for replication (`R1PK`/`R1SK`, `R2PK`/`R2SK`)
 - **EventBridge bus** for publishing entity events
+- **API key secrets** — rotatable `API_KEYS` allow-list for Core and selected `X_API_KEY` for backend proxies
 - **3 QFunction processors** (mutual, tag, tree) — each with SQS queue, Lambda, DLQ, and CloudWatch alarm
 - **Replication processor** — DynamoDB stream subscriber that keeps denormalized data in sync
 - **CloudWatch dashboard** with metrics for all Lambda functions, DLQ depths, and a link to DynamoDB table monitoring (can be disabled via `cloudwatchDashboard`)
