@@ -63,7 +63,6 @@ The default Hono API exposes the following routes under `/core`. All entity rout
 | `PATCH` | `/entity/:entityType/:entityId` | Update entity (partial); supports optional named `$condition` |
 | `DELETE` | `/entity/:entityType/:entityId` | Delete entity |
 | `POST` | `/entity/:entityType/:entityId/adjust` | Atomic numeric adjustment (body: `{ field: delta }`) |
-| `POST` | `/transaction` | Execute entity operations atomically |
 
 ### Mutual endpoints
 
@@ -79,7 +78,13 @@ The default Hono API exposes the following routes under `/core`. All entity rout
 
 | Method | Route | Description |
 |--------|-------|-------------|
-| `GET` | `/tag/:entityType/:tagName` | Query tagged entities (`?group=...&start=...&end=...`) |
+| `GET` | `/tag/:entityType/:tagName` | Query tagged entities (`?group=...&query=...&start=...&end=...&limit=...&lastKey=...`) |
+
+### Transaction endpoint
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| `POST` | `/transaction` | Execute entity operations atomically |
 
 Custom routes can be mounted under `/core/app/*` via `customRoutes` in your monorise config.
 
@@ -96,6 +101,13 @@ Define named `updateConditions` in the entity config, then send the permitted co
 ```
 
 `$condition` is optional for entity updates, but required for adjustments when the entity defines `adjustmentConditions`. A failed condition returns `409 CONFLICT`. See [Entities: Conditional writes](/concepts/entities#conditional-writes) for configuration examples.
+
+Response behavior for `PATCH`:
+
+- `200 OK`: update applied
+- `409 CONFLICT`: condition failed (`CONDITIONAL_CHECK_FAILED`); in conditional mode this also covers a missing entity
+- `404 NOT_FOUND`: entity missing in non-conditional mode only
+- `400 BAD_REQUEST`: validation errors, unique-value conflicts, or an unknown/undefined condition name
 
 ::: warning Legacy `$where`
 Raw `$where` conditions are deprecated and disabled by default. Enable `allowLegacyWhere` only for trusted compatibility callers; new clients must use named conditions. A compatibility request places the raw clauses under `$where`, for example `{ "status": "confirmed", "$where": { "status": { "$eq": "pending" } } }`.

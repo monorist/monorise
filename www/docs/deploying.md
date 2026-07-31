@@ -49,9 +49,9 @@ The default API keys (`secret1`, `secret2`) are public knowledge. Anyone who kno
    ```
 
 2. **Switch the backend proxy** to the new key:
-    ```bash
-    npx sst secret set X_API_KEY 'new-key' --stage production
-    ```
+   ```bash
+   npx sst secret set X_API_KEY 'new-key' --stage production
+   ```
 
 3. **Remove the old key** once all services have switched:
    ```bash
