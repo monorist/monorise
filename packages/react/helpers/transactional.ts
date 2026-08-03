@@ -1,17 +1,45 @@
-import type { Entity as EntityType, EntitySchemaMap } from '@monorise/base';
-import type {
-  TransactionAdjustEntity,
-  TransactionCreateEntity,
-  TransactionDeleteEntity,
-  TransactionOperation,
-  TransactionUpdateEntity,
-} from '../types/transaction';
+import type { Entity, EntitySchemaMap } from '@monorise/base';
 
-// NOTE: packages/react/helpers/transactional.ts is a browser-safe copy of
+export type TransactionCreateEntity<T extends Entity = Entity> = {
+  operation: 'createEntity';
+  entityType: T;
+  entityId?: string;
+  payload: EntitySchemaMap[T];
+};
+
+export type TransactionUpdateEntity<T extends Entity = Entity> = {
+  operation: 'updateEntity';
+  entityType: T;
+  entityId: string;
+  payload: Partial<EntitySchemaMap[T]>;
+  condition?: string;
+};
+
+export type TransactionAdjustEntity<T extends Entity = Entity> = {
+  operation: 'adjustEntity';
+  entityType: T;
+  entityId: string;
+  adjustments: Record<string, number>;
+  condition?: string;
+};
+
+export type TransactionDeleteEntity<T extends Entity = Entity> = {
+  operation: 'deleteEntity';
+  entityType: T;
+  entityId: string;
+};
+
+export type TransactionOperation =
+  | TransactionCreateEntity
+  | TransactionUpdateEntity
+  | TransactionAdjustEntity
+  | TransactionDeleteEntity;
+
+// NOTE: packages/core/helpers/transactional.ts is the server-side copy of
 // this builder. Both emit the same wire format for the execute-transaction
 // endpoint — keep operation shapes in sync when changing either file.
 export const transactional = {
-  createEntity: <T extends EntityType>(
+  createEntity: <T extends Entity>(
     entityType: T,
     payload: EntitySchemaMap[T] & { entityId?: string },
   ): TransactionCreateEntity<T> => {
@@ -22,11 +50,11 @@ export const transactional = {
       operation: 'createEntity',
       entityType,
       payload: rest as EntitySchemaMap[T],
-      ...(entityId && { entityId }),
+      ...(entityId !== undefined && { entityId }),
     };
   },
 
-  updateEntity: <T extends EntityType>(
+  updateEntity: <T extends Entity>(
     entityType: T,
     entityId: string,
     payload: Partial<EntitySchemaMap[T]> & { $condition?: string },
@@ -39,11 +67,11 @@ export const transactional = {
       entityType,
       entityId,
       payload: rest as Partial<EntitySchemaMap[T]>,
-      ...($condition && { condition: $condition }),
+      ...($condition !== undefined && { condition: $condition }),
     };
   },
 
-  adjustEntity: <T extends EntityType>(
+  adjustEntity: <T extends Entity>(
     entityType: T,
     entityId: string,
     adjustments: Record<string, number> & { $condition?: string },
@@ -54,11 +82,11 @@ export const transactional = {
       entityType,
       entityId,
       adjustments: rest,
-      ...($condition && { condition: $condition }),
+      ...($condition !== undefined && { condition: $condition }),
     };
   },
 
-  deleteEntity: <T extends EntityType>(
+  deleteEntity: <T extends Entity>(
     entityType: T,
     entityId: string,
   ): TransactionDeleteEntity<T> => ({
@@ -67,5 +95,3 @@ export const transactional = {
     entityId,
   }),
 };
-
-export type { TransactionOperation };

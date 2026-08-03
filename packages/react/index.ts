@@ -208,7 +208,7 @@ export {
 
 export default Monorise;
 
-export { transactional } from '@monorise/core';
+export { transactional } from './helpers/transactional';
 export { MutualDataWithIndex, MutualDataMapping, MutualData, Mutual };
 
 export type {
@@ -218,3 +218,4 @@ export type {
   EntitySchemaMap,
   NumericFields,
 } from '@monorise/base';
+export type { TransactionOperation } from './helpers/transactional';

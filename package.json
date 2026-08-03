@@ -4,7 +4,7 @@
   "description": "",
   "packageManager": "npm@10.9.2",
   "scripts": {
-    "build": "npm run clear-dist && turbo run build --force && npm run build:monorise",
+    "build": "npm run clear-dist && turbo run build --force",
     "build:monorise": "cd packages/monorise && npm run build",
     "changeset": "npx @changesets/cli",
     "changeset:dev-exit": "npm run changeset -- pre exit",
