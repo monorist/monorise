@@ -2,7 +2,7 @@
 
 import fs from 'fs';
 import path from 'path';
-import { fileURLToPath } from 'url';
+import { fileURLToPath, pathToFileURL } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -109,27 +109,55 @@ export * as sst from './sst/index.js';
 fs.writeFileSync(path.join(distDir, 'index.js'), mainIndexContent);
 
 // Create the main index.d.ts file.
-// Core and React declare different `transactional` builders, so star-exporting
-// both would emit TS2308. Runtime star-exports already drop the ambiguous name
-// (ESM semantics); enumerate Core and React exports here minus `transactional`
-// so the type surface matches the runtime surface. Names exported by both
-// (e.g. `Mutual`) resolve to Core's, matching star-export behavior.
+// ESM star-exports drop ambiguous names from the runtime namespace (e.g.
+// `transactional`, declared by both Core and React, and `Entity`, exported as
+// different values by base and Core), while TS reports TS2308 for them. To
+// keep the type surface identical to the runtime surface, enumerate every
+// package's exports explicitly: names ambiguous at runtime are omitted, and
+// names declared by more than one package are claimed by the first package
+// listed (same-symbol re-exports from base, and type-only re-exports such as
+// React's `Mutual`, which tsup elides at runtime).
+const dtsPackages = ['core', 'base', 'react', 'sst'];
+
+const runtimeAmbiguous = async () => {
+  const counts = new Map();
+  for (const pkg of dtsPackages) {
+    const mod = await import(
+      pathToFileURL(path.join(distDir, pkg, 'index.js')).href
+    );
+    for (const name of Object.keys(mod)) {
+      if (name !== 'default') {
+        counts.set(name, (counts.get(name) ?? 0) + 1);
+      }
+    }
+  }
+  return new Set(
+    [...counts].filter(([, count]) => count > 1).map(([name]) => name),
+  );
+};
+
 const getDtsExportNames = (pkg) => {
   const dts = fs.readFileSync(path.join(distDir, pkg, 'index.d.ts'), 'utf-8');
   const names = new Set();
-  const exportClause = /export\s+(?:type\s+)?\{([^}]*)\}/g;
   let match;
+  const exportClause = /export\s+(?:type\s+)?\{([^}]*)\}/g;
   while ((match = exportClause.exec(dts)) !== null) {
     for (const part of match[1].split(',')) {
       const name = part
         .trim()
         .split(/\s+as\s+/)
         .pop()
-        .trim();
+        .trim()
+        .replace(/^type\s+/, '');
       if (name && name !== 'default') {
         names.add(name);
       }
     }
+  }
+  const exportDeclare =
+    /export\s+declare\s+(?:const|let|var|function|class|interface|type|enum|namespace)\s+([A-Za-z_$][\w$]*)/g;
+  while ((match = exportDeclare.exec(dts)) !== null) {
+    names.add(match[1]);
   }
   if (names.size === 0) {
     throw new Error(`Failed to enumerate exports from ${pkg}/index.d.ts`);
@@ -137,22 +165,26 @@ const getDtsExportNames = (pkg) => {
   return names;
 };
 
-const coreNames = getDtsExportNames('core');
-coreNames.delete('transactional');
-const reactNames = getDtsExportNames('react');
-reactNames.delete('transactional');
-for (const name of coreNames) {
-  reactNames.delete(name);
-}
-
-const toExportClause = (names, pkg) =>
-  `export {\n${[...names].map((name) => `  ${name},`).join('\n')}\n} from './${pkg}/index';`;
+const ambiguous = await runtimeAmbiguous();
+const claimed = new Set();
+const dtsClauses = dtsPackages
+  .map((pkg) => {
+    const names = [...getDtsExportNames(pkg)].filter(
+      (name) => !ambiguous.has(name) && !claimed.has(name),
+    );
+    for (const name of names) {
+      claimed.add(name);
+    }
+    if (names.length === 0) {
+      return '';
+    }
+    return `export {\n${names.map((name) => `  ${name},`).join('\n')}\n} from './${pkg}/index';`;
+  })
+  .filter(Boolean)
+  .join('\n');
 
 const mainIndexDtsContent = `// Re-export all packages from their respective modules
-export * from './base/index';
-${toExportClause(coreNames, 'core')}
-${toExportClause(reactNames, 'react')}
-export * from './sst/index';
+${dtsClauses}
 
 // Also provide named exports for each package
 export * as base from './base/index';
