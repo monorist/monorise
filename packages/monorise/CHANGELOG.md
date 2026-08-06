@@ -1,5 +1,11 @@
 # monorise
 
+## 1.6.4
+
+### Patch Changes
+
+- eac60b7: fix: stop entity edits overwriting flipped mutual data, and propagate updates to chained mutual slices
+
 ## 1.6.3
 
 ### Patch Changes
