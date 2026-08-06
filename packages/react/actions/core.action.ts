@@ -21,6 +21,7 @@ import {
   getTagStateKey,
   getUniqueFieldRequestKey,
   getUniqueFieldStateKey,
+  parseMutualStateKey,
 } from '../lib/utils';
 import type {
   CommonOptions,
@@ -676,26 +677,14 @@ const initCoreActions = (
 
           // update mutual's entity data
           for (const key of Object.keys(state.mutual)) {
-            const [_byEntity, _byId, _entityType] = key.split('/');
-            if ((_entityType as unknown as Entity) === entityType) {
+            const { entity: mutualEntityType } = parseMutualStateKey(key);
+            if (mutualEntityType === entityType) {
               const mutual = state.mutual[key].dataMap.get(id);
               if (mutual) {
                 state.mutual[key].dataMap = new Map(
                   state.mutual[key].dataMap,
                 ).set(id, { ...mutual, data: data.data });
               }
-            }
-          }
-
-          // update flipped mutual side (entity is the "by" entity)
-          for (const key of Object.keys(state.mutual)) {
-            const [_byEntity, _byId] = key.split('/');
-            if ((_byEntity as unknown as Entity) === entityType && _byId === id) {
-              const newDataMap = new Map(state.mutual[key].dataMap);
-              for (const [entryId, mutual] of newDataMap) {
-                newDataMap.set(entryId, { ...mutual, data: data.data });
-              }
-              state.mutual[key].dataMap = newDataMap;
             }
           }
 
@@ -739,25 +728,14 @@ const initCoreActions = (
 
           // Propagate to mutual stores
           for (const key of Object.keys(state.mutual)) {
-            const [_byEntity, _byId, _entityType] = key.split('/');
-            if ((_entityType as unknown as Entity) === entityType) {
+            const { entity: mutualEntityType } = parseMutualStateKey(key);
+            if (mutualEntityType === entityType) {
               const mutual = state.mutual[key].dataMap.get(id);
               if (mutual) {
                 state.mutual[key].dataMap = new Map(
                   state.mutual[key].dataMap,
                 ).set(id, { ...(mutual as any), data: data.data });
               }
-            }
-          }
-
-          for (const key of Object.keys(state.mutual)) {
-            const [_byEntity, _byId] = key.split('/');
-            if ((_byEntity as unknown as Entity) === entityType && _byId === id) {
-              const newDataMap = new Map(state.mutual[key].dataMap);
-              for (const [entryId, mutual] of newDataMap) {
-                newDataMap.set(entryId, { ...(mutual as any), data: data.data });
-              }
-              state.mutual[key].dataMap = newDataMap;
             }
           }
 
@@ -807,8 +785,8 @@ const initCoreActions = (
 
           // delete mutual's entity data
           for (const key of Object.keys(state.mutual)) {
-            const [_byEntity, _byId, _entityType] = key.split('/');
-            if ((_entityType as unknown as Entity) === entityType) {
+            const { entity: mutualEntityType } = parseMutualStateKey(key);
+            if (mutualEntityType === entityType) {
               state.mutual[key].dataMap.delete(id);
             }
           }

@@ -23,6 +23,24 @@ export const getMutualStateKey = (
   return `${byEntity}/${byEntityId}/${entity}${entityId ? `/${entityId}` : ''}${chainEntityQuery ? `?${chainEntityQuery}` : ''}`;
 };
 
+// inverse of getMutualStateKey — the chain query is stripped off first so that
+// it never leaks into the trailing path segment
+export const parseMutualStateKey = (stateKey: string) => {
+  const queryIndex = stateKey.indexOf('?');
+  const path = queryIndex === -1 ? stateKey : stateKey.slice(0, queryIndex);
+  const chainEntityQuery =
+    queryIndex === -1 ? undefined : stateKey.slice(queryIndex + 1);
+  const [byEntity, byEntityId, entity, entityId] = path.split('/');
+
+  return {
+    byEntity: byEntity as unknown as Entity,
+    byEntityId,
+    entity: entity as unknown as Entity,
+    entityId,
+    chainEntityQuery,
+  };
+};
+
 export const getTagStateKey = (
   entityType: Entity,
   tagName: string,
