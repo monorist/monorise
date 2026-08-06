@@ -1,5 +1,11 @@
 # @monorise/react
 
+## 7.1.2
+
+### Patch Changes
+
+- 86708be: fix: stop entity edits overwriting flipped mutual data, and propagate updates to chained mutual slices
+
 ## 7.1.1
 
 ### Patch Changes
