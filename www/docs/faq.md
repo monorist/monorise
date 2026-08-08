@@ -16,6 +16,67 @@ Both are excellent databases, but they serve different scaling models:
 
 If your app will always run on a single server with predictable traffic, PostgreSQL is a great choice. If you want zero-ops infrastructure that scales from zero to millions of requests without provisioning or connection pool headaches, DynamoDB + Monorise is the better fit.
 
+## Isn't serverless expensive?
+
+This is a common misconception. Serverless appears expensive at scale when you're using **on-demand pricing** for everything, but AWS provides cost-control mechanisms that make serverless highly economical:
+
+### Lambda: Switch to Lambda Managed Instances
+
+Lambda's on-demand pricing charges per request and execution time. For predictable, high-traffic workloads, [Lambda Managed Instances](https://docs.aws.amazon.com/lambda/latest/dg/lambda-managed-instances.html) offer significant savings:
+
+- **Always-on execution environments** — Eliminates cold starts and provides consistent performance
+- **Predictable pricing** — Pay a fixed hourly rate instead of per-request charges
+- **Easy transition** — Switch from on-demand to managed instances with a simple configuration change, no code changes needed
+- **Best for** — Steady-state workloads with consistent traffic patterns
+
+### DynamoDB: Use Provisioned Mode
+
+DynamoDB on-demand charges per read/write request. For known traffic patterns, provisioned mode reduces costs:
+
+- **Provisioned mode with auto-scaling** — Set minimum and maximum capacity units, AWS scales within your bounds
+- **Reserved capacity** — Commit to baseline capacity for additional discounts
+- **Predictable billing** — Know your costs upfront instead of variable per-request charges
+- **Best for** — Applications with predictable traffic or steady baseline usage
+
+### The Bottom Line
+
+Serverless gives you **optionality**: start with on-demand for zero upfront cost and instant scaling, then optimize costs as your usage patterns become clear. You're never locked into expensive pricing—you can always tune for your actual workload.
+
+See the full [Cost Optimization Guide](/cost-optimization) for a detailed walkthrough.
+
+## When and how should I optimize costs?
+
+Follow this progression to optimize without premature optimization:
+
+### Phase 1: Launch (Month 0-3)
+**Use on-demand everything.** Focus on product-market fit, not cost optimization.
+- Lambda on-demand — scales with your unpredictable startup traffic
+- DynamoDB on-demand — pay only for what you use while finding product-market fit
+
+### Phase 2: Monitor (Month 3-6)
+**Collect data.** Watch your AWS Cost Explorer and CloudWatch metrics:
+- Is your traffic predictable or spiky?
+- Are there clear baseline usage patterns?
+- What's your monthly spend on Lambda vs DynamoDB?
+
+### Phase 3: Optimize (Month 6+)
+**Switch to provisioned resources** once you have 3+ months of predictable patterns:
+
+| Resource | When to Switch | How |
+|----------|----------------|-----|
+| **Lambda** | Daily invocations exceed ~1M with steady traffic | Enable [Lambda Managed Instances](https://docs.aws.amazon.com/lambda/latest/dg/lambda-managed-instances.html) via SST/CDK config |
+| **DynamoDB** | Read/write operations are consistent hour-to-hour | Switch table to provisioned mode with auto-scaling bounds |
+
+### Quick Wins (Anytime)
+- **Lambda memory tuning** — Use AWS Lambda Power Tuning to find the memory/performance sweet spot
+- **DynamoDB TTL** — Automatically expire old data to reduce storage costs
+- **CloudFront caching** — Cache API responses at the edge to reduce Lambda invocations
+
+### The Rule of Thumb
+> Don't optimize until your AWS bill is >10% of your revenue or >$500/month. Until then, on-demand pricing is likely cheaper than the engineering time spent optimizing.
+
+See the full [Cost Optimization Guide](/cost-optimization) for a detailed walkthrough.
+
 ## Why single-table design?
 
 DynamoDB charges per request and per table. A single-table design:
