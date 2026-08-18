@@ -80,27 +80,6 @@ test('generates fields from an entity schema wrapped by an effect', () => {
   ]);
 });
 
-test('generates only explicitly selected datasets', () => {
-  const unnamed = { mutualDataSchema: z.object({}) };
-  const manifest = createAnalyticsManifest([
-    entity('role', { title: z.string() }),
-    {
-      ...entity('activity', { actionType: z.enum(['created']) }),
-      mutual: { mutualFields: { roles: { entityType: 'role', mutual: unnamed } } },
-    },
-  ], { entities: ['role'], mutuals: [] });
-
-  assert.deepEqual(manifest.datasets.map((dataset) => dataset.name), ['role']);
-  assert.deepEqual(manifest.unnamedMutuals, []);
-});
-
-test('rejects unknown selected datasets', () => {
-  assert.throws(
-    () => createAnalyticsManifest([entity('role', {})], { entities: ['missing'] }),
-    /unknown entity/,
-  );
-});
-
 test('rejects invalid names, normalized columns, and unsupported types', () => {
   assert.throws(
     () => createAnalyticsManifest([entity('Not-valid', {})]),

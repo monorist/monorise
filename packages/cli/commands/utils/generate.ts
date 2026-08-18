@@ -2,7 +2,6 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {
   createAnalyticsManifest,
-  type AnalyticsSelection,
   validateSchemaEvolution,
   type AnalyticsConfig,
   type AnalyticsManifest,
@@ -67,7 +66,6 @@ ${block}
 async function generateConfigFile(
   configDir: string,
   monoriseOutputDir: string,
-  analytics?: AnalyticsSelection,
 ): Promise<string> {
   const configOutputPath = path.join(monoriseOutputDir, 'config.ts');
   const initialConfigContent = `
@@ -273,7 +271,7 @@ ${generateMutualDataMappingDeclarations(mutualPairs)}
 
   fs.writeFileSync(configOutputPath, configOutputContent);
   const analyticsManifestPath = path.join(monoriseOutputDir, 'analytics-manifest.json');
-  const analyticsManifest = createAnalyticsManifest(analyticsConfigs, analytics);
+  const analyticsManifest = createAnalyticsManifest(analyticsConfigs);
   if (fs.existsSync(analyticsManifestPath)) {
     validateSchemaEvolution(
       JSON.parse(fs.readFileSync(analyticsManifestPath, 'utf8')) as AnalyticsManifest,
@@ -392,7 +390,7 @@ async function generateFiles(rootPath?: string): Promise<string> {
 
   fs.mkdirSync(monoriseOutputDir, { recursive: true });
 
-  await generateConfigFile(configDir, monoriseOutputDir, monoriseConfig.analytics);
+  await generateConfigFile(configDir, monoriseOutputDir);
   await generateHandleFile(monoriseConfig, projectRoot, monoriseOutputDir);
 
   return configDir;
