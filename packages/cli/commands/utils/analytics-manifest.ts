@@ -103,12 +103,19 @@ function athenaType(schema: ZodSchema, path: string): AnalyticsColumn['type'] {
 }
 
 function columns(schema: ZodSchema, path: string): AnalyticsColumn[] {
-  if (!schema.shape) {
+  let objectSchema = schema;
+  // Entity effects commonly add superRefine validation around the final object.
+  while (!objectSchema.shape && objectSchema._def?.typeName === 'ZodEffects') {
+    const innerSchema = objectSchema._def.schema;
+    if (!innerSchema) break;
+    objectSchema = innerSchema;
+  }
+  if (!objectSchema.shape) {
     throw new Error(`Analytics schema ${path} must be a Zod object.`);
   }
 
   const names = new Map<string, string>();
-  return Object.entries(schema.shape).map(([sourceName, field]) => {
+  return Object.entries(objectSchema.shape).map(([sourceName, field]) => {
     const name = normalizeSqlIdentifier(sourceName);
     const existing = names.get(name);
     if (existing) {
