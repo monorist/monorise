@@ -1,5 +1,11 @@
 # monorise
 
+## 1.7.0-dev.8
+
+### Patch Changes
+
+- 1fe7d3a: Materialize analytics tables before applying deployment-managed views.
+
 ## 1.7.0-dev.7
 
 ### Patch Changes

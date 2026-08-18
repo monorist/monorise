@@ -1,5 +1,11 @@
 # @monorise/sst
 
+## 4.3.0-dev.6
+
+### Patch Changes
+
+- 1fe7d3a: Materialize analytics tables before applying deployment-managed views.
+
 ## 4.3.0-dev.5
 
 ### Patch Changes
