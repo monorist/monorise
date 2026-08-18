@@ -1,5 +1,11 @@
 # monorise
 
+## 1.6.5-dev.2
+
+### Patch Changes
+
+- 7b2d007: Allow DynamoDB point-in-time exports to write analytics backfill data to S3.
+
 ## 1.6.5-dev.1
 
 ### Patch Changes
