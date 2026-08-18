@@ -1,5 +1,11 @@
 # @monorise/sst
 
+## 4.3.0-dev.4
+
+### Patch Changes
+
+- db2a8a0: Allow analytics Athena functions to verify their output bucket.
+
 ## 4.3.0-dev.3
 
 ### Patch Changes
