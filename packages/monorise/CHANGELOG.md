@@ -1,5 +1,11 @@
 # monorise
 
+## 1.7.0-dev.1
+
+### Patch Changes
+
+- c64c127: Fix analytics manifest generation for entity schemas wrapped by Zod effects.
+
 ## 1.7.0-dev.0
 
 ### Minor Changes

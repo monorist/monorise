@@ -2,7 +2,8 @@
   "mode": "pre",
   "tag": "dev",
   "changesets": [
-    "add-athena-analytics"
+    "add-athena-analytics",
+    "fix-analytics-effect-schemas"
   ],
   "initialVersions": {
     "@monorise/base": "4.3.0",
