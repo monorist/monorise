@@ -1,5 +1,11 @@
 # monorise
 
+## 1.7.0-dev.6
+
+### Patch Changes
+
+- db2a8a0: Allow analytics Athena functions to verify their output bucket.
+
 ## 1.7.0-dev.5
 
 ### Patch Changes
