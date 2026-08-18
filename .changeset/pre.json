@@ -23,6 +23,7 @@
     "fix-athena-iceberg-creates",
     "fix-athena-iceberg-ddl",
     "fix-athena-output-bucket",
+    "fix-dev-release-build",
     "order-analytics-materialization"
   ]
 }

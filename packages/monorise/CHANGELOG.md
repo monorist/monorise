@@ -1,5 +1,11 @@
 # monorise
 
+## 1.6.5-dev.1
+
+### Patch Changes
+
+- 1041ef6: Fix declaration builds for analytics configuration and tag synchronization.
+
 ## 1.6.5-dev.0
 
 ### Patch Changes
