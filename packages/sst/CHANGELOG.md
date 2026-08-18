@@ -1,5 +1,11 @@
 # @monorise/sst
 
+## 4.3.0-dev.1
+
+### Patch Changes
+
+- 1041ef6: Fix declaration builds for analytics configuration and tag synchronization.
+
 ## 4.3.0-dev.0
 
 ### Minor Changes
