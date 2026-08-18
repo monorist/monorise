@@ -8,6 +8,7 @@
     "fix-analytics-effect-schemas",
     "fix-analytics-firehose-buffering",
     "fix-analytics-manifest-env",
+    "fix-athena-glue-catalog",
     "fix-athena-output-bucket",
     "release-analytics-manifest-env"
   ],
