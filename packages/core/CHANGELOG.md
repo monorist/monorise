@@ -1,5 +1,11 @@
 # @monorise/core
 
+## 4.5.0-dev.6
+
+### Patch Changes
+
+- 55b3643: Create Athena Iceberg tables in the selected query database.
+
 ## 4.5.0-dev.5
 
 ### Patch Changes
