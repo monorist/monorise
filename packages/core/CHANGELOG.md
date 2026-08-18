@@ -1,5 +1,11 @@
 # @monorise/core
 
+## 4.5.0-dev.5
+
+### Patch Changes
+
+- 82c08e9: Quote Athena DDL identifiers with backticks.
+
 ## 4.5.0-dev.4
 
 ### Patch Changes

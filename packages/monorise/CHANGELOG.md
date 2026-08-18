@@ -1,5 +1,11 @@
 # monorise
 
+## 1.7.0-dev.11
+
+### Patch Changes
+
+- 82c08e9: Quote Athena DDL identifiers with backticks.
+
 ## 1.7.0-dev.10
 
 ### Patch Changes
