@@ -40,6 +40,12 @@ function quoteIdentifier(identifier: string): string {
   return `"${identifier.replaceAll('"', '""')}"`;
 }
 
+function quoteDdlIdentifier(identifier: string): string {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(identifier))
+    throw new Error(`Invalid Athena DDL identifier: ${identifier}`);
+  return identifier;
+}
+
 function quoteLiteral(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
 }
@@ -51,7 +57,7 @@ function manifest(): Manifest {
 function valueExpression(column: Column, kind: Dataset['kind']): string {
   const payload = 'coalesce(after, before)';
   const path = `$.${kind === 'mutual' ? 'mutualData' : 'data'}.${column.sourceName.replaceAll('"', '\\"')}`;
-  const scalar = `json_extract_scalar(payload, ${quoteLiteral(path)})`;
+  const scalar = `json_extract_scalar(${payload}, ${quoteLiteral(path)})`;
   switch (column.type) {
     case 'boolean':
       return `try_cast(${scalar} AS boolean)`;
@@ -60,7 +66,7 @@ function valueExpression(column: Column, kind: Dataset['kind']): string {
     case 'timestamp':
       return `try_cast(from_iso8601_timestamp(${scalar}) AS timestamp)`;
     case 'json':
-      return `json_format(json_extract(payload, ${quoteLiteral(path)}))`;
+      return `json_format(json_extract(${payload}, ${quoteLiteral(path)}))`;
     default:
       return scalar;
   }
@@ -92,11 +98,14 @@ function datasetSql(
   const raw = `${quoteIdentifier(database)}.${quoteIdentifier(dataset.rawTable ?? `${dataset.historyTable}_raw`)}`;
   const typedColumns = dataset.columns.map(
     (column) =>
-      `${quoteIdentifier(column.name)} ${column.type === 'json' ? 'varchar' : column.type}`,
+      `${quoteDdlIdentifier(column.name)} ${column.type === 'json' ? 'string' : column.type}`,
   );
   const names = dataset.columns.map((column) => quoteIdentifier(column.name));
   const endpointNames = dataset.endpoints.map((endpoint) =>
     quoteIdentifier(endpoint.column),
+  );
+  const endpointDdlNames = dataset.endpoints.map((endpoint) =>
+    quoteDdlIdentifier(endpoint.column),
   );
   const values = dataset.columns.map((column) =>
     valueExpression(column, dataset.kind),
@@ -119,16 +128,16 @@ function datasetSql(
     ...values.map((value, index) => `${value} AS ${names[index]}`),
   ];
   const allColumns = [
-    'event_id varchar',
-    'idempotency_key varchar',
-    'ordering_key varchar',
-    'sequence_number varchar',
-    'operation varchar',
+    'event_id string',
+    'idempotency_key string',
+    'ordering_key string',
+    'sequence_number string',
+    'operation string',
     'occurred_at timestamp',
-    `${quoteIdentifier(dataset.idColumn)} varchar`,
-    'before_json varchar',
-    'after_json varchar',
-    ...endpointNames.map((name) => `${name} varchar`),
+    `${quoteDdlIdentifier(dataset.idColumn)} string`,
+    'before_json string',
+    'after_json string',
+    ...endpointDdlNames.map((name) => `${name} string`),
     ...typedColumns,
   ];
   const historyNames = [
@@ -161,9 +170,9 @@ function datasetSql(
   ].join(', ');
 
   return [
-    `CREATE TABLE ${historyDdl} (${allColumns.join(', ')}) WITH (table_type = 'ICEBERG', location = ${quoteLiteral(`s3://${bucket}/curated/history/${dataset.kind === 'entity' ? 'entities' : 'mutuals'}/${dataset.name}/`)})`,
+    `CREATE TABLE ${historyDdl} (${allColumns.join(', ')}) LOCATION ${quoteLiteral(`s3://${bucket}/curated/history/${dataset.kind === 'entity' ? 'entities' : 'mutuals'}/${dataset.name}/`)} TBLPROPERTIES ('table_type' = 'ICEBERG')`,
     `MERGE INTO ${history} h USING (SELECT * FROM (SELECT ${selected.join(', ')}, row_number() OVER (PARTITION BY event_id ORDER BY ordering_key DESC) AS row_number FROM ${raw}) WHERE row_number = 1) s ON h.event_id = s.event_id WHEN NOT MATCHED THEN INSERT (${historyNames}) VALUES (${insertValues})`,
-    `CREATE TABLE ${currentDdl} (${allColumns.filter((column) => !column.startsWith('event_id ') && !column.startsWith('idempotency_key ') && !column.startsWith('sequence_number ') && !column.startsWith('before_json ') && !column.startsWith('after_json ')).join(', ')}) WITH (table_type = 'ICEBERG', location = ${quoteLiteral(`s3://${bucket}/current/${dataset.name}/`)})`,
+    `CREATE TABLE ${currentDdl} (${allColumns.filter((column) => !column.startsWith('event_id ') && !column.startsWith('idempotency_key ') && !column.startsWith('sequence_number ') && !column.startsWith('before_json ') && !column.startsWith('after_json ')).join(', ')}) LOCATION ${quoteLiteral(`s3://${bucket}/current/${dataset.name}/`)} TBLPROPERTIES ('table_type' = 'ICEBERG')`,
     `MERGE INTO ${current} c USING (SELECT * FROM (SELECT h.*, row_number() OVER (PARTITION BY ${quoteIdentifier(dataset.idColumn)} ORDER BY occurred_at DESC, ordering_key DESC) AS row_number FROM ${history} h) WHERE row_number = 1) s ON c.${quoteIdentifier(dataset.idColumn)} = s.${quoteIdentifier(dataset.idColumn)} WHEN MATCHED AND s.operation = 'REMOVE' THEN DELETE WHEN MATCHED THEN UPDATE SET operation = s.operation, occurred_at = s.occurred_at, ordering_key = s.ordering_key${endpointNames.map((name) => `, ${name} = s.${name}`).join('')}${names.map((name) => `, ${name} = s.${name}`).join('')} WHEN NOT MATCHED AND s.operation <> 'REMOVE' THEN INSERT (operation, occurred_at, ordering_key, ${quoteIdentifier(dataset.idColumn)}${endpointNames.length ? `, ${endpointNames.join(', ')}` : ''}${names.length ? `, ${names.join(', ')}` : ''}) VALUES (s.operation, s.occurred_at, s.ordering_key, s.${quoteIdentifier(dataset.idColumn)}${endpointNames.length ? `, ${endpointNames.map((name) => `s.${name}`).join(', ')}` : ''}${names.length ? `, ${names.map((name) => `s.${name}`).join(', ')}` : ''})`,
   ];
 }
@@ -235,7 +244,7 @@ async function addMissingColumns(
   const missing = columns.filter(
     (column) =>
       !existing.has(
-        column.match(/^"((?:[^"]|"")+)"/)?.[1].replaceAll('""', '"') ?? '',
+        column.match(/^([A-Za-z_][A-Za-z0-9_]*)/)?.[1] ?? '',
       ),
   );
   if (missing.length)
@@ -246,9 +255,9 @@ async function addMissingColumns(
 
 function generatedColumns(dataset: Dataset): string[] {
   return [
-    `${quoteIdentifier(dataset.idColumn)} varchar`,
+    `${quoteDdlIdentifier(dataset.idColumn)} string`,
     ...dataset.endpoints.map(
-      (endpoint) => `${quoteIdentifier(endpoint.column)} varchar`,
+      (endpoint) => `${quoteDdlIdentifier(endpoint.column)} string`,
     ),
   ];
 }
@@ -264,7 +273,7 @@ export const handler = (configuredManifest?: Manifest) => async () => {
       dataset.historyTable,
       [...generatedColumns(dataset), ...dataset.columns.map(
         (column) =>
-          `${quoteIdentifier(column.name)} ${column.type === 'json' ? 'varchar' : column.type}`,
+          `${quoteDdlIdentifier(column.name)} ${column.type === 'json' ? 'string' : column.type}`,
       )],
     );
     await createTable(statements[2]);
@@ -273,7 +282,7 @@ export const handler = (configuredManifest?: Manifest) => async () => {
       dataset.currentTable,
       [...generatedColumns(dataset), ...dataset.columns.map(
         (column) =>
-          `${quoteIdentifier(column.name)} ${column.type === 'json' ? 'varchar' : column.type}`,
+          `${quoteDdlIdentifier(column.name)} ${column.type === 'json' ? 'string' : column.type}`,
       )],
     );
     for (const statement of [statements[1], statements[3]]) {

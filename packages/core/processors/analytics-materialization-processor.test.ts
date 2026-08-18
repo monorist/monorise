@@ -20,7 +20,7 @@ describe('analytics materialization SQL', () => {
     );
 
     expect(statements).toHaveLength(4);
-    expect(statements[0]).toContain("WITH (table_type = 'ICEBERG'");
+    expect(statements[0]).toContain("TBLPROPERTIES ('table_type' = 'ICEBERG')");
     expect(statements[1]).toContain('ON h.event_id = s.event_id');
     expect(statements[1]).toContain('$.data.displayName');
     expect(statements[1]).toContain(
@@ -28,7 +28,7 @@ describe('analytics materialization SQL', () => {
     );
     expect(statements[1]).not.toContain("date_add('day', -2");
     expect(statements[3]).toContain("s.operation = 'REMOVE'");
-    expect(statements[0]).toContain('"participant_id" varchar');
+    expect(statements[0]).toContain('participant_id string');
     expect(statements[3]).toContain('PARTITION BY "participant_id"');
     expect(statements[3]).not.toContain("date_add('day', -2");
   });
@@ -54,8 +54,8 @@ describe('analytics materialization SQL', () => {
     );
 
     expect(statements[1]).toContain('$.mutualData.enrolledAt');
-    expect(statements[0]).toContain('"enrollment_id" varchar');
-    expect(statements[0]).toContain('"student_id" varchar');
+    expect(statements[0]).toContain('enrollment_id string');
+    expect(statements[0]).toContain('student_id string');
     expect(statements[1]).toContain("'$.byEntityType'");
     expect(statements[1]).toContain("'$.entityType'");
   });

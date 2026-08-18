@@ -38,6 +38,13 @@ function validParameter(value: unknown, type: NonNullable<Query['parameters']>[s
   return undefined;
 }
 
+export function executionParameter(value: string, type: NonNullable<Query['parameters']>[string]['type']): string {
+  if (type === 'string') return `'${value.replaceAll("'", "''")}'`;
+  if (type === 'date') return `DATE '${value}'`;
+  if (type === 'timestamp') return `TIMESTAMP '${value.replaceAll("'", "''")}'`;
+  return value;
+}
+
 function apiKeys(): string[] {
   return process.env.ANALYTICS_API_KEYS
     ? JSON.parse(process.env.ANALYTICS_API_KEYS) as string[]
@@ -80,7 +87,7 @@ export const analyticsQueryHandler = () => {
     const parameters = Object.entries(declared).map(([name, definition]) => {
       const value = validParameter(body[name], definition.type);
       if (value === undefined) throw new Error(`Invalid or missing parameter: ${name}.`);
-      return value;
+      return executionParameter(value, definition.type);
     });
     try {
       const started = await athena.send(new StartQueryExecutionCommand({
