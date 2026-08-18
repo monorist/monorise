@@ -3,6 +3,7 @@
   "tag": "dev",
   "changesets": [
     "add-athena-analytics",
+    "default-analytics-schema-support",
     "fix-analytics-effect-schemas"
   ],
   "initialVersions": {

@@ -1,5 +1,11 @@
 # @monorise/sst
 
+## 4.3.0-dev.1
+
+### Patch Changes
+
+- bd3017e: Export all entity analytics datasets by default, map common Zod schemas safely, and skip unnamed mutual datasets with a warning.
+
 ## 4.3.0-dev.0
 
 ### Minor Changes
