@@ -1,5 +1,11 @@
 # monorise
 
+## 1.7.0-dev.3
+
+### Patch Changes
+
+- 8dcf778: Declare analytics AWS SDK clients required by the unified runtime.
+
 ## 1.7.0-dev.2
 
 ### Patch Changes
