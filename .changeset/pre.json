@@ -1,0 +1,14 @@
+{
+  "mode": "pre",
+  "tag": "dev",
+  "initialVersions": {
+    "@monorise/base": "4.3.0",
+    "@monorise/cli": "4.1.2",
+    "@monorise/core": "4.4.1",
+    "monorise": "1.6.4",
+    "@monorise/react": "7.1.2",
+    "@monorise/sst": "4.2.0",
+    "@monorise/www": "0.0.0"
+  },
+  "changesets": []
+}
