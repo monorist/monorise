@@ -20,7 +20,7 @@ describe('analytics materialization SQL', () => {
     );
 
     expect(statements).toHaveLength(4);
-    expect(statements[0]).toContain("table_type'='ICEBERG'");
+    expect(statements[0]).toContain("WITH (table_type = 'ICEBERG'");
     expect(statements[1]).toContain('ON h.event_id = s.event_id');
     expect(statements[1]).toContain('$.data.displayName');
     expect(statements[1]).toContain(
