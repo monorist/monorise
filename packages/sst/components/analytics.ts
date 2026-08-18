@@ -317,7 +317,8 @@ export class Analytics {
         roleArn: firehoseRole.arn,
         bucketArn: this.bucket.arn,
         bufferingInterval: 300,
-        bufferingSize: 5,
+        // Firehose requires at least 64 MiB when dynamic partitioning is enabled.
+        bufferingSize: 64,
         compressionFormat: 'GZIP',
         prefix: 'history/!{partitionKeyFromQuery:path}/',
         errorOutputPrefix: 'errors/!{firehose:error-output-type}/',
