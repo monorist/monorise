@@ -1,5 +1,20 @@
 # @monorise/sst
 
+## 4.3.0-dev.0
+
+### Minor Changes
+
+- 837c455: Add opt-in Athena analytics with schema-generated entity and mutual datasets, durable history, daily current-state materialization, point-in-time backfill, named query API, deployment-managed views, and scheduled Iceberg models.
+
+### Patch Changes
+
+- 17982e2: Export all entity analytics datasets by default, map common Zod schemas safely, and skip unnamed mutual datasets with a warning.
+- edf6828: Use the Firehose buffering size required for dynamic analytics partitions.
+- a0e2def: Keep analytics manifests out of Lambda environment variables.
+- 08616d1: Allow analytics Athena functions to list Glue catalogs and tables.
+- d0a0e29: Allow analytics Athena functions to verify their output bucket.
+- 29cd81b: Materialize analytics tables before applying deployment-managed views.
+
 ## 4.2.0
 
 ### Minor Changes
