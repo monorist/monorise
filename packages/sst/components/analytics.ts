@@ -256,7 +256,7 @@ export class Analytics {
         },
         permissions: [
           { actions: ['athena:StartQueryExecution', 'athena:GetQueryExecution', 'athena:GetQueryResults', 'athena:StopQueryExecution'], resources: ['*'] },
-          { actions: ['glue:GetDatabase', 'glue:GetTable'], resources: ['*'] },
+          { actions: ['glue:GetDatabase', 'glue:GetDatabases', 'glue:GetTable', 'glue:GetTables'], resources: ['*'] },
           { actions: ['s3:GetBucketLocation', 's3:GetObject', 's3:ListBucket', 's3:PutObject'], resources: [this.bucket.arn, $interpolate`${this.bucket.arn}/*`] },
         ],
       });
@@ -264,7 +264,7 @@ export class Analytics {
 
     const athenaPermissions = [
       { actions: ['athena:StartQueryExecution', 'athena:GetQueryExecution'], resources: ['*'] },
-      { actions: ['glue:GetDatabase', 'glue:GetTable', 'glue:CreateTable', 'glue:UpdateTable'], resources: ['*'] },
+      { actions: ['glue:GetDatabase', 'glue:GetDatabases', 'glue:GetTable', 'glue:GetTables', 'glue:CreateTable', 'glue:UpdateTable'], resources: ['*'] },
       { actions: ['s3:GetBucketLocation', 's3:GetObject', 's3:ListBucket', 's3:PutObject', 's3:DeleteObject'], resources: [this.bucket.arn, $interpolate`${this.bucket.arn}/*`] },
     ];
     if (args.views) {
@@ -480,7 +480,7 @@ export class Analytics {
         },
         permissions: [
           { actions: ['athena:StartQueryExecution', 'athena:GetQueryExecution', 'athena:GetQueryResults'], resources: ['*'] },
-          { actions: ['glue:GetDatabase', 'glue:GetTable', 'glue:CreateTable', 'glue:UpdateTable'], resources: ['*'] },
+          { actions: ['glue:GetDatabase', 'glue:GetDatabases', 'glue:GetTable', 'glue:GetTables', 'glue:CreateTable', 'glue:UpdateTable'], resources: ['*'] },
           { actions: ['s3:GetBucketLocation', 's3:GetObject', 's3:PutObject', 's3:ListBucket'], resources: [this.bucket.arn, $interpolate`${this.bucket.arn}/*`] },
         ],
       },
