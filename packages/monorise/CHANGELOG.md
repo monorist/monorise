@@ -1,5 +1,11 @@
 # monorise
 
+## 1.7.0-dev.4
+
+### Patch Changes
+
+- a00173f: Use the Firehose buffering size required for dynamic analytics partitions.
+
 ## 1.7.0-dev.3
 
 ### Patch Changes

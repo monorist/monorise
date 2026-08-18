@@ -5,7 +5,8 @@
     "add-athena-analytics",
     "add-unified-analytics-sdk-deps",
     "default-analytics-schema-support",
-    "fix-analytics-effect-schemas"
+    "fix-analytics-effect-schemas",
+    "fix-analytics-firehose-buffering"
   ],
   "initialVersions": {
     "@monorise/base": "4.3.0",
