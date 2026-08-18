@@ -159,9 +159,9 @@ function datasetSql(
   ].join(', ');
 
   return [
-    `CREATE TABLE IF NOT EXISTS ${history} (${allColumns.join(', ')}) WITH (table_type = 'ICEBERG', location = ${quoteLiteral(`s3://${bucket}/curated/history/${dataset.kind === 'entity' ? 'entities' : 'mutuals'}/${dataset.name}/`)})`,
+    `CREATE TABLE ${history} (${allColumns.join(', ')}) WITH (table_type = 'ICEBERG', location = ${quoteLiteral(`s3://${bucket}/curated/history/${dataset.kind === 'entity' ? 'entities' : 'mutuals'}/${dataset.name}/`)})`,
     `MERGE INTO ${history} h USING (SELECT * FROM (SELECT ${selected.join(', ')}, row_number() OVER (PARTITION BY event_id ORDER BY ordering_key DESC) AS row_number FROM ${raw}) WHERE row_number = 1) s ON h.event_id = s.event_id WHEN NOT MATCHED THEN INSERT (${historyNames}) VALUES (${insertValues})`,
-    `CREATE TABLE IF NOT EXISTS ${current} (${allColumns.filter((column) => !column.startsWith('event_id ') && !column.startsWith('idempotency_key ') && !column.startsWith('sequence_number ') && !column.startsWith('before_json ') && !column.startsWith('after_json ')).join(', ')}) WITH (table_type = 'ICEBERG', location = ${quoteLiteral(`s3://${bucket}/current/${dataset.name}/`)})`,
+    `CREATE TABLE ${current} (${allColumns.filter((column) => !column.startsWith('event_id ') && !column.startsWith('idempotency_key ') && !column.startsWith('sequence_number ') && !column.startsWith('before_json ') && !column.startsWith('after_json ')).join(', ')}) WITH (table_type = 'ICEBERG', location = ${quoteLiteral(`s3://${bucket}/current/${dataset.name}/`)})`,
     `MERGE INTO ${current} c USING (SELECT * FROM (SELECT h.*, row_number() OVER (PARTITION BY ${quoteIdentifier(dataset.idColumn)} ORDER BY occurred_at DESC, ordering_key DESC) AS row_number FROM ${history} h) WHERE row_number = 1) s ON c.${quoteIdentifier(dataset.idColumn)} = s.${quoteIdentifier(dataset.idColumn)} WHEN MATCHED AND s.operation = 'REMOVE' THEN DELETE WHEN MATCHED THEN UPDATE SET operation = s.operation, occurred_at = s.occurred_at, ordering_key = s.ordering_key${endpointNames.map((name) => `, ${name} = s.${name}`).join('')}${names.map((name) => `, ${name} = s.${name}`).join('')} WHEN NOT MATCHED AND s.operation <> 'REMOVE' THEN INSERT (operation, occurred_at, ordering_key, ${quoteIdentifier(dataset.idColumn)}${endpointNames.length ? `, ${endpointNames.join(', ')}` : ''}${names.length ? `, ${names.join(', ')}` : ''}) VALUES (s.operation, s.occurred_at, s.ordering_key, s.${quoteIdentifier(dataset.idColumn)}${endpointNames.length ? `, ${endpointNames.map((name) => `s.${name}`).join(', ')}` : ''}${names.length ? `, ${names.map((name) => `s.${name}`).join(', ')}` : ''})`,
   ];
 }
@@ -194,6 +194,15 @@ async function execute(statement: string): Promise<string> {
       );
     }
     await new Promise((resolve) => setTimeout(resolve, 1000));
+  }
+}
+
+async function createTable(statement: string) {
+  try {
+    await execute(statement);
+  } catch (error) {
+    if (/already exists/i.test(error instanceof Error ? error.message : String(error))) return;
+    throw error;
   }
 }
 
@@ -247,7 +256,7 @@ export const handler = (configuredManifest?: Manifest) => async () => {
   const bucket = required('ANALYTICS_BUCKET');
   for (const dataset of (configuredManifest ?? manifest()).datasets) {
     const statements = datasetSql(dataset, database, bucket);
-    await execute(statements[0]);
+    await createTable(statements[0]);
     await addMissingColumns(
       database,
       dataset.historyTable,
@@ -256,7 +265,7 @@ export const handler = (configuredManifest?: Manifest) => async () => {
           `${quoteIdentifier(column.name)} ${column.type === 'json' ? 'varchar' : column.type}`,
       )],
     );
-    await execute(statements[2]);
+    await createTable(statements[2]);
     await addMissingColumns(
       database,
       dataset.currentTable,
