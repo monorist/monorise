@@ -182,6 +182,9 @@ export class Analytics {
         granularity: args.partitions?.[dataset.name] ?? dataset.partition.granularity,
       },
     }));
+    const serializedManifest = JSON.stringify({
+      datasets: datasets.map(({ kind, name, partition }) => ({ kind, name, partition })),
+    });
     this.processorFunctionName = `${$app.stage}-${$app.name}-${id}-analytics-processor`;
     this.backfillFunctionName = `${$app.stage}-${$app.name}-${id}-analytics-backfill`;
 
@@ -341,7 +344,7 @@ export class Analytics {
       link: [table, this.dlq],
       environment: {
         ANALYTICS_DELIVERY_STREAM: this.deliveryStream.name,
-        ANALYTICS_MANIFEST: JSON.stringify({ ...manifest, datasets }),
+        ANALYTICS_MANIFEST: serializedManifest,
         ANALYTICS_OMIT_FIELDS: JSON.stringify(args.fields?.omit ?? []),
       },
       permissions: [{ actions: ['firehose:PutRecordBatch'], resources: [this.deliveryStream.arn] }],
@@ -378,7 +381,7 @@ export class Analytics {
         ANALYTICS_BACKFILL_BUCKET: this.bucket.name,
         ANALYTICS_BACKFILL_PREFIX: backfillPrefix,
         ANALYTICS_DELIVERY_STREAM: this.deliveryStream.name,
-        ANALYTICS_MANIFEST: JSON.stringify({ ...manifest, datasets }),
+        ANALYTICS_MANIFEST: serializedManifest,
         ANALYTICS_OMIT_FIELDS: JSON.stringify(args.fields?.omit ?? []),
       },
       permissions: [
@@ -470,7 +473,6 @@ export class Analytics {
         memory: '1024 MB',
         logging,
         environment: {
-          ANALYTICS_MANIFEST: JSON.stringify({ ...manifest, datasets }),
           ANALYTICS_DATABASE: this.glueDatabase.name,
           ANALYTICS_BUCKET: this.bucket.name,
           ANALYTICS_WORKGROUP: this.workgroup.name,

@@ -242,10 +242,10 @@ function generatedColumns(dataset: Dataset): string[] {
   ];
 }
 
-export const handler = async () => {
+export const handler = (configuredManifest?: Manifest) => async () => {
   const database = required('ANALYTICS_DATABASE');
   const bucket = required('ANALYTICS_BUCKET');
-  for (const dataset of manifest().datasets) {
+  for (const dataset of (configuredManifest ?? manifest()).datasets) {
     const statements = datasetSql(dataset, database, bucket);
     await execute(statements[0]);
     await addMissingColumns(

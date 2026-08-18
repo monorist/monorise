@@ -348,6 +348,7 @@ async function generateHandleFile(
   const combinedContent = `
 import CoreFactory, { analyticsMaterializationProcessor, analyticsModelProcessor, analyticsQueryHandler as createAnalyticsQueryHandler, analyticsViewProcessor } from '${coreImportPath}';
 import config from './config';
+import analyticsManifest from './analytics-manifest.json';
 import routes from '${relativePathToRoutes}';
 
 const coreFactory = new CoreFactory(config);
@@ -355,7 +356,7 @@ const coreFactory = new CoreFactory(config);
 export const replicationHandler = coreFactory.replicationProcessor;
 export const analyticsHandler = coreFactory.analyticsProcessor;
 export const analyticsBackfillHandler = coreFactory.analyticsBackfillProcessor;
-export const analyticsMaterializationHandler = analyticsMaterializationProcessor;
+export const analyticsMaterializationHandler = analyticsMaterializationProcessor(analyticsManifest);
 export const analyticsQueryHandler = createAnalyticsQueryHandler();
 export const analyticsModelHandler = analyticsModelProcessor;
 export const analyticsViewHandler = analyticsViewProcessor;
