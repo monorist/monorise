@@ -40,6 +40,10 @@ function quoteIdentifier(identifier: string): string {
   return `"${identifier.replaceAll('"', '""')}"`;
 }
 
+function quoteDdlIdentifier(identifier: string): string {
+  return `\`${identifier.replaceAll('`', '``')}\``;
+}
+
 function quoteLiteral(value: string): string {
   return `'${value.replaceAll("'", "''")}'`;
 }
@@ -87,6 +91,8 @@ function datasetSql(
 ): string[] {
   const history = `${quoteIdentifier(database)}.${quoteIdentifier(dataset.historyTable)}`;
   const current = `${quoteIdentifier(database)}.${quoteIdentifier(dataset.currentTable)}`;
+  const historyDdl = `${quoteDdlIdentifier(database)}.${quoteDdlIdentifier(dataset.historyTable)}`;
+  const currentDdl = `${quoteDdlIdentifier(database)}.${quoteDdlIdentifier(dataset.currentTable)}`;
   const raw = `${quoteIdentifier(database)}.${quoteIdentifier(dataset.rawTable ?? `${dataset.historyTable}_raw`)}`;
   const typedColumns = dataset.columns.map(
     (column) =>
@@ -159,9 +165,9 @@ function datasetSql(
   ].join(', ');
 
   return [
-    `CREATE TABLE ${history} (${allColumns.join(', ')}) WITH (table_type = 'ICEBERG', location = ${quoteLiteral(`s3://${bucket}/curated/history/${dataset.kind === 'entity' ? 'entities' : 'mutuals'}/${dataset.name}/`)})`,
+    `CREATE TABLE ${historyDdl} (${allColumns.join(', ')}) WITH (table_type = 'ICEBERG', location = ${quoteLiteral(`s3://${bucket}/curated/history/${dataset.kind === 'entity' ? 'entities' : 'mutuals'}/${dataset.name}/`)})`,
     `MERGE INTO ${history} h USING (SELECT * FROM (SELECT ${selected.join(', ')}, row_number() OVER (PARTITION BY event_id ORDER BY ordering_key DESC) AS row_number FROM ${raw}) WHERE row_number = 1) s ON h.event_id = s.event_id WHEN NOT MATCHED THEN INSERT (${historyNames}) VALUES (${insertValues})`,
-    `CREATE TABLE ${current} (${allColumns.filter((column) => !column.startsWith('event_id ') && !column.startsWith('idempotency_key ') && !column.startsWith('sequence_number ') && !column.startsWith('before_json ') && !column.startsWith('after_json ')).join(', ')}) WITH (table_type = 'ICEBERG', location = ${quoteLiteral(`s3://${bucket}/current/${dataset.name}/`)})`,
+    `CREATE TABLE ${currentDdl} (${allColumns.filter((column) => !column.startsWith('event_id ') && !column.startsWith('idempotency_key ') && !column.startsWith('sequence_number ') && !column.startsWith('before_json ') && !column.startsWith('after_json ')).join(', ')}) WITH (table_type = 'ICEBERG', location = ${quoteLiteral(`s3://${bucket}/current/${dataset.name}/`)})`,
     `MERGE INTO ${current} c USING (SELECT * FROM (SELECT h.*, row_number() OVER (PARTITION BY ${quoteIdentifier(dataset.idColumn)} ORDER BY occurred_at DESC, ordering_key DESC) AS row_number FROM ${history} h) WHERE row_number = 1) s ON c.${quoteIdentifier(dataset.idColumn)} = s.${quoteIdentifier(dataset.idColumn)} WHEN MATCHED AND s.operation = 'REMOVE' THEN DELETE WHEN MATCHED THEN UPDATE SET operation = s.operation, occurred_at = s.occurred_at, ordering_key = s.ordering_key${endpointNames.map((name) => `, ${name} = s.${name}`).join('')}${names.map((name) => `, ${name} = s.${name}`).join('')} WHEN NOT MATCHED AND s.operation <> 'REMOVE' THEN INSERT (operation, occurred_at, ordering_key, ${quoteIdentifier(dataset.idColumn)}${endpointNames.length ? `, ${endpointNames.join(', ')}` : ''}${names.length ? `, ${names.join(', ')}` : ''}) VALUES (s.operation, s.occurred_at, s.ordering_key, s.${quoteIdentifier(dataset.idColumn)}${endpointNames.length ? `, ${endpointNames.map((name) => `s.${name}`).join(', ')}` : ''}${names.length ? `, ${names.map((name) => `s.${name}`).join(', ')}` : ''})`,
   ];
 }
