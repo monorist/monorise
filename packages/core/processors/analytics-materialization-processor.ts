@@ -87,8 +87,8 @@ function datasetSql(
 ): string[] {
   const history = `${quoteIdentifier(database)}.${quoteIdentifier(dataset.historyTable)}`;
   const current = `${quoteIdentifier(database)}.${quoteIdentifier(dataset.currentTable)}`;
-  const historyDdl = quoteIdentifier(dataset.historyTable);
-  const currentDdl = quoteIdentifier(dataset.currentTable);
+  const historyDdl = dataset.historyTable;
+  const currentDdl = dataset.currentTable;
   const raw = `${quoteIdentifier(database)}.${quoteIdentifier(dataset.rawTable ?? `${dataset.historyTable}_raw`)}`;
   const typedColumns = dataset.columns.map(
     (column) =>
