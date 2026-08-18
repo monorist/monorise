@@ -9,6 +9,7 @@
     "fix-analytics-firehose-buffering",
     "fix-analytics-manifest-env",
     "fix-athena-create-context",
+    "fix-athena-create-identifiers",
     "fix-athena-ddl-identifiers",
     "fix-athena-glue-catalog",
     "fix-athena-iceberg-creates",
