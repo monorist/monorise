@@ -1,5 +1,11 @@
 # @monorise/core
 
+## 4.5.0-dev.7
+
+### Patch Changes
+
+- 5eae6e7: Use generated unquoted names for Athena Iceberg table creation.
+
 ## 4.5.0-dev.6
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # monorise
 
+## 1.7.0-dev.13
+
+### Patch Changes
+
+- 5eae6e7: Use generated unquoted names for Athena Iceberg table creation.
+
 ## 1.7.0-dev.12
 
 ### Patch Changes
