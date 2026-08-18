@@ -464,7 +464,10 @@ const initCoreActions = (
                 }
 
                 // check if any processor result matches this tag store's params
-                const matches = processorResults.some((result) => {
+                const matches = processorResults.some((result: {
+                  group?: string;
+                  sortValue?: string;
+                }) => {
                   if (keyParams.group && result.group !== keyParams.group) {
                     return false;
                   }
@@ -492,7 +495,9 @@ const initCoreActions = (
 
           // auto-populate mutual store based on entity config
           const mutualFields =
-            state.config[entityType]?.mutual?.mutualFields;
+            state.config[entityType]?.mutual?.mutualFields as
+              | Record<string, { entityType: Entity }>
+              | undefined;
           if (mutualFields) {
             for (const [field, fieldConfig] of Object.entries(mutualFields)) {
               const byEntityType = fieldConfig.entityType;

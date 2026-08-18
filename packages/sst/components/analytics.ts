@@ -63,7 +63,7 @@ export type AnalyticsArgs = {
   /** Scheduled Iceberg tables refreshed over a trailing time window. */
   models?: Record<string, {
     sql: string;
-    schedule: string;
+    schedule: ConstructorParameters<typeof sst.aws.CronV2>[1]['schedule'];
     partitionColumn: string;
     lookbackDays?: number;
   }>;
