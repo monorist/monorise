@@ -1,5 +1,11 @@
 # monorise
 
+## 1.7.0-dev.0
+
+### Minor Changes
+
+- 5c97eb5: Add opt-in Athena analytics with schema-generated entity and mutual datasets, durable history, daily current-state materialization, point-in-time backfill, named query API, deployment-managed views, and scheduled Iceberg models.
+
 ## 1.6.4
 
 ### Patch Changes
