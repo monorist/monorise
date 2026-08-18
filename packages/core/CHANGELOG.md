@@ -1,5 +1,11 @@
 # @monorise/core
 
+## 4.5.0-dev.3
+
+### Patch Changes
+
+- 13947d0: Use Athena-compatible Iceberg table DDL.
+
 ## 4.5.0-dev.2
 
 ### Patch Changes

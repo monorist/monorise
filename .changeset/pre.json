@@ -9,6 +9,7 @@
     "fix-analytics-firehose-buffering",
     "fix-analytics-manifest-env",
     "fix-athena-glue-catalog",
+    "fix-athena-iceberg-ddl",
     "fix-athena-output-bucket",
     "order-analytics-materialization",
     "release-analytics-manifest-env"
