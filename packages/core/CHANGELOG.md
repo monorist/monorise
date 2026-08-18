@@ -1,5 +1,20 @@
 # @monorise/core
 
+## 4.5.0-dev.0
+
+### Minor Changes
+
+- 837c455: Add opt-in Athena analytics with schema-generated entity and mutual datasets, durable history, daily current-state materialization, point-in-time backfill, named query API, deployment-managed views, and scheduled Iceberg models.
+
+### Patch Changes
+
+- a0e2def: Keep analytics manifests out of Lambda environment variables.
+- 69b5791: Create Athena Iceberg tables in the selected query database.
+- bed1a97: Use generated unquoted names for Athena Iceberg table creation.
+- 06abcb3: Quote Athena DDL identifiers with backticks.
+- bb529fb: Create Athena Iceberg tables idempotently.
+- 9b8826d: Use Athena-compatible Iceberg table DDL.
+
 ## 4.4.1
 
 ### Patch Changes

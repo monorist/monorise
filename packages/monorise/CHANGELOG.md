@@ -1,5 +1,22 @@
 # monorise
 
+## 1.6.5-dev.0
+
+### Patch Changes
+
+- 27d7dee: Declare analytics AWS SDK clients required by the unified runtime.
+- 17982e2: Export all entity analytics datasets by default, map common Zod schemas safely, and skip unnamed mutual datasets with a warning.
+- edf6828: Use the Firehose buffering size required for dynamic analytics partitions.
+- a0e2def: Keep analytics manifests out of Lambda environment variables.
+- 69b5791: Create Athena Iceberg tables in the selected query database.
+- bed1a97: Use generated unquoted names for Athena Iceberg table creation.
+- 06abcb3: Quote Athena DDL identifiers with backticks.
+- 08616d1: Allow analytics Athena functions to list Glue catalogs and tables.
+- bb529fb: Create Athena Iceberg tables idempotently.
+- 9b8826d: Use Athena-compatible Iceberg table DDL.
+- d0a0e29: Allow analytics Athena functions to verify their output bucket.
+- 29cd81b: Materialize analytics tables before applying deployment-managed views.
+
 ## 1.6.4
 
 ### Patch Changes

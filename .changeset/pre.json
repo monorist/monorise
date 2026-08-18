@@ -10,5 +10,19 @@
     "@monorise/sst": "4.2.0",
     "@monorise/www": "0.0.0"
   },
-  "changesets": []
+  "changesets": [
+    "add-athena-analytics",
+    "add-unified-analytics-sdk-deps",
+    "default-analytics-schema-support",
+    "fix-analytics-firehose-buffering",
+    "fix-analytics-manifest-env",
+    "fix-athena-create-context",
+    "fix-athena-create-identifiers",
+    "fix-athena-ddl-identifiers",
+    "fix-athena-glue-catalog",
+    "fix-athena-iceberg-creates",
+    "fix-athena-iceberg-ddl",
+    "fix-athena-output-bucket",
+    "order-analytics-materialization"
+  ]
 }
