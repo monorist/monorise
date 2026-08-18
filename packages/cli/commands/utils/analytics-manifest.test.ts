@@ -64,6 +64,22 @@ test('generates normalized entity and named mutual datasets', () => {
   });
 });
 
+test('generates fields from an entity schema wrapped by an effect', () => {
+  const manifest = createAnalyticsManifest([
+    {
+      name: 'activity',
+      finalSchema: z
+        .object({ actionType: z.string(), scheduledAt: z.string().datetime() })
+        .superRefine(() => undefined),
+    },
+  ]);
+
+  assert.deepEqual(manifest.datasets[0]?.columns, [
+    { name: 'action_type', sourceName: 'actionType', type: 'string' },
+    { name: 'scheduled_at', sourceName: 'scheduledAt', type: 'timestamp' },
+  ]);
+});
+
 test('rejects invalid names, normalized columns, and unsupported types', () => {
   assert.throws(
     () => createAnalyticsManifest([entity('Not-valid', {})]),
