@@ -52,6 +52,11 @@ export type AnalyticsConfig = {
   };
 };
 
+export type AnalyticsSelection = {
+  entities?: string[];
+  mutuals?: string[];
+};
+
 type AnalyticsMutual = {
   name?: string;
   entities?: [string, string];
@@ -189,6 +194,7 @@ export function validateSchemaEvolution(
 
 export function createAnalyticsManifest(
   configs: AnalyticsConfig[],
+  selection?: AnalyticsSelection,
 ): AnalyticsManifest {
   const datasets: AnalyticsDataset[] = [];
   const unnamedMutuals = new Set<string>();
@@ -251,14 +257,34 @@ export function createAnalyticsManifest(
     });
   };
 
+  const selectedEntities = selection?.entities
+    ? new Set(selection.entities)
+    : undefined;
+  if (selectedEntities) {
+    for (const name of selectedEntities) {
+      if (!configs.some((config) => config.name === name)) {
+        throw new Error(`Analytics entity selection contains unknown entity: ${name}.`);
+      }
+    }
+  }
+  const selectedMutuals = selection?.mutuals
+    ? new Set(selection.mutuals)
+    : undefined;
+  const discoveredMutuals = new Set<string>();
+
   for (const config of configs) {
+    if (selectedEntities && !selectedEntities.has(config.name)) continue;
     addDataset('entity', config.name, config.finalSchema);
     for (const field of Object.values(config.mutual?.mutualFields ?? {})) {
       const mutual = field.mutual;
+      if (selectedMutuals && (!mutual?.name || !selectedMutuals.has(mutual.name))) {
+        continue;
+      }
       if (!mutual?.name) {
         unnamedMutuals.add(`${config.name}.${field.entityType}`);
         continue;
       }
+      discoveredMutuals.add(mutual.name);
       if (mutuals.has(mutual)) continue;
       mutuals.add(mutual);
       addDataset(
@@ -267,6 +293,13 @@ export function createAnalyticsManifest(
         mutual.mutualDataSchema,
         mutual.entities ?? [config.name, field.entityType],
       );
+    }
+  }
+  if (selectedMutuals) {
+    for (const name of selectedMutuals) {
+      if (!discoveredMutuals.has(name)) {
+        throw new Error(`Analytics mutual selection contains unknown mutual: ${name}.`);
+      }
     }
   }
 

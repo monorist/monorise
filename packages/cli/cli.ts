@@ -7,6 +7,7 @@ import { execSync, spawn } from 'node:child_process';
 import chokidar from 'chokidar';
 import {
   createAnalyticsManifest,
+  type AnalyticsSelection,
   validateSchemaEvolution,
   type AnalyticsConfig,
   type AnalyticsManifest,
@@ -47,6 +48,7 @@ async function generateConfigFile(
   configDir: string,
   monoriseOutputDir: string,
   projectRoot: string,
+  analytics?: AnalyticsSelection,
 ): Promise<string> {
   const configOutputPath = path.join(monoriseOutputDir, 'config.ts');
   const initialConfigContent = `
@@ -198,7 +200,7 @@ ${moduleAugmentations}
     monoriseOutputDir,
     'analytics-manifest.json',
   );
-  const manifest = createAnalyticsManifest(analyticsConfigs);
+  const manifest = createAnalyticsManifest(analyticsConfigs, analytics);
   if (fs.existsSync(analyticsManifestPath)) {
     validateSchemaEvolution(
       JSON.parse(fs.readFileSync(analyticsManifestPath, 'utf8')) as AnalyticsManifest,
@@ -315,7 +317,12 @@ async function generateFiles(rootPath?: string): Promise<string> {
 
   fs.mkdirSync(monoriseOutputDir, { recursive: true });
 
-  await generateConfigFile(configDir, monoriseOutputDir, projectRoot);
+  await generateConfigFile(
+    configDir,
+    monoriseOutputDir,
+    projectRoot,
+    monoriseConfig.analytics,
+  );
   await generateHandleFile(monoriseConfig, projectRoot, monoriseOutputDir);
 
   return configDir;
