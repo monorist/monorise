@@ -6,7 +6,9 @@
     "add-unified-analytics-sdk-deps",
     "default-analytics-schema-support",
     "fix-analytics-effect-schemas",
-    "fix-analytics-firehose-buffering"
+    "fix-analytics-firehose-buffering",
+    "fix-analytics-manifest-env",
+    "release-analytics-manifest-env"
   ],
   "initialVersions": {
     "@monorise/base": "4.3.0",

@@ -1,5 +1,11 @@
 # monorise
 
+## 1.7.0-dev.5
+
+### Patch Changes
+
+- Release the analytics manifest environment fix.
+
 ## 1.7.0-dev.4
 
 ### Patch Changes

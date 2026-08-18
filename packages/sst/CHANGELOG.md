@@ -1,5 +1,11 @@
 # @monorise/sst
 
+## 4.3.0-dev.3
+
+### Patch Changes
+
+- Release the analytics manifest environment fix.
+
 ## 4.3.0-dev.2
 
 ### Patch Changes

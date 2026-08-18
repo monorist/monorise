@@ -1,5 +1,17 @@
 # @monorise/core
 
+## 4.5.0-dev.2
+
+### Patch Changes
+
+- Release the analytics manifest environment fix.
+
+## 4.5.0-dev.1
+
+### Patch Changes
+
+- a5d3396: Keep analytics manifests out of Lambda environment variables.
+
 ## 4.5.0-dev.0
 
 ### Minor Changes
