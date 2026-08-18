@@ -3,6 +3,7 @@
   "tag": "dev",
   "changesets": [
     "add-athena-analytics",
+    "add-unified-analytics-sdk-deps",
     "default-analytics-schema-support",
     "fix-analytics-effect-schemas"
   ],
