@@ -1,5 +1,11 @@
 # @monorise/core
 
+## 4.5.0-dev.4
+
+### Patch Changes
+
+- 58cc30e: Create Athena Iceberg tables idempotently.
+
 ## 4.5.0-dev.3
 
 ### Patch Changes

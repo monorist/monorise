@@ -1,5 +1,11 @@
 # monorise
 
+## 1.7.0-dev.10
+
+### Patch Changes
+
+- 58cc30e: Create Athena Iceberg tables idempotently.
+
 ## 1.7.0-dev.9
 
 ### Patch Changes
