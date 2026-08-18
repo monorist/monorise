@@ -80,7 +80,47 @@ test('generates fields from an entity schema wrapped by an effect', () => {
   ]);
 });
 
-test('rejects invalid names, normalized columns, and unsupported types', () => {
+test('maps common scalar schemas and stores complex schemas as JSON', () => {
+  enum StringStatus { OPEN = 'open' }
+  enum NumericPriority { LOW, HIGH }
+  const manifest = createAnalyticsManifest([
+    entity('item', {
+      status: z.nativeEnum(StringStatus),
+      priority: z.nativeEnum(NumericPriority),
+      fixed: z.literal('fixed'),
+      variant: z.union([z.string(), z.number()]),
+      metadata: z.record(z.string()),
+      transformed: z.string().transform((value) => value.length),
+    }),
+  ]);
+
+  assert.deepEqual(manifest.datasets[0]?.columns, [
+    { name: 'status', sourceName: 'status', type: 'string' },
+    { name: 'priority', sourceName: 'priority', type: 'double' },
+    { name: 'fixed', sourceName: 'fixed', type: 'string' },
+    { name: 'variant', sourceName: 'variant', type: 'json' },
+    { name: 'metadata', sourceName: 'metadata', type: 'json' },
+    { name: 'transformed', sourceName: 'transformed', type: 'json' },
+  ]);
+});
+
+test('skips unnamed mutual datasets without blocking entity analytics', () => {
+  const manifest = createAnalyticsManifest([
+    {
+      ...entity('role', { title: z.string() }),
+      mutual: {
+        mutualFields: {
+          projects: { entityType: 'project' },
+        },
+      },
+    },
+  ]);
+
+  assert.deepEqual(manifest.datasets.map((dataset) => dataset.name), ['role']);
+  assert.deepEqual(manifest.unnamedMutuals, ['role.project']);
+});
+
+test('rejects invalid names and normalized columns', () => {
   assert.throws(
     () => createAnalyticsManifest([entity('Not-valid', {})]),
     /lower-kebab-case/,
@@ -91,11 +131,6 @@ test('rejects invalid names, normalized columns, and unsupported types', () => {
         entity('item', { 'foo-bar': z.string(), foo_bar: z.string() }),
       ]),
     /collision/,
-  );
-  assert.throws(
-    () =>
-      createAnalyticsManifest([entity('item', { status: z.enum(['open']) })]),
-    /Unsupported analytics schema field entity item.status/,
   );
   assert.throws(
     () => createAnalyticsManifest([entity('student', { studentId: z.string() })]),

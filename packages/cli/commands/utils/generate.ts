@@ -272,6 +272,11 @@ ${generateMutualDataMappingDeclarations(mutualPairs)}
   fs.writeFileSync(configOutputPath, configOutputContent);
   const analyticsManifestPath = path.join(monoriseOutputDir, 'analytics-manifest.json');
   const analyticsManifest = createAnalyticsManifest(analyticsConfigs);
+  if (analyticsManifest.unnamedMutuals.length) {
+    console.warn(
+      `Skipping unnamed mutual analytics datasets: ${analyticsManifest.unnamedMutuals.join(', ')}.`,
+    );
+  }
   if (fs.existsSync(analyticsManifestPath)) {
     validateSchemaEvolution(
       JSON.parse(fs.readFileSync(analyticsManifestPath, 'utf8')) as AnalyticsManifest,

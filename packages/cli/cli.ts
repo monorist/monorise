@@ -199,6 +199,11 @@ ${moduleAugmentations}
     'analytics-manifest.json',
   );
   const manifest = createAnalyticsManifest(analyticsConfigs);
+  if (manifest.unnamedMutuals.length) {
+    console.warn(
+      `Skipping unnamed mutual analytics datasets: ${manifest.unnamedMutuals.join(', ')}.`,
+    );
+  }
   if (fs.existsSync(analyticsManifestPath)) {
     validateSchemaEvolution(
       JSON.parse(fs.readFileSync(analyticsManifestPath, 'utf8')) as AnalyticsManifest,

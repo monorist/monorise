@@ -149,11 +149,6 @@ function loadManifest(configRoot?: string): AnalyticsManifest {
     }
     identifiers.add(dataset.identifier);
   }
-  if (manifest.unnamedMutuals.length > 0) {
-    throw new Error(
-      `Analytics requires named mutual configs. Add names for: ${manifest.unnamedMutuals.join(', ')}.`,
-    );
-  }
   return manifest;
 }
 
