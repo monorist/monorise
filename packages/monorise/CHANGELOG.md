@@ -1,5 +1,11 @@
 # monorise
 
+## 1.7.0-dev.7
+
+### Patch Changes
+
+- 789a2cf: Allow analytics Athena functions to list Glue catalogs and tables.
+
 ## 1.7.0-dev.6
 
 ### Patch Changes

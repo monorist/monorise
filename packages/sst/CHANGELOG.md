@@ -1,5 +1,11 @@
 # @monorise/sst
 
+## 4.3.0-dev.5
+
+### Patch Changes
+
+- 789a2cf: Allow analytics Athena functions to list Glue catalogs and tables.
+
 ## 4.3.0-dev.4
 
 ### Patch Changes
