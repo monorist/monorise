@@ -19,7 +19,7 @@ EventBridge lifecycle events are not the canonical analytics source because they
 
 ## Data models and tables
 
-The Monorise generator derives an analytics manifest from entity schemas and named mutual configs. It maps supported top-level Zod primitives to Athena columns and stores arrays and objects as JSON. Unsupported schema constructs fail generation rather than producing ambiguous query semantics.
+The Monorise generator derives an analytics manifest from every entity schema and named mutual config. It maps primitives and enums to typed Athena columns, while arrays, objects, unions, records, transforms, and other complex fields are stored as JSON. Validation-only Zod effects such as `superRefine` are ignored for column discovery.
 
 For an entity named `participant`, Athena exposes:
 
@@ -206,4 +206,4 @@ Disabling analytics stops capture. Re-enabling it runs another point-in-time `SN
 
 Analytics schema changes are validated against the generated manifest. Adding a supported field is additive and adds an Athena column on the next deployment. Renaming a field or changing it to an incompatible type requires an explicit analytics migration.
 
-Run the Monorise generator after changing entity or named mutual schemas. If analytics is enabled and its manifest is missing, stale, invalid, or has table-name collisions, deployment fails with instructions to regenerate the output.
+Run the Monorise generator after changing entity or named mutual schemas. Unnamed mutuals are skipped because they have no stable analytics dataset name; the generator prints a warning listing them. If analytics is enabled and its manifest is missing, stale, invalid, or has table-name collisions, deployment fails with instructions to regenerate the output.

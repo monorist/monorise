@@ -5,6 +5,10 @@ type ZodSchema = {
     typeName?: string;
     innerType?: ZodSchema;
     schema?: ZodSchema;
+    type?: ZodSchema;
+    effect?: { type?: string };
+    values?: Record<string, unknown>;
+    value?: unknown;
     checks?: { kind?: string }[];
   };
   shape?: Record<string, ZodSchema>;
@@ -71,14 +75,33 @@ export function normalizeSqlIdentifier(name: string): string {
 
 function athenaType(schema: ZodSchema, path: string): AnalyticsColumn['type'] {
   let current = schema;
-  while (
-    current._def?.typeName === 'ZodOptional' ||
-    current._def?.typeName === 'ZodNullable' ||
-    current._def?.typeName === 'ZodDefault'
-  ) {
-    const innerType = current._def?.innerType;
-    if (!innerType) break;
-    current = innerType;
+  for (;;) {
+    const typeName = current._def?.typeName;
+    if (typeName === 'ZodEffects') {
+      // Refinements do not change the persisted shape. Transforms can, so retain
+      // their value as JSON instead of inferring an incorrect scalar type.
+      if (current._def?.effect?.type !== 'refinement') return 'json';
+      if (!current._def.schema) return 'json';
+      current = current._def.schema;
+      continue;
+    }
+    if (
+      typeName === 'ZodOptional' ||
+      typeName === 'ZodNullable' ||
+      typeName === 'ZodDefault' ||
+      typeName === 'ZodCatch' ||
+      typeName === 'ZodReadonly'
+    ) {
+      if (!current._def?.innerType) return 'json';
+      current = current._def.innerType;
+      continue;
+    }
+    if (typeName === 'ZodBranded') {
+      if (!current._def?.type) return 'json';
+      current = current._def.type;
+      continue;
+    }
+    break;
   }
 
   switch (current._def?.typeName) {
@@ -92,13 +115,31 @@ function athenaType(schema: ZodSchema, path: string): AnalyticsColumn['type'] {
       return 'boolean';
     case 'ZodDate':
       return 'timestamp';
+    case 'ZodEnum':
+      return 'string';
+    case 'ZodNativeEnum': {
+      const values = current._def.values ?? {};
+      const validValues = Object.keys(values)
+        .filter((key) => typeof values[String(values[key])] !== 'number')
+        .map((key) => values[key]);
+      if (validValues.every((value) => typeof value === 'string')) return 'string';
+      if (validValues.every((value) => typeof value === 'number')) return 'double';
+      return 'json';
+    }
+    case 'ZodLiteral':
+      return typeof current._def.value === 'string'
+        ? 'string'
+        : typeof current._def.value === 'number'
+          ? 'double'
+          : typeof current._def.value === 'boolean'
+            ? 'boolean'
+            : 'json';
     case 'ZodArray':
     case 'ZodObject':
       return 'json';
     default:
-      throw new Error(
-        `Unsupported analytics schema field ${path}. Supported types are string, number, boolean, datetime, arrays, and objects.`,
-      );
+      // Keep every valid Zod field queryable without assigning an unsafe type.
+      return 'json';
   }
 }
 
@@ -110,9 +151,7 @@ function columns(schema: ZodSchema, path: string): AnalyticsColumn[] {
     if (!innerSchema) break;
     objectSchema = innerSchema;
   }
-  if (!objectSchema.shape) {
-    throw new Error(`Analytics schema ${path} must be a Zod object.`);
-  }
+  if (!objectSchema.shape) return [];
 
   const names = new Map<string, string>();
   return Object.entries(objectSchema.shape).map(([sourceName, field]) => {
