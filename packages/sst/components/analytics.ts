@@ -267,23 +267,6 @@ export class Analytics {
       { actions: ['glue:GetDatabase', 'glue:GetDatabases', 'glue:GetTable', 'glue:GetTables', 'glue:CreateTable', 'glue:UpdateTable'], resources: ['*'] },
       { actions: ['s3:GetBucketLocation', 's3:GetObject', 's3:ListBucket', 's3:PutObject', 's3:DeleteObject'], resources: [this.bucket.arn, $interpolate`${this.bucket.arn}/*`] },
     ];
-    if (args.views) {
-      validateDefinitions(args.views, 'view');
-      for (const [name, view] of Object.entries(args.views)) {
-        const viewFunction = new sst.aws.Function(`${id}-${name}-analytics-view`, {
-          handler: path.join(configRoot ?? '', '.monorise/handle.analyticsViewHandler'),
-          runtime: 'nodejs22.x', timeout: '15 minutes', memory: '512 MB', logging,
-          environment: {
-            ANALYTICS_VIEW: JSON.stringify({ name, sql: view.sql }), ANALYTICS_DATABASE: this.glueDatabase.name,
-            ANALYTICS_WORKGROUP: this.workgroup.name, ANALYTICS_ATHENA_OUTPUT: $interpolate`s3://${this.bucket.name}/athena-results/`,
-          }, permissions: athenaPermissions,
-        });
-        new aws.lambda.Invocation(`${id}-${name}-analytics-view-apply`, {
-          // Changing the definition changes the invocation input and reapplies the view.
-          functionName: viewFunction.name, input: JSON.stringify({ sql: view.sql }),
-        });
-      }
-    }
     if (args.models) {
       validateDefinitions(args.models, 'model');
       for (const [name, model] of Object.entries(args.models)) {
@@ -410,6 +393,7 @@ export class Analytics {
       name: `${id}-analytics-backfill-errors`, namespace: 'AWS/Lambda', metricName: 'Errors', statistic: 'Sum', period: 300, evaluationPeriods: 1, threshold: 1, comparisonOperator: 'GreaterThanOrEqualToThreshold', alarmActions: [alarmTopic.arn], dimensions: { FunctionName: this.backfillFunctionName },
     });
 
+    const rawTables: aws.glue.CatalogTable[] = [];
     for (const dataset of datasets) {
       const rawTable = `${dataset.historyTable}_raw`;
       const rawLocation = $resolve([this.bucket.name]).apply(
@@ -430,7 +414,7 @@ export class Analytics {
               (location) => `${location}event_date=\${event_date}/`,
             ),
           };
-      new aws.glue.CatalogTable(`${id}-${dataset.identifier}-raw`, {
+      rawTables.push(new aws.glue.CatalogTable(`${id}-${dataset.identifier}-raw`, {
         databaseName: this.glueDatabase.name,
         name: rawTable,
         tableType: 'EXTERNAL_TABLE',
@@ -462,7 +446,7 @@ export class Analytics {
           ],
         },
         partitionKeys: [{ name: 'event_date', type: 'string' }, ...(dataset.partition.granularity === 'hour' ? [{ name: 'event_hour', type: 'string' }] : [])],
-      });
+      }));
     }
     this.schedule = new sst.aws.CronV2(`${id}-analytics-daily`, {
       schedule: 'cron(0 0 * * ? *)',
@@ -485,5 +469,26 @@ export class Analytics {
         ],
       },
     });
+    const initialMaterialization = new aws.lambda.Invocation(`${id}-analytics-materialization-initial`, {
+      functionName: this.schedule.nodes.function.name,
+      input: '{}',
+    }, { dependsOn: rawTables });
+    if (args.views) {
+      validateDefinitions(args.views, 'view');
+      for (const [name, view] of Object.entries(args.views)) {
+        const viewFunction = new sst.aws.Function(`${id}-${name}-analytics-view`, {
+          handler: path.join(configRoot ?? '', '.monorise/handle.analyticsViewHandler'),
+          runtime: 'nodejs22.x', timeout: '15 minutes', memory: '512 MB', logging,
+          environment: {
+            ANALYTICS_VIEW: JSON.stringify({ name, sql: view.sql }), ANALYTICS_DATABASE: this.glueDatabase.name,
+            ANALYTICS_WORKGROUP: this.workgroup.name, ANALYTICS_ATHENA_OUTPUT: $interpolate`s3://${this.bucket.name}/athena-results/`,
+          }, permissions: athenaPermissions,
+        });
+        new aws.lambda.Invocation(`${id}-${name}-analytics-view-apply`, {
+          // Changing the definition changes the invocation input and reapplies the view.
+          functionName: viewFunction.name, input: JSON.stringify({ sql: view.sql }),
+        }, { dependsOn: [initialMaterialization] });
+      }
+    }
   }
 }
