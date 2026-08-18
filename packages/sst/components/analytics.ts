@@ -369,7 +369,8 @@ export class Analytics {
       },
       permissions: [
         { actions: ['dynamodb:ExportTableToPointInTime', 'dynamodb:GetItem', 'dynamodb:PutItem', 'dynamodb:UpdateItem', 'dynamodb:DeleteItem'], resources: [table.arn] },
-        { actions: ['s3:GetObject'], resources: [$interpolate`${this.bucket.arn}/${backfillPrefix}/*`] },
+        { actions: ['s3:GetBucketLocation', 's3:ListBucket'], resources: [this.bucket.arn] },
+        { actions: ['s3:AbortMultipartUpload', 's3:GetObject', 's3:PutObject'], resources: [$interpolate`${this.bucket.arn}/${backfillPrefix}/*`] },
         { actions: ['firehose:PutRecordBatch'], resources: [this.deliveryStream.arn] },
       ],
     });
