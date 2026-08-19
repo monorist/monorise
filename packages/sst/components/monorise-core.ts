@@ -64,11 +64,13 @@ export class MonoriseCore {
     });
 
     this.bus = new sst.aws.Bus(`${id}-monorise-bus`);
+    const analyticsEnabled = Boolean(args?.analytics && args.analytics.enabled !== false);
     this.table = new SingleTable(id, {
       runtime,
       configRoot: args?.configRoot,
       fromTableName: args?.fromTableName,
       logging,
+      pointInTimeRecoveryEnabled: analyticsEnabled,
     });
 
     const secretApiKeys = new sst.Secret('API_KEYS', '["secret1", "secret2"]');
@@ -88,7 +90,7 @@ export class MonoriseCore {
 
     this.alarmTopic = new sst.aws.SnsTopic(`${id}-monorise-dlq-alarm-topic`);
 
-    if (args?.analytics?.enabled !== false && args?.analytics) {
+    if (analyticsEnabled && args?.analytics) {
       if (
         args.fromTableName &&
         args.analytics.importedTable?.pointInTimeRecoveryEnabled !== true

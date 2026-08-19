@@ -157,6 +157,29 @@ test('names same-type relation endpoints by source and target', () => {
   ]);
 });
 
+test('rejects multiple named mutuals for one entity pair', () => {
+  assert.throws(
+    () => createAnalyticsManifest([
+      {
+        ...entity('student', {}),
+        mutual: {
+          mutualFields: {
+            enrollments: {
+              entityType: 'course',
+              mutual: { name: 'enrollment', mutualDataSchema: z.object({}) },
+            },
+            applications: {
+              entityType: 'course',
+              mutual: { name: 'application', mutualDataSchema: z.object({}) },
+            },
+          },
+        },
+      },
+    ]),
+    /both use the course::student entity pair/,
+  );
+});
+
 test('permits additive fields and rejects breaking schema changes', () => {
   const previous = createAnalyticsManifest([
     entity('item', { title: z.string() }),

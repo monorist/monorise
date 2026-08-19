@@ -1,10 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  createAnalyticsManifest,
-  validateSchemaEvolution,
+  writeAnalyticsManifest,
   type AnalyticsConfig,
-  type AnalyticsManifest,
 } from './analytics-manifest';
 import { detectCombinedPackage } from './detect-package';
 
@@ -270,20 +268,7 @@ ${generateMutualDataMappingDeclarations(mutualPairs)}
 `;
 
   fs.writeFileSync(configOutputPath, configOutputContent);
-  const analyticsManifestPath = path.join(monoriseOutputDir, 'analytics-manifest.json');
-  const analyticsManifest = createAnalyticsManifest(analyticsConfigs);
-  if (analyticsManifest.unnamedMutuals.length) {
-    console.warn(
-      `Skipping unnamed mutual analytics datasets: ${analyticsManifest.unnamedMutuals.join(', ')}.`,
-    );
-  }
-  if (fs.existsSync(analyticsManifestPath)) {
-    validateSchemaEvolution(
-      JSON.parse(fs.readFileSync(analyticsManifestPath, 'utf8')) as AnalyticsManifest,
-      analyticsManifest,
-    );
-  }
-  fs.writeFileSync(analyticsManifestPath, `${JSON.stringify(analyticsManifest, null, 2)}\n`);
+  writeAnalyticsManifest(monoriseOutputDir, analyticsConfigs);
   console.log('Successfully generated config.ts!');
   return configOutputPath;
 }

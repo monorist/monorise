@@ -39,6 +39,7 @@ export function modelStatements(model: Model, database: string, bucket: string, 
   const table = model.name.replaceAll('-', '_');
   const end = now;
   const start = new Date(end.getTime() - model.lookbackDays * 86_400_000);
+  start.setUTCHours(0, 0, 0, 0);
   const source = model.sql
     .replaceAll('{{windowStart}}', `'${start.toISOString().replaceAll("'", "''")}'`)
     .replaceAll('{{windowEnd}}', `'${end.toISOString().replaceAll("'", "''")}'`);

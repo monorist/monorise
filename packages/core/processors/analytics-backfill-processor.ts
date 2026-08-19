@@ -7,20 +7,25 @@ import {
   UpdateItemCommand,
 } from '@aws-sdk/client-dynamodb';
 import { FirehoseClient, PutRecordBatchCommand } from '@aws-sdk/client-firehose';
+import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { marshall, unmarshall } from '@aws-sdk/util-dynamodb';
 import type { Entity as EntityType, createEntityConfig } from '@monorise/base';
+import { setTimeout } from 'node:timers/promises';
 import { gunzipSync } from 'node:zlib';
 import {
   datasetForRecord,
+  batchAnalyticsRecords,
   encodeAnalyticsEvent,
   parseAnalyticsManifest,
   sanitizeItem,
+  type AnalyticsManifest,
   type AnalyticsEvent,
 } from './analytics-processor';
 
 const dynamodb = new DynamoDBClient();
 const firehose = new FirehoseClient();
+const lambda = new LambdaClient();
 const s3 = new S3Client();
 
 type Config = Record<EntityType, ReturnType<typeof createEntityConfig>>;
@@ -136,12 +141,13 @@ function streamToBuffer(stream: AsyncIterable<Uint8Array>): Promise<Buffer> {
 export function snapshotEvent(
   item: Record<string, unknown>,
   config: Config,
+  manifest: AnalyticsManifest,
   occurredAt: Date,
   omittedFields: Set<string>,
 ): AnalyticsEvent | undefined {
   const attributes = marshall(item, { removeUndefinedValues: true });
   // datasetForRecord only examines key/type string attributes; retain the full item below.
-  const dataset = datasetForRecord({ dynamodb: { NewImage: attributes } }, parseAnalyticsManifest(), config);
+  const dataset = datasetForRecord({ dynamodb: { NewImage: attributes } }, manifest, config);
   if (!dataset) return undefined;
   const after = sanitizeItem(item, omittedFields);
   const key = `${String(item.PK)}:${String(item.SK)}`;
@@ -166,26 +172,47 @@ export const handler = (config: Config) => async (event: S3ExportEvent | Backfil
     throw new Error('Unsupported analytics backfill event.');
   }
   const timestamp = await backfillTimestamp();
+  const manifest = parseAnalyticsManifest();
   const omittedFields = new Set(JSON.parse(process.env.ANALYTICS_OMIT_FIELDS ?? '[]') as string[]);
   const deliveryStream = required('ANALYTICS_DELIVERY_STREAM');
+  let exportComplete = false;
   let delivered = 0;
 
   for (const record of event.Records) {
     const key = decodeURIComponent(record.s3.object.key.replace(/\+/g, ' '));
+    if (key.endsWith('manifest-summary.json')) {
+      exportComplete = true;
+      continue;
+    }
     if (!key.endsWith('.json.gz')) continue;
     const response = await s3.send(new GetObjectCommand({ Bucket: record.s3.bucket.name, Key: key }));
     if (!response.Body) throw new Error(`Backfill export object ${key} has no body.`);
     const content = gunzipSync(await streamToBuffer(response.Body as AsyncIterable<Uint8Array>)).toString('utf8');
     const events = content.split('\n').filter(Boolean).flatMap((line) => {
       const attributes = JSON.parse(line).Item;
-      return attributes ? [snapshotEvent(unmarshall(attributes), config, timestamp, omittedFields)].filter(Boolean) as AnalyticsEvent[] : [];
+      return attributes ? [snapshotEvent(unmarshall(attributes), config, manifest, timestamp, omittedFields)].filter(Boolean) as AnalyticsEvent[] : [];
     });
-    for (let index = 0; index < events.length; index += 500) {
-      const batch = events.slice(index, index + 500);
+    const { batches, oversized } = batchAnalyticsRecords(
+      events,
+      (value) => `${JSON.stringify(encodeAnalyticsEvent(value))}\n`,
+    );
+    if (oversized.length) {
+      throw new Error(`Cannot deliver ${oversized.length} backfill records exceeding Firehose's 1000 KiB record limit.`);
+    }
+    for (const batch of batches) {
         const result = await firehose.send(new PutRecordBatchCommand({ DeliveryStreamName: deliveryStream, Records: batch.map((value) => ({ Data: Buffer.from(`${JSON.stringify(encodeAnalyticsEvent(value))}\n`) })) }));
       if (result.FailedPutCount) throw new Error(`Failed to deliver ${result.FailedPutCount} backfill records; retry this export object.`);
       delivered += batch.length;
     }
+  }
+  if (exportComplete && process.env.ANALYTICS_MATERIALIZATION_FUNCTION) {
+    // Firehose may hold the final export batch for its full buffering interval.
+    await setTimeout(310_000);
+    await lambda.send(new InvokeCommand({
+      FunctionName: process.env.ANALYTICS_MATERIALIZATION_FUNCTION,
+      InvocationType: 'Event',
+      Payload: Buffer.from('{}'),
+    }));
   }
   return { delivered, exportTime: timestamp.toISOString() };
 };

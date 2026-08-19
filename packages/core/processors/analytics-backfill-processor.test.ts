@@ -7,6 +7,7 @@ describe('analytics export backfill', () => {
     const event = snapshotEvent(
       { PK: 'participant#one', SK: '#METADATA#', entityType: 'participant', data: { name: 'Ada', passwordHash: 'secret' } },
       {} as never,
+      { datasets: [{ kind: 'entity', name: 'participant', partition: { granularity: 'hour' } }] },
       new Date('2025-01-01T01:02:03.000Z'),
       new Set(['passwordHash']),
     );

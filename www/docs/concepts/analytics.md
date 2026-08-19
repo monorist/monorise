@@ -6,14 +6,16 @@ Monorise analytics is an opt-in Athena lake for canonical entity and mutual data
 
 Analytics uses DynamoDB Streams with `NEW_AND_OLD_IMAGES` as its canonical source. A dedicated analytics Lambda normalizes canonical entity and mutual metadata changes, including their operation, occurrence time, and available before and after images. It excludes derived list, tag, unique, lock, and replication rows.
 
-The normalizer sends versioned event envelopes to Amazon Data Firehose, which buffers them into encrypted S3 storage. Events are delivered beneath dataset-specific history paths:
+The normalizer sends versioned NDJSON envelopes to Amazon Data Firehose, which buffers gzip-compressed objects into encrypted S3 storage. Raw events are delivered beneath dataset-specific history paths:
 
 ```text
 history/entities/<entity>/event_date=YYYY-MM-DD[/event_hour=HH]/
 history/mutuals/<mutual>/event_date=YYYY-MM-DD[/event_hour=HH]/
 ```
 
-A daily job compacts history to typed Parquet and merges the latest records into Apache Iceberg current-state tables. `REMOVE` events delete records from current-state tables.
+A daily job compacts raw history to typed Parquet-backed Apache Iceberg tables at `curated/history/<kind>/<dataset>/` and merges the latest records into current-state tables at `current/<dataset>/`. `REMOVE` events delete records from current-state tables.
+
+The curated Parquet files can be consumed by external analytics tools. [Snowpipe supports Parquet](https://docs.snowflake.com/en/user-guide/data-load-snowpipe-intro), but do not ingest the mutable Iceberg paths directly: compaction rewrites their files. Snowpipe auto-ingest also needs an S3 event notification; because Monorise manages this bucket notification for backfill, replicate the required data to a separate bucket or use an SNS fan-out integration owned outside Monorise.
 
 EventBridge lifecycle events are not the canonical analytics source because they do not carry reliable before-images. EventBridge remains suitable for separate, consumer-defined business-event analytics.
 
@@ -78,12 +80,15 @@ Limit history scans to the relevant partitions:
 ```sql
 SELECT *
 FROM enrollment_mutual_changes
-WHERE event_date BETWEEN DATE '2026-07-01' AND DATE '2026-07-07';
+WHERE occurred_at >= TIMESTAMP '2026-07-01 00:00:00'
+  AND occurred_at < TIMESTAMP '2026-07-08 00:00:00';
 ```
 
 ## Dashboard query API
 
 `analytics.queryApi` creates a separate, server-to-server Athena API with its own `ANALYTICS_API_KEYS` secret. It accepts only named, deployment-defined queries; callers never submit SQL. Keep this key in an internal application server such as a Next.js route handler, never in browser code.
+
+The local-development default analytics keys are public. Before enabling `analytics.queryApi` in a shared stage, set a strong `ANALYTICS_API_KEYS` value with `npx sst secret set ANALYTICS_API_KEYS '["your-analytics-key"]' --stage production`. See [Deploying: Set API keys](/deploying.html#set-api-keys-required) for rotation guidance.
 
 Keep query, view, and model definitions in regular TypeScript modules to keep the infrastructure file small:
 
@@ -174,7 +179,7 @@ The first model run creates `<model_name>` as an Iceberg table. Later runs repla
 
 ## Freshness and cost
 
-History is continuously captured through the stream delivery path, while current-state tables are materialized daily. Use history for near-continuous change analysis and current-state tables for inexpensive daily snapshots.
+History is continuously captured through the stream delivery path, while current-state tables are materialized daily. The initial backfill also triggers materialization after its Firehose delivery window. Use history for near-continuous change analysis and current-state tables for inexpensive daily snapshots.
 
 History partitions are daily by default. Configure hourly partitions only for individual high-volume entity or mutual datasets that benefit from narrower query scans. Hourly partitions can create small files for low-volume datasets, so daily partitions remain the default. Firehose buffering and daily Parquet compaction reduce delivery and query cost.
 
@@ -196,7 +201,7 @@ Omissions do not affect standard analytics metadata and do not match nested fiel
 
 ## Backfill
 
-The first analytics deployment starts continuous capture and performs a point-in-time DynamoDB export. The export populates current-state tables and appends `SNAPSHOT` baseline events at the export timestamp. Stream events that follow win during materialization through event ordering and idempotency keys.
+The first analytics deployment starts continuous capture and performs a point-in-time DynamoDB export. Once the export has reached S3 and Firehose has flushed it, Monorise materializes current-state tables and appends `SNAPSHOT` baseline events at the export timestamp. Stream events that follow win during materialization through event ordering and idempotency keys.
 
 Analytics does not reconstruct mutations from before the export. Point-in-time recovery is required: Monorise enables it for tables it creates, while a table supplied with `fromTableName` must already have it enabled and set `analytics.importedTable: { pointInTimeRecoveryEnabled: true }` or deployment fails before capture starts. Exports and their storage can also incur DynamoDB and S3 cost.
 

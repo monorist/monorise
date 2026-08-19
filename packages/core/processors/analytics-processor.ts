@@ -29,6 +29,9 @@ export type AnalyticsEvent = {
   after?: Record<string, unknown>;
 };
 
+const maxFirehoseBatchBytes = 4 * 1024 * 1024;
+const maxFirehoseRecordBytes = 1_000 * 1024;
+
 const firehose = new FirehoseClient();
 
 export function encodeAnalyticsEvent(event: AnalyticsEvent) {
@@ -45,6 +48,32 @@ export function encodeAnalyticsEvent(event: AnalyticsEvent) {
     before: event.before ? JSON.stringify(event.before) : undefined,
     after: event.after ? JSON.stringify(event.after) : undefined,
   };
+}
+
+export function batchAnalyticsRecords<T>(
+  values: T[],
+  serialize: (value: T) => string,
+): { batches: T[][]; oversized: T[] } {
+  const batches: T[][] = [];
+  const oversized: T[] = [];
+  let batch: T[] = [];
+  let batchBytes = 0;
+  for (const value of values) {
+    const bytes = Buffer.byteLength(serialize(value));
+    if (bytes > maxFirehoseRecordBytes) {
+      oversized.push(value);
+      continue;
+    }
+    if (batch.length === 500 || batchBytes + bytes > maxFirehoseBatchBytes) {
+      batches.push(batch);
+      batch = [];
+      batchBytes = 0;
+    }
+    batch.push(value);
+    batchBytes += bytes;
+  }
+  if (batch.length) batches.push(batch);
+  return { batches, oversized };
 }
 
 export function omitTopLevelFields(
@@ -180,8 +209,14 @@ export const handler = (
     }
   }
 
-  for (let index = 0; index < events.length; index += 500) {
-    const batch = events.slice(index, index + 500);
+  const { batches, oversized } = batchAnalyticsRecords(
+    events,
+    ({ event: value }) => `${JSON.stringify(encodeAnalyticsEvent(value))}\n`,
+  );
+  for (const { record } of oversized) {
+    failures.push({ itemIdentifier: record.dynamodb?.SequenceNumber ?? '' });
+  }
+  for (const batch of batches) {
     const result = await firehose.send(
       new PutRecordBatchCommand({
         DeliveryStreamName: streamName,

@@ -7,7 +7,7 @@ vi.mock('@aws-sdk/client-firehose', () => ({
   PutRecordBatchCommand: class { constructor(public input: unknown) {} },
 }));
 
-import { handler } from './analytics-processor';
+import { batchAnalyticsRecords, handler } from './analytics-processor';
 
 const manifest = {
   datasets: [
@@ -24,6 +24,16 @@ function image(entityType: string, data: Record<string, unknown>) {
 }
 
 describe('analytics stream processor', () => {
+  test('splits Firehose batches by byte size and rejects oversized records', () => {
+    const { batches, oversized } = batchAnalyticsRecords(
+      ['a'.repeat(900_000), 'b'.repeat(900_000), 'c'.repeat(900_000), 'd'.repeat(900_000), 'e'.repeat(900_000), 'f'.repeat(1_024_001)],
+      (value) => value,
+    );
+
+    expect(batches).toEqual([['a'.repeat(900_000), 'b'.repeat(900_000), 'c'.repeat(900_000), 'd'.repeat(900_000)], ['e'.repeat(900_000)]]);
+    expect(oversized).toEqual(['f'.repeat(1_024_001)]);
+  });
+
   test('writes canonical updates with omissions, idempotency, and daily partitions', async () => {
     process.env.ANALYTICS_DELIVERY_STREAM = 'history';
     process.env.ANALYTICS_MANIFEST = JSON.stringify(manifest);

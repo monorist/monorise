@@ -26,11 +26,11 @@ describe('analytics materialization SQL', () => {
     expect(statements[1]).toContain(
       'try_cast(from_iso8601_timestamp(occurred_at) AS timestamp) AS occurred_at',
     );
-    expect(statements[1]).not.toContain("date_add('day', -2");
+    expect(statements[1]).toContain("date_add('day', -3, current_date)");
     expect(statements[3]).toContain("s.operation = 'REMOVE'");
     expect(statements[0]).toContain('participant_id string');
     expect(statements[3]).toContain('PARTITION BY "participant_id"');
-    expect(statements[3]).not.toContain("date_add('day', -2");
+    expect(statements[3]).toContain("date_add('day', -3, current_date)");
   });
 
   test('extracts mutual typed columns from mutualData', () => {

@@ -8,6 +8,7 @@ type SingleTableArgs = {
   runtime?: sst.aws.FunctionArgs['runtime'];
   logging?: sst.aws.FunctionArgs['logging'];
   configRoot?: string;
+  pointInTimeRecoveryEnabled?: boolean;
   /**
    * Name of an existing DynamoDB table to use instead of creating a new one.
    * The table must already have DynamoDB Streams enabled with NEW_AND_OLD_IMAGES,
@@ -67,12 +68,12 @@ export class SingleTable {
               ],
             },
           },
-           stream: 'new-and-old-images',
-           ttl: 'expiresAt',
-           transform: {
-             table: { pointInTimeRecovery: { enabled: true } },
-           },
-         });
+          stream: 'new-and-old-images',
+          ttl: 'expiresAt',
+          ...(args?.pointInTimeRecoveryEnabled
+            ? { transform: { table: { pointInTimeRecovery: { enabled: true } } } }
+            : {}),
+        });
 
     const environment = {
       CORE_TABLE: this.table.name,

@@ -6,6 +6,7 @@ import {
   StopQueryExecutionCommand,
 } from '@aws-sdk/client-athena';
 import { DynamoDBClient, GetItemCommand, PutItemCommand } from '@aws-sdk/client-dynamodb';
+import { createHash } from 'node:crypto';
 import { handle } from 'hono/aws-lambda';
 import { Hono } from 'hono';
 import httpStatus from 'http-status';
@@ -51,13 +52,17 @@ function apiKeys(): string[] {
     : [];
 }
 
-async function ownedExecution(id: string): Promise<boolean> {
+function keyFingerprint(key: string): string {
+  return createHash('sha256').update(key).digest('hex');
+}
+
+async function ownedExecution(id: string, key: string): Promise<boolean> {
   const item = await dynamo.send(new GetItemCommand({
     TableName: required('ANALYTICS_EXECUTIONS_TABLE'),
     Key: { id: { S: id } },
     ConsistentRead: true,
   }));
-  return Boolean(item.Item);
+  return item.Item?.ownerKeyHash?.S === keyFingerprint(key);
 }
 
 export const analyticsQueryHandler = () => {
@@ -84,12 +89,12 @@ export const analyticsQueryHandler = () => {
     if (Object.keys(body).some((name) => !(name in declared))) {
       return c.json({ message: 'Unexpected query parameter.' }, httpStatus.BAD_REQUEST);
     }
-    const parameters = Object.entries(declared).map(([name, definition]) => {
-      const value = validParameter(body[name], definition.type);
-      if (value === undefined) throw new Error(`Invalid or missing parameter: ${name}.`);
-      return executionParameter(value, definition.type);
-    });
     try {
+      const parameters = Object.entries(declared).map(([name, definition]) => {
+        const value = validParameter(body[name], definition.type);
+        if (value === undefined) throw new Error(`Invalid or missing parameter: ${name}.`);
+        return executionParameter(value, definition.type);
+      });
       const started = await athena.send(new StartQueryExecutionCommand({
         QueryString: query.sql,
         ExecutionParameters: parameters,
@@ -106,6 +111,7 @@ export const analyticsQueryHandler = () => {
         Item: {
           id: { S: started.QueryExecutionId },
           queryName: { S: c.req.param('name') },
+          ownerKeyHash: { S: keyFingerprint(c.req.header('x-api-key') ?? '') },
           expiresAt: { N: String(Math.floor(Date.now() / 1000) + 86_400) },
         },
       }));
@@ -120,7 +126,7 @@ export const analyticsQueryHandler = () => {
 
   app.get('/executions/:id', async (c) => {
     const id = c.req.param('id');
-    if (!await ownedExecution(id)) return c.json({ message: 'Unknown analytics execution.' }, httpStatus.NOT_FOUND);
+    if (!await ownedExecution(id, c.req.header('x-api-key') ?? '')) return c.json({ message: 'Unknown analytics execution.' }, httpStatus.NOT_FOUND);
     const execution = await athena.send(new GetQueryExecutionCommand({ QueryExecutionId: id }));
     const status = execution.QueryExecution?.Status;
     return c.json({
@@ -134,7 +140,7 @@ export const analyticsQueryHandler = () => {
 
   app.get('/executions/:id/results', async (c) => {
     const id = c.req.param('id');
-    if (!await ownedExecution(id)) return c.json({ message: 'Unknown analytics execution.' }, httpStatus.NOT_FOUND);
+    if (!await ownedExecution(id, c.req.header('x-api-key') ?? '')) return c.json({ message: 'Unknown analytics execution.' }, httpStatus.NOT_FOUND);
     const requested = Number(c.req.query('maxResults') ?? 100);
     const maxResults = Number.isFinite(requested) ? Math.min(Math.max(requested, 1), 1_000) : 100;
     const nextToken = c.req.query('nextToken');
@@ -154,7 +160,7 @@ export const analyticsQueryHandler = () => {
 
   app.post('/executions/:id/cancel', async (c) => {
     const id = c.req.param('id');
-    if (!await ownedExecution(id)) return c.json({ message: 'Unknown analytics execution.' }, httpStatus.NOT_FOUND);
+    if (!await ownedExecution(id, c.req.header('x-api-key') ?? '')) return c.json({ message: 'Unknown analytics execution.' }, httpStatus.NOT_FOUND);
     await athena.send(new StopQueryExecutionCommand({ QueryExecutionId: id }));
     return c.body(null, httpStatus.NO_CONTENT);
   });

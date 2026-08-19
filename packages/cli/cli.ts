@@ -6,10 +6,8 @@ import path from 'node:path';
 import { execSync, spawn } from 'node:child_process';
 import chokidar from 'chokidar';
 import {
-  createAnalyticsManifest,
-  validateSchemaEvolution,
+  writeAnalyticsManifest,
   type AnalyticsConfig,
-  type AnalyticsManifest,
 } from './commands/utils/analytics-manifest';
 import { fileURLToPath } from 'node:url';
 import { detectCombinedPackage } from './commands/utils/detect-package';
@@ -194,23 +192,7 @@ ${moduleAugmentations}
 `;
 
   fs.writeFileSync(configOutputPath, configOutputContent);
-  const analyticsManifestPath = path.join(
-    monoriseOutputDir,
-    'analytics-manifest.json',
-  );
-  const manifest = createAnalyticsManifest(analyticsConfigs);
-  if (manifest.unnamedMutuals.length) {
-    console.warn(
-      `Skipping unnamed mutual analytics datasets: ${manifest.unnamedMutuals.join(', ')}.`,
-    );
-  }
-  if (fs.existsSync(analyticsManifestPath)) {
-    validateSchemaEvolution(
-      JSON.parse(fs.readFileSync(analyticsManifestPath, 'utf8')) as AnalyticsManifest,
-      manifest,
-    );
-  }
-  fs.writeFileSync(analyticsManifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  writeAnalyticsManifest(monoriseOutputDir, analyticsConfigs);
   console.log('Successfully generated config.ts!');
 
   // Also generate index.ts re-exporting everything from config.ts, so consumers

@@ -14,7 +14,7 @@ describe('analytics model SQL', () => {
     expect(statements[0]).toContain("table_type = 'ICEBERG'");
     expect(statements[0]).toContain("s3://bucket/models/daily_transactions/");
     expect(statements[1]).toContain('"day" >= DATE \'2026-07-24\'');
-    expect(statements[2]).toContain("'2026-07-24T12:00:00.000Z'");
+    expect(statements[2]).toContain("'2026-07-24T00:00:00.000Z'");
     expect(statements[2]).toContain("'2026-07-27T12:00:00.000Z'");
   });
 });

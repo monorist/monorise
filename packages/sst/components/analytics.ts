@@ -350,6 +350,27 @@ export class Analytics {
         'Analytics backfill requires exclusive management of S3 bucket notifications. S3 only permits one notification configuration; ensure the supplied bucket has no existing notifications, then set analytics.resources.bucket.notificationsManaged to true.',
       );
     }
+    this.schedule = new sst.aws.CronV2(`${id}-analytics-daily`, {
+      schedule: 'cron(0 0 * * ? *)',
+      function: {
+        handler: path.join(configRoot ?? '', '.monorise/handle.analyticsMaterializationHandler'),
+        runtime: 'nodejs22.x',
+        timeout: '15 minutes',
+        memory: '1024 MB',
+        logging,
+        environment: {
+          ANALYTICS_DATABASE: this.glueDatabase.name,
+          ANALYTICS_BUCKET: this.bucket.name,
+          ANALYTICS_WORKGROUP: this.workgroup.name,
+          ANALYTICS_ATHENA_OUTPUT: $interpolate`s3://${this.bucket.name}/athena-results/`,
+        },
+        permissions: [
+          { actions: ['athena:StartQueryExecution', 'athena:GetQueryExecution', 'athena:GetQueryResults'], resources: ['*'] },
+          { actions: ['glue:GetDatabase', 'glue:GetDatabases', 'glue:GetTable', 'glue:GetTables', 'glue:CreateTable', 'glue:UpdateTable'], resources: ['*'] },
+          { actions: ['s3:GetBucketLocation', 's3:GetObject', 's3:PutObject', 's3:ListBucket'], resources: [this.bucket.arn, $interpolate`${this.bucket.arn}/*`] },
+        ],
+      },
+    });
     const backfillPrefix = 'backfill';
     const backfillFunction = new sst.aws.Function(`${id}-analytics-backfill`, {
       name: this.backfillFunctionName,
@@ -364,6 +385,7 @@ export class Analytics {
         ANALYTICS_BACKFILL_BUCKET: this.bucket.name,
         ANALYTICS_BACKFILL_PREFIX: backfillPrefix,
         ANALYTICS_DELIVERY_STREAM: this.deliveryStream.name,
+        ANALYTICS_MATERIALIZATION_FUNCTION: this.schedule.nodes.function.name,
         ANALYTICS_MANIFEST: serializedManifest,
         ANALYTICS_OMIT_FIELDS: JSON.stringify(args.fields?.omit ?? []),
       },
@@ -372,6 +394,7 @@ export class Analytics {
         { actions: ['s3:GetBucketLocation', 's3:ListBucket'], resources: [this.bucket.arn] },
         { actions: ['s3:AbortMultipartUpload', 's3:GetObject', 's3:PutObject'], resources: [$interpolate`${this.bucket.arn}/${backfillPrefix}/*`] },
         { actions: ['firehose:PutRecordBatch'], resources: [this.deliveryStream.arn] },
+        { actions: ['lambda:InvokeFunction'], resources: [this.schedule.nodes.function.arn] },
       ],
     });
     const backfillPermission = new aws.lambda.Permission(`${id}-analytics-backfill-s3-permission`, {
@@ -449,30 +472,9 @@ export class Analytics {
         partitionKeys: [{ name: 'event_date', type: 'string' }, ...(dataset.partition.granularity === 'hour' ? [{ name: 'event_hour', type: 'string' }] : [])],
       }));
     }
-    this.schedule = new sst.aws.CronV2(`${id}-analytics-daily`, {
-      schedule: 'cron(0 0 * * ? *)',
-      function: {
-        handler: path.join(configRoot ?? '', '.monorise/handle.analyticsMaterializationHandler'),
-        runtime: 'nodejs22.x',
-        timeout: '15 minutes',
-        memory: '1024 MB',
-        logging,
-        environment: {
-          ANALYTICS_DATABASE: this.glueDatabase.name,
-          ANALYTICS_BUCKET: this.bucket.name,
-          ANALYTICS_WORKGROUP: this.workgroup.name,
-          ANALYTICS_ATHENA_OUTPUT: $interpolate`s3://${this.bucket.name}/athena-results/`,
-        },
-        permissions: [
-          { actions: ['athena:StartQueryExecution', 'athena:GetQueryExecution', 'athena:GetQueryResults'], resources: ['*'] },
-          { actions: ['glue:GetDatabase', 'glue:GetDatabases', 'glue:GetTable', 'glue:GetTables', 'glue:CreateTable', 'glue:UpdateTable'], resources: ['*'] },
-          { actions: ['s3:GetBucketLocation', 's3:GetObject', 's3:PutObject', 's3:ListBucket'], resources: [this.bucket.arn, $interpolate`${this.bucket.arn}/*`] },
-        ],
-      },
-    });
     const initialMaterialization = new aws.lambda.Invocation(`${id}-analytics-materialization-initial`, {
       functionName: this.schedule.nodes.function.name,
-      input: '{}',
+      input: JSON.stringify({ schemaFingerprint: manifest.schemaFingerprint }),
     }, { dependsOn: rawTables });
     if (args.views) {
       validateDefinitions(args.views, 'view');

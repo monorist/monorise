@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
 
 type ZodSchema = {
   _def?: {
@@ -226,6 +228,26 @@ export function validateSchemaEvolution(
   }
 }
 
+export function writeAnalyticsManifest(
+  monoriseOutputDir: string,
+  configs: AnalyticsConfig[],
+): void {
+  const analyticsManifestPath = path.join(monoriseOutputDir, 'analytics-manifest.json');
+  const manifest = createAnalyticsManifest(configs);
+  if (manifest.unnamedMutuals.length) {
+    console.warn(
+      `Skipping unnamed mutual analytics datasets: ${manifest.unnamedMutuals.join(', ')}.`,
+    );
+  }
+  if (fs.existsSync(analyticsManifestPath)) {
+    validateSchemaEvolution(
+      JSON.parse(fs.readFileSync(analyticsManifestPath, 'utf8')) as AnalyticsManifest,
+      manifest,
+    );
+  }
+  fs.writeFileSync(analyticsManifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+}
+
 export function createAnalyticsManifest(
   configs: AnalyticsConfig[],
 ): AnalyticsManifest {
@@ -233,6 +255,7 @@ export function createAnalyticsManifest(
   const unnamedMutuals = new Set<string>();
   const identifiers = new Map<string, string>();
   const mutuals = new Set<AnalyticsMutual>();
+  const mutualPairs = new Map<string, string>();
 
   const addDataset = (
     kind: AnalyticsDataset['kind'],
@@ -300,11 +323,20 @@ export function createAnalyticsManifest(
       }
       if (mutuals.has(mutual)) continue;
       mutuals.add(mutual);
+      const entities: [string, string] = mutual.entities ?? [config.name, field.entityType];
+      const pair = [...entities].sort().join('::');
+      const existing = mutualPairs.get(pair);
+      if (existing) {
+        throw new Error(
+          `Analytics mutual ${mutual.name} conflicts with ${existing}: both use the ${pair} entity pair.`,
+        );
+      }
+      mutualPairs.set(pair, mutual.name);
       addDataset(
         'mutual',
         mutual.name,
         mutual.mutualDataSchema,
-        mutual.entities ?? [config.name, field.entityType],
+        entities,
       );
     }
   }
