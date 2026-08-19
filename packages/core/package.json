@@ -6,7 +6,7 @@
     "url": "git+https://github.com/monorist/monorise.git",
     "directory": "packages/core"
   },
-  "description": "",
+  "description": "Monorise runtime — Hono API, DynamoDB single-table repositories, event processors, and analytics pipeline",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

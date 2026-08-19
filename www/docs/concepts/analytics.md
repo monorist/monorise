@@ -97,7 +97,7 @@ import { queries } from './analytics/queries';
 import { views } from './analytics/views';
 import { models } from './analytics/models';
 
-new monorise.aws.Core('Core', {
+new monorise.module.Core('Core', {
   analytics: {
     enabled: true,
     queryApi: { queries },

@@ -6,7 +6,7 @@
     "url": "git+https://github.com/monorist/monorise.git",
     "directory": "packages/monorise"
   },
-  "description": "Monorise - A unified package for all Monorise functionality",
+  "description": "The fullstack serverless data framework for DynamoDB — schema-driven API, event processors, React SDK, SST infrastructure, and Athena analytics",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",

@@ -1,8 +1,8 @@
 # Monorise
 
 <p align="center">
-  <strong>DynamoDB Single-Table Toolkit</strong><br/>
-  Type-safe, event-driven data layer for applications built on DynamoDB.
+  <strong>The Fullstack Serverless Data Framework</strong><br/>
+  Define schemas once — API, processors, React hooks, and Athena analytics on a single DynamoDB table.
 </p>
 
 <p align="center">
@@ -16,11 +16,12 @@
 
 ## What is Monorise?
 
-Monorise is an open-source toolkit that powers the core data layer for applications built on DynamoDB. Define your data models with Zod schemas, and get:
+Monorise is an open-source fullstack serverless data framework for applications built on DynamoDB. Define your data models with Zod schemas, and get:
 
 - **A ready-made REST API** for entities, relationships, and queries
 - **Event-driven processors** that keep denormalized data in sync
 - **Full type safety** from backend to frontend
+- **Built-in analytics** — opt-in CDC pipeline to Athena for current state and full history
 - **SST v4 integration** for one-command deployment to AWS
 
 ## Full-Stack in Minutes
@@ -131,6 +132,7 @@ Read the [Getting Started Guide](https://monorise.dev/getting-started) for the c
 | **🚀 Ship in Hours** | From `git init` to production API. No migration scripts, no access pattern spreadsheets.
 | **🔗 Relational Patterns** | Entity, Mutual, and Tag concepts for relational-style queries on DynamoDB. |
 | **📦 Full-Stack SDK** | Backend (Hono), React hooks, SST v4 infrastructure — one package. |
+| **📊 Built-In Analytics** | Opt-in CDC pipeline streams every change to S3 + Athena — current state and full history, queryable with SQL. |
 | **🧠 Token-Efficient** | Built-in CRUD, relationships, and tagging. Less code to write, fewer tokens to generate/review. |
 
 ## Core Concepts
