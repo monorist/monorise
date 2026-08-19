@@ -3,11 +3,11 @@ layout: home
 
 hero:
   name: Monorise
-  text: DynamoDB Single-Table Toolkit
+  text: The Fullstack Serverless Data Framework
   image:
     src: /logo.png
     alt: Monorise
-  tagline: Type-safe, event-driven data layer for applications built on DynamoDB. Define schemas, get APIs, relationships, and processors automatically.
+  tagline: Define schemas once — get a type-safe API, relational queries, event-driven processors, React hooks, and Athena analytics. All on a single DynamoDB table you never have to design.
   actions:
     - theme: brand
       text: Get Started
@@ -101,7 +101,7 @@ export default function MembersPage() {
 
 :::
 
-That's it — API, DynamoDB, EventBridge, processors, and a type-safe frontend. [Get started →](/getting-started)
+That's it — API, DynamoDB, EventBridge, processors, analytics, and a type-safe frontend. [Get started →](/getting-started)
 
 ## Why Monorise?
 
@@ -125,6 +125,10 @@ That's it — API, DynamoDB, EventBridge, processors, and a type-safe frontend. 
   <div class="feature">
     <h3><span class="feature-icon">&#x1F4E6;</span> Full-Stack SDK</h3>
     <p>Backend API (Hono), React hooks with caching, SST v4 infrastructure module — one package covers the entire stack.</p>
+  </div>
+  <div class="feature">
+    <h3><span class="feature-icon">&#x1F4CA;</span> Built-In Analytics</h3>
+    <p>Opt-in CDC pipeline streams every change to S3 and Athena — query current state and full history with SQL, no ETL to build.</p>
   </div>
   <div class="feature">
     <h3><span class="feature-icon">&#x1F6E0;&#xFE0F;</span> Seamless Dev Workflow</h3>

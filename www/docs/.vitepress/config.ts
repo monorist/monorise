@@ -3,7 +3,7 @@ import { defineConfig } from 'vitepress';
 export default defineConfig({
   title: 'Monorise',
   description:
-    'DynamoDB single-table toolkit with type-safe, event-driven architecture',
+    'Fullstack serverless data framework for DynamoDB: type-safe APIs, event-driven processors, React hooks, and Athena analytics on a single table',
   base: '/',
 
   head: [
@@ -39,7 +39,6 @@ export default defineConfig({
           { text: 'Design Philosophy', link: '/concepts/' },
           { text: 'Entities', link: '/concepts/entities' },
           { text: 'Mutuals', link: '/concepts/mutuals' },
-          { text: 'Analytics', link: '/concepts/analytics' },
           { text: 'Tags', link: '/concepts/tags' },
           { text: 'Tree Processors', link: '/concepts/prejoins' },
         ],
@@ -49,6 +48,7 @@ export default defineConfig({
         items: [
           { text: 'Overview & API', link: '/architecture' },
           { text: 'Custom Routes', link: '/custom-routes' },
+          { text: 'Analytics', link: '/concepts/analytics' },
         ],
       },
       {

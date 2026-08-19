@@ -1,12 +1,13 @@
 # Getting Started
 
-Monorise is an open-source DynamoDB single-table toolkit that powers the core data layer for applications built on DynamoDB. It provides a shared data model (schemas + relationships), a ready-made API surface (entities, mutuals, tags), and background processors to keep denormalized access patterns in sync.
+Monorise is an open-source fullstack serverless data framework for applications built on DynamoDB. It provides a shared data model (schemas + relationships), a ready-made API surface (entities, mutuals, tags), background processors to keep denormalized access patterns in sync, and an opt-in analytics pipeline that streams every change to Athena.
 
 ## What it solves
 
 - **Single-table DynamoDB modeling** without hand-writing complex queries.
 - **Relational-style access** via `Entity`, `Mutual`, and `Tag` concepts.
 - **Event-driven maintenance** (mutual/tag/tree processors + replication).
+- **Built-in analytics** — opt-in CDC pipeline to S3 + Athena: query current state and full history with SQL.
 - **Zero schema drift** — One Zod config drives DB, API, and frontend types. `monorise dev` auto-regenerates on every change.
 
 ## Prerequisites

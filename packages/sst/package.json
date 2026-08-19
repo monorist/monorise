@@ -6,7 +6,7 @@
     "url": "git+https://github.com/monorist/monorise.git",
     "directory": "packages/sst"
   },
-  "description": "",
+  "description": "Monorise SST v4 module — API, DynamoDB table, event bus, processors, dashboards, and Athena analytics infrastructure",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

@@ -6,7 +6,7 @@
     "url": "git+https://github.com/monorist/monorise.git",
     "directory": "packages/base"
   },
-  "description": "",
+  "description": "Entity, mutual, and tag config primitives (Zod schemas + types) for the Monorise data framework",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

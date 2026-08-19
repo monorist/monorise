@@ -6,7 +6,7 @@
     "url": "git+https://github.com/monorist/monorise.git",
     "directory": "packages/react"
   },
-  "description": "",
+  "description": "Monorise React SDK — type-safe hooks, stores, and client utilities for entity and mutual data",
   "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.js",

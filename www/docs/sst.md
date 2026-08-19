@@ -48,7 +48,7 @@ new MonoriseCore(id: string, args?: MonoriseCoreArgs)
 | `configRoot` | `string` | — | Custom root path for monorise config |
 | `cloudwatchLogRetention` | `sst.aws.FunctionArgs['logging']['retention']` | `'1 month'` | CloudWatch log retention period for Monorise-owned Lambda functions |
 | `cloudwatchDashboard` | `{ enabled?: boolean }` | `{ enabled: true }` | Built-in CloudWatch dashboard. Disable to skip creating it |
-| `analytics` | Analytics configuration | Disabled | Opt-in Athena analytics for canonical entity and named mutual data |
+| `analytics` | `AnalyticsArgs` | Disabled | Opt-in Athena analytics for canonical entity and named mutual data — see [Analytics](#analytics) |
 
 `cloudwatchLogRetention` is passed to SST's Lambda logging configuration for the API handler, replication processor, and built-in event processors. It accepts SST's supported retention values, for example `'1 day'`, `'1 week'`, `'1 month'`, `'1 year'`, or `'forever'`.
 
@@ -64,27 +64,76 @@ Disabling it on a stage where the dashboard already exists will destroy the dash
 
 ### Analytics
 
-Set `analytics` to enable the built-in Athena analytics path. Run `monorise build` first so deployment can load the generated analytics manifest.
+Analytics is disabled by default. Set `analytics.enabled: true` to turn on the built-in Athena analytics path. Run `monorise build` before deploying so the generated `.monorise/analytics-manifest.json` is available — deployment fails without it.
+
+Minimal configuration:
+
+```ts
+new monorise.module.Core('core', {
+  analytics: { enabled: true },
+});
+```
+
+Full configuration:
 
 ```ts
 new monorise.module.Core('core', {
   analytics: {
-    fields: {
-      omit: ['passwordHash'],
+    enabled: true,
+
+    // Omit sensitive top-level data / mutualData fields from all datasets
+    fields: { omit: ['passwordHash'] },
+
+    // Per-dataset partition granularity, keyed by dataset name
+    // (e.g. 'member_entities', 'enrollment_mutuals')
+    partitions: { 'transaction_entities': 'hour' },
+
+    // Bring your own resources instead of Monorise-created ones
+    resources: {
+      bucket: { arn: 'arn:aws:s3:::my-bucket', name: 'my-bucket', notificationsManaged: true },
+      glueDatabase: { name: 'my_glue_db' },
+      workgroup: { name: 'my-workgroup' },
     },
+
+    // Required when using fromTableName — acknowledge PITR is enabled
+    importedTable: { pointInTimeRecoveryEnabled: true },
+
+    // Server-to-server Athena query API, deployment-managed views, scheduled models
+    queryApi: { enabled: true, queries },
+    views,
+    models,
   },
 });
 ```
 
-Analytics is disabled by default. When enabled, it captures canonical DynamoDB Stream entity and mutual changes, writes history to S3, and materializes Athena current-state tables daily. Omitted field names apply only to top-level `data` and `mutualData` keys; all other schema fields are included by default.
+#### Analytics args
 
-History uses daily `event_date` partitions by default. Individual entity and mutual datasets can use hourly partitions, which add `event_hour`; use them only when their query volume justifies the additional small-file and compaction overhead. Current-state tables are refreshed daily.
+| Arg | Type | Default | Description |
+|-----|------|---------|-------------|
+| `enabled` | `boolean` | `false` | Enable the analytics pipeline. Omitting `analytics` entirely is equivalent to `false` |
+| `fields.omit` | `string[]` | `[]` | Top-level `data` / `mutualData` field names excluded from every dataset. All other schema fields are included |
+| `partitions` | `Record<string, 'day' \| 'hour'>` | `{}` | Per-dataset partition granularity override, keyed by dataset name. History defaults to daily `event_date` partitions; hourly adds `event_hour` — use only when query volume justifies the small-file and compaction overhead |
+| `resources.bucket` | `{ arn, name, notificationsManaged }` | Monorise-created | Supplied S3 bucket for history storage. Must have no existing notifications; set `notificationsManaged: true` so Monorise can configure its backfill notification |
+| `resources.glueDatabase` | `{ name }` | Monorise-created | Supplied Glue database |
+| `resources.workgroup` | `{ name }` | Monorise-created | Supplied Athena workgroup |
+| `importedTable.pointInTimeRecoveryEnabled` | `true` | — | Required acknowledgement when `fromTableName` is used, since DynamoDB does not expose PITR through table metadata. Deployment fails without it |
+| `queryApi` | `{ enabled?, queries }` | Disabled | Server-to-server API that executes only named, deployment-defined Athena queries with typed parameters and optional result reuse. See [Analytics: Dashboard query API](/concepts/analytics#dashboard-query-api) |
+| `views` | `Record<string, { sql }>` | `{}` | Deployment-managed Athena views for reusable joins and filters. See [Analytics: Views and models](/concepts/analytics#views-and-models) |
+| `models` | `Record<string, { sql, schedule, partitionColumn, lookbackDays? }>` | `{}` | Scheduled Iceberg tables refreshed over a trailing window for frequently-queried aggregates. See [Analytics: Views and models](/concepts/analytics#views-and-models) |
 
-By default, Monorise creates an encrypted, retained S3 bucket, Glue database, and Athena workgroup. S3 and Athena use AWS-managed encryption keys, so no customer-managed KMS key or KMS policy configuration is required. You can supply the bucket, Glue database, or workgroup independently; Monorise uses the supplied resource and grants only the permissions needed for ingestion, compaction, catalog management, or querying. A supplied bucket must have no existing notifications and set `analytics.resources.bucket.notificationsManaged: true`, because Monorise configures its backfill notification. Monorise-created analytics data resources are retained on stack removal and history is retained indefinitely. Apply a lifecycle policy to supplied storage when you need a different retention period.
+You can supply the bucket, Glue database, or workgroup independently; Monorise uses the supplied resource and grants only the permissions needed for ingestion, compaction, catalog management, or querying.
 
-The first deployment backfills existing canonical state through a DynamoDB point-in-time export and writes `SNAPSHOT` baseline history events. Point-in-time recovery is enabled for Monorise-created tables. A table imported with `fromTableName` must already have point-in-time recovery enabled; acknowledge that prerequisite explicitly with `analytics.importedTable: { pointInTimeRecoveryEnabled: true }` or deployment fails before capture begins.
+#### What enabling analytics does
+
+When enabled, Monorise captures canonical DynamoDB Stream entity and mutual changes, writes history to S3, and materializes Athena current-state tables daily.
+
+By default, Monorise creates an encrypted, retained S3 bucket, Glue database, and Athena workgroup. S3 and Athena use AWS-managed encryption keys, so no customer-managed KMS key or KMS policy configuration is required. Monorise-created analytics data resources are retained on stack removal and history is retained indefinitely. Apply a lifecycle policy to supplied storage when you need a different retention period.
+
+The first deployment backfills existing canonical state through a DynamoDB point-in-time export and writes `SNAPSHOT` baseline history events. Point-in-time recovery is enabled for Monorise-created tables. A table imported with `fromTableName` must already have point-in-time recovery enabled.
 
 When using `fromTableName`, the table must also already enable DynamoDB Streams with `NEW_AND_OLD_IMAGES`, provide Monorise's `R1` and `R2` GSIs, and enable TTL on `expiresAt`.
+
+See [Concepts: Analytics](/concepts/analytics) for table naming, columns, and Athena query examples.
 
 ### Exposed resources
 

@@ -6,7 +6,7 @@
     "url": "git+https://github.com/monorist/monorise.git",
     "directory": "packages/cli"
   },
-  "description": "",
+  "description": "Monorise CLI — project scaffolding and code generation for configs, types, and Lambda handlers",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
