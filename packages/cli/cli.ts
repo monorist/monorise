@@ -5,6 +5,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execSync, spawn } from 'node:child_process';
 import chokidar from 'chokidar';
+import {
+  writeAnalyticsManifest,
+  type AnalyticsConfig,
+} from './commands/utils/analytics-manifest';
 import { fileURLToPath } from 'node:url';
 import { detectCombinedPackage } from './commands/utils/detect-package';
 import { ROOT_TSCONFIG_TEMPLATE } from './templates/root-tsconfig';
@@ -68,6 +72,7 @@ export default {};
   const schemaEntries: string[] = [];
   const allowedEntityEntries: string[] = [];
   const entityWithEmailAuthEntries: string[] = [];
+  const analyticsConfigs: AnalyticsConfig[] = [];
 
   const relativePathToConfigDir = path.relative(monoriseOutputDir, configDir);
   const importPathPrefix = relativePathToConfigDir
@@ -89,6 +94,7 @@ export default {};
       throw new Error(`Duplicate name found: ${config.name} in ${file}`);
     }
     names.add(config.name);
+    analyticsConfigs.push(config as AnalyticsConfig);
 
     const fileName = file.replace(/\.ts$/, '');
     const variableName = kebabToCamel(fileName);
@@ -186,6 +192,7 @@ ${moduleAugmentations}
 `;
 
   fs.writeFileSync(configOutputPath, configOutputContent);
+  writeAnalyticsManifest(monoriseOutputDir, analyticsConfigs);
   console.log('Successfully generated config.ts!');
 
   // Also generate index.ts re-exporting everything from config.ts, so consumers
@@ -248,11 +255,18 @@ async function generateHandleFile(
   const coreImportPath = usesCombinedPackage ? 'monorise/core' : '@monorise/core';
 
   const combinedContent = `
-import CoreFactory from '${coreImportPath}';
+import CoreFactory, { analyticsMaterializationProcessor, analyticsModelProcessor, analyticsQueryHandler as createAnalyticsQueryHandler, analyticsViewProcessor } from '${coreImportPath}';
 import config from './config';
+import analyticsManifest from './analytics-manifest.json';
 ${routesImportLine ? `${routesImportLine}\n` : ''}const coreFactory = new CoreFactory(config);
 
 export const replicationHandler = coreFactory.replicationProcessor;
+export const analyticsHandler = coreFactory.analyticsProcessor;
+export const analyticsBackfillHandler = coreFactory.analyticsBackfillProcessor;
+export const analyticsMaterializationHandler = analyticsMaterializationProcessor(analyticsManifest);
+export const analyticsQueryHandler = createAnalyticsQueryHandler();
+export const analyticsModelHandler = analyticsModelProcessor;
+export const analyticsViewHandler = analyticsViewProcessor;
 export const mutualHandler = coreFactory.mutualProcessor;
 export const tagHandler = coreFactory.tagProcessor;
 export const treeHandler = coreFactory.prejoinProcessor;
