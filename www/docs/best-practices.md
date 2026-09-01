@@ -14,6 +14,20 @@ The frontend server is a **thin proxy layer** — its only job is to authenticat
 
 SST provides seamless Next.js deployment via `sst.aws.Nextjs`. This means your Next.js app already has a server — use its API routes as the proxy layer. No extra infrastructure needed.
 
+Monorise Core creates the `API_KEYS` allow-list. Create a separate `X_API_KEY` secret in your application and link it to the Next.js server so only your backend proxy can read the selected key:
+
+```ts
+const { api } = new monorise.module.Core('core');
+const xApiKey = new sst.Secret('X_API_KEY', 'secret1');
+
+new sst.aws.Nextjs('web', {
+  link: [api, xApiKey],
+  environment: {
+    API_BASE_URL: api.url,
+  },
+});
+```
+
 **1. Proxy utility** — rewrites client requests to the monorise API Gateway, validates auth, and attaches `x-api-key`:
 
 ```ts
@@ -24,8 +38,8 @@ import { validateToken } from './validate-token';
 
 function rewriteUrl(requestUrl: string, replacePath?: string) {
   const path = replacePath
-    ?? requestUrl.replace(/^https?:\/\/[^\/]+(:d+)?\/api\//, '');
-  return `${Resource.CoreApi.url}/${path}`;
+    ?? requestUrl.replace(/^https?:\/\/[^\/]+\/api\//, '');
+  return `${process.env.API_BASE_URL}/${path}`;
 }
 
 export const proxyRequest = async ({
@@ -56,7 +70,7 @@ export const proxyRequest = async ({
     headers: {
       'content-type': 'application/json',
       'account-id': accountId,
-      'x-api-key': Resource.ApiKeys.value,
+      'x-api-key': Resource.X_API_KEY.value,
     },
     cache: 'no-store',
   });
@@ -80,10 +94,11 @@ export const DELETE = (req: NextRequest) => proxyRequest({ req });
 **3. Configure monorise/react** to point at your proxy:
 
 ```ts
-setMonoriseOptions({
-  entityApiBaseUrl: '/api/core/entity',
-  mutualApiBaseUrl: '/api/core/mutual',
-  tagApiBaseUrl: '/api/core/tag',
+Monorise.config({
+  entityConfig: EntityConfig,
+  entityBaseUrl: '/api/core/entity',
+  mutualBaseUrl: '/api/core/mutual',
+  tagBaseUrl: '/api/core/tag',
 });
 ```
 
@@ -114,20 +129,25 @@ Now all client-side hooks (`useEntities`, `useMutuals`, etc.) route through your
 
 Don't reuse the same API key across environments. Configure separate keys for development, staging, and production via the `API_KEYS` SST secret:
 
-`API_KEYS` is used by the monorise API Gateway to authenticate incoming requests. `X_API_KEY` is used by your proxy server to attach the key when forwarding requests to the API Gateway.
+The two secrets have separate responsibilities:
+
+| Secret | Purpose |
+|--------|---------|
+| `API_KEYS` | Rotatable allow-list used by Monorise Core to verify requests |
+| `X_API_KEY` | One selected key held by your backend proxy and attached as the `x-api-key` request header |
 
 ```bash
 # API Gateway accepts these keys (array of valid keys)
 npx sst secret set API_KEYS '["dev-key-123"]' --stage dev
 npx sst secret set API_KEYS '["prod-key-abc"]' --stage production
 
-# Proxy server uses this key to call the API Gateway
+# Backend proxy sends one accepted key
 npx sst secret set X_API_KEY 'dev-key-123' --stage dev
 npx sst secret set X_API_KEY 'prod-key-abc' --stage production
 ```
 
 ::: tip
-`API_KEYS` is an array because you may have multiple valid keys (e.g., for key rotation). `X_API_KEY` is the single key your proxy uses — it must match one of the values in `API_KEYS`.
+`API_KEYS` is an array so old and new keys can overlap during rotation. `X_API_KEY` is the single key sent by the proxy and must match one value in that array.
 :::
 
 ## Keep entity configs focused
@@ -141,9 +161,9 @@ monorise/configs/
   order.ts          ✓
 ```
 
-## Prefer direct mutuals over prejoins
+## Prefer direct mutuals over tree processors
 
-If you know the relationship at creation time, add a direct mutual field instead of using prejoins. Direct mutuals are cheaper (no write amplification) and simpler to reason about. See [Prejoins](/concepts/prejoins) for details.
+If you know the relationship at creation time, add a direct mutual field instead of using a tree processor. Direct mutuals are cheaper (no write amplification) and simpler to reason about. See [Tree Processors](/concepts/prejoins) for details.
 
 ## Use tags for access patterns, not data storage
 

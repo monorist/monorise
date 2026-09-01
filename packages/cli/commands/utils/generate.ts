@@ -1,5 +1,9 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import {
+  writeAnalyticsManifest,
+  type AnalyticsConfig,
+} from './analytics-manifest';
 import { detectCombinedPackage } from './detect-package';
 
 function kebabToCamel(str: string): string {
@@ -11,6 +15,50 @@ function kebabToPascal(kebab: string): string {
     .split('-')
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join('');
+}
+
+function generateMutualDataMappingDeclarations(
+  mutualPairs: {
+    byEnumKey: string;
+    entityEnumKey: string;
+    variableName: string;
+    fieldKey: string;
+  }[],
+): string {
+  if (mutualPairs.length === 0) return '';
+
+  // Group by byEnumKey → { entityEnumKey: schemaPath }
+  const grouped = new Map<string, string[]>();
+  for (const pair of mutualPairs) {
+    const schemaPath = `z.infer<(typeof ${pair.variableName})['mutual']['mutualFields']['${pair.fieldKey}']['mutual']['mutualDataSchema']>`;
+    const entry = `[Entity.${pair.entityEnumKey}]: ${schemaPath};`;
+    if (!grouped.has(pair.byEnumKey)) {
+      grouped.set(pair.byEnumKey, []);
+    }
+    grouped.get(pair.byEnumKey)!.push(entry);
+  }
+
+  const mappingEntries = Array.from(grouped.entries())
+    .map(
+      ([enumKey, entries]) =>
+        `    [Entity.${enumKey}]: {\n      ${entries.join('\n      ')}\n    };`,
+    )
+    .join('\n');
+
+  const block = `
+  export interface MutualDataMapping {
+${mappingEntries}
+  }`;
+
+  return `
+declare module '@monorise/react' {
+${block}
+}
+
+declare module 'monorise/react' {
+${block}
+}
+`;
 }
 
 async function generateConfigFile(
@@ -38,6 +86,20 @@ export enum Entity {}
   const schemaEntries: string[] = [];
   const allowedEntityEntries: string[] = [];
   const entityWithEmailAuthEntries: string[] = [];
+  const analyticsConfigs: AnalyticsConfig[] = [];
+
+  // Track mutual pairs for MutualDataMapping codegen and duplicate detection
+  // Each entry: { byEnumKey, entityEnumKey, variableName, fieldKey, mutualRef }
+  const mutualPairs: {
+    byEnumKey: string;
+    entityEnumKey: string;
+    variableName: string;
+    fieldKey: string;
+    mutualRef: any;
+    file: string;
+  }[] = [];
+  // Map of normalized pair key → first seen mutualRef for duplicate detection
+  const seenMutualPairs = new Map<string, { mutualRef: any; file: string; fieldKey: string }>();
 
   const relativePathToConfigDir = path.relative(monoriseOutputDir, configDir);
   const importPathPrefix = relativePathToConfigDir
@@ -59,6 +121,7 @@ export enum Entity {}
       throw new Error(`Duplicate name found: ${config.name} in ${file}`);
     }
     names.add(config.name);
+    analyticsConfigs.push(config as AnalyticsConfig);
 
     const fileName = file.replace(/\.ts$/, '');
     const variableName = kebabToCamel(fileName);
@@ -84,6 +147,53 @@ export enum Entity {}
 
     if (config.authMethod?.email) {
       entityWithEmailAuthEntries.push(`Entity.${enumKey}`);
+    }
+
+    // Collect mutual pairs for codegen and duplicate detection
+    if (config.mutual?.mutualFields) {
+      for (const [fieldKey, fieldConfig] of Object.entries(config.mutual.mutualFields) as [string, any][]) {
+        if (fieldConfig.mutual?.mutualDataSchema) {
+          const targetName = fieldConfig.entityType as string;
+          const entityEnumKey = targetName.toUpperCase().replace(/-/g, '_');
+
+          // Validate declared entities match how the mutual is actually wired,
+          // so the two can't silently drift apart.
+          const declaredEntities = fieldConfig.mutual.entities as
+            | [string, string]
+            | undefined;
+          if (
+            declaredEntities &&
+            [...declaredEntities].sort().join('::') !==
+              [config.name, targetName].sort().join('::')
+          ) {
+            throw new Error(
+              `Mutual config entities mismatch in ${file} (field: ${fieldKey}): ` +
+              `declared entities [${declaredEntities.join(', ')}] but wired as [${config.name}, ${targetName}].`,
+            );
+          }
+
+          // Duplicate detection: normalize pair alphabetically
+          const pairKey = [config.name, targetName].sort().join('::');
+          const existing = seenMutualPairs.get(pairKey);
+          if (existing && existing.mutualRef !== fieldConfig.mutual) {
+            throw new Error(
+              `Conflicting mutual configs for entity pair [${config.name}, ${targetName}]: ` +
+              `found in ${file} (field: ${fieldKey}) and ${existing.file} (field: ${existing.fieldKey}). ` +
+              `Use the same createMutualConfig instance for both sides.`,
+            );
+          }
+          seenMutualPairs.set(pairKey, { mutualRef: fieldConfig.mutual, file, fieldKey });
+
+          mutualPairs.push({
+            byEnumKey: enumKey,
+            entityEnumKey,
+            variableName,
+            fieldKey,
+            mutualRef: fieldConfig.mutual,
+            file,
+          });
+        }
+      }
     }
   }
 
@@ -154,9 +264,11 @@ declare module 'monorise/base' {
     ${schemaMapEntries.join('\n    ')}
   }
 }
+${generateMutualDataMappingDeclarations(mutualPairs)}
 `;
 
   fs.writeFileSync(configOutputPath, configOutputContent);
+  writeAnalyticsManifest(monoriseOutputDir, analyticsConfigs);
   console.log('Successfully generated config.ts!');
   return configOutputPath;
 }
@@ -219,20 +331,24 @@ async function generateHandleFile(
   const coreImportPath = usesCombinedPackage ? 'monorise/core' : '@monorise/core';
 
   const combinedContent = `
-import { AppHandler, CoreFactory } from '${coreImportPath}';
+import CoreFactory, { analyticsMaterializationProcessor, analyticsModelProcessor, analyticsQueryHandler as createAnalyticsQueryHandler, analyticsViewProcessor } from '${coreImportPath}';
 import config from './config';
+import analyticsManifest from './analytics-manifest.json';
 import routes from '${relativePathToRoutes}';
 
 const coreFactory = new CoreFactory(config);
 
 export const replicationHandler = coreFactory.replicationProcessor;
+export const analyticsHandler = coreFactory.analyticsProcessor;
+export const analyticsBackfillHandler = coreFactory.analyticsBackfillProcessor;
+export const analyticsMaterializationHandler = analyticsMaterializationProcessor(analyticsManifest);
+export const analyticsQueryHandler = createAnalyticsQueryHandler();
+export const analyticsModelHandler = analyticsModelProcessor;
+export const analyticsViewHandler = analyticsViewProcessor;
 export const mutualHandler = coreFactory.mutualProcessor;
 export const tagHandler = coreFactory.tagProcessor;
-export const treeHandler = coreFactory.treeProcessor;
-export const appHandler = AppHandler({
-  config,
-  routes
-});
+export const treeHandler = coreFactory.prejoinProcessor;
+export const appHandler = coreFactory.appHandler({ routes });
 `;
   fs.writeFileSync(handleOutputPath, combinedContent);
   console.log('Successfully generated handle.ts!');

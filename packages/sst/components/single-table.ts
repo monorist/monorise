@@ -5,13 +5,17 @@ import {
 } from '../constants/table';
 
 type SingleTableArgs = {
-  ttl?: string;
   runtime?: sst.aws.FunctionArgs['runtime'];
+  logging?: sst.aws.FunctionArgs['logging'];
   configRoot?: string;
+  pointInTimeRecoveryEnabled?: boolean;
   /**
    * Name of an existing DynamoDB table to use instead of creating a new one.
-   * The table must already have DynamoDB Streams enabled with NEW_AND_OLD_IMAGES
-   * and the GSIs (R1, R2) expected by monorise.
+   * The table must already have DynamoDB Streams enabled with NEW_AND_OLD_IMAGES,
+   * the GSIs (R1, R2) expected by monorise, and TTL enabled on the `expiresAt`
+   * attribute (monorise always uses `expiresAt` as the TTL attribute name). When
+   * analytics is enabled it must also have point-in-time recovery enabled; AWS does
+   * not expose that setting through DescribeTable, so SST cannot validate it here.
    */
   fromTableName?: $util.Input<string>;
 };
@@ -65,7 +69,10 @@ export class SingleTable {
             },
           },
           stream: 'new-and-old-images',
-          ttl: args?.ttl,
+          ttl: 'expiresAt',
+          ...(args?.pointInTimeRecoveryEnabled
+            ? { transform: { table: { pointInTimeRecovery: { enabled: true } } } }
+            : {}),
         });
 
     const environment = {
@@ -83,6 +90,7 @@ export class SingleTable {
         timeout: '60 seconds',
         memory: '512 MB',
         runtime: args?.runtime,
+        logging: args?.logging,
         environment,
         link: [this.table, this.dlq],
       },

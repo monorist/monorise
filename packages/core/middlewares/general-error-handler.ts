@@ -21,12 +21,21 @@ const generalErrorHandler = (dependencies = getDependencies()) =>
         error: c.error,
       });
 
-      console.warn(
-        JSON.stringify({
-          message: 'INTERNAL_SERVER_EXCEPTION',
-          details: c.error,
-        }),
-      );
+      const error = c.error as any;
+      console.warn('[MONORISE_DEBUG] INTERNAL_SERVER_EXCEPTION:', {
+        errorId,
+        method: c.req.method,
+        path: c.req.path,
+        errorName: error?.name,
+        errorMessage: error?.message,
+        errorCode: error?.code,
+        errorStack: error?.stack,
+        errorConstructor: error?.constructor?.name,
+        hasLastError: !!error?.lastError,
+        lastErrorName: error?.lastError?.constructor?.name,
+        lastErrorMessage: error?.lastError?.message,
+        context: error?.context,
+      });
 
       c.status(500);
       c.json({

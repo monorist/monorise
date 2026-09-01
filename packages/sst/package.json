@@ -1,7 +1,12 @@
 {
   "name": "@monorise/sst",
-  "version": "4.0.2",
-  "description": "",
+  "version": "4.3.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/monorist/monorise.git",
+    "directory": "packages/sst"
+  },
+  "description": "Monorise SST v4 module — API, DynamoDB table, event bus, processors, dashboards, and Athena analytics infrastructure",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

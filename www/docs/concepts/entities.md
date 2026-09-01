@@ -55,7 +55,74 @@ export default config;
 | `uniqueFields` | `string[]` | No | Fields that must be unique per entity type |
 | `mutual` | `object` | No | Mutual relationship configuration (see [Mutuals](/concepts/mutuals)) |
 | `tags` | `array` | No | Tag access patterns (see [Tags](/concepts/tags)) |
-| `adjustmentConstraints` | `object` | No | Bounds for numeric fields when using [`adjustEntity`](/react#adjustentity) |
+| `adjustmentConditions` | `object` | No | Named conditions for [`adjustEntity`](/react#adjustentity) — enforces preconditions on numeric adjustments |
+| `updateConditions` | `object` | No | Named conditions for [`editEntity`](/react#editentity) — enforces preconditions on updates |
+| `allowLegacyWhere` | `boolean` | No | Opt in to accepting raw `$where` on `editEntity` (deprecated, disabled by default — see [Conditional updates](/react#editentity)) |
+| `effect` | `function` | No | Applies a final Zod refinement to the merged entity schema |
+| `ttl` | `object` | No | DynamoDB TTL config — see [TTL](#ttl-time-to-live) below |
+
+## Conditional writes
+
+Conditions are named, server-owned preconditions. The client sends only a condition name; Monorise resolves the condition to a DynamoDB condition expression and enforces it atomically.
+
+```ts
+const config = createEntityConfig({
+  name: 'wallet',
+  displayName: 'Wallet',
+  baseSchema: z.object({
+    balance: z.number(),
+    status: z.enum(['pending', 'active', 'archived']),
+  }).partial(),
+  adjustmentConditions: {
+    withdraw: (_data, adjustments) => ({
+      balance: { $gte: Math.abs(adjustments.balance ?? 0) },
+    }),
+  },
+  updateConditions: {
+    activate: { status: { $eq: 'pending' } },
+    archive: (_data) => ({ status: { $ne: 'archived' } }),
+  },
+});
+```
+
+`adjustmentConditions` receives `(data, adjustments)` and requires every `adjustEntity` call to name a condition when the config is present:
+
+```ts
+await adjustEntity(Entity.WALLET, walletId, { balance: -500 }, {
+  condition: 'withdraw',
+});
+```
+
+`updateConditions` receives `(data)` and is optional for `editEntity` calls:
+
+```ts
+await editEntity(Entity.WALLET, walletId, {
+  status: 'active',
+  $condition: 'activate',
+});
+```
+
+If a named condition is unknown, or the entity has no matching condition config, the request is rejected. A condition that does not hold returns a conflict. Supported operators are `$eq`, `$ne`, `$gt`, `$lt`, `$gte`, `$lte`, `$exists`, and `$beginsWith`.
+
+::: warning Legacy conditions
+`adjustmentConstraints` and raw `$where` are deprecated compatibility mechanisms. `$where` is disabled by default; prefer named `adjustmentConditions` and `updateConditions` for all new code.
+:::
+
+## Advanced validation
+
+Use `effect` when validation depends on the final merged entity schema rather than one individual field:
+
+```ts
+const config = createEntityConfig({
+  name: 'invite',
+  displayName: 'Invite',
+  baseSchema,
+  effect: (schema) => schema.refine(
+    (data) => !data.expiresAt || !data.createdAt || data.expiresAt > data.createdAt,
+    'expiresAt must be after createdAt',
+  ),
+});
+```
 
 ## Unique fields
 
@@ -98,6 +165,58 @@ const { entities, searchField } = useEntities(Entity.USER);
 // Bind to an input
 <input {...searchField} placeholder="Search users..." />
 ```
+
+## TTL (time-to-live)
+
+Use `ttl.processor` to have DynamoDB automatically delete an entity once it expires. The processor returns the expiry as epoch seconds or a `Date` — return `undefined` for no expiry.
+
+```ts
+const config = createEntityConfig({
+  name: 'session',
+  displayName: 'Session',
+  baseSchema,
+  ttl: {
+    // fixed 30-day TTL from creation/each update
+    processor: () => Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+  },
+});
+```
+
+TTL can also be data-driven, computed from the entity's own fields:
+
+```ts
+const config = createEntityConfig({
+  name: 'invite',
+  displayName: 'Invite',
+  baseSchema,
+  ttl: {
+    processor: (entity) => {
+      return entity.data.expiresOn
+        ? new Date(entity.data.expiresOn)
+        : undefined;
+    },
+  },
+});
+```
+
+`processor` is called again on every update/upsert, using the entity's data as it will be *after* the update is applied — so a sliding-expiration TTL (e.g. extending a session on activity) works out of the box. If `processor` returns `undefined` on an update, any existing `expiresAt` is left untouched rather than cleared.
+
+Internally, this always writes to an `expiresAt` attribute — the same attribute name the DynamoDB table's TTL is configured on (see [SST SDK](/sst)), so there's nothing else to wire up.
+
+## Transactional writes
+
+Multiple entity operations can be executed atomically using the [`transaction`](/react#transaction) API. All operations succeed or all fail — no partial writes.
+
+```ts
+import { coreService, transactional } from 'monorise/react';
+
+await coreService.transaction([
+  transactional.createEntity('order', { ... }),
+  transactional.adjustEntity('wallet', '...', { balance: -100, $condition: 'withdraw' }),
+]);
+```
+
+Supported operations: `createEntity`, `updateEntity`, `adjustEntity`, `deleteEntity`. Conditions from `adjustmentConditions` and `updateConditions` are supported within transactions. Events are published only after the transaction commits.
 
 ## Data layout
 

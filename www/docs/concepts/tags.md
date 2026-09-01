@@ -109,15 +109,19 @@ tags: [
 ## Querying tags (API)
 
 ```
-GET /core/tag/:entityType/:tagName?group=...&start=...&end=...
+GET /core/tag/:entityType/:tagName?group=...&query=...&start=...&end=...&limit=...&lastKey=...
 ```
 
 | Parameter | Description |
 |-----------|-------------|
 | `group` | Filter by group value |
+| `query` | Match one exact sort value; cannot be combined with `start` or `end` |
 | `start` | Sort value range start (inclusive) |
-| `end` | Sort value range end (inclusive) |
+| `end` | Sort value upper bound; the current key encoding excludes an exact matching sort value |
 | `limit` | Max results per page |
+| `lastKey` | Opaque cursor returned by the previous page |
+
+Results are ordered by tag sort key in descending order. The response contains `entities`, `totalCount`, and `lastKey` when another page is available.
 
 Examples:
 
@@ -125,11 +129,14 @@ Examples:
 # All organisations of type "club"
 GET /core/tag/organisation/type?group=club
 
-# All organisations created in 2025
-GET /core/tag/organisation/created?start=2025-01-01&end=2025-12-31
+# All organisations created in 2025; use the next boundary as the end value
+GET /core/tag/organisation/created?start=2025-01-01&end=2026-01-01
 
 # Organisations in eu-west-1, activated after 2025-01-01
 GET /core/tag/organisation/region-activation?group=eu-west-1&start=2025-01-01
+
+# Continue a paginated query
+GET /core/tag/organisation/type?group=club&limit=20&lastKey=<cursor>
 ```
 
 ## Querying tags (React)
@@ -154,7 +161,7 @@ const { entities, isLoading } = useTaggedEntities(
 const { entities } = useTaggedEntities(
   Entity.ORGANISATION,
   'created',
-  { params: { start: '2025-01-01', end: '2025-12-31' } },
+  { params: { start: '2025-01-01', end: '2026-01-01' } },
 );
 ```
 
@@ -183,6 +190,10 @@ if (lastKey) {
   await listMore();
 }
 ```
+
+::: tip React hook limitation
+The raw API supports group, exact sort-value, and range queries. `useTaggedEntities` requires at least one `params` filter for its initial fetch, and its current `refetch` and `listMore` helpers require `params.group`. Use the raw API through a custom request when paginating an ungrouped range or exact-value query.
+:::
 
 ## Data layout
 

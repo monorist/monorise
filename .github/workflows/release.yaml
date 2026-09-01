@@ -10,6 +10,10 @@ jobs:
   release:
     name: Version Bump & Create Release PR
     runs-on: ubuntu-latest
+    permissions:
+      id-token: write # mint the OIDC token for npm Trusted Publishing
+      contents: write # changesets: push version-bump commit + tags
+      pull-requests: write # changesets: open/update the release PR
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -21,6 +25,10 @@ jobs:
         with:
           node-version: 22
           cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Upgrade npm for OIDC Trusted Publishing (needs >= 11.5.1)
+        run: npm install -g npm@latest
 
       - name: Install dependencies
         run: |
@@ -35,4 +43,3 @@ jobs:
           version: npm run version
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

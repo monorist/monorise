@@ -28,6 +28,8 @@ export enum MockEntityType {
   ADMIN = 'admin',
   COURSE = 'course',
   WALLET = 'wallet',
+  SESSION = 'session',
+  LICENSE = 'license',
 }
 
 // --- Configuration ---
@@ -76,6 +78,8 @@ export const createMockEntityConfig = () => ({
     uniqueFields: ['username'],
     searchableFields: ['name', 'email'],
     authMethod: { email: { tokenExpiresIn: 3600000 } },
+    // Opted in so the legacy $where test suite can still exercise its mechanics.
+    allowLegacyWhere: true,
   }),
   [MockEntityType.PRODUCT]: createEntityConfig({
     name: MockEntityType.PRODUCT,
@@ -107,8 +111,62 @@ export const createMockEntityConfig = () => ({
         minBalance: z.number(),
         creditLimit: z.number(),
         score: z.number(),
+        status: z.string(),
       })
       .partial(),
+    adjustmentConditions: {
+      withdraw: (data, adjustments) => ({
+        balance: {
+          $gte: (data.minBalance ?? 0) + Math.abs(adjustments.balance ?? 0),
+        },
+      }),
+      deposit: (data, adjustments) => ({
+        balance: { $lte: 10000 - (adjustments.balance ?? 0) },
+      }),
+    },
+    updateConditions: {
+      publish: { status: { $eq: 'draft' } },
+      archive: (_data) => ({ status: { $ne: 'archived' } }),
+    },
+    // Opted in so the legacy $where test suite can still exercise its mechanics.
+    allowLegacyWhere: true,
+  }),
+  [MockEntityType.SESSION]: createEntityConfig({
+    name: MockEntityType.SESSION,
+    displayName: 'Session',
+    baseSchema: z
+      .object({
+        token: z.string(),
+        expiresInSeconds: z.number(),
+      })
+      .partial(),
+    ttl: {
+      // data-driven: no `expiresInSeconds` field means no TTL for that record
+      processor: (entity) => {
+        const expiresInSeconds = entity.data.expiresInSeconds;
+        if (typeof expiresInSeconds !== 'number') return undefined;
+        return Math.floor(Date.now() / 1000) + expiresInSeconds;
+      },
+    },
+  }),
+  // combines uniqueFields + ttl to cover their interaction (see Entity.test.ts)
+  [MockEntityType.LICENSE]: createEntityConfig({
+    name: MockEntityType.LICENSE,
+    displayName: 'License',
+    baseSchema: z
+      .object({
+        licenseKey: z.string(),
+        expiresInSeconds: z.number(),
+      })
+      .partial(),
+    uniqueFields: ['licenseKey'],
+    ttl: {
+      processor: (entity) => {
+        const expiresInSeconds = entity.data.expiresInSeconds;
+        if (typeof expiresInSeconds !== 'number') return undefined;
+        return Math.floor(Date.now() / 1000) + expiresInSeconds;
+      },
+    },
   }),
 });
 

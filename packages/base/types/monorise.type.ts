@@ -1,9 +1,37 @@
 import type { z } from 'zod';
+import type { WhereConditions } from './conditions.type';
 
 export enum Entity {}
 
 export interface EntitySchemaMap {
   [key: string]: Record<string, any>;
+}
+
+/**
+ * @description Configuration for a mutual relationship between two entities.
+ * Defines the schema for mutualData validation. Define once, reference from both entity configs.
+ *
+ * @example
+ * ```ts
+ * const enrollmentMutual = createMutualConfig({
+ *   entities: [Entity.STUDENT, Entity.COURSE],
+ *   mutualDataSchema: z.object({
+ *     role: z.enum(['student', 'auditor']),
+ *     enrolledAt: z.string().datetime(),
+ *   }),
+ * });
+ * ```
+ */
+export interface MutualConfig<
+  MD extends z.ZodRawShape = z.ZodRawShape,
+> {
+  /**
+   * Stable analytics dataset name. When provided, it must be lower-kebab-case;
+   * the generator validates this so unnamed mutuals remain backwards compatible.
+   */
+  name?: string;
+  entities: [Entity, Entity];
+  mutualDataSchema: z.ZodObject<MD>;
 }
 
 export type DraftEntity<T extends Entity = Entity> =
@@ -129,6 +157,11 @@ export interface MonoriseEntityConfig<
           currentMutual: any,
           customContext?: Record<string, any>,
         ) => Record<string, any>;
+        /**
+         * @description (Optional) Reference to a mutual config created by `createMutualConfig`.
+         * Provides mutualData schema validation for create/update operations on this mutual relationship.
+         */
+        mutual?: MutualConfig;
       };
     };
 
@@ -233,9 +266,54 @@ export interface MonoriseEntityConfig<
   }[];
 
   /**
+   * @description (Optional) Configure a DynamoDB TTL for this entity. When set, `expiresAt`
+   * is computed via `processor` on create, and recomputed on every update/upsert. Once past,
+   * DynamoDB automatically deletes the item (and its derived index rows, since they all carry
+   * the same `expiresAt`).
+   *
+   * `processor` returning `undefined` means "no TTL" for that record. On updates, an `undefined`
+   * result leaves any existing `expiresAt` untouched rather than clearing it.
+   *
+   * @example
+   * ```ts
+   * // fixed 30-day TTL from creation/each update
+   * ttl: {
+   *   processor: () => Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+   * }
+   * ```
+   *
+   * @example
+   * ```ts
+   * // data-driven TTL, eg. expire when a subscription ends
+   * ttl: {
+   *   processor: (entity) => {
+   *     return entity.data.subscriptionEndsAt
+   *       ? new Date(entity.data.subscriptionEndsAt)
+   *       : undefined;
+   *   },
+   * }
+   * ```
+   */
+  ttl?: {
+    /**
+     * @description Returns the expiry as epoch seconds (absolute) or a `Date`.
+     * Return `undefined` for no expiry.
+     */
+    processor: (entity: {
+      entityId: string;
+      entityType: string;
+      data: Record<string, any>;
+      createdAt: string;
+      updatedAt: string;
+    }) => number | Date | undefined;
+  };
+
+  /**
    * @description (Optional) Constraints for `adjustEntity` operations.
    * When adjusting numeric fields, these constraints are enforced at the database level.
    * If an adjustment would violate a constraint, the operation is rejected.
+   *
+   * @deprecated Use `conditions` instead. Will be removed in a future version.
    *
    * @example
    * ```ts
@@ -272,4 +350,75 @@ export interface MonoriseEntityConfig<
       };
     };
   };
+
+  /**
+   * @description Named conditions for adjustEntity operations.
+   * Each condition is either a static `WhereConditions` object or a function
+   * `(data, adjustments) => WhereConditions` that receives the entity's current data
+   * and the adjustment deltas.
+   *
+   * When defined, `$condition` is **required** in the adjustEntity request body.
+   * The client sends a condition name (string), the server resolves it to a
+   * DynamoDB ConditionExpression.
+   *
+   * @example
+   * ```ts
+   * {
+   *   adjustmentConditions: {
+   *     withdraw: (data, adjustments) => ({
+   *       balance: { $gte: (data.minBalance ?? 0) + Math.abs(adjustments?.balance ?? 0) },
+   *     }),
+   *     deposit: (data, adjustments) => ({
+   *       balance: { $lte: 1000000 - (adjustments.balance ?? 0) },
+   *     }),
+   *   }
+   * }
+   * ```
+   */
+  adjustmentConditions?: {
+    [conditionName: string]:
+      | WhereConditions
+      | ((
+          data: Partial<z.infer<z.ZodObject<B>>>,
+          adjustments: Record<string, number>,
+        ) => WhereConditions);
+  };
+
+  /**
+   * @description Named conditions for updateEntity operations.
+   * Each condition is either a static `WhereConditions` object or a function
+   * `(data) => WhereConditions` that receives the entity's current data.
+   *
+   * `$condition` is always **optional** for updateEntity.
+   * The client sends a condition name (string), the server resolves it to a
+   * DynamoDB ConditionExpression. Replaces raw `$where` (deprecated).
+   *
+   * @example
+   * ```ts
+   * {
+   *   updateConditions: {
+   *     publish: { status: { $eq: 'draft' } },
+   *     archive: (data) => ({ status: { $ne: 'archived' } }),
+   *   }
+   * }
+   * ```
+   */
+  updateConditions?: {
+    [conditionName: string]:
+      | WhereConditions
+      | ((data: Partial<z.infer<z.ZodObject<B>>>) => WhereConditions);
+  };
+
+  /**
+   * @description (Optional) Opt in to accepting legacy raw `$where` on updateEntity.
+   * Disabled by default: raw DynamoDB condition operators must never be
+   * client-facing — an authenticated client could otherwise probe field
+   * existence or guess values via the 200-vs-409 response status.
+   *
+   * Only enable this if you trust the caller (e.g. server-to-server) or have
+   * your own validation in front of it. Prefer `updateConditions` instead.
+   *
+   * @default false
+   */
+  allowLegacyWhere?: boolean;
 }

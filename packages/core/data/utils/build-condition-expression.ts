@@ -1,19 +1,12 @@
 import type { AttributeValue } from '@aws-sdk/client-dynamodb';
 import { marshall } from '@aws-sdk/util-dynamodb';
 
-export type WhereOperator =
-  | { $eq: string | number | boolean }
-  | { $ne: string | number | boolean }
-  | { $gt: number }
-  | { $lt: number }
-  | { $gte: number }
-  | { $lte: number }
-  | { $exists: boolean }
-  | { $beginsWith: string };
-
-export type WhereClause = WhereOperator | string | number | boolean;
-
-export type WhereConditions = Record<string, WhereClause>;
+export type {
+  WhereOperator,
+  WhereClause,
+  WhereConditions,
+} from '@monorise/base';
+import type { WhereConditions } from '@monorise/base';
 
 export function buildConditionExpression(where: WhereConditions): {
   ConditionExpression: string;

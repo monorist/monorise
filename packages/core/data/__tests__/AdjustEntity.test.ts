@@ -9,6 +9,7 @@ import {
   getTableName,
 } from '../../helpers/test/test-utils';
 import { type Entity, EntityRepository } from '../Entity';
+import { buildConditionExpression } from '../utils/build-condition-expression';
 
 const TABLE_NAME = getTableName();
 const dynamodbClient = createDynamoDbClient();
@@ -144,13 +145,15 @@ describe('EntityRepository — adjustEntity', () => {
     );
     wallet = resetResult;
 
+    // Condition: balance >= 1 (min:0 + abs(delta):1)
+    const opts = buildConditionExpression({ balance: { $gte: 1 } });
     const results = await Promise.allSettled(
       Array.from({ length: 5 }, () =>
         entityRepository.adjustEntity(
           MockEntityType.WALLET as unknown as EntityType,
           wallet.entityId as string,
           { balance: -1 },
-          { balance: { min: 0 } },
+          opts,
         ),
       ),
     );
@@ -183,11 +186,13 @@ describe('EntityRepository — adjustEntity', () => {
 
   it('should succeed when decrement stays above static min', async () => {
     // balance is currently 100; decrementing by 30 stays above min: 0
+    // Condition: balance >= 30 (min:0 + abs(delta):30)
+    const opts = buildConditionExpression({ balance: { $gte: 30 } });
     const result = await entityRepository.adjustEntity(
       MockEntityType.WALLET as unknown as EntityType,
       wallet.entityId as string,
       { balance: -30 },
-      { balance: { min: 0 } },
+      opts,
     );
     expect(result.data.balance).toBe((wallet.data.balance as number) - 30);
     const fetched = await entityRepository.getEntity(
@@ -200,12 +205,14 @@ describe('EntityRepository — adjustEntity', () => {
 
   it('should throw when decrement violates static min', async () => {
     // decrement by 200 would push below min: 0
+    // Condition: balance >= 200 (min:0 + abs(delta):200)
+    const opts = buildConditionExpression({ balance: { $gte: 200 } });
     await expect(
       entityRepository.adjustEntity(
         MockEntityType.WALLET as unknown as EntityType,
         wallet.entityId as string,
         { balance: -200 },
-        { balance: { min: 0 } },
+        opts,
       ),
     ).rejects.toMatchObject({ name: 'ConditionalCheckFailedException' });
     const fetched = await entityRepository.getEntity(
@@ -217,11 +224,13 @@ describe('EntityRepository — adjustEntity', () => {
 
   it('should succeed when increment stays below static max', async () => {
     // credits: 55; incrementing by 40 stays below max: 100
+    // Condition: credits <= 60 (max:100 - delta:40)
+    const opts = buildConditionExpression({ credits: { $lte: 60 } });
     const result = await entityRepository.adjustEntity(
       MockEntityType.WALLET as unknown as EntityType,
       wallet.entityId as string,
       { credits: 40 },
-      { credits: { max: 100 } },
+      opts,
     );
     expect(result.data.credits).toBe(95);
     const fetched = await entityRepository.getEntity(
@@ -234,12 +243,14 @@ describe('EntityRepository — adjustEntity', () => {
 
   it('should throw when increment violates static max', async () => {
     // credits: 95; incrementing by 10 would exceed max: 100
+    // Condition: credits <= 90 (max:100 - delta:10)
+    const opts = buildConditionExpression({ credits: { $lte: 90 } });
     await expect(
       entityRepository.adjustEntity(
         MockEntityType.WALLET as unknown as EntityType,
         wallet.entityId as string,
         { credits: 10 },
-        { credits: { max: 100 } },
+        opts,
       ),
     ).rejects.toMatchObject({ name: 'ConditionalCheckFailedException' });
     const fetched = await entityRepository.getEntity(
@@ -249,13 +260,12 @@ describe('EntityRepository — adjustEntity', () => {
     expect(fetched.data.credits).toBe(wallet.data.credits);
   });
 
-  it('should not enforce min constraint when incrementing', async () => {
-    // min constraint should be ignored for positive delta
+  it('should succeed with condition when incrementing (no min violated)', async () => {
+    // No condition needed for increment with min constraint — pass no opts
     const result = await entityRepository.adjustEntity(
       MockEntityType.WALLET as unknown as EntityType,
       wallet.entityId as string,
       { balance: 5 },
-      { balance: { min: 0 } },
     );
     expect(result.data.balance).toBe((wallet.data.balance as number) + 5);
     const fetched = await entityRepository.getEntity(
@@ -266,13 +276,12 @@ describe('EntityRepository — adjustEntity', () => {
     wallet = result;
   });
 
-  it('should not enforce max constraint when decrementing', async () => {
-    // max constraint should be ignored for negative delta
+  it('should succeed with condition when decrementing (no max violated)', async () => {
+    // No condition needed for decrement with max constraint — pass no opts
     const result = await entityRepository.adjustEntity(
       MockEntityType.WALLET as unknown as EntityType,
       wallet.entityId as string,
       { credits: -10 },
-      { credits: { max: 100 } },
     );
     expect(result.data.credits).toBe(85);
     const fetched = await entityRepository.getEntity(

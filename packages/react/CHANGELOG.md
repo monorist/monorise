@@ -1,5 +1,92 @@
 # @monorise/react
 
+## 8.0.0
+
+### Patch Changes
+
+- Updated dependencies [837c455]
+  - @monorise/base@4.4.0
+
+## 7.1.2
+
+### Patch Changes
+
+- 86708be: fix: stop entity edits overwriting flipped mutual data, and propagate updates to chained mutual slices
+
+## 7.1.1
+
+### Patch Changes
+
+- e58c9a8: Keep the React transactional builder browser-safe.
+
+  - `@monorise/react` no longer re-exports `transactional` from `@monorise/core`,
+    so browser bundles no longer pull in server-only Core code (AWS SDK, `fs`,
+    `async_hooks`). React exposes its own builder with the same wire format.
+  - The unified `monorise` root no longer exports `transactional` (the name is
+    ambiguous between the Core and React copies). Use `monorise/core` on the
+    server or `monorise/react` in the browser instead. All other root exports
+    are unchanged.
+
+## 7.1.0
+
+### Minor Changes
+
+- 7a95a4e: Add transactional writes for atomic multi-entity operations
+
+  - `POST /core/transaction` endpoint for atomic multi-entity operations
+  - Supports createEntity, updateEntity, adjustEntity, deleteEntity in single DynamoDB TransactWriteItems call
+  - All-or-nothing: if any operation fails, entire transaction rolls back
+  - Events (ENTITY_CREATED, ENTITY_UPDATED, ENTITY_DELETED) published only after commit succeeds
+  - Condition support: adjustmentConditions and updateConditions work within transactions
+  - React SDK: `transaction()` function for frontend usage
+  - DynamoDB limit enforced: max 100 items per transaction
+
+## 7.0.0
+
+### Minor Changes
+
+- 6488933: Add named conditions system for conditional entity writes
+
+  - `adjustmentConditions`: server-defined preconditions for `adjustEntity`. `$condition` required when defined. Condition functions receive `(data, adjustments)`.
+  - `updateConditions`: server-defined preconditions for `updateEntity`. `$condition` always optional. Condition functions receive `(data)`.
+  - Clients send a condition name (`$condition: 'withdraw'`), server resolves to DynamoDB ConditionExpression. Raw operators never exposed to frontend.
+  - Deprecates `adjustmentConstraints` (backward compatible — falls back automatically when no `adjustmentConditions` is defined).
+  - **Breaking (security):** raw `$where` on `updateEntity` is now rejected by default (`INVALID_CONDITION`, 400) instead of silently accepted with a warning. Opt in per entity with `allowLegacyWhere: true` (not recommended) or migrate to named `updateConditions`.
+
+### Patch Changes
+
+- Updated dependencies [6488933]
+  - @monorise/base@4.3.0
+
+## 6.0.1
+
+### Patch Changes
+
+- a1b26e2: Fix `flipMutual` so the flipped-side mutual cache entry's `data` describes the correct entity. Previously the flipped record reused the original side's `data`, which made `useMutuals` on the opposite view briefly render the wrong entity's fields after `createMutual`/`editMutual`/`upsertLocalMutual`/`createLocalMutual` — until a refresh refetched that side from the server.
+- 6f690cc: Fix `useEntities` so that content-only edits propagate to the local `entities` snapshot. Previously the effect only called `setEntities` when `dataMap.size !== entities?.length`, so an edit that mutated an entity in place (same id, new field values) was silently ignored and the consumer kept rendering stale data until a full reload. The comparison now also walks `dataMap` and falls back to a JSON content compare, matching the existing behavior of `useMutuals`.
+
+## 6.0.0
+
+### Patch Changes
+
+- Updated dependencies [04f6713]
+  - @monorise/base@4.2.0
+
+## 5.0.1
+
+### Patch Changes
+
+- a582fe6: Fix `editEntity` and `adjustEntity` so they re-bucket an entity across already-loaded tag slices instead of only patching its data in place. Previously, changing a field that a tag's `processor` derives its `group`/`sortValue` from (e.g. an anomaly's `status`) left the entity sitting in its old tag group with stale membership — so `useTaggedEntities` kept showing, say, a `resolved` item in the `open` list until the backend tag processor caught up and a refetch ran. Both actions now run each tag's `processor` against the updated data and, per loaded slice, keep/add the entity where it now matches and remove it where it no longer does (mirroring the add-only matcher already used by `createEntity`, extended with delete-on-mismatch). Query-filtered slices, which can't be evaluated client-side, still only patch an existing member in place.
+
+  Additionally, `useTaggedEntities` now orders the loaded slice the same way the backend does — descending by the tag sort key `${sortValue}#${entityType}#${entityId}` (rebuilt client-side from the tag's `processor`, matching `ScanIndexForward:false`). Previously it returned entities in raw insertion order, so an optimistically added/updated entity appended to the end regardless of its `sortValue`. This re-orders only the loaded window; on a paginated list an item whose new `sortValue` belongs on an unfetched page may sit at the boundary until the next fetch (a per-user, self-healing approximation).
+
+## 5.0.0
+
+### Patch Changes
+
+- Updated dependencies [9d175ef]
+  - @monorise/base@4.1.0
+
 ## 4.0.0
 
 ### Minor Changes

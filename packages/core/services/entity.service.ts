@@ -1,19 +1,32 @@
 import type {
+  AdjustmentCondition,
   EntitySchemaMap,
   Entity as EntityType,
+  UpdateCondition,
+  WhereConditions,
   createEntityConfig,
 } from '@monorise/base';
+import type { AttributeValue } from '@aws-sdk/client-dynamodb';
+import { marshall } from '@aws-sdk/util-dynamodb';
 import { z } from 'zod';
 import type { EntityRepository } from '../data/Entity';
-import {
-  buildConditionExpression,
-  type WhereConditions,
-} from '../data/utils/build-condition-expression';
+import { buildConditionExpression } from '../data/utils/build-condition-expression';
 import { StandardError, StandardErrorCode } from '../errors/standard-error';
 import type { publishEvent as publishEventType } from '../helpers/event';
 import type { EventDetailBody as MutualProcessorEventDetailBody } from '../processors/mutual-processor';
 import { EVENT } from '../types/event';
 import type { EntityServiceLifeCycle } from './entity-service-lifecycle';
+import {
+  resolveAdjustmentCondition,
+  resolveUpdateCondition,
+} from './resolve-condition';
+
+const warnedOnce = new Set<string>();
+const deprecationWarnOnce = (key: string, message: string) => {
+  if (warnedOnce.has(key)) return;
+  warnedOnce.add(key);
+  console.warn(message);
+};
 
 export class EntityService {
   constructor(
@@ -98,17 +111,59 @@ export class EntityService {
     entityId,
     adjustments,
     accountId,
+    condition,
   }: {
     entityType: T;
     entityId: string;
     adjustments: Record<string, number>;
     accountId?: string;
+    condition?: string;
   }) => {
-    const rawConstraints = this.EntityConfig[entityType]?.adjustmentConstraints;
+    const entityConfig = this.EntityConfig[entityType];
+    const adjustmentConditions = entityConfig?.adjustmentConditions as
+      | Record<string, AdjustmentCondition>
+      | undefined;
+    const rawConstraints = entityConfig?.adjustmentConstraints;
 
-    // Resolve dynamic minField/maxField to static values
-    let resolvedConstraints = rawConstraints;
-    if (rawConstraints) {
+    let opts:
+      | {
+          ConditionExpression: string;
+          ExpressionAttributeNames: Record<string, string>;
+          ExpressionAttributeValues: Record<string, AttributeValue>;
+        }
+      | undefined;
+
+    if (adjustmentConditions) {
+      // New conditions system — $condition is required
+      if (!condition) {
+        throw new StandardError(
+          StandardErrorCode.INVALID_CONDITION,
+          'Entity has adjustmentConditions defined; $condition is required for adjustEntity',
+        );
+      }
+      opts = await resolveAdjustmentCondition({
+        conditionName: condition,
+        conditions: adjustmentConditions,
+        adjustments,
+        getEntityData: async () => {
+          const entity = await this.entityRepository.getEntity(entityType, entityId);
+          return entity?.data ?? {};
+        },
+      });
+    } else if (condition) {
+      // Client sent $condition but this entity has no adjustmentConditions —
+      // mirrors updateEntity's handling of an unknown condition below.
+      throw new StandardError(
+        StandardErrorCode.INVALID_CONDITION,
+        `Entity '${entityType}' has no adjustmentConditions defined`,
+      );
+    } else if (rawConstraints) {
+      deprecationWarnOnce(
+        'adjustmentConstraints',
+        '[monorise] adjustmentConstraints is deprecated. Use adjustmentConditions instead.',
+      );
+      // Legacy adjustmentConstraints — backward compatibility
+      let resolvedConstraints = rawConstraints;
       const hasDynamicFields = Object.values(rawConstraints).some(
         (c: any) => c.minField || c.maxField,
       );
@@ -125,13 +180,14 @@ export class EntityService {
           resolvedConstraints[field] = resolved;
         }
       }
+      opts = this.buildLegacyAdjustCondition(adjustments, resolvedConstraints);
     }
 
     const entity = await this.entityRepository.adjustEntity(
       entityType,
       entityId,
       adjustments,
-      resolvedConstraints as any,
+      opts,
     );
 
     await this.publishEvent({
@@ -153,12 +209,15 @@ export class EntityService {
     entityId,
     entityPayload,
     accountId,
+    condition,
     where,
   }: {
     entityType: T;
     entityId: string;
     entityPayload: Partial<EntitySchemaMap[T]>;
     accountId?: string | string[];
+    condition?: string;
+    /** @deprecated Use `condition` (named condition) instead of raw `where`. */
     where?: WhereConditions;
   }) => {
     const errorContext: Record<string, unknown> = {};
@@ -180,10 +239,48 @@ export class EntityService {
       const parsedMutualPayload = mutualSchema?.parse(entityPayload);
       errorContext.parsedMutualPayload = parsedMutualPayload;
 
-      const opts =
-        where && Object.keys(where).length > 0
-          ? buildConditionExpression(where)
-          : undefined;
+      let opts:
+        | {
+            ConditionExpression: string;
+            ExpressionAttributeNames: Record<string, string>;
+            ExpressionAttributeValues: Record<string, AttributeValue>;
+          }
+        | undefined;
+
+      if (condition) {
+        const updateConditions = this.EntityConfig[entityType]?.updateConditions as
+          | Record<string, UpdateCondition>
+          | undefined;
+        if (!updateConditions) {
+          throw new StandardError(
+            StandardErrorCode.INVALID_CONDITION,
+            `Entity '${entityType}' has no updateConditions defined`,
+          );
+        }
+        opts = await resolveUpdateCondition({
+          conditionName: condition,
+          conditions: updateConditions,
+          getEntityData: async () => {
+            const entity = await this.entityRepository.getEntity(entityType, entityId);
+            return entity?.data ?? {};
+          },
+        });
+      } else if (where && Object.keys(where).length > 0) {
+        // Legacy $where — disabled by default. Raw DynamoDB operators must
+        // never be client-facing (field probing via 200-vs-409 status codes),
+        // so this requires an explicit per-entity opt-in.
+        if (!this.EntityConfig[entityType]?.allowLegacyWhere) {
+          throw new StandardError(
+            StandardErrorCode.INVALID_CONDITION,
+            `Entity '${entityType}' has legacy $where disabled by default. Use named conditions via $condition, or set allowLegacyWhere: true to opt in (not recommended — re-exposes condition operators to clients).`,
+          );
+        }
+        deprecationWarnOnce(
+          'where',
+          '[monorise] $where is deprecated. Use named conditions via $condition instead.',
+        );
+        opts = buildConditionExpression(where);
+      }
 
       const entity = await this.entityRepository.updateEntity(
         entityType,
@@ -246,6 +343,43 @@ export class EntityService {
       throw error;
     }
   };
+
+  /** @deprecated Converts legacy adjustmentConstraints to condition expression opts. */
+  private buildLegacyAdjustCondition(
+    adjustments: Record<string, number>,
+    constraints: Record<string, { min?: number; max?: number }>,
+  ) {
+    const conditionParts: string[] = [];
+    const names: Record<string, string> = { '#data': 'data' };
+    const values: Record<string, unknown> = {};
+
+    for (const [field, constraint] of Object.entries(constraints)) {
+      const delta = adjustments[field];
+      if (delta === undefined) continue;
+      const namePlaceholder = `#where_${field}`;
+      names[namePlaceholder] = field;
+      const fieldRef = `#data.${namePlaceholder}`;
+
+      if (constraint.min !== undefined && delta < 0) {
+        const valKey = `:where_${field}_min_threshold`;
+        conditionParts.push(`${fieldRef} >= ${valKey}`);
+        values[valKey] = constraint.min - delta;
+      }
+      if (constraint.max !== undefined && delta > 0) {
+        const valKey = `:where_${field}_max_threshold`;
+        conditionParts.push(`${fieldRef} <= ${valKey}`);
+        values[valKey] = constraint.max - delta;
+      }
+    }
+
+    if (conditionParts.length === 0) return undefined;
+
+    return {
+      ConditionExpression: conditionParts.join(' AND '),
+      ExpressionAttributeNames: names,
+      ExpressionAttributeValues: marshall(values) as Record<string, AttributeValue>,
+    };
+  }
 
   deleteEntity = async <T extends EntityType>({
     entityType,

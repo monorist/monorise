@@ -1,7 +1,12 @@
 {
   "name": "@monorise/react",
-  "version": "4.0.0",
-  "description": "",
+  "version": "8.0.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/monorist/monorise.git",
+    "directory": "packages/react"
+  },
+  "description": "Monorise React SDK — type-safe hooks, stores, and client utilities for entity and mutual data",
   "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.js",
@@ -32,7 +37,7 @@
     "@types/react-dom": "^19"
   },
   "peerDependencies": {
-    "@monorise/base": "^4.0.0",
+    "@monorise/base": "^4.4.0",
     "react": "^18 || ^19",
     "react-dom": "^18 || ^19"
   },

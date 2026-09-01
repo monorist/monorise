@@ -1,5 +1,26 @@
 # @monorise/sst
 
+## 4.3.0
+
+### Minor Changes
+
+- 837c455: Add opt-in Athena analytics with schema-generated entity and mutual datasets, durable history, daily current-state materialization, point-in-time backfill, named query API, deployment-managed views, and scheduled Iceberg models.
+
+## 4.2.0
+
+### Minor Changes
+
+- 2060848: Add a `cloudwatchLogRetention` option to configure log retention for Monorise core Lambda functions.
+- 07842ff: Add a `cloudwatchDashboard` option to make the built-in CloudWatch dashboard toggleable. Set `cloudwatchDashboard: { enabled: false }` to skip creating the dashboard — useful for test and personal stages where the dashboard would only add cost. Defaults to enabled, so existing stages are unaffected. Note: disabling it on a stage where the dashboard already exists will destroy the dashboard on the next deploy.
+
+## 4.1.0
+
+### Minor Changes
+
+- 9d175ef: `SingleTable`/`MonoriseCore` now always use `expiresAt` as the DynamoDB TTL attribute name and no longer accept `ttl`/`tableTtl` args. This was previously user-configurable, but the codebase already hardcodes `expiresAt` internally (mutual/tag locks, and now entity TTL), so a mismatched or unset value silently left TTL disabled.
+
+  Remove `ttl`/`tableTtl` from your sst config — the table will always use `expiresAt`. If you're importing an existing table via `fromTableName`, make sure its TTL attribute is named `expiresAt`.
+
 ## 4.0.2
 
 ### Patch Changes

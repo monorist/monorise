@@ -55,13 +55,13 @@ Monorise uses **eventual consistency** for denormalized data:
 
 1. When you create/update an entity, the API writes to DynamoDB immediately (strongly consistent)
 2. Events are published to EventBridge, which triggers processors via SQS
-3. Processors update related records (mutuals, tags, prejoins, replicas) asynchronously
+3. Processors update related records (mutuals, tags, derived tree relationships, replicas) asynchronously
 
 In practice, propagation happens within milliseconds to seconds. The React SDK's optimistic updates make the UI feel instant regardless.
 
 ## What happens if a processor fails?
 
-Failed processor messages are sent to a **Dead Letter Queue (DLQ)**. Monorise creates an SNS alarm topic so you can be notified of failures. If you configure a `slackWebhook` in `MonoriseCore`, you'll get Slack alerts automatically.
+Failed processor messages are sent to a **Dead Letter Queue (DLQ)**. Monorise creates an SNS alarm topic so you can attach your preferred notification integration.
 
 Failed messages can be replayed from the DLQ once the issue is resolved.
 

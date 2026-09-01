@@ -1,7 +1,12 @@
 {
   "name": "monorise",
-  "version": "1.0.1",
-  "description": "Monorise - A unified package for all Monorise functionality",
+  "version": "1.7.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/monorist/monorise.git",
+    "directory": "packages/monorise"
+  },
+  "description": "The fullstack serverless data framework for DynamoDB — schema-driven API, event processors, React SDK, SST infrastructure, and Athena analytics",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
@@ -71,9 +76,12 @@
     "dist"
   ],
   "dependencies": {
+    "@aws-sdk/client-athena": "^3.1091.0",
     "@aws-sdk/client-dynamodb": "^3.758.0",
     "@aws-sdk/client-dynamodb-streams": "^3.758.0",
     "@aws-sdk/client-eventbridge": "^3.758.0",
+    "@aws-sdk/client-firehose": "^3.1091.0",
+    "@aws-sdk/client-s3": "^3.1091.0",
     "@aws-sdk/util-dynamodb": "^3.758.0",
     "axios": "^1.8.1",
     "chokidar": "^4.0.3",

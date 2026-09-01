@@ -8,7 +8,7 @@ Monorise uses a small build step to turn entity configs into runnable handlers.
 monorise.config.ts + entity configs  →  monorise dev/build (CLI)  →  .monorise/config.ts + handle.ts  →  SST stack
 ```
 
-- `monorise.config.ts` points to your entity config directory and optional custom routes (Hono).
+- `monorise.config.ts` points to your entity config directory and optional custom routes (Hono). When analytics is enabled, the CLI also generates its analytics schema manifest from entity and named mutual configs.
 - The CLI writes `.monorise/handle.ts` which exports Lambda handlers used by SST (API + processors + replication).
 
 ## SST infrastructure
@@ -24,10 +24,17 @@ The architecture consists of:
 - **EventBridge bus** — publishes entity lifecycle events (created, updated, mutual processed)
 - **Processors** — SQS-backed Lambda functions that react to events and maintain denormalized data
 - **DynamoDB Stream** — triggers the replication processor to keep denormalized copies in sync
+- **Analytics delivery (optional)** — a second DynamoDB Stream subscriber normalizes canonical entity and mutual metadata changes, sends buffered history through Firehose to S3, and materializes typed Athena current-state and history tables daily
+
+### Analytics path
+
+When `MonoriseCore.analytics` is enabled, DynamoDB Streams with `NEW_AND_OLD_IMAGES` are the canonical analytics source. The analytics subscriber records canonical `INSERT`, `MODIFY`, and `REMOVE` changes with available before and after state, excluding derived list, tag, unique, lock, and replication rows. Firehose stores the event history in S3 under daily `event_date` partitions, with an optional hourly partition for individual datasets. A daily job compacts history to Parquet and merges the latest records into Iceberg current-state tables.
+
+EventBridge is not used for canonical analytics capture because lifecycle events do not provide reliable before-images. It remains available for consumer-defined business-event analytics.
 
 ### QFunction (processor pattern)
 
-Each processor (mutual, tag, prejoin) uses the **QFunction** pattern — an SQS queue paired with a Lambda function, a Dead Letter Queue for failed messages, and a CloudWatch alarm that notifies via Slack when messages land in the DLQ:
+Each event-driven processor (mutual, tag, tree) uses the **QFunction** pattern — an SQS queue paired with a Lambda function, a Dead Letter Queue for failed messages, and a CloudWatch alarm that publishes to an SNS topic when messages land in the DLQ:
 
 ![Monorise QFunction](/monorise-q-function.png)
 
@@ -36,7 +43,7 @@ The flow:
 2. **Lambda** processes the message (e.g., syncs mutual records, recalculates tags)
 3. If processing fails, the message moves to the **DLQ** after retry exhaustion
 4. A **CloudWatch Alarm** fires when the DLQ depth exceeds 0
-5. The alarm sends a notification to **Slack** (if `slackWebhook` is configured)
+5. The alarm publishes to the configured **SNS topic**
 
 Failed messages can be redriven from the DLQ once the issue is resolved.
 
@@ -44,8 +51,9 @@ Failed messages can be redriven from the DLQ once the issue is resolved.
 
 - **Mutual processor**: creates/updates/removes relationship items in both directions with conditional checks and locking.
 - **Tag processor**: calculates tag diffs and syncs tag items.
-- **Prejoin processor**: walks configured relationship paths and publishes derived mutual updates.
+- **Tree processor**: walks configured relationship paths and publishes derived mutual updates.
 - **Replication processor**: keeps denormalized copies aligned via stream updates (uses replication indexes).
+- **Analytics delivery**: captures canonical stream changes into durable S3 history and refreshes Athena current-state tables daily when enabled.
 
 ## API reference
 
@@ -60,7 +68,7 @@ The default Hono API exposes the following routes under `/core`. All entity rout
 | `GET` | `/entity/:entityType/unique/:field/:value` | Get entity by unique field |
 | `GET` | `/entity/:entityType/:entityId` | Get entity by ID |
 | `PUT` | `/entity/:entityType/:entityId` | Upsert entity (full replacement) |
-| `PATCH` | `/entity/:entityType/:entityId` | Update entity (partial); supports optional [`$where` conditions](#conditional-updates-where) |
+| `PATCH` | `/entity/:entityType/:entityId` | Update entity (partial); supports optional named `$condition` |
 | `DELETE` | `/entity/:entityType/:entityId` | Delete entity |
 | `POST` | `/entity/:entityType/:entityId/adjust` | Atomic numeric adjustment (body: `{ field: delta }`) |
 
@@ -78,75 +86,40 @@ The default Hono API exposes the following routes under `/core`. All entity rout
 
 | Method | Route | Description |
 |--------|-------|-------------|
-| `GET` | `/tag/:entityType/:tagName` | Query tagged entities (`?group=...&start=...&end=...`) |
+| `GET` | `/tag/:entityType/:tagName` | Query tagged entities (`?group=...&query=...&start=...&end=...&limit=...&lastKey=...`) |
+
+### Transaction endpoint
+
+| Method | Route | Description |
+|--------|-------|-------------|
+| `POST` | `/transaction` | Execute entity operations atomically |
 
 Custom routes can be mounted under `/core/app/*` via `customRoutes` in your monorise config.
 
-### Conditional updates (`$where`)
+### Conditional updates (`$condition`)
 
-Use `$where` in `PATCH /core/entity/:entityType/:entityId` when updates should
-only apply if current values match your preconditions. Monorise compiles this
-to a DynamoDB `ConditionExpression` and executes it atomically in one write.
-
-Without `$where` (existing behavior):
-
-```json
-{
-  "status": "confirmed"
-}
-```
-
-With `$where`:
+Define named `updateConditions` in the entity config, then send the permitted condition name with the update. The server resolves the name to a DynamoDB `ConditionExpression`; raw operators never need to be client-facing.
 
 ```json
 {
   "status": "confirmed",
   "confirmedAt": "2026-04-13T00:00:00.000Z",
-  "$where": {
-    "status": { "$eq": "pending" },
-    "retryCount": { "$lt": 3 }
-  }
+  "$condition": "confirm"
 }
 ```
 
-Shorthand equality is supported:
+`$condition` is optional for entity updates, but required for adjustments when the entity defines `adjustmentConditions`. A failed condition returns `409 CONFLICT`. See [Entities: Conditional writes](/concepts/entities#conditional-writes) for configuration examples.
 
-```json
-{
-  "status": "confirmed",
-  "$where": {
-    "status": "pending"
-  }
-}
-```
-
-All `$where` clauses are combined with `AND`.
-
-Supported operators:
-
-| Operator | Meaning |
-|---|---|
-| `$eq` | Equals |
-| `$ne` | Not equals |
-| `$gt` | Greater than |
-| `$lt` | Less than |
-| `$gte` | Greater than or equal |
-| `$lte` | Less than or equal |
-| `$exists` | Field exists / does not exist |
-| `$beginsWith` | String prefix match |
-
-Response behavior for PATCH:
+Response behavior for `PATCH`:
 
 - `200 OK`: update applied
-- `409 CONFLICT`: `$where` precondition failed (`CONDITIONAL_CHECK_FAILED`)
-  - in conditional mode, this also includes missing entities
-- `404 NOT_FOUND`: entity missing in non-conditional mode
-- `400 BAD_REQUEST`: validation errors and unique-value conflicts
+- `409 CONFLICT`: condition failed (`CONDITIONAL_CHECK_FAILED`); a static condition on a missing entity also lands here
+- `404 NOT_FOUND`: entity missing without a condition or while resolving a function condition
+- `400 BAD_REQUEST`: validation errors, unique-value conflicts, or an unknown/undefined condition name
 
-Compatibility notes:
-
-- Existing PATCH clients continue to work unchanged (no `$where` required).
-- Top-level `$where` is reserved for conditional update semantics.
+::: warning Legacy `$where`
+Raw `$where` conditions are deprecated and disabled by default. Enable `allowLegacyWhere` only for trusted compatibility callers; new clients must use named conditions. A compatibility request places the raw clauses under `$where`, for example `{ "status": "confirmed", "$where": { "status": { "$eq": "pending" } } }`.
+:::
 
 ## Data layout cheat sheet
 

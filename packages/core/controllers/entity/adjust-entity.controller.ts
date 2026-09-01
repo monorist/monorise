@@ -15,9 +15,21 @@ export class AdjustEntityController {
     };
 
     const body = await c.req.json();
+    const { $condition: condition, ...adjustments } = body;
 
-    // Validate all values are numbers
-    for (const [key, value] of Object.entries(body)) {
+    // Validate $condition is a non-empty string if provided
+    if (condition !== undefined) {
+      if (typeof condition !== 'string' || condition.trim().length === 0) {
+        c.status(httpStatus.BAD_REQUEST);
+        return c.json({
+          code: 'API_VALIDATION_ERROR',
+          message: '$condition must be a non-empty string',
+        });
+      }
+    }
+
+    // Validate all adjustment values are numbers
+    for (const [key, value] of Object.entries(adjustments)) {
       if (typeof value !== 'number') {
         c.status(httpStatus.BAD_REQUEST);
         return c.json({
@@ -31,8 +43,9 @@ export class AdjustEntityController {
       const entity = await this.entityService.adjustEntity({
         entityType,
         entityId,
-        adjustments: body,
+        adjustments,
         accountId,
+        condition,
       });
 
       c.status(httpStatus.OK);
@@ -46,8 +59,19 @@ export class AdjustEntityController {
         return c.json({ ...err.toJSON() });
       }
 
+      if (
+        err instanceof StandardError &&
+        err.code === StandardErrorCode.INVALID_CONDITION
+      ) {
+        c.status(httpStatus.BAD_REQUEST);
+        return c.json({ ...err.toJSON() });
+      }
+
       // DynamoDB ConditionalCheckFailedException — constraint violated
-      if (err?.name === 'ConditionalCheckFailedException' || err?.__type?.includes('ConditionalCheckFailed')) {
+      if (
+        err?.name === 'ConditionalCheckFailedException' ||
+        err?.__type?.includes('ConditionalCheckFailed')
+      ) {
         c.status(httpStatus.CONFLICT);
         return c.json({
           code: 'ADJUSTMENT_CONSTRAINT_VIOLATED',

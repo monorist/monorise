@@ -1,5 +1,66 @@
 # @monorise/core
 
+## 4.5.0
+
+### Minor Changes
+
+- 837c455: Add opt-in Athena analytics with schema-generated entity and mutual datasets, durable history, daily current-state materialization, point-in-time backfill, named query API, deployment-managed views, and scheduled Iceberg models.
+
+## 4.4.1
+
+### Patch Changes
+
+- ee44ed4: Return 404 instead of 500 when a named function update condition targets a missing entity.
+
+## 4.4.0
+
+### Minor Changes
+
+- 7a95a4e: Add transactional writes for atomic multi-entity operations
+
+  - `POST /core/transaction` endpoint for atomic multi-entity operations
+  - Supports createEntity, updateEntity, adjustEntity, deleteEntity in single DynamoDB TransactWriteItems call
+  - All-or-nothing: if any operation fails, entire transaction rolls back
+  - Events (ENTITY_CREATED, ENTITY_UPDATED, ENTITY_DELETED) published only after commit succeeds
+  - Condition support: adjustmentConditions and updateConditions work within transactions
+  - React SDK: `transaction()` function for frontend usage
+  - DynamoDB limit enforced: max 100 items per transaction
+
+## 4.3.0
+
+### Minor Changes
+
+- 6488933: Add named conditions system for conditional entity writes
+
+  - `adjustmentConditions`: server-defined preconditions for `adjustEntity`. `$condition` required when defined. Condition functions receive `(data, adjustments)`.
+  - `updateConditions`: server-defined preconditions for `updateEntity`. `$condition` always optional. Condition functions receive `(data)`.
+  - Clients send a condition name (`$condition: 'withdraw'`), server resolves to DynamoDB ConditionExpression. Raw operators never exposed to frontend.
+  - Deprecates `adjustmentConstraints` (backward compatible — falls back automatically when no `adjustmentConditions` is defined).
+  - **Breaking (security):** raw `$where` on `updateEntity` is now rejected by default (`INVALID_CONDITION`, 400) instead of silently accepted with a warning. Opt in per entity with `allowLegacyWhere: true` (not recommended) or migrate to named `updateConditions`.
+
+## 4.2.0
+
+### Minor Changes
+
+- 04f6713: Add `createMutualConfig` for centralized mutualData schema validation. Define a Zod schema once for mutual relationships and reference it from both entity configs. Validates mutualData on create, update, and processor output.
+
+## 4.1.0
+
+### Minor Changes
+
+- 9d175ef: Add `ttl` config to `createEntityConfig` for setting a DynamoDB TTL on an entity. Define `ttl.processor` to compute `expiresAt` (epoch seconds or a `Date`) from the entity's data; it's recomputed on every create/update/upsert. Returning `undefined` means no expiry for that record.
+
+### Patch Changes
+
+- 9d175ef: Fix bugs found while adding entity TTL support:
+
+  - `Mutual#expiresAt` was stored/read as an ISO string, which DynamoDB TTL can't act on (it requires epoch seconds, type `N`). It's now epoch seconds, consistent with `Entity#expiresAt` and the raw lock-writing paths in `Mutual.ts`/`Tag.ts`.
+  - `upsertEntity` threw a DynamoDB validation error when called with an `entityId` that had never been created, because the nested `data.<field>` update path requires `data` to already exist as a Map. It now delegates to `createEntity` when the update finds nothing to update, so a brand-new entity created via `upsertEntity` gets the same `LIST#`/`UNIQUE#`/`EMAIL#` replica rows, `uniqueFields` enforcement, and typed ID-collision error as any other newly created entity (previously it would silently create an incomplete, orphaned record).
+  - `computeExpiresAt`'s merge-fetch swallowed any error (not just "entity not found") as if the entity didn't exist yet, so a transient DynamoDB error could silently produce a wrong `expiresAt` instead of surfacing. It now only treats the specific not-found case that way and rethrows anything else.
+  - `ttl.processor` was always given the current operation's timestamp as `createdAt`, never the entity's true original creation date, so a TTL relative to creation (e.g. "expire 90 days after creation") would silently drift forward on every update. It's now the real `createdAt`.
+  - `updateEntity` did up to 3 redundant `GetItem` reads for a single update when both `ttl` and a changed `uniqueFields` value were involved. It now shares one fetch and constructs the returned entity locally instead of re-fetching after a transactional write.
+  - For an entity with both `uniqueFields` and `ttl` configured, updating a unique field on an update where `ttl.processor` returns `undefined` wrote the new `UNIQUE#` replica row with no `expiresAt` and returned an entity whose `expiresAt` disagreed with what was actually persisted (the main row correctly retains its previous `expiresAt` in that case). Both now correctly carry over the previous `expiresAt`.
+
 ## 4.0.0
 
 ### Major Changes

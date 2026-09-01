@@ -1,5 +1,61 @@
 # @monorise/cli
 
+## 4.2.0
+
+### Minor Changes
+
+- 837c455: Add opt-in Athena analytics with schema-generated entity and mutual datasets, durable history, daily current-state materialization, point-in-time backfill, named query API, deployment-managed views, and scheduled Iceberg models.
+
+## 4.1.2
+
+### Patch Changes
+
+- 90a45e2: Generate an application-owned `X_API_KEY` secret for backend proxies instead of embedding the selected Core API key in the Next.js environment.
+
+## 4.1.1
+
+### Patch Changes
+
+- 90e7486: Release CLI custom route generation fixes in the unified package.
+
+## 4.1.0
+
+### Minor Changes
+
+- 78c369d: Enhanced CLI init command with full project scaffolding and example page
+
+  The `npx monorise init` command now creates a complete monorepo setup:
+
+  - Creates apps/ and services/ directory structure
+  - Scaffolds Next.js app in apps/web/
+  - Installs SST v4, monorise, hono, and zod
+  - Creates services/core/routes.ts with Hono app template
+  - Generates sst.config.ts with monorise module
+  - Configures monorise.config.ts with customRoutes
+  - Sets up tsconfig path aliases
+  - Creates example page.tsx demonstrating useEntities and createEntity
+  - Generates a starter Team entity and a shared createMutualConfig
+    (monorise/mutuals/team-membership.ts), demonstrating a User <-> Team mutual
+    relationship
+  - Runs initial monorise build
+
+  Simplified imports:
+
+  - `monorise dev`/`monorise build` now also generate `.monorise/index.ts`
+    (re-exporting `.monorise/config.ts`), so generated types can be imported via
+    `#/monorise` instead of `#/monorise/config`. The longer path keeps working
+    for backward compatibility.
+
+  Documentation updates:
+
+  - Updated messaging to emphasize time-to-production
+  - Added "Ship in Hours" benefit
+  - Simplified getting started guide
+
+  Bug fix:
+
+  - Fixed www/package.json version field
+
 ## 4.0.0
 
 ### Major Changes

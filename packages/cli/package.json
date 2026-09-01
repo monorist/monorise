@@ -1,7 +1,12 @@
 {
   "name": "@monorise/cli",
-  "version": "4.0.0",
-  "description": "",
+  "version": "4.2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/monorist/monorise.git",
+    "directory": "packages/cli"
+  },
+  "description": "Monorise CLI — project scaffolding and code generation for configs, types, and Lambda handlers",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -9,8 +14,9 @@
     "monorise": "dist/cli.js"
   },
   "scripts": {
-    "build": "tsup && chmod +x dist/cli.js",
-    "dev": "tsup --watch"
+    "build": "tsup && chmod +x dist/cli.js && mkdir -p dist/templates && cp -r templates/files dist/templates/files",
+    "dev": "tsup --watch",
+    "test": "tsx --test commands/**/*.test.ts"
   },
   "keywords": [],
   "author": "",
