@@ -152,8 +152,13 @@ export interface MonoriseEntityConfig<
      * const mutualSchema = z.object({ organisationIds: z.string().array() }).partial();
      * const createMutualSchema = z.object({ organisationIds: z.string().array() }); // required on create
      * ```
+     *
+     * Deliberately typed as `z.AnyZodObject` rather than `MO` — the whole
+     * point is that it's allowed to be a DIFFERENT (stricter) shape than
+     * `mutualSchema`, e.g. built via `mutualSchema.required({ field: true })`,
+     * which is a structurally different ZodObject type, not `MO` itself.
      */
-    createMutualSchema?: MO;
+    createMutualSchema?: z.AnyZodObject;
 
     /**
      * @description Keys of `mutualFields` are fields defined in `mutualSchema`.
