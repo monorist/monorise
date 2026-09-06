@@ -135,9 +135,25 @@ export interface MonoriseEntityConfig<
      */
     subscribes?: { entityType: Entity }[];
     /**
-     * @description Virtual schema for mutual relationship. The schema is only used for validation purpose, but these fields are not stored in the database
+     * @description Virtual schema for mutual relationship. The schema is only used for validation purpose, but these fields are not stored in the database.
+     * Used to validate mutual fields on BOTH create and update — keep it `.partial()` if you want updates that don't touch every mutual relationship to remain valid.
      */
     mutualSchema: MO;
+
+    /**
+     * @description (Optional) Stricter schema applied ONLY when the entity is created — falls back to `mutualSchema` if not provided, so existing configs are unaffected.
+     *
+     * Use this when a mutual relationship must always be wired at creation time (e.g. every Competition must have an owning Organisation from the start), but you don't want to force every future *update* to also resend that relationship — `mutualSchema` itself stays `.partial()` for updates, while `createMutualSchema` enforces the required fields only on create.
+     *
+     * Without this, a create silently succeeds even if a required mutual link is omitted from the payload — the entity is created but never gets wired to the relationship, with no error anywhere.
+     *
+     * @example
+     * ```ts
+     * const mutualSchema = z.object({ organisationIds: z.string().array() }).partial();
+     * const createMutualSchema = z.object({ organisationIds: z.string().array() }); // required on create
+     * ```
+     */
+    createMutualSchema?: MO;
 
     /**
      * @description Keys of `mutualFields` are fields defined in `mutualSchema`.

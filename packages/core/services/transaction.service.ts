@@ -516,9 +516,13 @@ export class TransactionService {
     const events: PendingEvent[] = [];
     const publishedAt = entity.updatedAt || new Date().toISOString();
 
-    // Mutual events
+    // Mutual events — prefer createMutualSchema (stricter, create-only) if
+    // defined, same fallback as EntityServiceLifeCycle.afterCreateEntityHook
+    // (the non-transactional create path); collectUpdateEvents below stays
+    // on the ordinary mutualSchema.
     const config = this.EntityConfig[entity.entityType];
-    const mutualSchema = config?.mutual?.mutualSchema;
+    const mutualSchema =
+      config?.mutual?.createMutualSchema || config?.mutual?.mutualSchema;
     if (mutualSchema) {
       const parsedMutualPayload = mutualSchema.parse(payload);
       if (parsedMutualPayload) {

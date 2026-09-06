@@ -1,5 +1,9 @@
-import type { Entity, MonoriseEntityConfig, MutualConfig } from '../types/monorise.type';
 import { z } from 'zod';
+import type {
+  Entity,
+  MonoriseEntityConfig,
+  MutualConfig,
+} from '../types/monorise.type';
 
 function makeSchema<
   T extends Entity,
@@ -10,7 +14,12 @@ function makeSchema<
   MO extends z.ZodObject<M> | undefined = undefined,
 >(config: MonoriseEntityConfig<T, B, C, M, CO, MO>) {
   const { baseSchema, createSchema, mutual, effect } = config;
-  const { mutualSchema } = mutual || {};
+  const { mutualSchema, createMutualSchema } = mutual || {};
+  // finalSchema is only ever consulted on the create path (EntityService.
+  // createEntity / TransactionService.buildCreateItems) — never on update —
+  // so it's safe to prefer the stricter createMutualSchema here, matching
+  // afterCreateEntityHook/collectCreateEvents's own preference below.
+  const effectiveMutualSchema = createMutualSchema || mutualSchema;
 
   type FinalSchemaType = CO extends z.AnyZodObject
     ? MO extends z.AnyZodObject
@@ -23,7 +32,7 @@ function makeSchema<
   const finalSchema = z.object({
     ...baseSchema.shape,
     ...createSchema?.shape,
-    ...mutualSchema?.shape,
+    ...effectiveMutualSchema?.shape,
   }) as FinalSchemaType;
 
   if (effect) {

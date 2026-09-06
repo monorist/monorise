@@ -16,8 +16,11 @@ export class EntityServiceLifeCycle {
     entityPayload?: Record<string, unknown>,
     accountId?: string | string[],
   ) {
-    const mutualSchema =
-      this.EntityConfig[entity.entityType].mutual?.mutualSchema;
+    const mutual = this.EntityConfig[entity.entityType].mutual;
+    // Prefer createMutualSchema (stricter, create-only) if the config
+    // defines one — falls back to the ordinary mutualSchema (kept .partial()
+    // for updates) so existing configs are unaffected.
+    const mutualSchema = mutual?.createMutualSchema || mutual?.mutualSchema;
     const parsedMutualPayload = mutualSchema?.parse(entityPayload);
 
     if (parsedMutualPayload) {
