@@ -1,6 +1,7 @@
 ---
 "@monorise/base": minor
 "@monorise/core": minor
+"monorise": minor
 ---
 
 Add optional `createMutualSchema` to an entity's `mutual` config, letting a mutual field be required only at creation time while `mutualSchema` itself stays `.partial()` for updates.
