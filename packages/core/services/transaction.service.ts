@@ -4,6 +4,7 @@ import type {
   TransactWriteItem,
 } from '@aws-sdk/client-dynamodb';
 import { TransactionCanceledException } from '@aws-sdk/client-dynamodb';
+import { resolveEffectiveMutualSchema } from '@monorise/base';
 import type {
   AdjustmentCondition,
   EntitySchemaMap,
@@ -516,13 +517,17 @@ export class TransactionService {
     const events: PendingEvent[] = [];
     const publishedAt = entity.updatedAt || new Date().toISOString();
 
-    // Mutual events — prefer createMutualSchema (stricter, create-only) if
-    // defined, same fallback as EntityServiceLifeCycle.afterCreateEntityHook
-    // (the non-transactional create path); collectUpdateEvents below stays
-    // on the ordinary mutualSchema.
+    // Mutual events — merge createMutualSchema (stricter, create-only) into
+    // mutualSchema rather than replacing it, same as
+    // EntityServiceLifeCycle.afterCreateEntityHook (the non-transactional
+    // create path) — a plain fallback would drop any mutual field
+    // mutualSchema declares but createMutualSchema omits. collectUpdateEvents
+    // below stays on the ordinary mutualSchema.
     const config = this.EntityConfig[entity.entityType];
-    const mutualSchema =
-      config?.mutual?.createMutualSchema || config?.mutual?.mutualSchema;
+    const mutualSchema = resolveEffectiveMutualSchema(
+      config?.mutual?.mutualSchema,
+      config?.mutual?.createMutualSchema,
+    );
     if (mutualSchema) {
       const parsedMutualPayload = mutualSchema.parse(payload);
       if (parsedMutualPayload) {

@@ -18,7 +18,11 @@ import type {
   WhereOperator,
 } from './types/conditions.type';
 
-import { createEntityConfig, createMutualConfig } from './utils';
+import {
+  createEntityConfig,
+  createMutualConfig,
+  resolveEffectiveMutualSchema,
+} from './utils';
 
 export {
   Entity,
@@ -30,6 +34,7 @@ export {
   NumericFields,
   createEntityConfig,
   createMutualConfig,
+  resolveEffectiveMutualSchema,
 };
 
 export type {

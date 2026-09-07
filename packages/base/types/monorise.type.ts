@@ -79,6 +79,7 @@ export interface MonoriseEntityConfig<
   M extends z.ZodRawShape = z.ZodRawShape,
   CO extends z.ZodObject<C> | undefined = undefined,
   MO extends z.ZodObject<M> | undefined = undefined,
+  CMO extends z.AnyZodObject | undefined = undefined,
 > {
   /**
    * @description Name of the entity. Must be in **lower-kebab-case** and **unique** across all entities
@@ -153,12 +154,17 @@ export interface MonoriseEntityConfig<
      * const createMutualSchema = z.object({ organisationIds: z.string().array() }); // required on create
      * ```
      *
-     * Deliberately typed as `z.AnyZodObject` rather than `MO` — the whole
-     * point is that it's allowed to be a DIFFERENT (stricter) shape than
-     * `mutualSchema`, e.g. built via `mutualSchema.required({ field: true })`,
-     * which is a structurally different ZodObject type, not `MO` itself.
+     * Deliberately typed via its own `CMO` generic rather than `MO` — the
+     * whole point is that it's allowed to be a DIFFERENT (stricter) shape
+     * than `mutualSchema`, e.g. built via
+     * `mutualSchema.required({ field: true })`, which is a structurally
+     * different ZodObject type, not `MO` itself. `finalSchema` (see
+     * `makeSchema` in `packages/base/utils`) merges `MO` and `CMO`'s shapes
+     * together, so a field required only by `createMutualSchema` is
+     * reflected as required on `finalSchema`'s type too, not silently
+     * widened back to optional.
      */
-    createMutualSchema?: z.AnyZodObject;
+    createMutualSchema?: CMO;
 
     /**
      * @description Keys of `mutualFields` are fields defined in `mutualSchema`.

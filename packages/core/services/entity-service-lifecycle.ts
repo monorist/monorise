@@ -1,3 +1,4 @@
+import { resolveEffectiveMutualSchema } from '@monorise/base';
 import type { Entity as EntityType } from '@monorise/base';
 import type { Entity } from '../data/Entity';
 import type { EventUtils } from '../data/EventUtils';
@@ -17,10 +18,15 @@ export class EntityServiceLifeCycle {
     accountId?: string | string[],
   ) {
     const mutual = this.EntityConfig[entity.entityType].mutual;
-    // Prefer createMutualSchema (stricter, create-only) if the config
-    // defines one — falls back to the ordinary mutualSchema (kept .partial()
-    // for updates) so existing configs are unaffected.
-    const mutualSchema = mutual?.createMutualSchema || mutual?.mutualSchema;
+    // Merge createMutualSchema (stricter, create-only) into mutualSchema
+    // rather than replacing it — a plain fallback would drop any mutual
+    // field mutualSchema declares but createMutualSchema omits, silently
+    // skipping that field's wiring even when the caller supplied it. See
+    // resolveEffectiveMutualSchema's own doc comment for the full reasoning.
+    const mutualSchema = resolveEffectiveMutualSchema(
+      mutual?.mutualSchema,
+      mutual?.createMutualSchema,
+    );
     const parsedMutualPayload = mutualSchema?.parse(entityPayload);
 
     if (parsedMutualPayload) {

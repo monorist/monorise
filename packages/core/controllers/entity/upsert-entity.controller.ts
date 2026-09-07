@@ -1,4 +1,5 @@
 import type { Entity, createEntityConfig } from '@monorise/base';
+import { resolveEffectiveMutualSchema } from '@monorise/base';
 import { createMiddleware } from 'hono/factory';
 import httpStatus from 'http-status';
 import { ZodError } from 'zod';
@@ -25,7 +26,8 @@ export class UpsertEntityController {
       const entitySchema =
         this.EntityConfig[entityType].createSchema ||
         this.EntityConfig[entityType].baseSchema;
-      const mutualSchema = this.EntityConfig[entityType].mutual?.mutualSchema;
+      const mutual = this.EntityConfig[entityType].mutual;
+      const mutualSchema = mutual?.mutualSchema;
 
       if (!entitySchema || !mutualSchema) {
         throw new StandardError(
@@ -34,10 +36,38 @@ export class UpsertEntityController {
         );
       }
 
+      // Upsert has no separate create/update controller of its own — it's
+      // one endpoint that inserts or overwrites depending on whether
+      // entityId already exists (entityRepository.upsertEntity itself
+      // decides this via a conditional update, falling back to create()
+      // only on failure). To apply createMutualSchema on the insert case
+      // (matching EntityService.createEntity's own behavior), we need to
+      // know which case this is BEFORE validating — a plain existence check
+      // here, distinct from (and racing with, in principle) the actual
+      // upsert below. That race is accepted: this only affects validation
+      // strictness, not the write itself, and upsertEntity already isn't
+      // transactional with the mutual-event publishing that follows it.
+      const isCreate = await this.entityRepository
+        .getEntity(entityType, entityId)
+        .then(() => false)
+        .catch((err) => {
+          if (
+            err instanceof StandardError &&
+            err.code === StandardErrorCode.ENTITY_IS_UNDEFINED
+          ) {
+            return true;
+          }
+          throw err;
+        });
+
+      const effectiveMutualSchema = isCreate
+        ? resolveEffectiveMutualSchema(mutualSchema, mutual?.createMutualSchema)
+        : mutualSchema;
+
       const body = await c.req.json();
 
       const parsedEntityPayload = entitySchema.parse(body);
-      const parsedMutualPayload = mutualSchema.parse(body);
+      const parsedMutualPayload = effectiveMutualSchema.parse(body);
 
       const entity = await this.entityRepository.upsertEntity(
         entityType,
@@ -51,7 +81,7 @@ export class UpsertEntityController {
         const publishEventPromises = [];
 
         for (const [fieldKey, config] of Object.entries(
-          this.EntityConfig[entityType].mutual?.mutualFields || {},
+          mutual?.mutualFields || {},
         )) {
           publishEventPromises.push(
             this.publishEvent({

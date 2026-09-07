@@ -100,7 +100,7 @@ const config = createEntityConfig({
 
 `mutualSchema` validates the same payload shape on both create and update. That's a tradeoff: making a field required so a create can't skip it also forces every future *update* to resend that field, even for edits that have nothing to do with the relationship. Keeping it `.partial()` avoids that, but then a create can silently omit a required link — the entity is created, but never wired to the relationship, with no error anywhere.
 
-`createMutualSchema` is an optional, stricter sibling of `mutualSchema` that's validated **only on create**. When present, it's used in place of `mutualSchema` for the create payload; `mutualSchema` itself keeps validating updates as normal.
+`createMutualSchema` is an optional, stricter sibling of `mutualSchema` that's validated **only on create**. When present, its shape is merged into `mutualSchema` for the create payload — so any mutual field `mutualSchema` declares but `createMutualSchema` doesn't repeat is still validated and wired, and `createMutualSchema` only needs to list the field(s) it's tightening. `mutualSchema` itself keeps validating updates as normal.
 
 ```ts
 const config = createEntityConfig({
@@ -113,10 +113,12 @@ const config = createEntityConfig({
     mutualSchema: z.object({
       courseIds: z.string().array(),
     }).partial(),
-    // Required — every student must be enrolled in at least one course
-    // from the moment they're created.
+    // Required, and non-empty — every student must be enrolled in at
+    // least one course from the moment they're created. `.array()` alone
+    // would accept `courseIds: []`, satisfying "required" while still
+    // enrolling in nothing — `.min(1)` closes that gap.
     createMutualSchema: z.object({
-      courseIds: z.string().array(),
+      courseIds: z.string().array().min(1),
     }),
     mutualFields: {
       courseIds: {
