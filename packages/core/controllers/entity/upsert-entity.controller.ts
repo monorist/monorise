@@ -1,5 +1,4 @@
 import type { Entity, createEntityConfig } from '@monorise/base';
-import { resolveEffectiveMutualSchema } from '@monorise/base';
 import { createMiddleware } from 'hono/factory';
 import httpStatus from 'http-status';
 import { ZodError } from 'zod';
@@ -23,10 +22,9 @@ export class UpsertEntityController {
     };
 
     try {
-      const entitySchema =
-        this.EntityConfig[entityType].createSchema ||
-        this.EntityConfig[entityType].baseSchema;
-      const mutual = this.EntityConfig[entityType].mutual;
+      const entityConfig = this.EntityConfig[entityType];
+      const entitySchema = entityConfig.createSchema || entityConfig.baseSchema;
+      const mutual = entityConfig.mutual;
       const mutualSchema = mutual?.mutualSchema;
 
       if (!entitySchema || !mutualSchema) {
@@ -44,24 +42,40 @@ export class UpsertEntityController {
       // (matching EntityService.createEntity's own behavior), we need to
       // know which case this is BEFORE validating — a plain existence check
       // here, distinct from (and racing with, in principle) the actual
-      // upsert below. That race is accepted: this only affects validation
-      // strictness, not the write itself, and upsertEntity already isn't
-      // transactional with the mutual-event publishing that follows it.
-      const isCreate = await this.entityRepository
-        .getEntity(entityType, entityId)
-        .then(() => false)
-        .catch((err) => {
-          if (
-            err instanceof StandardError &&
-            err.code === StandardErrorCode.ENTITY_IS_UNDEFINED
-          ) {
-            return true;
-          }
-          throw err;
-        });
+      // upsert below.
+      //
+      // Only paid for entity types that actually opted into
+      // createMutualSchema — upsertEntity itself deliberately avoids this
+      // exact read (see its own comment), so every other entity type keeps
+      // that single-round-trip behavior unchanged.
+      //
+      // The race is accepted, but is a little more real than it might look:
+      // getEntity is an eventually-consistent read (no ConsistentRead), so a
+      // create immediately followed by an upsert within the replication
+      // window can read empty, take the strict branch, and 400 a legitimate
+      // update. Rarer than a true concurrent-write race, and confining the
+      // extra read to opt-in entity types keeps the blast radius small.
+      const isCreate = mutual?.createMutualSchema
+        ? await this.entityRepository
+            .getEntity(entityType, entityId)
+            .then(() => false)
+            .catch((err) => {
+              if (
+                err instanceof StandardError &&
+                err.code === StandardErrorCode.ENTITY_IS_UNDEFINED
+              ) {
+                return true;
+              }
+              throw err;
+            })
+        : false;
 
+      // Falls back to mutualSchema (already confirmed defined above) if
+      // effectiveMutualSchema somehow wasn't computed — it never actually
+      // is in practice, since createEntityConfig always derives it from
+      // the same mutualSchema this controller already checked.
       const effectiveMutualSchema = isCreate
-        ? resolveEffectiveMutualSchema(mutualSchema, mutual?.createMutualSchema)
+        ? (entityConfig.effectiveMutualSchema ?? mutualSchema)
         : mutualSchema;
 
       const body = await c.req.json();

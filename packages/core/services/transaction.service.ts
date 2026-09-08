@@ -4,7 +4,6 @@ import type {
   TransactWriteItem,
 } from '@aws-sdk/client-dynamodb';
 import { TransactionCanceledException } from '@aws-sdk/client-dynamodb';
-import { resolveEffectiveMutualSchema } from '@monorise/base';
 import type {
   AdjustmentCondition,
   EntitySchemaMap,
@@ -517,17 +516,16 @@ export class TransactionService {
     const events: PendingEvent[] = [];
     const publishedAt = entity.updatedAt || new Date().toISOString();
 
-    // Mutual events — merge createMutualSchema (stricter, create-only) into
-    // mutualSchema rather than replacing it, same as
+    // Mutual events — effectiveMutualSchema (precomputed once by
+    // createEntityConfig) already merges createMutualSchema (stricter,
+    // create-only) into mutualSchema rather than replacing it, same as
     // EntityServiceLifeCycle.afterCreateEntityHook (the non-transactional
     // create path) — a plain fallback would drop any mutual field
     // mutualSchema declares but createMutualSchema omits. collectUpdateEvents
-    // below stays on the ordinary mutualSchema.
+    // below stays on the ordinary mutualSchema. Reading the precomputed
+    // schema here avoids rebuilding a merged ZodObject per item in a batch.
     const config = this.EntityConfig[entity.entityType];
-    const mutualSchema = resolveEffectiveMutualSchema(
-      config?.mutual?.mutualSchema,
-      config?.mutual?.createMutualSchema,
-    );
+    const mutualSchema = config?.effectiveMutualSchema;
     if (mutualSchema) {
       const parsedMutualPayload = mutualSchema.parse(payload);
       if (parsedMutualPayload) {

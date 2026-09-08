@@ -48,6 +48,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # @monorise/core's tests import @monorise/base at runtime (via the
+      # workspace symlink), so its dist/ must exist before `npm run test`
+      # runs — without this, every test file that imports @monorise/base
+      # fails with "Failed to resolve entry for package '@monorise/base'"
+      # regardless of whether the actual test logic is correct.
+      - name: Build @monorise/base
+        run: npm -w @monorise/base run build
+
       - name: Run test for @monorise/core
         run: npm run test
         env:

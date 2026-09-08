@@ -132,6 +132,10 @@ const config = createEntityConfig({
 
 With this in place, `createEntity(Entity.STUDENT, { name: 'Alice' })` throws a validation error instead of silently creating a student with no enrollment; `updateEntity(Entity.STUDENT, id, { name: 'Alicia' })` still succeeds without `courseIds`.
 
+::: warning Upsert is strict or lenient depending on prior state
+`PUT /entity/:type/:id` (upsert) applies `createMutualSchema` only when the entity doesn't already exist yet — the same request body can pass or fail validation for the same entity type depending purely on whether that ID was already there. If you're calling upsert generically (not specifically to create), account for the possibility that a payload missing a `createMutualSchema`-required field will be rejected the first time an ID is used, but accepted on every call after.
+:::
+
 ::: tip Backward compatibility
 `createMutualSchema` is optional. Configs that don't define it behave exactly as before — `mutualSchema` alone validates both create and update.
 :::

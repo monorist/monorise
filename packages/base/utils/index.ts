@@ -17,19 +17,14 @@ import type {
  * taking precedence on overlap, since it's the stricter one) keeps every
  * mutual field in play while still enforcing the create-only requirement.
  */
-function resolveEffectiveMutualSchema<
-  M extends z.AnyZodObject | undefined,
->(
+function resolveEffectiveMutualSchema<M extends z.AnyZodObject | undefined>(
   mutualSchema: M,
   createMutualSchema?: z.AnyZodObject,
 ): M extends z.AnyZodObject ? z.AnyZodObject : z.AnyZodObject | undefined {
   if (!createMutualSchema) return mutualSchema as any;
   if (!mutualSchema) return createMutualSchema as any;
 
-  return z.object({
-    ...mutualSchema.shape,
-    ...createMutualSchema.shape,
-  }) as any;
+  return mutualSchema.merge(createMutualSchema) as any;
 }
 
 function makeSchema<
@@ -40,35 +35,26 @@ function makeSchema<
   CO extends z.ZodObject<C> | undefined = undefined,
   MO extends z.ZodObject<M> | undefined = undefined,
   CMO extends z.AnyZodObject | undefined = undefined,
->(config: MonoriseEntityConfig<T, B, C, M, CO, MO, CMO>) {
-  const { baseSchema, createSchema, mutual, effect } = config;
-  const { mutualSchema, createMutualSchema } = mutual || {};
-  // finalSchema is only ever consulted on the create path (EntityService.
-  // createEntity / TransactionService.buildCreateItems) — never on update —
-  // so it's safe to prefer the stricter createMutualSchema here, matching
-  // afterCreateEntityHook/collectCreateEvents's own preference below.
-  const effectiveMutualSchema = resolveEffectiveMutualSchema(
-    mutualSchema,
-    createMutualSchema,
-  );
+>(
+  config: MonoriseEntityConfig<T, B, C, M, CO, MO, CMO>,
+  effectiveMutualSchema: z.AnyZodObject | undefined,
+) {
+  const { baseSchema, createSchema, effect } = config;
 
-  // Mirrors resolveEffectiveMutualSchema's runtime merge at the type level:
-  // when createMutualSchema is defined, its (stricter) field types combine
-  // with mutualSchema's, so a create-required mutual field is reflected as
-  // required here too — otherwise EntitySchemaMap would mark it optional
-  // while finalSchema.parse() rejects a payload that omits it.
-  type EffectiveMutualShape = MO extends z.AnyZodObject
-    ? CMO extends z.AnyZodObject
-      ? MO['shape'] & CMO['shape']
-      : MO['shape']
-    : CMO extends z.AnyZodObject
-      ? CMO['shape']
-      : // biome-ignore lint/complexity/noBannedTypes: intentional empty-shape fallback, mirrors the `z.ZodObject<B>` "no mutual" branch below
-        {};
-
+  // Deliberately NOT `MO & CMO`-typed: finalSchema.parse() runs against
+  // effectiveMutualSchema's real runtime shape (below), but EntitySchemaMap
+  // — the type callers see back from a *read* — is generated from this
+  // same FinalSchemaType (packages/cli/commands/utils/generate.ts). Mutual
+  // fields are never stored, so a required createMutualSchema field must
+  // stay optional here; only the create-path runtime validation is allowed
+  // to be strict.
   type FinalSchemaType = CO extends z.AnyZodObject
-    ? z.ZodObject<EffectiveMutualShape & CO['shape']>
-    : z.ZodObject<EffectiveMutualShape & B>;
+    ? MO extends z.AnyZodObject
+      ? z.ZodObject<MO['shape'] & CO['shape']>
+      : CO
+    : MO extends z.AnyZodObject
+      ? z.ZodObject<MO['shape'] & B>
+      : z.ZodObject<B>;
 
   const finalSchema = z.object({
     ...baseSchema.shape,
@@ -93,17 +79,26 @@ const createEntityConfig = <
   CMO extends z.AnyZodObject | undefined = undefined,
 >(
   config: MonoriseEntityConfig<T, B, C, M, CO, MO, CMO>,
-) => ({
-  ...config,
-  finalSchema: makeSchema(config),
-});
+) => {
+  // Computed once here (config-definition time, not per-request/per-item)
+  // and reused by every create-path call site (afterCreateEntityHook,
+  // TransactionService.collectCreateEvents, UpsertEntityController) instead
+  // of each rebuilding the same merged ZodObject from scratch.
+  const { mutualSchema, createMutualSchema } = config.mutual || {};
+  const effectiveMutualSchema = resolveEffectiveMutualSchema(
+    mutualSchema,
+    createMutualSchema,
+  );
+
+  return {
+    ...config,
+    effectiveMutualSchema,
+    finalSchema: makeSchema(config, effectiveMutualSchema),
+  };
+};
 
 const createMutualConfig = <MD extends z.ZodRawShape>(
   config: MutualConfig<MD>,
 ) => config;
 
-export {
-  createEntityConfig,
-  createMutualConfig,
-  resolveEffectiveMutualSchema,
-};
+export { createEntityConfig, createMutualConfig, resolveEffectiveMutualSchema };

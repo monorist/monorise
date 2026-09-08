@@ -1,7 +1,8 @@
+import { resolveEffectiveMutualSchema } from '@monorise/base';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { TransactionService } from '../transaction.service';
 import { EVENT } from '../../types/event';
+import { TransactionService } from '../transaction.service';
 
 enum TestEntity {
   COMPETITION = 'competition',
@@ -14,34 +15,48 @@ enum TestEntity {
 // mutual-data-schema.test.ts already uses for MutualService's own private
 // helpers in this package.
 describe('TransactionService.collectCreateEvents — createMutualSchema', () => {
+  // effectiveMutualSchema is normally precomputed by createEntityConfig —
+  // hand-rolled here (not run through the real factory) so it's derived
+  // the same way, matching what collectCreateEvents actually reads.
+  const competitionMutual = {
+    mutualSchema: z.object({ organisationIds: z.string().array() }).partial(),
+    createMutualSchema: z.object({ organisationIds: z.string().array() }),
+    mutualFields: {
+      organisationIds: { entityType: TestEntity.ORGANISATION },
+    },
+  };
+  // mutualSchema declares TWO fields; createMutualSchema only tightens
+  // one — regression coverage for the drop-on-merge bug (see
+  // create-mutual-schema.test.ts's own multiMutualConfig for the full
+  // rationale).
+  const multiMutual = {
+    mutualSchema: z
+      .object({
+        organisationIds: z.string().array(),
+        routableIds: z.string().array(),
+      })
+      .partial(),
+    createMutualSchema: z.object({ organisationIds: z.string().array() }),
+    mutualFields: {
+      organisationIds: { entityType: TestEntity.ORGANISATION },
+      routableIds: { entityType: TestEntity.ROUTABLE },
+    },
+  };
+
   const EntityConfig: any = {
     [TestEntity.COMPETITION]: {
-      mutual: {
-        mutualSchema: z.object({ organisationIds: z.string().array() }).partial(),
-        createMutualSchema: z.object({ organisationIds: z.string().array() }),
-        mutualFields: {
-          organisationIds: { entityType: TestEntity.ORGANISATION },
-        },
-      },
+      mutual: competitionMutual,
+      effectiveMutualSchema: resolveEffectiveMutualSchema(
+        competitionMutual.mutualSchema,
+        competitionMutual.createMutualSchema,
+      ),
     },
-    // mutualSchema declares TWO fields; createMutualSchema only tightens
-    // one — regression coverage for the drop-on-merge bug (see
-    // create-mutual-schema.test.ts's own multiMutualConfig for the full
-    // rationale).
     [TestEntity.MULTI_MUTUAL_ENTITY]: {
-      mutual: {
-        mutualSchema: z
-          .object({
-            organisationIds: z.string().array(),
-            routableIds: z.string().array(),
-          })
-          .partial(),
-        createMutualSchema: z.object({ organisationIds: z.string().array() }),
-        mutualFields: {
-          organisationIds: { entityType: TestEntity.ORGANISATION },
-          routableIds: { entityType: TestEntity.ROUTABLE },
-        },
-      },
+      mutual: multiMutual,
+      effectiveMutualSchema: resolveEffectiveMutualSchema(
+        multiMutual.mutualSchema,
+        multiMutual.createMutualSchema,
+      ),
     },
   };
 

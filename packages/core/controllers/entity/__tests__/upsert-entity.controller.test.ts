@@ -1,6 +1,10 @@
+import { resolveEffectiveMutualSchema } from '@monorise/base';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { StandardError, StandardErrorCode } from '../../../errors/standard-error';
+import {
+  StandardError,
+  StandardErrorCode,
+} from '../../../errors/standard-error';
 import { UpsertEntityController } from '../upsert-entity.controller';
 
 enum TestEntity {
@@ -8,17 +12,26 @@ enum TestEntity {
   ORGANISATION = 'organisation',
 }
 
+const competitionMutual = {
+  mutualSchema: z.object({ organisationIds: z.string().array() }).partial(),
+  createMutualSchema: z.object({ organisationIds: z.string().array() }),
+  mutualFields: {
+    organisationIds: { entityType: TestEntity.ORGANISATION },
+  },
+};
+
+// effectiveMutualSchema is normally precomputed by createEntityConfig —
+// hand-rolled here (not run through the real factory) so it's derived the
+// same way, matching what UpsertEntityController actually reads.
 const EntityConfig: any = {
   [TestEntity.COMPETITION]: {
     createSchema: z.object({ name: z.string() }),
     baseSchema: z.object({ name: z.string() }).partial(),
-    mutual: {
-      mutualSchema: z.object({ organisationIds: z.string().array() }).partial(),
-      createMutualSchema: z.object({ organisationIds: z.string().array() }),
-      mutualFields: {
-        organisationIds: { entityType: TestEntity.ORGANISATION },
-      },
-    },
+    mutual: competitionMutual,
+    effectiveMutualSchema: resolveEffectiveMutualSchema(
+      competitionMutual.mutualSchema,
+      competitionMutual.createMutualSchema,
+    ),
   },
 };
 
@@ -56,7 +69,10 @@ describe('UpsertEntityController — createMutualSchema on the insert case', () 
       getEntity: vi
         .fn()
         .mockRejectedValue(
-          new StandardError(StandardErrorCode.ENTITY_IS_UNDEFINED, 'Entity item empty'),
+          new StandardError(
+            StandardErrorCode.ENTITY_IS_UNDEFINED,
+            'Entity item empty',
+          ),
         ),
       upsertEntity: vi.fn(),
     };
@@ -77,7 +93,10 @@ describe('UpsertEntityController — createMutualSchema on the insert case', () 
       getEntity: vi
         .fn()
         .mockRejectedValue(
-          new StandardError(StandardErrorCode.ENTITY_IS_UNDEFINED, 'Entity item empty'),
+          new StandardError(
+            StandardErrorCode.ENTITY_IS_UNDEFINED,
+            'Entity item empty',
+          ),
         ),
       upsertEntity: vi.fn().mockResolvedValue({
         entityId: 'comp-1',
@@ -87,7 +106,10 @@ describe('UpsertEntityController — createMutualSchema on the insert case', () 
     const controller = buildController(entityRepository);
 
     const result = await controller.controller(
-      fakeContext('comp-1', { name: 'Winter League', organisationIds: ['org-1'] }),
+      fakeContext('comp-1', {
+        name: 'Winter League',
+        organisationIds: ['org-1'],
+      }),
       async () => {},
     );
 
@@ -118,7 +140,9 @@ describe('UpsertEntityController — createMutualSchema on the insert case', () 
 
   it('rethrows an unexpected getEntity error rather than misclassifying it as an insert', async () => {
     const entityRepository = {
-      getEntity: vi.fn().mockRejectedValue(new Error('DynamoDB is unavailable')),
+      getEntity: vi
+        .fn()
+        .mockRejectedValue(new Error('DynamoDB is unavailable')),
       upsertEntity: vi.fn(),
     };
     const controller = buildController(entityRepository);
