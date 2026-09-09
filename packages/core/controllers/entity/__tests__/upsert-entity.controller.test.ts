@@ -1,6 +1,7 @@
-import { resolveEffectiveMutualSchema } from '@monorise/base';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import { createEntityConfig } from '../../../../base';
+import type { Entity as EntityType } from '../../../../base';
 import {
   StandardError,
   StandardErrorCode,
@@ -12,27 +13,25 @@ enum TestEntity {
   ORGANISATION = 'organisation',
 }
 
-const competitionMutual = {
-  mutualSchema: z.object({ organisationIds: z.string().array() }).partial(),
-  createMutualSchema: z.object({ organisationIds: z.string().array() }),
-  mutualFields: {
-    organisationIds: { entityType: TestEntity.ORGANISATION },
+// Built via the real createEntityConfig factory (not a hand-rolled mock) so
+// this also exercises the factory→call-site wiring, matching
+// create-mutual-schema.test.ts's own pattern.
+const competitionConfig = createEntityConfig({
+  name: TestEntity.COMPETITION,
+  displayName: 'Competition',
+  baseSchema: z.object({ name: z.string() }).partial(),
+  createSchema: z.object({ name: z.string() }),
+  mutual: {
+    mutualSchema: z.object({ organisationIds: z.string().array() }).partial(),
+    createMutualSchema: z.object({ organisationIds: z.string().array() }),
+    mutualFields: {
+      organisationIds: { entityType: TestEntity.ORGANISATION as unknown as EntityType },
+    },
   },
-};
+});
 
-// effectiveMutualSchema is normally precomputed by createEntityConfig —
-// hand-rolled here (not run through the real factory) so it's derived the
-// same way, matching what UpsertEntityController actually reads.
 const EntityConfig: any = {
-  [TestEntity.COMPETITION]: {
-    createSchema: z.object({ name: z.string() }),
-    baseSchema: z.object({ name: z.string() }).partial(),
-    mutual: competitionMutual,
-    effectiveMutualSchema: resolveEffectiveMutualSchema(
-      competitionMutual.mutualSchema,
-      competitionMutual.createMutualSchema,
-    ),
-  },
+  [TestEntity.COMPETITION]: competitionConfig,
 };
 
 // Minimal duck-typed Hono context — createMiddleware's wrapped callback only

@@ -16,13 +16,16 @@ export class EntityServiceLifeCycle {
     entityPayload?: Record<string, unknown>,
     accountId?: string | string[],
   ) {
-    // Precomputed once by createEntityConfig — merges createMutualSchema
-    // (stricter, create-only) into mutualSchema rather than replacing it,
-    // since a plain fallback would drop any mutual field mutualSchema
-    // declares but createMutualSchema omits, silently skipping that
-    // field's wiring even when the caller supplied it.
-    const mutualSchema =
-      this.EntityConfig[entity.entityType].effectiveMutualSchema;
+    // effectiveMutualSchema is precomputed once by createEntityConfig — see
+    // resolveEffectiveMutualSchema (packages/base/utils) for why it's a
+    // merge, not a replace. Fallback to the raw mutualSchema (today's
+    // pre-createMutualSchema behavior) when effectiveMutualSchema is
+    // missing — e.g. this EntityConfig was built by an older
+    // @monorise/base that doesn't attach it — so a version-mismatch
+    // silently disables mutual-create events for every entity, not just
+    // ones using createMutualSchema.
+    const config = this.EntityConfig[entity.entityType];
+    const mutualSchema = config?.effectiveMutualSchema ?? config?.mutual?.mutualSchema;
     const parsedMutualPayload = mutualSchema?.parse(entityPayload);
 
     if (parsedMutualPayload) {

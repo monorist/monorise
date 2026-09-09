@@ -92,6 +92,13 @@ const createEntityConfig = <
 
   return {
     ...config,
+    // Derived output, not an input on MonoriseEntityConfig — there's
+    // nowhere to declare this on the config type itself. Read by name
+    // across packages/core (EntityServiceLifeCycle, TransactionService,
+    // UpsertEntityController); don't hand-set it on a config object built
+    // outside this factory (e.g. a test fixture) — build through
+    // createEntityConfig instead, or it silently falls out of sync with
+    // mutual.mutualSchema/createMutualSchema.
     effectiveMutualSchema,
     finalSchema: makeSchema(config, effectiveMutualSchema),
   };

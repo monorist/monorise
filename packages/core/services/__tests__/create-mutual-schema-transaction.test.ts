@@ -1,6 +1,7 @@
-import { resolveEffectiveMutualSchema } from '@monorise/base';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
+import { createEntityConfig } from '../../../base';
+import type { Entity as EntityType } from '../../../base';
 import { EVENT } from '../../types/event';
 import { TransactionService } from '../transaction.service';
 
@@ -15,49 +16,49 @@ enum TestEntity {
 // mutual-data-schema.test.ts already uses for MutualService's own private
 // helpers in this package.
 describe('TransactionService.collectCreateEvents — createMutualSchema', () => {
-  // effectiveMutualSchema is normally precomputed by createEntityConfig —
-  // hand-rolled here (not run through the real factory) so it's derived
-  // the same way, matching what collectCreateEvents actually reads.
-  const competitionMutual = {
-    mutualSchema: z.object({ organisationIds: z.string().array() }).partial(),
-    createMutualSchema: z.object({ organisationIds: z.string().array() }),
-    mutualFields: {
-      organisationIds: { entityType: TestEntity.ORGANISATION },
+  // Built via the real createEntityConfig factory (not a hand-rolled mock)
+  // so this also exercises the factory→call-site wiring, matching
+  // create-mutual-schema.test.ts's own pattern.
+  const competitionConfig = createEntityConfig({
+    name: TestEntity.COMPETITION,
+    displayName: 'Competition',
+    baseSchema: z.object({ name: z.string() }).partial(),
+    createSchema: z.object({ name: z.string() }),
+    mutual: {
+      mutualSchema: z.object({ organisationIds: z.string().array() }).partial(),
+      createMutualSchema: z.object({ organisationIds: z.string().array() }),
+      mutualFields: {
+        organisationIds: { entityType: TestEntity.ORGANISATION as unknown as EntityType },
+      },
     },
-  };
+  });
   // mutualSchema declares TWO fields; createMutualSchema only tightens
   // one — regression coverage for the drop-on-merge bug (see
   // create-mutual-schema.test.ts's own multiMutualConfig for the full
   // rationale).
-  const multiMutual = {
-    mutualSchema: z
-      .object({
-        organisationIds: z.string().array(),
-        routableIds: z.string().array(),
-      })
-      .partial(),
-    createMutualSchema: z.object({ organisationIds: z.string().array() }),
-    mutualFields: {
-      organisationIds: { entityType: TestEntity.ORGANISATION },
-      routableIds: { entityType: TestEntity.ROUTABLE },
+  const multiMutualConfig = createEntityConfig({
+    name: TestEntity.MULTI_MUTUAL_ENTITY,
+    displayName: 'Multi Mutual Entity',
+    baseSchema: z.object({ name: z.string() }).partial(),
+    createSchema: z.object({ name: z.string() }),
+    mutual: {
+      mutualSchema: z
+        .object({
+          organisationIds: z.string().array(),
+          routableIds: z.string().array(),
+        })
+        .partial(),
+      createMutualSchema: z.object({ organisationIds: z.string().array() }),
+      mutualFields: {
+        organisationIds: { entityType: TestEntity.ORGANISATION as unknown as EntityType },
+        routableIds: { entityType: TestEntity.ROUTABLE as unknown as EntityType },
+      },
     },
-  };
+  });
 
   const EntityConfig: any = {
-    [TestEntity.COMPETITION]: {
-      mutual: competitionMutual,
-      effectiveMutualSchema: resolveEffectiveMutualSchema(
-        competitionMutual.mutualSchema,
-        competitionMutual.createMutualSchema,
-      ),
-    },
-    [TestEntity.MULTI_MUTUAL_ENTITY]: {
-      mutual: multiMutual,
-      effectiveMutualSchema: resolveEffectiveMutualSchema(
-        multiMutual.mutualSchema,
-        multiMutual.createMutualSchema,
-      ),
-    },
+    [TestEntity.COMPETITION]: competitionConfig,
+    [TestEntity.MULTI_MUTUAL_ENTITY]: multiMutualConfig,
   };
 
   const buildService = () =>

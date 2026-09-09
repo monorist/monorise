@@ -516,16 +516,16 @@ export class TransactionService {
     const events: PendingEvent[] = [];
     const publishedAt = entity.updatedAt || new Date().toISOString();
 
-    // Mutual events — effectiveMutualSchema (precomputed once by
-    // createEntityConfig) already merges createMutualSchema (stricter,
-    // create-only) into mutualSchema rather than replacing it, same as
+    // effectiveMutualSchema is precomputed once by createEntityConfig — see
+    // resolveEffectiveMutualSchema (packages/base/utils) for why it's a
+    // merge, not a replace; same call site shape as
     // EntityServiceLifeCycle.afterCreateEntityHook (the non-transactional
-    // create path) — a plain fallback would drop any mutual field
-    // mutualSchema declares but createMutualSchema omits. collectUpdateEvents
-    // below stays on the ordinary mutualSchema. Reading the precomputed
-    // schema here avoids rebuilding a merged ZodObject per item in a batch.
+    // create path). collectUpdateEvents below stays on the ordinary
+    // mutualSchema. Fallback to the raw mutualSchema when
+    // effectiveMutualSchema is missing (older @monorise/base) — see that
+    // method's identical fallback for the full reasoning.
     const config = this.EntityConfig[entity.entityType];
-    const mutualSchema = config?.effectiveMutualSchema;
+    const mutualSchema = config?.effectiveMutualSchema ?? config?.mutual?.mutualSchema;
     if (mutualSchema) {
       const parsedMutualPayload = mutualSchema.parse(payload);
       if (parsedMutualPayload) {
