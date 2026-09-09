@@ -154,4 +154,55 @@ describe('TransactionService.collectCreateEvents — createMutualSchema', () => 
       ]),
     );
   });
+
+  it('falls back to config.mutual.mutualSchema when effectiveMutualSchema is absent entirely — e.g. an EntityConfig built by an older @monorise/base', () => {
+    // Hand-rolled on purpose: createEntityConfig always attaches
+    // effectiveMutualSchema, so building this through the factory would
+    // never exercise the `config?.effectiveMutualSchema ?? config?.mutual?.mutualSchema`
+    // fallback in collectCreateEvents — the exact branch this regression
+    // guards.
+    const legacyShapedConfig: any = {
+      [TestEntity.COMPETITION]: {
+        mutual: {
+          mutualSchema: z.object({ organisationIds: z.string().array() }).partial(),
+          mutualFields: {
+            organisationIds: { entityType: TestEntity.ORGANISATION },
+          },
+        },
+        // no effectiveMutualSchema — as an older @monorise/base would build it
+      },
+    };
+
+    const service = new TransactionService(
+      legacyShapedConfig,
+      [],
+      {} as any, // entityRepository
+      {} as any, // dynamodbClient
+      vi.fn() as any, // publishEvent
+      {} as any, // entityServiceLifeCycle
+      {} as any, // eventUtils
+    );
+    const collectCreateEvents = (service as any).collectCreateEvents.bind(
+      service,
+    );
+
+    const events = collectCreateEvents(
+      {
+        entityType: TestEntity.COMPETITION,
+        entityId: 'comp-1',
+        data: {},
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      },
+      { name: 'Winter League', organisationIds: ['org-1'] },
+    );
+
+    expect(events).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          event: EVENT.CORE.ENTITY_MUTUAL_TO_CREATE,
+          payload: expect.objectContaining({ mutualIds: ['org-1'] }),
+        }),
+      ]),
+    );
+  });
 });

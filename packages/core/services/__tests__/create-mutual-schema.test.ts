@@ -231,4 +231,49 @@ describe('EntityServiceLifeCycle.afterCreateEntityHook — createMutualSchema', 
       ),
     ).resolves.toBeUndefined();
   });
+
+  it('falls back to config.mutual.mutualSchema when effectiveMutualSchema is absent entirely — e.g. an EntityConfig built by an older @monorise/base', async () => {
+    // Hand-rolled on purpose: createEntityConfig always attaches
+    // effectiveMutualSchema, so building this through the factory would
+    // never exercise the `config?.effectiveMutualSchema ?? config?.mutual?.mutualSchema`
+    // fallback in afterCreateEntityHook — the exact branch this regression
+    // guards.
+    const legacyShapedConfig: any = {
+      [TestEntity.COMPETITION]: {
+        mutual: {
+          mutualSchema: z.object({ organisationIds: z.string().array() }).partial(),
+          mutualFields: {
+            organisationIds: { entityType: TestEntity.ORGANISATION },
+          },
+        },
+        // no effectiveMutualSchema — as an older @monorise/base would build it
+      },
+    };
+
+    const publishEvent = vi.fn().mockResolvedValue(undefined);
+    const eventUtils = {
+      publishCreateMutualsEvent: vi.fn().mockResolvedValue(undefined),
+    } as any;
+    const lifecycle = new EntityServiceLifeCycle(
+      legacyShapedConfig,
+      publishEvent,
+      eventUtils,
+    );
+
+    await lifecycle.afterCreateEntityHook(
+      {
+        entityType: TestEntity.COMPETITION,
+        entityId: 'comp-1',
+        data: {},
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      } as any,
+      { name: 'Winter League', organisationIds: ['org-1'] },
+    );
+
+    expect(eventUtils.publishCreateMutualsEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mutualPayload: expect.objectContaining({ organisationIds: ['org-1'] }),
+      }),
+    );
+  });
 });
