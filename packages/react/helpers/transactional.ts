@@ -1,4 +1,5 @@
 import type { Entity, EntitySchemaMap } from '@monorise/base';
+import { getEntityRequestKey } from '../lib/utils';
 
 export type TransactionCreateEntity<T extends Entity = Entity> = {
   operation: 'createEntity';
@@ -49,6 +50,26 @@ export type TransactionResultEntry<T extends Entity = Entity> = {
 
 export type TransactionResult = {
   results: TransactionResultEntry[];
+};
+
+// The requestKey a single-entity call for this same op's target would have
+// used (getEntityRequestKey('edit'|'adjust'|'delete', entityType, entityId),
+// or ('create', entityType) for a create — which never includes an id, same
+// as createEntity's own key). Every op already carries a real entityId
+// except an id-less create, so this never needs to invent one.
+export const getTransactionOperationRequestKey = (
+  op: TransactionOperation,
+): string => {
+  switch (op.operation) {
+    case 'createEntity':
+      return getEntityRequestKey('create', op.entityType);
+    case 'updateEntity':
+      return getEntityRequestKey('edit', op.entityType, op.entityId);
+    case 'adjustEntity':
+      return getEntityRequestKey('adjust', op.entityType, op.entityId);
+    case 'deleteEntity':
+      return getEntityRequestKey('delete', op.entityType, op.entityId);
+  }
 };
 
 // NOTE: packages/core/helpers/transactional.ts is the server-side copy of

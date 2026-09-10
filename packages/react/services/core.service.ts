@@ -1,8 +1,9 @@
 import type { CreatedEntity, DraftEntity, Entity } from '@monorise/base';
 import type { AxiosRequestConfig } from 'axios';
-import type {
-  TransactionOperation,
-  TransactionResult,
+import {
+  getTransactionOperationRequestKey,
+  type TransactionOperation,
+  type TransactionResult,
 } from '../helpers/transactional';
 import {
   getEntityRequestKey,
@@ -69,7 +70,6 @@ const initCoreService = (
   opts?: ConfigOptions,
 ) => {
   let options: ConfigOptions = opts || {};
-  let transactionCallCounter = 0;
 
   const listEntities = <T extends Entity>(
     entityType: T,
@@ -281,7 +281,7 @@ const initCoreService = (
     );
   };
 
-  const transaction = (
+  const executeTransaction = (
     operations: TransactionOperation[],
     opts: CommonOptions = {},
   ) => {
@@ -294,8 +294,11 @@ const initCoreService = (
         // A hardcoded requestKey would collide across concurrent transaction
         // calls, sharing one loading/error slot — the second call's isLoading
         // check can see the first's in-flight state and silently no-op.
+        // Every operation already carries a real entityId (only an id-less
+        // create doesn't, same as plain createEntity's own key), so default
+        // to the first operation's own matching key rather than inventing one.
         requestKey:
-          opts.requestKey || `transaction-${transactionCallCounter++}`,
+          opts.requestKey || getTransactionOperationRequestKey(operations[0]),
         isInterruptive: opts.isInterruptive ?? true,
         feedback: {
           loading: 'Processing transaction',
@@ -552,7 +555,7 @@ const initCoreService = (
   return {
     makeEntityService,
     makeMutualService,
-    transaction,
+    executeTransaction,
     setOptions,
   };
 };

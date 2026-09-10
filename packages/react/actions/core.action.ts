@@ -33,9 +33,10 @@ import type { ApplicationRequestError } from '../types/api.type';
 import type { CommonStore } from '../types/monorise.type';
 import type { Mutual, MutualData } from '../types/mutual.type';
 import type { AppActions } from './app.action';
-import type {
-  TransactionCreateEntity,
-  TransactionOperation,
+import {
+  getTransactionOperationRequestKey,
+  type TransactionCreateEntity,
+  type TransactionOperation,
 } from '../helpers/transactional';
 
 // ===== Important tips ======
@@ -56,7 +57,16 @@ const initCoreActions = (
   coreService: CoreService,
 ) => {
   const { makeEntityService, makeMutualService } = coreService;
-  const { checkIsLoading, getError, useLoadStore, useErrorStore } = appActions;
+  const {
+    checkIsLoading,
+    getError,
+    useLoadStore,
+    useErrorStore,
+    startLoading,
+    endLoading,
+    setError,
+    clearError,
+  } = appActions;
 
   const listEntities = async <T extends Entity>(
     entityType: T,
@@ -414,7 +424,7 @@ const initCoreActions = (
   };
 
   // Populate already-loaded mutual-list caches for a freshly created entity —
-  // e.g. so a `refund-line-item` created via `createEntity` or `transaction`
+  // e.g. so a `refund-line-item` created via `createEntity` or `executeTransaction`
   // immediately appears in an already-fetched
   // `useMutuals(Entity.REFUND, Entity.REFUND_LINE_ITEM, ...)` list, instead of
   // only showing up after that list's next refetch. `payload` is the raw
@@ -829,20 +839,53 @@ const initCoreActions = (
     }
   };
 
-  // Runs a multi-entity atomic write (`coreService.transaction`, backed by a
-  // real DynamoDB TransactWriteItems) and folds each op's result back into the
-  // local store — the same cache guarantee createEntity/editEntity/
-  // adjustEntity/deleteEntity already give a single-entity call, so a caller
-  // doesn't have to hand-roll cache patching (or force a refetch) just
-  // because their write happened to span more than one entity.
-  const transaction = async (
+  // Runs a multi-entity atomic write (`coreService.executeTransaction`,
+  // backed by a real DynamoDB TransactWriteItems) and folds each op's result
+  // back into the local store — the same cache guarantee createEntity/
+  // editEntity/adjustEntity/deleteEntity already give a single-entity call,
+  // so a caller doesn't have to hand-roll cache patching (or force a
+  // refetch) just because their write happened to span more than one entity.
+  const executeTransaction = async (
     operations: TransactionOperation[],
     opts: CommonOptions = {},
   ) => {
     const onError = opts.onError ?? defaultOnError;
+    const isInterruptive = opts.isInterruptive ?? true;
+    const opRequestKeys = operations.map(getTransactionOperationRequestKey);
+    // coreService.executeTransaction's own axios call needs *a* requestKey —
+    // which one doesn't matter on its own, since every op's key below is
+    // driven identically regardless. Default to the first operation's own
+    // matching key rather than inventing one.
+    const callRequestKey = opts.requestKey || opRequestKeys[0];
+    const callPromise = coreService.executeTransaction(operations, {
+      ...opts,
+      requestKey: callRequestKey,
+    });
+
+    // Drive the same per-entity loading/error signal a standalone
+    // createEntity/editEntity/adjustEntity/deleteEntity call on each op's
+    // target would have driven, so a component checking any op's target via
+    // useLoadStore/getError sees "mutating" during a transaction too. (A
+    // same-entity collision with a concurrent standalone call is rare, and
+    // when it happens it's already deduped onto one shared request — same as
+    // any two concurrent single-entity calls on that entity would be today.)
+    for (const requestKey of opRequestKeys) {
+      startLoading({
+        requestKey,
+        isInterruptive,
+        message: opts.feedback?.loading,
+        request: callPromise,
+      });
+    }
 
     try {
-      const { data } = await coreService.transaction(operations, opts);
+      const { data } = await callPromise;
+
+      for (const requestKey of opRequestKeys) {
+        endLoading({ requestKey, isInterruptive });
+        clearError(requestKey);
+      }
+
       const deletedEntities: { entityType: Entity; entityId: string }[] = [];
 
       monoriseStore.setState(
@@ -942,7 +985,7 @@ const initCoreActions = (
           });
         }),
         undefined,
-        'mr/entity/transaction',
+        'mr/entity/execute-transaction',
       );
 
       // Reverse-side mutual cleanup for deletes (lists keyed BY the deleted
@@ -954,6 +997,19 @@ const initCoreActions = (
 
       return { data };
     } catch (err) {
+      // The axios interceptor already ran its own error handling for
+      // callRequestKey (endLoading + setError) — read back whatever appError
+      // it computed and mirror it onto every op's key, rather than
+      // re-deriving the AxiosError → ApplicationRequestError shaping logic
+      // here.
+      const callAppError = getError(callRequestKey);
+      for (const requestKey of opRequestKeys) {
+        endLoading({ requestKey, isInterruptive });
+        if (callAppError) {
+          setError({ requestKey, error: callAppError });
+        }
+      }
+
       const error: Error & { originalError?: unknown } =
         err instanceof Error ? err : new Error('Unknown error occurred');
       onError(error);
@@ -2140,7 +2196,7 @@ const initCoreActions = (
     editEntity,
     adjustEntity,
     deleteEntity,
-    transaction,
+    executeTransaction,
     getMutual,
     updateLocalEntity,
     createMutual,
