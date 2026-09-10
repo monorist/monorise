@@ -22,9 +22,7 @@ export interface EntitySchemaMap {
  * });
  * ```
  */
-export interface MutualConfig<
-  MD extends z.ZodRawShape = z.ZodRawShape,
-> {
+export interface MutualConfig<MD extends z.ZodRawShape = z.ZodRawShape> {
   /**
    * Stable analytics dataset name. When provided, it must be lower-kebab-case;
    * the generator validates this so unnamed mutuals remain backwards compatible.
@@ -79,6 +77,7 @@ export interface MonoriseEntityConfig<
   M extends z.ZodRawShape = z.ZodRawShape,
   CO extends z.ZodObject<C> | undefined = undefined,
   MO extends z.ZodObject<M> | undefined = undefined,
+  CMO extends z.AnyZodObject | undefined = undefined,
 > {
   /**
    * @description Name of the entity. Must be in **lower-kebab-case** and **unique** across all entities
@@ -135,9 +134,37 @@ export interface MonoriseEntityConfig<
      */
     subscribes?: { entityType: Entity }[];
     /**
-     * @description Virtual schema for mutual relationship. The schema is only used for validation purpose, but these fields are not stored in the database
+     * @description Virtual schema for mutual relationship. The schema is only used for validation purpose, but these fields are not stored in the database.
+     * Used to validate mutual fields on BOTH create and update — keep it `.partial()` if you want updates that don't touch every mutual relationship to remain valid.
      */
     mutualSchema: MO;
+
+    /**
+     * @description (Optional) Stricter schema applied ONLY when the entity is created — falls back to `mutualSchema` if not provided, so existing configs are unaffected. When provided, its shape is merged over `mutualSchema` for create; fields only `mutualSchema` declares (and `createMutualSchema` doesn't mention) are still validated and wired, not dropped.
+     *
+     * Use this when a mutual relationship must always be wired at creation time (e.g. every Competition must have an owning Organisation from the start), but you don't want to force every future *update* to also resend that relationship — `mutualSchema` itself stays `.partial()` for updates, while `createMutualSchema` enforces the required fields only on create.
+     *
+     * Without this, a create silently succeeds even if a required mutual link is omitted from the payload — the entity is created but never gets wired to the relationship, with no error anywhere.
+     *
+     * Note: this only strengthens the *runtime* validation on create — `EntitySchemaMap` (the type callers see back from a read, generated from `finalSchema`) stays `MO`-shaped regardless, since mutual fields are never stored and a read can never actually return one. Don't expect a `createMutualSchema`-required field to show up as required in generated read types.
+     *
+     * The same-named `PUT /entity/:type/:id` upsert endpoint applies this schema only when the entity doesn't already exist — the same call is strict or lenient purely depending on whether that ID was already there.
+     *
+     * @example
+     * ```ts
+     * const mutualSchema = z.object({ organisationIds: z.string().array() }).partial();
+     * const createMutualSchema = z.object({ organisationIds: z.string().array() }); // required on create
+     * ```
+     */
+    createMutualSchema?: CMO;
+    // Deliberately typed via its own `CMO` generic rather than `MO` — the
+    // whole point is that it's allowed to be a DIFFERENT (stricter) shape
+    // than `mutualSchema`, e.g. built via `mutualSchema.required({ field:
+    // true })`, which is a structurally different ZodObject type, not `MO`
+    // itself. Only the runtime merge (`resolveEffectiveMutualSchema` /
+    // `effectiveMutualSchema`, see `packages/base/utils`) combines `MO` and
+    // `CMO` — `finalSchema`'s TYPE deliberately stays `MO`-based; see the
+    // note above and `makeSchema`'s own comment for why.
 
     /**
      * @description Keys of `mutualFields` are fields defined in `mutualSchema`.
@@ -259,7 +286,13 @@ export interface MonoriseEntityConfig<
    */
   tags?: {
     name: string;
-    processor: (entity: { entityId: string; entityType: string; data: Record<string, any>; createdAt: string; updatedAt: string }) => {
+    processor: (entity: {
+      entityId: string;
+      entityType: string;
+      data: Record<string, any>;
+      createdAt: string;
+      updatedAt: string;
+    }) => {
       group?: string;
       sortValue?: string;
     }[];
@@ -338,16 +371,32 @@ export interface MonoriseEntityConfig<
       max?: number;
       /** Field name on the entity whose value is used as the minimum (must be a numeric field) */
       minField?: keyof {
-        [K in keyof B as B[K] extends z.ZodNumber | z.ZodOptional<z.ZodNumber> ? K : never]: K;
-      } extends never ? string : keyof {
-        [K in keyof B as B[K] extends z.ZodNumber | z.ZodOptional<z.ZodNumber> ? K : never]: K;
-      };
+        [K in keyof B as B[K] extends z.ZodNumber | z.ZodOptional<z.ZodNumber>
+          ? K
+          : never]: K;
+      } extends never
+        ? string
+        : keyof {
+            [K in keyof B as B[K] extends
+              | z.ZodNumber
+              | z.ZodOptional<z.ZodNumber>
+              ? K
+              : never]: K;
+          };
       /** Field name on the entity whose value is used as the maximum (must be a numeric field) */
       maxField?: keyof {
-        [K in keyof B as B[K] extends z.ZodNumber | z.ZodOptional<z.ZodNumber> ? K : never]: K;
-      } extends never ? string : keyof {
-        [K in keyof B as B[K] extends z.ZodNumber | z.ZodOptional<z.ZodNumber> ? K : never]: K;
-      };
+        [K in keyof B as B[K] extends z.ZodNumber | z.ZodOptional<z.ZodNumber>
+          ? K
+          : never]: K;
+      } extends never
+        ? string
+        : keyof {
+            [K in keyof B as B[K] extends
+              | z.ZodNumber
+              | z.ZodOptional<z.ZodNumber>
+              ? K
+              : never]: K;
+          };
     };
   };
 

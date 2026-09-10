@@ -516,9 +516,16 @@ export class TransactionService {
     const events: PendingEvent[] = [];
     const publishedAt = entity.updatedAt || new Date().toISOString();
 
-    // Mutual events
+    // effectiveMutualSchema is precomputed once by createEntityConfig — see
+    // resolveEffectiveMutualSchema (packages/base/utils) for why it's a
+    // merge, not a replace; same call site shape as
+    // EntityServiceLifeCycle.afterCreateEntityHook (the non-transactional
+    // create path). collectUpdateEvents below stays on the ordinary
+    // mutualSchema. Fallback to the raw mutualSchema when
+    // effectiveMutualSchema is missing (older @monorise/base) — see that
+    // method's identical fallback for the full reasoning.
     const config = this.EntityConfig[entity.entityType];
-    const mutualSchema = config?.mutual?.mutualSchema;
+    const mutualSchema = config?.effectiveMutualSchema ?? config?.mutual?.mutualSchema;
     if (mutualSchema) {
       const parsedMutualPayload = mutualSchema.parse(payload);
       if (parsedMutualPayload) {

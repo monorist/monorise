@@ -35,11 +35,11 @@
     "ulid": "^2.3.0"
   },
   "devDependencies": {
-    "@monorise/base": "^4.4.0",
     "@types/aws-lambda": "^8.10.147",
     "vitest": "^3.1.1"
   },
   "peerDependencies": {
+    "@monorise/base": "^4.4.0",
     "hono": "^4.7.10"
   }
 }

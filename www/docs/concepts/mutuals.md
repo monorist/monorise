@@ -96,6 +96,50 @@ const config = createEntityConfig({
 `createMutualConfig` was introduced after mutuals existed, so it remains optional. Existing inline mutual configurations continue to work and accept unvalidated `mutualData`. For new relationships that carry data, use a shared config from the start.
 :::
 
+## Requiring a mutual field only on create
+
+`mutualSchema` validates the same payload shape on both create and update. That's a tradeoff: making a field required so a create can't skip it also forces every future *update* to resend that field, even for edits that have nothing to do with the relationship. Keeping it `.partial()` avoids that, but then a create can silently omit a required link — the entity is created, but never wired to the relationship, with no error anywhere.
+
+`createMutualSchema` is an optional, stricter sibling of `mutualSchema` that's validated **only on create**. When present, its shape is merged into `mutualSchema` for the create payload — so any mutual field `mutualSchema` declares but `createMutualSchema` doesn't repeat is still validated and wired, and `createMutualSchema` only needs to list the field(s) it's tightening. `mutualSchema` itself keeps validating updates as normal.
+
+```ts
+const config = createEntityConfig({
+  name: 'student',
+  displayName: 'Student',
+  baseSchema,
+  mutual: {
+    // Still partial — an update to a student's name shouldn't have to
+    // resend courseIds.
+    mutualSchema: z.object({
+      courseIds: z.string().array(),
+    }).partial(),
+    // Required, and non-empty — every student must be enrolled in at
+    // least one course from the moment they're created. `.array()` alone
+    // would accept `courseIds: []`, satisfying "required" while still
+    // enrolling in nothing — `.min(1)` closes that gap.
+    createMutualSchema: z.object({
+      courseIds: z.string().array().min(1),
+    }),
+    mutualFields: {
+      courseIds: {
+        entityType: Entity.COURSE,
+        mutual: enrollmentMutual,
+      },
+    },
+  },
+});
+```
+
+With this in place, `createEntity(Entity.STUDENT, { name: 'Alice' })` throws a validation error instead of silently creating a student with no enrollment; `updateEntity(Entity.STUDENT, id, { name: 'Alicia' })` still succeeds without `courseIds`.
+
+::: warning Upsert is strict or lenient depending on prior state
+`PUT /entity/:type/:id` (upsert) applies `createMutualSchema` only when the entity doesn't already exist yet — the same request body can pass or fail validation for the same entity type depending purely on whether that ID was already there. If you're calling upsert generically (not specifically to create), account for the possibility that a payload missing a `createMutualSchema`-required field will be rejected the first time an ID is used, but accepted on every call after.
+:::
+
+::: tip Backward compatibility
+`createMutualSchema` is optional. Configs that don't define it behave exactly as before — `mutualSchema` alone validates both create and update.
+:::
+
 When Athena analytics is enabled, a mutual relationship needs a lower-kebab-case `name` to receive typed analytics tables. It becomes the stable dataset name: `name: 'enrollment'` creates `enrollment_mutuals` for current state and `enrollment_mutual_changes` for history. Names must remain unique after SQL identifier normalization. Unnamed mutuals remain available to the core API but are skipped by analytics with a generator warning.
 
 ## Querying mutuals (API)

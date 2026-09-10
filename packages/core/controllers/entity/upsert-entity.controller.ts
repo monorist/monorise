@@ -22,10 +22,10 @@ export class UpsertEntityController {
     };
 
     try {
-      const entitySchema =
-        this.EntityConfig[entityType].createSchema ||
-        this.EntityConfig[entityType].baseSchema;
-      const mutualSchema = this.EntityConfig[entityType].mutual?.mutualSchema;
+      const entityConfig = this.EntityConfig[entityType];
+      const entitySchema = entityConfig.createSchema || entityConfig.baseSchema;
+      const mutual = entityConfig.mutual;
+      const mutualSchema = mutual?.mutualSchema;
 
       if (!entitySchema || !mutualSchema) {
         throw new StandardError(
@@ -34,10 +34,54 @@ export class UpsertEntityController {
         );
       }
 
+      // Upsert has no separate create/update controller of its own — it's
+      // one endpoint that inserts or overwrites depending on whether
+      // entityId already exists (entityRepository.upsertEntity itself
+      // decides this via a conditional update, falling back to create()
+      // only on failure). To apply createMutualSchema on the insert case
+      // (matching EntityService.createEntity's own behavior), we need to
+      // know which case this is BEFORE validating — a plain existence check
+      // here, distinct from (and racing with, in principle) the actual
+      // upsert below.
+      //
+      // Only paid for entity types that actually opted into
+      // createMutualSchema — upsertEntity itself deliberately avoids this
+      // exact read (see its own comment), so every other entity type keeps
+      // that single-round-trip behavior unchanged.
+      //
+      // The race is accepted, but is a little more real than it might look:
+      // getEntity is an eventually-consistent read (no ConsistentRead), so a
+      // create immediately followed by an upsert within the replication
+      // window can read empty, take the strict branch, and 400 a legitimate
+      // update. Rarer than a true concurrent-write race, and confining the
+      // extra read to opt-in entity types keeps the blast radius small.
+      const isCreate = mutual?.createMutualSchema
+        ? await this.entityRepository
+            .getEntity(entityType, entityId)
+            .then(() => false)
+            .catch((err) => {
+              if (
+                err instanceof StandardError &&
+                err.code === StandardErrorCode.ENTITY_IS_UNDEFINED
+              ) {
+                return true;
+              }
+              throw err;
+            })
+        : false;
+
+      // Falls back to mutualSchema (already confirmed defined above) if
+      // effectiveMutualSchema somehow wasn't computed — it never actually
+      // is in practice, since createEntityConfig always derives it from
+      // the same mutualSchema this controller already checked.
+      const effectiveMutualSchema = isCreate
+        ? (entityConfig.effectiveMutualSchema ?? mutualSchema)
+        : mutualSchema;
+
       const body = await c.req.json();
 
       const parsedEntityPayload = entitySchema.parse(body);
-      const parsedMutualPayload = mutualSchema.parse(body);
+      const parsedMutualPayload = effectiveMutualSchema.parse(body);
 
       const entity = await this.entityRepository.upsertEntity(
         entityType,
@@ -51,7 +95,7 @@ export class UpsertEntityController {
         const publishEventPromises = [];
 
         for (const [fieldKey, config] of Object.entries(
-          this.EntityConfig[entityType].mutual?.mutualFields || {},
+          mutual?.mutualFields || {},
         )) {
           publishEventPromises.push(
             this.publishEvent({
