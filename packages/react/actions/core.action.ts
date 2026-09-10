@@ -33,6 +33,10 @@ import type { ApplicationRequestError } from '../types/api.type';
 import type { CommonStore } from '../types/monorise.type';
 import type { Mutual, MutualData } from '../types/mutual.type';
 import type { AppActions } from './app.action';
+import type {
+  TransactionCreateEntity,
+  TransactionOperation,
+} from '../helpers/transactional';
 
 // ===== Important tips ======
 // Should we use store.getState() or store()?
@@ -409,6 +413,48 @@ const initCoreActions = (
     }
   };
 
+  // Populate already-loaded mutual-list caches for a freshly created entity —
+  // e.g. so a `refund-line-item` created via `createEntity` or `transaction`
+  // immediately appears in an already-fetched
+  // `useMutuals(Entity.REFUND, Entity.REFUND_LINE_ITEM, ...)` list, instead of
+  // only showing up after that list's next refetch. `payload` is the raw
+  // create payload (mutualFields' ids live there, not necessarily on the
+  // server's returned `data.data`).
+  const populateMutualsForCreatedEntity = (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    state: any,
+    entityType: Entity,
+    data: CreatedEntity<Entity>,
+    payload: Record<string, any>,
+  ) => {
+    const mutualFields = state.config[entityType]?.mutual?.mutualFields;
+    if (!mutualFields) return;
+
+    for (const [field, fieldConfig] of Object.entries(mutualFields)) {
+      const byEntityType = (fieldConfig as any).entityType;
+      const ids = payload[field];
+      if (!Array.isArray(ids)) continue;
+
+      for (const byEntityId of ids) {
+        const mutualKey = getMutualStateKey(byEntityType, byEntityId, entityType);
+        if (state.mutual[mutualKey] && state.mutual[mutualKey].isFirstFetched) {
+          state.mutual[mutualKey].dataMap.set(data.entityId, {
+            entityId: data.entityId,
+            entityType,
+            byEntityId,
+            byEntityType,
+            mutualId: '',
+            data: data.data,
+            mutualData: {},
+            createdAt: data.createdAt,
+            updatedAt: data.updatedAt,
+            mutualUpdatedAt: data.updatedAt,
+          });
+        }
+      }
+    }
+  };
+
   const createEntity = async <T extends Entity>(
     entityType: T,
     entity: DraftEntity<T>,
@@ -491,40 +537,12 @@ const initCoreActions = (
           }
 
           // auto-populate mutual store based on entity config
-          const mutualFields =
-            state.config[entityType]?.mutual?.mutualFields;
-          if (mutualFields) {
-            for (const [field, fieldConfig] of Object.entries(mutualFields)) {
-              const byEntityType = fieldConfig.entityType;
-              const ids = (entity as Record<string, any>)[field];
-              if (!Array.isArray(ids)) continue;
-
-              for (const byEntityId of ids) {
-                const mutualKey = getMutualStateKey(
-                  byEntityType,
-                  byEntityId,
-                  entityType,
-                );
-                if (
-                  state.mutual[mutualKey] &&
-                  state.mutual[mutualKey].isFirstFetched
-                ) {
-                  state.mutual[mutualKey].dataMap.set(data.entityId, {
-                    entityId: data.entityId,
-                    entityType,
-                    byEntityId,
-                    byEntityType,
-                    mutualId: '',
-                    data: data.data,
-                    mutualData: {},
-                    createdAt: data.createdAt,
-                    updatedAt: data.updatedAt,
-                    mutualUpdatedAt: data.updatedAt,
-                  });
-                }
-              }
-            }
-          }
+          populateMutualsForCreatedEntity(
+            state,
+            entityType,
+            data as CreatedEntity<Entity>,
+            entity as Record<string, any>,
+          );
         }),
         undefined,
         `mr/entity/create/${entityType}`,
@@ -803,6 +821,138 @@ const initCoreActions = (
         `mr/entity/delete/${entityType}/${id}`,
       );
       return { data: { entityId: id } }; // Indicate success with the deleted ID
+    } catch (err) {
+      const error: Error & { originalError?: unknown } =
+        err instanceof Error ? err : new Error('Unknown error occurred');
+      onError(error);
+      return { error };
+    }
+  };
+
+  // Runs a multi-entity atomic write (`coreService.transaction`, backed by a
+  // real DynamoDB TransactWriteItems) and folds each op's result back into the
+  // local store — the same cache guarantee createEntity/editEntity/
+  // adjustEntity/deleteEntity already give a single-entity call, so a caller
+  // doesn't have to hand-roll cache patching (or force a refetch) just
+  // because their write happened to span more than one entity.
+  const transaction = async (
+    operations: TransactionOperation[],
+    opts: CommonOptions = {},
+  ) => {
+    const onError = opts.onError ?? defaultOnError;
+
+    try {
+      const { data } = await coreService.transaction(operations, opts);
+      const deletedEntities: { entityType: Entity; entityId: string }[] = [];
+
+      monoriseStore.setState(
+        produce((state) => {
+          data.results.forEach((entry, index) => {
+            const { entityType, entityId } = entry;
+
+            if (entry.operation === 'deleteEntity') {
+              state.entity[entityType]?.dataMap.delete(entityId);
+
+              for (const key of Object.keys(state.mutual)) {
+                const { entity: mutualEntityType } = parseMutualStateKey(key);
+                if (mutualEntityType === entityType) {
+                  state.mutual[key].dataMap.delete(entityId);
+                }
+              }
+
+              for (const tagKey of Object.keys(state.tag)) {
+                const [tagEntityType] = tagKey.split('/');
+                if ((tagEntityType as unknown as Entity) === entityType) {
+                  state.tag[tagKey]?.dataMap?.delete(entityId);
+                }
+              }
+
+              deletedEntities.push({ entityType, entityId });
+              return;
+            }
+
+            if (entry.operation === 'createEntity') {
+              const createdEntity = {
+                entityId,
+                entityType,
+                data: entry.data ?? {},
+                createdAt: entry.createdAt,
+                updatedAt: entry.updatedAt,
+              } as unknown as CreatedEntity<Entity>;
+
+              state.entity[entityType].dataMap.set(entityId, createdEntity);
+
+              const op = operations[index] as TransactionCreateEntity;
+              populateMutualsForCreatedEntity(
+                state,
+                entityType,
+                createdEntity,
+                op?.payload as Record<string, any>,
+              );
+              reconcileTaggedEntityStore(
+                state,
+                entityType,
+                entityId,
+                createdEntity,
+              );
+              return;
+            }
+
+            // updateEntity / adjustEntity. `entry.data` is populated either
+            // by the write itself or by transaction.service.ts's Phase 4
+            // read-back — only patch the cache when we actually have fresh
+            // data to patch it with, rather than guessing at a partial merge.
+            const existing = state.entity[entityType]?.dataMap.get(entityId);
+            if (!existing && !entry.data) return;
+
+            if (!entry.data) {
+              // No fresh data, but we do know the write landed — bump the
+              // timestamp so at least `updatedAt` isn't stale, without
+              // touching `.data` (and so without needing to re-bucket tags).
+              if (entry.updatedAt) {
+                state.entity[entityType].dataMap.set(entityId, {
+                  ...existing,
+                  updatedAt: entry.updatedAt,
+                });
+              }
+              return;
+            }
+
+            const updated = {
+              ...(existing ?? { entityId, entityType }),
+              data: entry.data,
+              updatedAt: entry.updatedAt ?? existing?.updatedAt,
+            } as unknown as CreatedEntity<Entity>;
+
+            state.entity[entityType].dataMap.set(entityId, updated);
+
+            for (const key of Object.keys(state.mutual)) {
+              const { entity: mutualEntityType } = parseMutualStateKey(key);
+              if (mutualEntityType === entityType) {
+                const mutual = state.mutual[key].dataMap.get(entityId);
+                if (mutual) {
+                  state.mutual[key].dataMap = new Map(
+                    state.mutual[key].dataMap,
+                  ).set(entityId, { ...mutual, data: updated.data });
+                }
+              }
+            }
+
+            reconcileTaggedEntityStore(state, entityType, entityId, updated);
+          });
+        }),
+        undefined,
+        'mr/entity/transaction',
+      );
+
+      // Reverse-side mutual cleanup for deletes (lists keyed BY the deleted
+      // entity itself) — mirrors deleteEntity's own use of this helper, which
+      // needs full entity config and does its own separate setState.
+      for (const { entityType, entityId } of deletedEntities) {
+        deleteLocalMutualsByEntity(entityType, entityId);
+      }
+
+      return { data };
     } catch (err) {
       const error: Error & { originalError?: unknown } =
         err instanceof Error ? err : new Error('Unknown error occurred');
@@ -1990,6 +2140,7 @@ const initCoreActions = (
     editEntity,
     adjustEntity,
     deleteEntity,
+    transaction,
     getMutual,
     updateLocalEntity,
     createMutual,

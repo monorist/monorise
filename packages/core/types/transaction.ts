@@ -40,6 +40,8 @@ export type TransactionResultEntry = {
   entityType: EntityType;
   entityId: string;
   data?: Record<string, unknown>;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type TransactionResult = {

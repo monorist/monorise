@@ -1,6 +1,9 @@
 import type { CreatedEntity, DraftEntity, Entity } from '@monorise/base';
 import type { AxiosRequestConfig } from 'axios';
-import type { TransactionOperation } from '../helpers/transactional';
+import type {
+  TransactionOperation,
+  TransactionResult,
+} from '../helpers/transactional';
 import {
   getEntityRequestKey,
   getMutualRequestKey,
@@ -66,6 +69,7 @@ const initCoreService = (
   opts?: ConfigOptions,
 ) => {
   let options: ConfigOptions = opts || {};
+  let transactionCallCounter = 0;
 
   const listEntities = <T extends Entity>(
     entityType: T,
@@ -283,11 +287,15 @@ const initCoreService = (
   ) => {
     const { transactionApiBaseUrl = TRANSACTION_API_BASE_URL } =
       options as any;
-    return axios.post(
+    return axios.post<TransactionResult>(
       opts.customUrl || transactionApiBaseUrl,
       { operations },
       {
-        requestKey: 'transaction',
+        // A hardcoded requestKey would collide across concurrent transaction
+        // calls, sharing one loading/error slot — the second call's isLoading
+        // check can see the first's in-flight state and silently no-op.
+        requestKey:
+          opts.requestKey || `transaction-${transactionCallCounter++}`,
         isInterruptive: opts.isInterruptive ?? true,
         feedback: {
           loading: 'Processing transaction',

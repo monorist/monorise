@@ -35,6 +35,22 @@ export type TransactionOperation =
   | TransactionAdjustEntity
   | TransactionDeleteEntity;
 
+// Mirrors packages/core/types/transaction.ts's TransactionResultEntry/Result —
+// the client can't import from @monorise/core (server-only, pulls in the AWS
+// SDK), so the response shape is duplicated here.
+export type TransactionResultEntry<T extends Entity = Entity> = {
+  operation: TransactionOperation['operation'];
+  entityType: T;
+  entityId: string;
+  data?: Record<string, unknown>;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type TransactionResult = {
+  results: TransactionResultEntry[];
+};
+
 // NOTE: packages/core/helpers/transactional.ts is the server-side copy of
 // this builder. Both emit the same wire format for the execute-transaction
 // endpoint — keep operation shapes in sync when changing either file.
