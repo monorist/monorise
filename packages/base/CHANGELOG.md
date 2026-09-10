@@ -1,5 +1,36 @@
 # @monorise/base
 
+## 4.5.0
+
+### Minor Changes
+
+- 74c8e35: Add optional `createMutualSchema` to an entity's `mutual` config, letting a mutual field be required only at creation time while `mutualSchema` itself stays `.partial()` for updates.
+
+  Previously, `mutualSchema` was the single schema validated on both create and update. Making it non-partial to enforce a required mutual field at creation would also force every future _update_ to resend that same field, even for edits unrelated to the relationship. Keeping it partial to avoid that meant a create could silently omit a required mutual link — the entity would be created, but never wired to the relationship, with no error anywhere.
+
+  `createMutualSchema` closes that gap: when defined, its shape is merged into `mutualSchema` on the create path only (`EntityService.createEntity` → `EntityServiceLifeCycle.afterCreateEntityHook`, `TransactionService.collectCreateEvents`, `UpsertEntityController`'s insert case, and `finalSchema`'s construction) — so `createMutualSchema` only needs to declare the field(s) it's tightening, and any other mutual field `mutualSchema` declares is still validated and wired on create. The update path (`EntityService.updateEntity`, `TransactionService.collectUpdateEvents`) is untouched and always uses the ordinary `mutualSchema`. Fully backward compatible — entities with no `createMutualSchema` behave exactly as before.
+
+  ```ts
+  const mutualSchema = z
+    .object({ organisationIds: z.string().array() })
+    .partial();
+  const createMutualSchema = z.object({ organisationIds: z.string().array() }); // required on create only
+
+  const config = createEntityConfig({
+    name: "competition",
+    displayName: "Competition",
+    baseSchema,
+    createSchema,
+    mutual: {
+      mutualSchema,
+      createMutualSchema,
+      mutualFields: {
+        organisationIds: { entityType: Entity.ORGANISATION },
+      },
+    },
+  });
+  ```
+
 ## 4.4.0
 
 ### Minor Changes
