@@ -1,4 +1,5 @@
 import type { Entity, EntitySchemaMap } from '@monorise/base';
+import { getEntityRequestKey } from '../lib/utils';
 
 export type TransactionCreateEntity<T extends Entity = Entity> = {
   operation: 'createEntity';
@@ -34,6 +35,54 @@ export type TransactionOperation =
   | TransactionUpdateEntity
   | TransactionAdjustEntity
   | TransactionDeleteEntity;
+
+// Mirrors packages/core/types/transaction.ts's TransactionResultEntry/Result —
+// the client can't import from @monorise/core (server-only, pulls in the AWS
+// SDK), so the response shape is duplicated here.
+export type TransactionResultEntry<T extends Entity = Entity> = {
+  operation: TransactionOperation['operation'];
+  entityType: T;
+  entityId: string;
+  data?: Record<string, unknown>;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
+export type TransactionResult = {
+  results: TransactionResultEntry[];
+};
+
+// The requestKey a single-entity call for this same op's target would have
+// used (getEntityRequestKey('edit'|'adjust'|'delete', entityType, entityId),
+// or ('create', entityType) for a create — which never includes an id, same
+// as createEntity's own key). Every op already carries a real entityId
+// except an id-less create, so this never needs to invent one.
+export const getTransactionOperationRequestKey = (
+  op: TransactionOperation,
+): string => {
+  switch (op.operation) {
+    case 'createEntity':
+      return getEntityRequestKey('create', op.entityType);
+    case 'updateEntity':
+      return getEntityRequestKey('edit', op.entityType, op.entityId);
+    case 'adjustEntity':
+      return getEntityRequestKey('adjust', op.entityType, op.entityId);
+    case 'deleteEntity':
+      return getEntityRequestKey('delete', op.entityType, op.entityId);
+  }
+};
+
+// The requestKey for the ONE real HTTP call `executeTransaction` makes.
+// Deterministic (identical operation sets dedupe onto one request, same as
+// any other action's key) but namespaced under `transaction/` so it can
+// never collide with a single-entity action's own key — reusing e.g.
+// `opRequestKeys[0]` directly would let a standalone editEntity/createEntity
+// call on that same target swallow (or be swallowed by) the transaction via
+// lib/api.ts's `ongoingRequests` dedupe, since both would share one key but
+// resolve to differently-shaped responses.
+export const getTransactionCallRequestKey = (
+  operations: TransactionOperation[],
+): string => `transaction/${operations.map(getTransactionOperationRequestKey).join('|')}`;
 
 // NOTE: packages/core/helpers/transactional.ts is the server-side copy of
 // this builder. Both emit the same wire format for the execute-transaction

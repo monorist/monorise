@@ -183,6 +183,8 @@ export class TransactionService {
             entityType: op.entityType,
             entityId: entity.entityId as string,
             data: entity.data as Record<string, unknown>,
+            createdAt: entity.createdAt,
+            updatedAt: entity.updatedAt,
           },
         };
       }
@@ -195,6 +197,7 @@ export class TransactionService {
             operation: 'updateEntity',
             entityType: op.entityType,
             entityId: op.entityId,
+            updatedAt,
           },
         };
       }
@@ -217,6 +220,7 @@ export class TransactionService {
             operation: 'adjustEntity',
             entityType: op.entityType,
             entityId: op.entityId,
+            updatedAt,
           },
         };
       }
