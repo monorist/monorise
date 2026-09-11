@@ -72,6 +72,18 @@ export const getTransactionOperationRequestKey = (
   }
 };
 
+// The requestKey for the ONE real HTTP call `executeTransaction` makes.
+// Deterministic (identical operation sets dedupe onto one request, same as
+// any other action's key) but namespaced under `transaction/` so it can
+// never collide with a single-entity action's own key — reusing e.g.
+// `opRequestKeys[0]` directly would let a standalone editEntity/createEntity
+// call on that same target swallow (or be swallowed by) the transaction via
+// lib/api.ts's `ongoingRequests` dedupe, since both would share one key but
+// resolve to differently-shaped responses.
+export const getTransactionCallRequestKey = (
+  operations: TransactionOperation[],
+): string => `transaction/${operations.map(getTransactionOperationRequestKey).join('|')}`;
+
 // NOTE: packages/core/helpers/transactional.ts is the server-side copy of
 // this builder. Both emit the same wire format for the execute-transaction
 // endpoint — keep operation shapes in sync when changing either file.

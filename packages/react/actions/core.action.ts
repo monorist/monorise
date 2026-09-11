@@ -34,6 +34,7 @@ import type { CommonStore } from '../types/monorise.type';
 import type { Mutual, MutualData } from '../types/mutual.type';
 import type { AppActions } from './app.action';
 import {
+  getTransactionCallRequestKey,
   getTransactionOperationRequestKey,
   type TransactionCreateEntity,
   type TransactionOperation,
@@ -687,6 +688,59 @@ const initCoreActions = (
     }
   };
 
+  // Patches an already-edited entity's new `.data` into every loaded mutual
+  // list it appears in (the entity's OWN dataMap entry is set by the caller).
+  // Shared by editEntity/adjustEntity/executeTransaction's update/adjust
+  // branch — kept as one place so the three paths can't drift apart.
+  const propagateEntityDataToMutuals = (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    state: any,
+    entityType: Entity,
+    entityId: string,
+    data: Record<string, any>,
+  ) => {
+    for (const key of Object.keys(state.mutual)) {
+      const { entity: mutualEntityType } = parseMutualStateKey(key);
+      if (mutualEntityType === entityType) {
+        const mutual = state.mutual[key].dataMap.get(entityId);
+        if (mutual) {
+          state.mutual[key].dataMap = new Map(state.mutual[key].dataMap).set(
+            entityId,
+            { ...mutual, data },
+          );
+        }
+      }
+    }
+  };
+
+  // Removes a deleted entity's own dataMap entry, its forward-side mutual
+  // entries (lists it's a MEMBER of — the reverse side, lists keyed BY this
+  // entity, is deleteLocalMutualsByEntity's job, since that needs full entity
+  // config), and its tag-store entries. Shared by deleteEntity/
+  // executeTransaction's delete branch.
+  const deleteEntityFromStores = (
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    state: any,
+    entityType: Entity,
+    entityId: string,
+  ) => {
+    state.entity[entityType]?.dataMap.delete(entityId);
+
+    for (const key of Object.keys(state.mutual)) {
+      const { entity: mutualEntityType } = parseMutualStateKey(key);
+      if (mutualEntityType === entityType) {
+        state.mutual[key].dataMap.delete(entityId);
+      }
+    }
+
+    for (const tagKey of Object.keys(state.tag)) {
+      const [tagEntityType] = tagKey.split('/');
+      if ((tagEntityType as unknown as Entity) === entityType) {
+        state.tag[tagKey]?.dataMap?.delete(entityId);
+      }
+    }
+  };
+
   const editEntity = async <T extends Entity>(
     entityType: T,
     id: string,
@@ -703,18 +757,7 @@ const initCoreActions = (
         produce((state) => {
           state.entity[entityType].dataMap.set(data.entityId, data);
 
-          // update mutual's entity data
-          for (const key of Object.keys(state.mutual)) {
-            const { entity: mutualEntityType } = parseMutualStateKey(key);
-            if (mutualEntityType === entityType) {
-              const mutual = state.mutual[key].dataMap.get(id);
-              if (mutual) {
-                state.mutual[key].dataMap = new Map(
-                  state.mutual[key].dataMap,
-                ).set(id, { ...mutual, data: data.data });
-              }
-            }
-          }
+          propagateEntityDataToMutuals(state, entityType, id, data.data);
 
           // re-bucket across loaded tag slices (add where now matches, drop
           // where it no longer does) instead of only patching in place
@@ -754,18 +797,7 @@ const initCoreActions = (
         produce((state) => {
           state.entity[entityType].dataMap.set(data.entityId, data);
 
-          // Propagate to mutual stores
-          for (const key of Object.keys(state.mutual)) {
-            const { entity: mutualEntityType } = parseMutualStateKey(key);
-            if (mutualEntityType === entityType) {
-              const mutual = state.mutual[key].dataMap.get(id);
-              if (mutual) {
-                state.mutual[key].dataMap = new Map(
-                  state.mutual[key].dataMap,
-                ).set(id, { ...(mutual as any), data: data.data });
-              }
-            }
-          }
+          propagateEntityDataToMutuals(state, entityType, id, data.data);
 
           // Propagate to tag stores — re-bucket across loaded slices (an
           // adjustment can move an entity between groups when group/sortValue
@@ -809,23 +841,7 @@ const initCoreActions = (
 
       monoriseStore.setState(
         produce((state) => {
-          state.entity[entityType].dataMap.delete(id);
-
-          // delete mutual's entity data
-          for (const key of Object.keys(state.mutual)) {
-            const { entity: mutualEntityType } = parseMutualStateKey(key);
-            if (mutualEntityType === entityType) {
-              state.mutual[key].dataMap.delete(id);
-            }
-          }
-
-          // delete from tag store
-          for (const tagKey of Object.keys(state.tag)) {
-            const [tagEntityType] = tagKey.split('/');
-            if ((tagEntityType as unknown as Entity) === entityType) {
-              state.tag[tagKey]?.dataMap?.delete(id);
-            }
-          }
+          deleteEntityFromStores(state, entityType, id);
         }),
         undefined,
         `mr/entity/delete/${entityType}/${id}`,
@@ -852,39 +868,51 @@ const initCoreActions = (
     const onError = opts.onError ?? defaultOnError;
     const isInterruptive = opts.isInterruptive ?? true;
     const opRequestKeys = operations.map(getTransactionOperationRequestKey);
-    // coreService.executeTransaction's own axios call needs *a* requestKey —
-    // which one doesn't matter on its own, since every op's key below is
-    // driven identically regardless. Default to the first operation's own
-    // matching key rather than inventing one.
-    const callRequestKey = opts.requestKey || opRequestKeys[0];
+    // The joined key is namespaced under `transaction/` so it can never
+    // match a single-entity action's own key — using e.g. opRequestKeys[0]
+    // directly would let a standalone editEntity/createEntity call on that
+    // same target collide with this transaction via lib/api.ts's
+    // `ongoingRequests` dedupe, handing either caller the other's
+    // differently-shaped response. Still deterministic: identical operation
+    // sets dedupe onto one request, same as any other action's key.
+    const callRequestKey =
+      opts.requestKey || getTransactionCallRequestKey(operations);
     const callPromise = coreService.executeTransaction(operations, {
       ...opts,
       requestKey: callRequestKey,
     });
+    const loadingMessage = opts.feedback?.loading ?? 'Processing transaction';
 
     // Drive the same per-entity loading/error signal a standalone
     // createEntity/editEntity/adjustEntity/deleteEntity call on each op's
     // target would have driven, so a component checking any op's target via
-    // useLoadStore/getError sees "mutating" during a transaction too. (A
-    // same-entity collision with a concurrent standalone call is rare, and
-    // when it happens it's already deduped onto one shared request — same as
-    // any two concurrent single-entity calls on that entity would be today.)
+    // useLoadStore/getError sees "mutating" during a transaction too. `request`
+    // is deliberately omitted here — passing it would register these keys in
+    // `ongoingRequests` too, letting a concurrent standalone call on the same
+    // target dedupe onto (and never actually send) its own write. These keys
+    // exist purely for loading/error *signaling*, not for de-duplicating this
+    // HTTP call — that's callRequestKey's job.
     for (const requestKey of opRequestKeys) {
-      startLoading({
-        requestKey,
-        isInterruptive,
-        message: opts.feedback?.loading,
-        request: callPromise,
-      });
+      startLoading({ requestKey, isInterruptive, message: loadingMessage });
     }
+
+    // Tracks whether the network call itself has already resolved and had
+    // its success-path loading/error signaling run — so if the cache-fold
+    // below throws (a tag processor, a bad payload, ...), the catch block
+    // doesn't ALSO run the failure-path signaling for keys that were already
+    // correctly cleared, which would both mis-decrement stacks shared with
+    // other concurrent calls on those same keys and report a transaction
+    // that actually committed as failed.
+    let settled = false;
 
     try {
       const { data } = await callPromise;
 
       for (const requestKey of opRequestKeys) {
-        endLoading({ requestKey, isInterruptive });
+        endLoading({ requestKey, isInterruptive, skipDedupe: true });
         clearError(requestKey);
       }
+      settled = true;
 
       const deletedEntities: { entityType: Entity; entityId: string }[] = [];
 
@@ -894,22 +922,7 @@ const initCoreActions = (
             const { entityType, entityId } = entry;
 
             if (entry.operation === 'deleteEntity') {
-              state.entity[entityType]?.dataMap.delete(entityId);
-
-              for (const key of Object.keys(state.mutual)) {
-                const { entity: mutualEntityType } = parseMutualStateKey(key);
-                if (mutualEntityType === entityType) {
-                  state.mutual[key].dataMap.delete(entityId);
-                }
-              }
-
-              for (const tagKey of Object.keys(state.tag)) {
-                const [tagEntityType] = tagKey.split('/');
-                if ((tagEntityType as unknown as Entity) === entityType) {
-                  state.tag[tagKey]?.dataMap?.delete(entityId);
-                }
-              }
-
+              deleteEntityFromStores(state, entityType, entityId);
               deletedEntities.push({ entityType, entityId });
               return;
             }
@@ -968,19 +981,7 @@ const initCoreActions = (
             } as unknown as CreatedEntity<Entity>;
 
             state.entity[entityType].dataMap.set(entityId, updated);
-
-            for (const key of Object.keys(state.mutual)) {
-              const { entity: mutualEntityType } = parseMutualStateKey(key);
-              if (mutualEntityType === entityType) {
-                const mutual = state.mutual[key].dataMap.get(entityId);
-                if (mutual) {
-                  state.mutual[key].dataMap = new Map(
-                    state.mutual[key].dataMap,
-                  ).set(entityId, { ...mutual, data: updated.data });
-                }
-              }
-            }
-
+            propagateEntityDataToMutuals(state, entityType, entityId, updated.data);
             reconcileTaggedEntityStore(state, entityType, entityId, updated);
           });
         }),
@@ -997,16 +998,18 @@ const initCoreActions = (
 
       return { data };
     } catch (err) {
-      // The axios interceptor already ran its own error handling for
-      // callRequestKey (endLoading + setError) — read back whatever appError
-      // it computed and mirror it onto every op's key, rather than
-      // re-deriving the AxiosError → ApplicationRequestError shaping logic
-      // here.
-      const callAppError = getError(callRequestKey);
-      for (const requestKey of opRequestKeys) {
-        endLoading({ requestKey, isInterruptive });
-        if (callAppError) {
-          setError({ requestKey, error: callAppError });
+      if (!settled) {
+        // The axios interceptor already ran its own error handling for
+        // callRequestKey (endLoading + setError) — read back whatever
+        // appError it computed and mirror it onto every op's key, rather
+        // than re-deriving the AxiosError → ApplicationRequestError shaping
+        // logic here.
+        const callAppError = getError(callRequestKey);
+        for (const requestKey of opRequestKeys) {
+          endLoading({ requestKey, isInterruptive, skipDedupe: true });
+          if (callAppError) {
+            setError({ requestKey, error: callAppError });
+          }
         }
       }
 

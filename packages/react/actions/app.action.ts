@@ -7,12 +7,21 @@ type StartLoadingPayload<T> = {
   requestKey: string;
   isInterruptive?: boolean;
   message?: string | boolean;
-  request: Promise<T>;
+  // Omit when this key is one of several sharing a single real HTTP call
+  // (e.g. executeTransaction driving a loading signal per operation) — passing
+  // it registers `requestKey` in `ongoingRequests`, which lib/api.ts's
+  // `makeRequest` uses to hand back an in-flight promise to ANY other caller
+  // using that same key, even one making a structurally different request.
+  request?: Promise<T>;
 };
 
 type EndLoadingPayload = {
   requestKey: string;
   isInterruptive?: boolean;
+  // Must match whether the matching startLoading call passed `request` —
+  // otherwise this can delete a genuinely different concurrent call's
+  // `ongoingRequests` entry for the same key.
+  skipDedupe?: boolean;
 };
 
 type SetErrorPayload = {
@@ -43,7 +52,9 @@ const initAppActions = (store: MonoriseStore) => {
 
         state.app.loadingMessage =
           typeof message === 'string' ? message : 'Loading';
-        state.app.ongoingRequests.set(requestKey, request);
+        if (request) {
+          state.app.ongoingRequests.set(requestKey, request);
+        }
         state.app[stackType].set(
           requestKey,
           requestKeyCount ? requestKeyCount + 1 : 1,
@@ -54,14 +65,18 @@ const initAppActions = (store: MonoriseStore) => {
     );
   };
 
-  const endLoading = ({ requestKey, isInterruptive }: EndLoadingPayload) => {
+  const endLoading = ({
+    requestKey,
+    isInterruptive,
+    skipDedupe,
+  }: EndLoadingPayload) => {
     setTimeout(() => {
       store.setState(
         produce((state) => {
           const stackType = isInterruptive ? 'intLoadStack' : 'loadStack';
           const requestKeyCount = state.app[stackType].get(requestKey);
 
-          if (state.app.ongoingRequests.has(requestKey)) {
+          if (!skipDedupe && state.app.ongoingRequests.has(requestKey)) {
             state.app.ongoingRequests.delete(requestKey);
           }
 

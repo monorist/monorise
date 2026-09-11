@@ -1,7 +1,7 @@
 import type { CreatedEntity, DraftEntity, Entity } from '@monorise/base';
 import type { AxiosRequestConfig } from 'axios';
 import {
-  getTransactionOperationRequestKey,
+  getTransactionCallRequestKey,
   type TransactionOperation,
   type TransactionResult,
 } from '../helpers/transactional';
@@ -292,13 +292,14 @@ const initCoreService = (
       { operations },
       {
         // A hardcoded requestKey would collide across concurrent transaction
-        // calls, sharing one loading/error slot — the second call's isLoading
-        // check can see the first's in-flight state and silently no-op.
-        // Every operation already carries a real entityId (only an id-less
-        // create doesn't, same as plain createEntity's own key), so default
-        // to the first operation's own matching key rather than inventing one.
-        requestKey:
-          opts.requestKey || getTransactionOperationRequestKey(operations[0]),
+        // calls, sharing one loading/error slot. Using a single operation's
+        // own key (e.g. operations[0]'s) would collide the OTHER way — with
+        // a standalone editEntity/createEntity call on that same target,
+        // via lib/api.ts's `ongoingRequests` dedupe, which would hand either
+        // caller the other's differently-shaped response. The joined key is
+        // still deterministic (identical operation sets dedupe onto one
+        // request) but namespaced so it can never match a single-entity key.
+        requestKey: opts.requestKey || getTransactionCallRequestKey(operations),
         isInterruptive: opts.isInterruptive ?? true,
         feedback: {
           loading: 'Processing transaction',
@@ -556,6 +557,8 @@ const initCoreService = (
     makeEntityService,
     makeMutualService,
     executeTransaction,
+    /** @deprecated use `executeTransaction` — kept as an alias since `coreService` is a public export and this method already existed under this name. */
+    transaction: executeTransaction,
     setOptions,
   };
 };
