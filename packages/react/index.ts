@@ -131,6 +131,7 @@ const {
   adjustEntity,
   updateLocalEntity,
   deleteEntity,
+  executeTransaction,
   getMutual,
   createMutual,
   createLocalMutual,
@@ -183,6 +184,7 @@ export {
   adjustEntity,
   updateLocalEntity,
   deleteEntity,
+  executeTransaction,
   getMutual,
   createMutual,
   createLocalMutual,
@@ -218,4 +220,8 @@ export type {
   EntitySchemaMap,
   NumericFields,
 } from '@monorise/base';
-export type { TransactionOperation } from './helpers/transactional';
+export type {
+  TransactionOperation,
+  TransactionResult,
+  TransactionResultEntry,
+} from './helpers/transactional';

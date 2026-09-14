@@ -1,6 +1,10 @@
 import type { CreatedEntity, DraftEntity, Entity } from '@monorise/base';
 import type { AxiosRequestConfig } from 'axios';
-import type { TransactionOperation } from '../helpers/transactional';
+import {
+  getTransactionCallRequestKey,
+  type TransactionOperation,
+  type TransactionResult,
+} from '../helpers/transactional';
 import {
   getEntityRequestKey,
   getMutualRequestKey,
@@ -277,17 +281,25 @@ const initCoreService = (
     );
   };
 
-  const transaction = (
+  const executeTransaction = (
     operations: TransactionOperation[],
     opts: CommonOptions = {},
   ) => {
     const { transactionApiBaseUrl = TRANSACTION_API_BASE_URL } =
       options as any;
-    return axios.post(
+    return axios.post<TransactionResult>(
       opts.customUrl || transactionApiBaseUrl,
       { operations },
       {
-        requestKey: 'transaction',
+        // A hardcoded requestKey would collide across concurrent transaction
+        // calls, sharing one loading/error slot. Using a single operation's
+        // own key (e.g. operations[0]'s) would collide the OTHER way — with
+        // a standalone editEntity/createEntity call on that same target,
+        // via lib/api.ts's `ongoingRequests` dedupe, which would hand either
+        // caller the other's differently-shaped response. The joined key is
+        // still deterministic (identical operation sets dedupe onto one
+        // request) but namespaced so it can never match a single-entity key.
+        requestKey: opts.requestKey || getTransactionCallRequestKey(operations),
         isInterruptive: opts.isInterruptive ?? true,
         feedback: {
           loading: 'Processing transaction',
@@ -544,7 +556,9 @@ const initCoreService = (
   return {
     makeEntityService,
     makeMutualService,
-    transaction,
+    executeTransaction,
+    /** @deprecated use `executeTransaction` — kept as an alias since `coreService` is a public export and this method already existed under this name. */
+    transaction: executeTransaction,
     setOptions,
   };
 };
