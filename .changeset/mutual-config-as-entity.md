@@ -2,6 +2,7 @@
 "@monorise/base": minor
 "@monorise/core": minor
 "@monorise/cli": minor
+"monorise": minor
 ---
 
 Add optional `asEntity` to `createMutualConfig`, letting a mutual relationship declare — once, on the config itself — that it should also be materialized as a first-class `Entity`.
