@@ -9,8 +9,19 @@ type CloudWatchLogRetention = NonNullable<
   Extract<sst.aws.FunctionArgs['logging'], { retention?: unknown }>['retention']
 >;
 
+type WebSocketHandlerArgs = {
+  memory?: sst.aws.FunctionArgs['memory'];
+  timeout?: sst.aws.FunctionArgs['timeout'];
+};
+
+type WebSocketConfig = {
+  enabled: true;
+  handler?: WebSocketHandlerArgs;
+};
+
 export type MonoriseCoreArgs = {
   fromTableName?: $util.Input<string>;
+  tableTtl?: string;
   slackWebhook?: string;
   allowHeaders?: string[];
   allowOrigins?: string[];
@@ -22,6 +33,7 @@ export type MonoriseCoreArgs = {
   };
   /** Disabled by default. Requires `.monorise/analytics-manifest.json`. */
   analytics?: AnalyticsArgs;
+  webSocket?: WebSocketConfig;
 };
 
 export class MonoriseCore {
@@ -31,11 +43,12 @@ export class MonoriseCore {
   public readonly table: SingleTable;
   public readonly alarmTopic: sst.aws.SnsTopic;
   public readonly analytics?: Analytics;
+  public readonly websocket?: sst.aws.ApiGatewayWebSocket;
 
   constructor(id: string, args?: MonoriseCoreArgs) {
     const runtime: sst.aws.FunctionArgs['runtime'] = 'nodejs22.x';
     const configRootCommand = args?.configRoot
-      ? `--config-root ${args.configRoot}`
+      ? `--config-root ${args?.configRoot}`
       : '';
     const dotMonorisePath = path.join(args?.configRoot ?? '', '.monorise');
     const logging = args?.cloudwatchLogRetention
@@ -190,6 +203,80 @@ export class MonoriseCore {
         ],
       },
     });
+
+    /**
+     * Optional WebSocket Setup
+     */
+    if (args?.webSocket?.enabled) {
+      const memory = args.webSocket.handler?.memory ?? '512 MB';
+      const timeout = args.webSocket.handler?.timeout ?? '30 seconds';
+
+      // WebSocket API Gateway
+      this.websocket = new sst.aws.ApiGatewayWebSocket(`${id}-websocket`, {});
+
+      const wsEnvironment = {
+        CORE_TABLE: this.table.table.name,
+        WEBSOCKET_MANAGEMENT_ENDPOINT: this.websocket.managementEndpoint,
+      };
+
+      // $connect handler
+      const connectHandler = new sst.aws.Function(`${id}-ws-connect`, {
+        handler: `${dotMonorisePath}/handle.wsConnect`,
+        runtime,
+        memory,
+        timeout,
+        environment: wsEnvironment,
+        link: [this.table.table, this.websocket],
+      });
+
+      // $disconnect handler
+      const disconnectHandler = new sst.aws.Function(`${id}-ws-disconnect`, {
+        handler: `${dotMonorisePath}/handle.wsDisconnect`,
+        runtime,
+        memory,
+        timeout,
+        environment: wsEnvironment,
+        link: [this.table.table],
+      });
+
+      // $default handler
+      const defaultHandler = new sst.aws.Function(`${id}-ws-default`, {
+        handler: `${dotMonorisePath}/handle.wsDefault`,
+        runtime,
+        memory,
+        timeout,
+        environment: wsEnvironment,
+        link: [this.table.table, this.websocket],
+      });
+
+      // Set WebSocket routes
+      this.websocket.route('$connect', connectHandler.arn);
+      this.websocket.route('$disconnect', disconnectHandler.arn);
+      this.websocket.route('$default', defaultHandler.arn);
+
+      // Subscribe broadcast handler to DynamoDB Stream
+      this.table.table.subscribe(
+        `${id}-ws-broadcast`,
+        {
+          name: `${$app.stage}-${$app.name}-${id}-ws-broadcast`,
+          handler: `${dotMonorisePath}/handle.wsBroadcast`,
+          runtime,
+          memory: args.webSocket.handler?.memory ?? '1024 MB',
+          timeout: args.webSocket.handler?.timeout ?? '60 seconds',
+          environment: wsEnvironment,
+          link: [this.table.table, this.websocket],
+        },
+        {
+          transform: {
+            eventSourceMapping: {
+              startingPosition: 'LATEST',
+              bisectBatchOnFunctionError: true,
+              maximumRetryAttempts: 1,
+            },
+          },
+        },
+      );
+    }
 
     /**
      * CloudWatch Dashboard

@@ -21,6 +21,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
+  "dependencies": {},
   "peerDependencies": {
     "sst": "^4.7.3"
   },
