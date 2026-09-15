@@ -28,6 +28,7 @@ import { MutualService } from './mutual.service';
 
 import { ListTagsController } from '../controllers/tag/list-tags.controller';
 import { ExecuteTransactionController } from '../controllers/transaction/execute-transaction.controller';
+import { CreateTicketController } from '../controllers/ws/create-ticket.controller';
 import { EntityServiceLifeCycle } from './entity-service-lifecycle';
 import { TransactionService } from './transaction.service';
 
@@ -269,5 +270,9 @@ export class DependencyContainer {
       ExecuteTransactionController,
       this.transactionService,
     );
+  }
+
+  get createTicketController(): CreateTicketController {
+    return this.createCachedInstance(CreateTicketController, this);
   }
 }

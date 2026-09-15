@@ -80,6 +80,7 @@ export class MonoriseCore {
     this.bus = new sst.aws.Bus(`${id}-monorise-bus`);
     const analyticsEnabled = Boolean(args?.analytics && args.analytics.enabled !== false);
     this.table = new SingleTable(id, {
+      ttl: args?.tableTtl,
       runtime,
       configRoot: args?.configRoot,
       fromTableName: args?.fromTableName,
@@ -90,17 +91,17 @@ export class MonoriseCore {
     const secretApiKeys = new sst.Secret('API_KEYS', '["secret1", "secret2"]');
 
     const appHandlerName = `${$app.stage}-${$app.name}-${id}-app-handler`;
-    this.api.route('ANY /core/{proxy+}', {
-      name: appHandlerName,
-      handler: `${dotMonorisePath}/handle.appHandler`,
-      link: [this.table.table, this.bus, secretApiKeys, ...(args?.link ?? [])],
-      environment: {
-        API_KEYS: secretApiKeys.value,
-        CORE_TABLE: this.table.table.name,
-        CORE_EVENT_BUS: this.bus.name,
-      },
-      logging,
-    });
+    const appHandlerEnvironment: Record<string, any> = {
+      API_KEYS: secretApiKeys.value,
+      CORE_TABLE: this.table.table.name,
+      CORE_EVENT_BUS: this.bus.name,
+    };
+    const appHandlerLinks: any[] = [
+      this.table.table,
+      this.bus,
+      secretApiKeys,
+      ...(args?.link ?? []),
+    ];
 
     this.alarmTopic = new sst.aws.SnsTopic(`${id}-monorise-dlq-alarm-topic`);
 
@@ -277,6 +278,20 @@ export class MonoriseCore {
         },
       );
     }
+
+    // Add WebSocket URL to app handler if WebSocket is enabled
+    if (this.websocket) {
+      appHandlerEnvironment.WEBSOCKET_URL = this.websocket.url;
+      appHandlerLinks.push(this.websocket);
+    }
+
+    this.api.route('ANY /core/{proxy+}', {
+      name: appHandlerName,
+      handler: `${dotMonorisePath}/handle.appHandler`,
+      link: appHandlerLinks,
+      environment: appHandlerEnvironment,
+      logging,
+    });
 
     /**
      * CloudWatch Dashboard

@@ -80,6 +80,8 @@ export class WebSocketManager {
   private ephemeralSubscriptions: Map<string, EphemeralSubscription> = new Map();
   private pendingMessages: ClientMessage[] = [];
 
+  public disableAutoReconnect = false;
+
   constructor(url: string, token: string) {
     this.url = url;
     this.token = token;
@@ -91,8 +93,10 @@ export class WebSocketManager {
     this.setState('connecting');
 
     try {
-      const urlWithToken = `${this.url}?token=${encodeURIComponent(this.token)}`;
-      this.ws = new WebSocket(urlWithToken);
+      const connectUrl = this.token
+        ? `${this.url}?token=${encodeURIComponent(this.token)}`
+        : this.url;
+      this.ws = new WebSocket(connectUrl);
 
       this.ws.onopen = this.handleOpen.bind(this);
       this.ws.onclose = this.handleClose.bind(this);
@@ -107,7 +111,6 @@ export class WebSocketManager {
   disconnect(): void {
     this.stopHeartbeat();
     this.reconnectAttempts = 0;
-    this.pendingMessages = [];
 
     if (this.ws) {
       this.ws.close();
@@ -291,6 +294,11 @@ export class WebSocketManager {
     this.stopHeartbeat();
     this.ws = null;
 
+    if (this.disableAutoReconnect) {
+      this.setState('disconnected');
+      return;
+    }
+
     if (this.reconnectAttempts < this.maxReconnectAttempts) {
       this.setState('reconnecting');
       this.scheduleReconnect();
@@ -384,7 +392,6 @@ export class WebSocketManager {
       this.send(pingMessage);
 
       this.heartbeatTimeout = setTimeout(() => {
-        console.warn('WebSocket heartbeat timeout - reconnecting');
         this.ws?.close();
       }, this.heartbeatTimeoutMs);
     }, this.heartbeatIntervalMs);
