@@ -5,6 +5,7 @@ import {
   EntitySchemaMap,
   MonoriseEntityConfig,
   MutualConfig,
+  MutualConfigInput,
   NumericFields,
 } from './types/monorise.type';
 
@@ -31,6 +32,7 @@ export {
   CreatedEntity,
   MonoriseEntityConfig,
   MutualConfig,
+  MutualConfigInput,
   NumericFields,
   createEntityConfig,
   createMutualConfig,

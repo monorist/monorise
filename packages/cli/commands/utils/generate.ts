@@ -61,7 +61,7 @@ ${block}
 `;
 }
 
-async function generateConfigFile(
+export async function generateConfigFile(
   configDir: string,
   monoriseOutputDir: string,
 ): Promise<string> {
@@ -152,9 +152,57 @@ export enum Entity {}
     // Collect mutual pairs for codegen and duplicate detection
     if (config.mutual?.mutualFields) {
       for (const [fieldKey, fieldConfig] of Object.entries(config.mutual.mutualFields) as [string, any][]) {
-        if (fieldConfig.mutual?.mutualDataSchema) {
+        // Entered whenever there's something to validate: either a `mutualDataSchema` (the
+        // common case) or an `asEntity` (which — when the config was actually built through
+        // createMutualConfig — always implies a derived `mutualDataSchema` too, but a hand-rolled
+        // config bypassing the factory could set `asEntity` alone). Gating on `mutualDataSchema`
+        // alone (as before) let exactly that hand-rolled shape — `asEntity` set,
+        // `mutualDataSchema` entirely omitted — skip this whole block silently: no build-time
+        // error, and no `mutualPairs.push` below either (so no `MutualDataMapping` codegen for
+        // that mutual). The check immediately below closes that gap.
+        if (fieldConfig.mutual?.mutualDataSchema || fieldConfig.mutual?.asEntity) {
           const targetName = fieldConfig.entityType as string;
           const entityEnumKey = targetName.toUpperCase().replace(/-/g, '_');
+
+          // A hand-rolled `MutualConfig` object (bypassing `createMutualConfig`) can set
+          // `asEntity` while leaving `mutualDataSchema` out entirely — not merely mismatched,
+          // just absent. `createMutualConfig` itself always derives and populates
+          // `mutualDataSchema` from `asEntity.finalSchema` when `asEntity` is set, so a config
+          // reaching here with `asEntity` but no `mutualDataSchema` could only have been built by
+          // hand. Every check below (and `mutualPairs.push`) assumes `mutualDataSchema` exists,
+          // so this must fire before any of them run.
+          if (fieldConfig.mutual.asEntity && !fieldConfig.mutual.mutualDataSchema) {
+            throw new Error(
+              `Mutual config has 'asEntity' set but 'mutualDataSchema' is missing in ${file} ` +
+              `(field: ${fieldKey}): when built through createMutualConfig, mutualDataSchema is ` +
+              `always derived automatically from asEntity.finalSchema. This config was built by ` +
+              `hand, bypassing that factory — use createMutualConfig instead of constructing the ` +
+              `MutualConfig object directly.`,
+            );
+          }
+
+          // `asEntity` and an independently-authored `mutualDataSchema` are mutually
+          // exclusive (createMutualConfig derives mutualDataSchema from asEntity.finalSchema
+          // when asEntity is set — see packages/base/utils). createMutualConfig itself already
+          // guards this at config-definition time, but that guard only fires when the config
+          // was actually built through the factory — a hand-rolled config object satisfying
+          // the MutualConfig shape without calling createMutualConfig would bypass it, so this
+          // build-time check catches that case too, with file/field context the factory's own
+          // error can't provide (a shared mutual config doesn't know which entity file/field
+          // imported it). Detected by reference: a factory-built config's mutualDataSchema IS
+          // asEntity.finalSchema (same object) whenever asEntity is set — a mismatch means an
+          // independent mutualDataSchema also exists.
+          if (
+            fieldConfig.mutual.asEntity &&
+            fieldConfig.mutual.mutualDataSchema !==
+              fieldConfig.mutual.asEntity.finalSchema
+          ) {
+            throw new Error(
+              `Mutual config has both 'asEntity' and an independently-authored 'mutualDataSchema' ` +
+              `in ${file} (field: ${fieldKey}): when 'asEntity' is set, mutualDataSchema is derived ` +
+              `automatically from asEntity.finalSchema — remove one of them.`,
+            );
+          }
 
           // Validate declared entities match how the mutual is actually wired,
           // so the two can't silently drift apart.

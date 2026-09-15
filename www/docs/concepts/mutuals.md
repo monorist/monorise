@@ -390,6 +390,50 @@ const { mutuals: courses } = useMutuals(
 `mutualDataProcessor` runs for both newly created and existing mutual records during an update. This means you can change relationship data by re-submitting the mutual payload.
 :::
 
+## Advanced: materializing a mutual as an entity (`asEntity`)
+
+By default, finding mutuals means scanning and filtering edges from one side (`GET /core/mutual/student/:studentId/course`, or the reverse). That's fine for "all courses for this student", but there's no way to ask "all enrollments with role `auditor`" without listing every mutual and filtering in application code.
+
+`asEntity` solves this by materializing the mutual relationship itself as a real, independently-queryable `Entity` whenever it's created — whether imperatively via `MutualService.createMutual` or automatically via a declarative `mutualFields` entry that references the config. Once it's an entity, it can declare its own [`tags`](/concepts/tags) for indexed group/sort-value lookups, exactly like any other entity.
+
+Set `asEntity` on `createMutualConfig` to the `createEntityConfig(...)` **return value** for the entity type the mutual should materialize as — not an `Entity` enum value:
+
+```ts
+const enrollmentEntityConfig = createEntityConfig({
+  name: Entity.ENROLLMENT,
+  displayName: 'Enrollment',
+  baseSchema: z.object({ role: z.enum(['student', 'auditor']) }).partial(),
+  createSchema: z.object({ role: z.enum(['student', 'auditor']) }),
+});
+
+const enrollmentMutual = createMutualConfig({
+  entities: [Entity.STUDENT, Entity.COURSE],
+  asEntity: enrollmentEntityConfig,
+  ensureEntityStrongConsistentWrite: true, // default false
+});
+```
+
+`mutualDataSchema` must be **omitted** when `asEntity` is set — it's derived automatically from `asEntity.finalSchema` (that entity's own `baseSchema` + `createSchema` + `effectiveMutualSchema`, merged, same as any normal `createEntity` payload validates against). Providing both `asEntity` and `mutualDataSchema` on the same config is a build-time and runtime error, so the mutual's data shape can never drift from the materialized entity's own shape.
+
+When `asEntity` is set, creating the mutual also creates a real `Entity`: `entityType = asEntity.name`, `entityId = <the mutual's own generated ulid>`, `data = <the mutual's own parsed mutualData>`.
+
+### Synchronous vs. asynchronous creation
+
+`ensureEntityStrongConsistentWrite` controls when that entity is actually created:
+
+- **`false` (default)** — entity creation is published as an async `CREATE_ENTITY` event and processed separately. Eventually consistent: there's a brief window after the mutual write where the entity doesn't exist yet. Cheaper, since it avoids widening the mutual write into a bigger transaction.
+- **`true`** — the entity is created synchronously, in the **same DynamoDB transaction** as the mutual write, and its `afterCreateEntityHook` (tags/mutualFields wiring) fires immediately.
+
+Reach for `ensureEntityStrongConsistentWrite: true` when your business flow reads the materialized entity right after creating the mutual (e.g. an immediate redirect to `GET /entity/enrollment/:id`) and can't tolerate the async path's brief inconsistency window.
+
+::: warning The synthetic entity is read-only — never update or delete it directly
+Once materialized, the entity is a **projection** of the mutual, not an independent record. Never call `updateEntity`, `deleteEntity`, or any other direct entity API on it — always [update or delete the mutual](#querying-mutuals-react) instead.
+
+Updating or deleting the mutual automatically propagates to the synthetic entity — this isn't something `asEntity` implements itself, it rides on the same DynamoDB Streams [replication mechanism](/architecture#data-layout-cheat-sheet) (`R1PK`/`R2PK`) that already keeps denormalized entity data in sync elsewhere in this codebase. Like that existing direction, propagation is asynchronous and eventually consistent — expect a brief delay between updating the mutual and seeing the change on the entity.
+:::
+
+Because the whole point of `asEntity` is indexed lookup, pair it with [`tags`](/concepts/tags) on the materialized entity's own `createEntityConfig` — that's what turns "all enrollments" into "all enrollments with role `auditor`, sorted by enrollment date" in O(1).
+
 ## Data layout
 
 | Pattern | Key structure |

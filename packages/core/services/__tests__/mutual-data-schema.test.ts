@@ -136,6 +136,35 @@ describe('MutualService.getMutualDataSchema', () => {
   });
 });
 
+describe('MutualService.getMutualFieldConfig', () => {
+  // Access private method via prototype for testing
+  const service = new MutualService(
+    mockEntityConfig,
+    {} as any, // entityRepository
+    {} as any, // mutualRepository
+    {} as any, // publishEvent
+    {} as any, // ddbUtils
+    {} as any, // entityServiceLifeCycle
+  );
+
+  const getMutualFieldConfig = (service as any).getMutualFieldConfig.bind(
+    service,
+  );
+
+  it('resolves the whole MutualConfig object for a matching field, not just a truthy-schema check', () => {
+    const config = getMutualFieldConfig(TestEntity.STUDENT, TestEntity.COURSE);
+    expect(config).toBe(enrollmentMutual);
+  });
+
+  it('returns undefined when there is genuinely no matching field at all (not just a field with no schema)', () => {
+    // STUDENT and TAG are never wired together via any mutualFields entry in either
+    // direction — this is "no match", distinct from "a match whose mutual has no schema".
+    expect(
+      getMutualFieldConfig(TestEntity.STUDENT, TestEntity.TAG),
+    ).toBeUndefined();
+  });
+});
+
 describe('MutualService schema validation integration', () => {
   it('should validate mutualPayload in createMutual when schema exists', async () => {
     const mockEntityRepo = {
