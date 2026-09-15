@@ -78,6 +78,18 @@ export const handler =
           const { asEntity, ensureEntityStrongConsistentWrite } =
             resolveAsEntityOptions(config.mutual, {});
 
+          // `mutualDataSchema` (finalSchema-derived when `asEntity` is set — see
+          // `createMutualConfig`) is kept as-is for `afterCreateEntityHook`'s benefit below (it
+          // needs the fuller shape to wire the target entity's own further `mutualFields`).
+          // `asEntityStorageSchema`, when present, is what actually gets PARSED AND STORED as
+          // this mutual's `mutualData` / the synthetic entity's `data` — narrower on purpose, so
+          // the target entity's own further-`mutualFields` keys never get baked into storage. See
+          // `MutualService.createMutual`'s matching comment for the full rationale.
+          const asEntityStorageSchema = asEntity
+            ? (config.mutual?.asEntity?.createSchema ??
+                config.mutual?.asEntity?.baseSchema)
+            : undefined;
+
           // Create a lock to prevent concurrent modifications
           await mutualRepository.createMutualLock({
             byEntityType,
@@ -99,6 +111,12 @@ export const handler =
           // Determine which entities were added, removed, or need updates
           const existingEntityIds = new Set(
             mutuals.items.map((m) => m.entityId),
+          );
+          // Keyed for the `toUpdateEntityIds` self-heal check below — each already-existing
+          // mutual's OWN `mutualId` (the synthetic entity's entityId when `asEntity` is set),
+          // not the target entity's id.
+          const mutualIdByEntityId = new Map(
+            mutuals.items.map((m) => [m.entityId, m.mutualId]),
           );
           const newMutualIds = new Set(mutualIds ?? []);
 
@@ -137,6 +155,12 @@ export const handler =
               const parsedMutualData = mutualDataSchema
                 ? mutualDataSchema.parse(processedMutualData)
                 : processedMutualData;
+              // Narrower value for anything actually PERSISTED (mutual.mutualData, the synthetic
+              // entity's data) — `parsedMutualData` stays the fuller finalSchema-shaped value for
+              // the hook call below. See `asEntityStorageSchema`'s own comment above.
+              const storedMutualData = asEntityStorageSchema
+                ? asEntityStorageSchema.parse(processedMutualData)
+                : parsedMutualData;
 
               if (!asEntity) {
                 // Unchanged path — existing configs (no `asEntity`) are completely unaffected.
@@ -189,7 +213,7 @@ export const handler =
                 entityType,
                 id,
                 entity.data,
-                parsedMutualData,
+                storedMutualData,
                 ulid(),
                 currentDatetime,
                 currentDatetime,
@@ -216,7 +240,7 @@ export const handler =
                 entityRecord = new EntityRecord(
                   asEntity,
                   mutual.mutualId,
-                  parsedMutualData,
+                  storedMutualData,
                   currentDatetime,
                   currentDatetime,
                 );
@@ -246,7 +270,12 @@ export const handler =
                   payload: {
                     entityType: asEntity,
                     entityId: mutual.mutualId,
-                    entityPayload: parsedMutualData,
+                    // `storedMutualData`, not `parsedMutualData` — `entityService.createEntity`
+                    // (the eventual consumer, `create-entity-processor.ts`) re-strips to
+                    // createSchema/baseSchema internally regardless, but passing the already-
+                    // narrowed value here keeps this call site consistent with the strong-write
+                    // branch above rather than relying on that downstream stripping alone.
+                    entityPayload: storedMutualData,
                     options: {
                       createAndUpdateDatetime: mutual.createdAt,
                       mutualId: mutual.mutualId,
@@ -298,13 +327,18 @@ export const handler =
               const parsedMutualData = mutualDataSchema
                 ? mutualDataSchema.parse(processedMutualData)
                 : processedMutualData;
+              // Same narrowing as the addEntities branch — an update to an `asEntity` mutual
+              // must not persist the target entity's own further-`mutualFields` keys either.
+              const storedMutualData = asEntityStorageSchema
+                ? asEntityStorageSchema.parse(processedMutualData)
+                : parsedMutualData;
               await mutualRepository.updateMutual(
                 byEntityType,
                 byEntityId,
                 entityType,
                 id,
                 {
-                  mutualData: parsedMutualData,
+                  mutualData: storedMutualData,
                   mutualUpdatedAt: publishedAt,
                 },
                 {
@@ -318,6 +352,51 @@ export const handler =
                   },
                 },
               );
+
+              // Self-heals a specific retry gap: if a PRIOR attempt already committed this
+              // mutual's (+ its synthetic entity's, on the strong-write path) creation but the
+              // post-commit `afterCreateEntityHook`/`CREATE_ENTITY` publish then failed, this id
+              // no longer appears in `addedEntityIds` on retry (the mutual now exists, so it's
+              // here in `toUpdateEntityIds` instead) — and would otherwise never get its
+              // synthetic entity (async path: entity was never created at all) or its hook side
+              // effects re-attempted, silently, forever. Only acts when the entity is actually
+              // missing, so this never fires on an ordinary update where entity creation already
+              // succeeded. Does not cover the narrower case where the strong-write path's
+              // transaction succeeded (entity exists) but only its `afterCreateEntityHook` call
+              // failed — that's not detectable from entity existence alone; a known remaining
+              // gap, not silently claimed fixed here.
+              if (asEntity) {
+                const mutualId = mutualIdByEntityId.get(id);
+                if (mutualId) {
+                  const entityExists = await entityRepository
+                    .getEntity(asEntity, mutualId)
+                    .then(() => true)
+                    .catch((err) => {
+                      if (
+                        err instanceof StandardError &&
+                        err.code === StandardErrorCode.ENTITY_IS_UNDEFINED
+                      ) {
+                        return false;
+                      }
+                      throw err;
+                    });
+
+                  if (!entityExists) {
+                    await publishEvent({
+                      event: EVENT.CORE.CREATE_ENTITY,
+                      payload: {
+                        entityType: asEntity,
+                        entityId: mutualId,
+                        entityPayload: storedMutualData,
+                        options: {
+                          createAndUpdateDatetime: publishedAt,
+                          mutualId,
+                        },
+                      },
+                    });
+                  }
+                }
+              }
             },
           );
 

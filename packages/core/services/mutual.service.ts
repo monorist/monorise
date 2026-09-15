@@ -46,9 +46,16 @@ export function resolveAsEntityOptions<A extends EntityType>(
     return { asEntity: undefined, ensureEntityStrongConsistentWrite: false };
   }
 
+  // `mutualConfig?.ensureEntityStrongConsistentWrite` only applies when the call site did NOT
+  // override `asEntity` itself — it's the consistency setting for the CONFIG's own `asEntity`
+  // type. A call site that overrides `asEntity` to a different entity type has no config-level
+  // consistency setting for that type to inherit, so it must default to `false` unless it also
+  // explicitly sets `ensureEntityStrongConsistentWrite` itself.
   const ensureEntityStrongConsistentWrite =
     callOptions.ensureEntityStrongConsistentWrite ??
-    mutualConfig?.ensureEntityStrongConsistentWrite ??
+    (callOptions.asEntity === undefined
+      ? mutualConfig?.ensureEntityStrongConsistentWrite
+      : undefined) ??
     false;
 
   return { asEntity, ensureEntityStrongConsistentWrite };
@@ -72,6 +79,14 @@ export class MutualService {
    * either side's `mutualFields` for a given entity pair — bidirectional, same lookup
    * `getMutualDataSchema` used inline before being generalized into this shared helper. Used both
    * to resolve the data schema and to resolve `asEntity`/`ensureEntityStrongConsistentWrite`.
+   *
+   * Matches by entity-pair only, not by which specific `fieldKey` a caller meant — safe because
+   * `packages/cli/commands/utils/generate.ts`'s `monorise build` step already rejects two
+   * DIFFERENT `MutualConfig` object instances declared for the same unordered entity-type pair
+   * anywhere in the whole config tree ("Conflicting mutual configs for entity pair..."), so any
+   * config that reaches runtime here has at most one distinct config per pair regardless of how
+   * many `fieldKey`s reference it. A build that hasn't run `monorise build` (or a hand-assembled
+   * `EntityConfig` bypassing it) isn't protected by this — see that check's own comment.
    */
   private getMutualFieldConfig(
     byEntityType: EntityType,
@@ -160,6 +175,19 @@ export class MutualService {
       options,
     );
 
+    // `mutualFieldConfig.asEntity` here is the CONFIG-declared asEntity target (from
+    // `createMutualConfig`), used only to find the storage schema below — NOT the resolved
+    // `asEntity` from `resolveAsEntityOptions` above, which may have been overridden by
+    // `options.asEntity` to a different entity type with no config of its own to read a schema
+    // from. When a call site overrides `asEntity` without also being able to supply its own
+    // storage schema, this falls back to the full `mutualDataSchema` below (unchanged, prior
+    // behavior) rather than guessing at a schema for an entity type it knows nothing about.
+    const asEntityStorageSchema =
+      asEntity && mutualFieldConfig?.asEntity?.name === asEntity
+        ? (mutualFieldConfig.asEntity.createSchema ??
+            mutualFieldConfig.asEntity.baseSchema)
+        : undefined;
+
     const errorContext: Record<string, unknown> = {
       arguments: {
         byEntityType,
@@ -180,11 +208,21 @@ export class MutualService {
       options,
     });
 
+    // `asEntityStorageSchema` (createSchema ?? baseSchema), when this is an `asEntity` mutual,
+    // deliberately replaces the finalSchema-derived `mutualDataSchema` for what gets PARSED AND
+    // STORED here — not just for narrowing an already-full payload after the fact. Parsing
+    // against `asEntityStorageSchema` directly both validates (enforces the target entity's own
+    // required `createSchema` fields) and strips (drops the target entity's own further
+    // `mutualFields` keys, e.g. `courseIds`) in the same step, so `mutual.mutualData` and the
+    // synthetic entity's `data` never end up storing values that belong to a DIFFERENT entity's
+    // relationships — see `createMutualConfig`'s own comment on why `mutualDataSchema` itself
+    // stays as `finalSchema` (still used below via `getMutualFieldConfig`/hook-wiring paths).
     const schema =
+      asEntityStorageSchema ??
       this.getMutualDataSchema(byEntityType, entityType) ??
       z.record(z.string(), z.any());
     console.log('[MONORISE_DEBUG] createMutual schema resolved');
-    
+
     const parsedMutualPayload = schema.parse(mutualPayload);
     console.log('[MONORISE_DEBUG] createMutual payload parsed:', parsedMutualPayload);
 
@@ -365,11 +403,19 @@ export class MutualService {
       options,
     });
 
+    // Same `asEntity`-aware narrowing as `createMutual` — an update to an `asEntity` mutual must
+    // not re-introduce the target entity's own further `mutualFields` keys into stored
+    // `mutualData` any more than the initial create does (see `createMutual`'s own comment).
+    const mutualFieldConfig = this.getMutualFieldConfig(byEntityType, entityType);
+    const asEntityStorageSchema = mutualFieldConfig?.asEntity
+      ? (mutualFieldConfig.asEntity.createSchema ?? mutualFieldConfig.asEntity.baseSchema)
+      : undefined;
     const schema =
-      this.getMutualDataSchema(byEntityType, entityType) ??
+      asEntityStorageSchema ??
+      mutualFieldConfig?.mutualDataSchema ??
       z.record(z.string(), z.any());
     console.log('[MONORISE_DEBUG] updateMutual schema resolved');
-    
+
     const parsedMutualPayload = schema.parse(mutualPayload);
     console.log('[MONORISE_DEBUG] updateMutual payload parsed:', parsedMutualPayload);
 

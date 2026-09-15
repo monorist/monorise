@@ -39,6 +39,70 @@ export const handler =
             continue;
           }
 
+          // `MutualRepository.deleteMutual` is a SOFT delete: it only sets `expiresAt` (a
+          // MODIFY, not a REMOVE) and relies on DynamoDB's own TTL sweep to physically remove
+          // the item later — which can lag by up to ~48h per AWS's TTL SLA. Without this branch,
+          // a synthetic entity materialized via `asEntity` (and its tags) would keep returning
+          // from queries as if the mutual were still active for that whole window, defeating the
+          // main reason to use `asEntity` (indexed lookup) in the first place. `expiresAt` is
+          // never set on a mutual by anything other than `deleteMutual` (confirmed: every other
+          // write path explicitly guards `attribute_not_exists(expiresAt)`), so its presence here
+          // unambiguously means "this mutual was just soft-deleted" — cascade the same
+          // R2PK-targeted delete the REMOVE branch below performs on physical removal, right now,
+          // instead of waiting for it.
+          if (isMutual && modifiedItem.expiresAt) {
+            let mutualEntityItems: Record<string, AttributeValue>[] = [];
+            let mutualEntityLastKey;
+
+            do {
+              // Matches the REMOVE branch's own query call shape below exactly (including not
+              // passing `ExclusiveStartKey` on repeat iterations) — a pre-existing characteristic
+              // of that branch, not something newly introduced here.
+              const queryResult = await dynamodbClient.query({
+                TableName,
+                IndexName: MUTUAL_REPLICATION_INDEX,
+                KeyConditionExpression: '#R2PK = :R2PK',
+                ExpressionAttributeNames: { '#R2PK': 'R2PK' },
+                ExpressionAttributeValues: { ':R2PK': modifiedItem.PK },
+              });
+
+              mutualEntityItems = [
+                ...mutualEntityItems,
+                ...(queryResult.Items || []),
+              ];
+              mutualEntityLastKey = queryResult.LastEvaluatedKey;
+            } while (mutualEntityLastKey);
+
+            const softDeleteResults = await Promise.allSettled(
+              mutualEntityItems.map((item) =>
+                dynamodbClient.deleteItem({
+                  TableName,
+                  Key: { PK: item.PK, SK: item.SK },
+                }),
+              ),
+            );
+            errorContext.softDeleteResults = softDeleteResults;
+
+            if (
+              softDeleteResults.some(
+                (result) =>
+                  result.status === 'rejected' &&
+                  !(result.reason instanceof ConditionalCheckFailedException),
+              )
+            ) {
+              throw new StandardError(
+                StandardErrorCode.REPLICATION_ERROR,
+                'Replication error',
+                null,
+                errorContext,
+              );
+            }
+
+            // Nothing left to copy for a soft-deleted mutual — skip the normal
+            // copy-mutualData-onto-replicas logic below for this record.
+            continue;
+          }
+
           // default variables
           let targetRPK = 'R1PK';
           const targetData = 'data';

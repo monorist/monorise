@@ -430,6 +430,8 @@ Reach for `ensureEntityStrongConsistentWrite: true` when your business flow read
 Once materialized, the entity is a **projection** of the mutual, not an independent record. Never call `updateEntity`, `deleteEntity`, or any other direct entity API on it — always [update or delete the mutual](#querying-mutuals-react) instead.
 
 Updating or deleting the mutual automatically propagates to the synthetic entity — this isn't something `asEntity` implements itself, it rides on the same DynamoDB Streams [replication mechanism](/architecture#data-layout-cheat-sheet) (`R1PK`/`R2PK`) that already keeps denormalized entity data in sync elsewhere in this codebase. Like that existing direction, propagation is asynchronous and eventually consistent — expect a brief delay between updating the mutual and seeing the change on the entity.
+
+Deleting a mutual is handled the same way, promptly — not left to wait for `deleteMutual`'s underlying soft-delete (`expiresAt`) to eventually be swept by DynamoDB's own TTL process, which can otherwise lag by up to ~48 hours. The replication processor detects the soft-delete the moment it happens and removes the synthetic entity (and its tags) right away, on the same short delay as any other update.
 :::
 
 Because the whole point of `asEntity` is indexed lookup, pair it with [`tags`](/concepts/tags) on the materialized entity's own `createEntityConfig` — that's what turns "all enrollments" into "all enrollments with role `auditor`, sorted by enrollment date" in O(1).

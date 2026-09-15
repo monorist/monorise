@@ -357,7 +357,13 @@ describe('MutualService.createMutual — asEntity integration', () => {
     expect(calls[0][0].payload).toMatchObject({ entityType: TestEntity.ENROLLMENT });
   });
 
-  it('precedence: call-site options.asEntity overrides a config-level asEntity', async () => {
+  it('precedence: call-site options.asEntity overrides a config-level asEntity, but does NOT inherit the config-level ensureEntityStrongConsistentWrite it did not ask for', async () => {
+    // `mutualWithAsEntity`'s `ensureEntityStrongConsistentWrite: true` belongs to ITS OWN
+    // `asEntity` (ENROLLMENT) — a call site overriding `asEntity` to a different entity type
+    // (BADGE) has no config-level consistency setting of its own to inherit, so this must default
+    // to `false` (async) unless the call site also explicitly asks for strong consistency (see
+    // the next test). Prior to fixing this, the override would silently inherit ENROLLMENT's
+    // `true` for an entity type it has nothing to do with.
     const EntityConfig = buildEntityConfig(mutualWithAsEntity);
     const deps = buildDeps();
     const service = new MutualService(
@@ -376,6 +382,36 @@ describe('MutualService.createMutual — asEntity integration', () => {
       entityId: 'course-1',
       mutualPayload: { role: 'student', enrolledAt: '2026-01-01' },
       options: { asEntity: TestEntity.BADGE as unknown as EntityType },
+    });
+
+    expect(deps.entityServiceLifeCycle.afterCreateEntityHook).not.toHaveBeenCalled();
+    const calls = createEntityEventCalls(deps.publishEvent);
+    expect(calls).toHaveLength(1);
+    expect(calls[0][0].payload).toMatchObject({ entityType: TestEntity.BADGE });
+  });
+
+  it('precedence: call-site options.asEntity + explicit ensureEntityStrongConsistentWrite together override the config fully', async () => {
+    const EntityConfig = buildEntityConfig(mutualWithAsEntity);
+    const deps = buildDeps();
+    const service = new MutualService(
+      EntityConfig,
+      deps.entityRepository as any,
+      deps.mutualRepository as any,
+      deps.publishEvent as any,
+      deps.ddbUtils as any,
+      deps.entityServiceLifeCycle as any,
+    );
+
+    await service.createMutual({
+      byEntityType: TestEntity.STUDENT as unknown as EntityType,
+      byEntityId: 'student-1',
+      entityType: TestEntity.COURSE as unknown as EntityType,
+      entityId: 'course-1',
+      mutualPayload: { role: 'student', enrolledAt: '2026-01-01' },
+      options: {
+        asEntity: TestEntity.BADGE as unknown as EntityType,
+        ensureEntityStrongConsistentWrite: true,
+      },
     });
 
     expect(
