@@ -3,6 +3,7 @@ import type {
   Entity,
   MonoriseEntityConfig,
   MutualConfig,
+  MutualConfigInput,
 } from '../types/monorise.type';
 
 /**
@@ -105,7 +106,35 @@ const createEntityConfig = <
 };
 
 const createMutualConfig = <MD extends z.ZodRawShape>(
-  config: MutualConfig<MD>,
-) => config;
+  config: MutualConfigInput<MD>,
+): MutualConfig<MD> => {
+  if (config.asEntity && config.mutualDataSchema) {
+    throw new Error(
+      "createMutualConfig: 'asEntity' and 'mutualDataSchema' are mutually exclusive. " +
+        "When 'asEntity' is set, mutualDataSchema is derived automatically from " +
+        "asEntity.finalSchema — remove the explicit mutualDataSchema (or drop 'asEntity' " +
+        'if this mutual should keep its own independently-authored schema).',
+    );
+  }
+
+  if (!config.asEntity && !config.mutualDataSchema) {
+    throw new Error(
+      "createMutualConfig: one of 'mutualDataSchema' or 'asEntity' is required.",
+    );
+  }
+
+  // Unchanged identity behavior when `asEntity` isn't set — existing configs are unaffected.
+  // `mutualDataSchema` is guaranteed present here (checked above), so this cast just tells
+  // TypeScript what the runtime guard already established.
+  if (!config.asEntity) return config as MutualConfig<MD>;
+
+  // `finalSchema` (not baseSchema/createSchema alone) on purpose: MutualService.createMutual's
+  // `asEntity` path fires `afterCreateEntityHook` on the synthetic entity, which needs the full
+  // schema to correctly wire that entity's own further `mutualFields` too.
+  return {
+    ...config,
+    mutualDataSchema: config.asEntity.finalSchema as unknown as z.ZodObject<MD>,
+  };
+};
 
 export { createEntityConfig, createMutualConfig, resolveEffectiveMutualSchema };

@@ -2,6 +2,7 @@ import type { AttributeValue } from '@aws-sdk/client-dynamodb';
 import type {
   EntitySchemaMap,
   Entity as EntityType,
+  MutualConfig,
   createEntityConfig,
 } from '@monorise/base';
 import { ulid } from 'ulid';
@@ -12,6 +13,46 @@ import { Mutual, type MutualRepository } from '../data/Mutual';
 import type { publishEvent as publishEventType } from '../helpers/event';
 import { EVENT } from '../types/event';
 import type { EntityServiceLifeCycle } from './entity-service-lifecycle';
+
+/**
+ * @description Resolves the effective `asEntity`/`ensureEntityStrongConsistentWrite` for a
+ * `createMutual` call, given the mutual relationship's declarative config (set once via
+ * `createMutualConfig({ asEntity, ensureEntityStrongConsistentWrite })`) and any options passed
+ * directly at this call site.
+ *
+ * Precedence: an explicit call-site `options.asEntity`/`options.ensureEntityStrongConsistentWrite`
+ * always overrides the config-level value (nullish-coalescing — a caller that omits
+ * `options.asEntity` entirely falls back to the config; a caller that explicitly sets it always
+ * wins). This keeps every existing imperative caller that already passes `options.asEntity`
+ * completely unaffected by a config also declaring it.
+ *
+ * `mutualConfig.asEntity` is the full `createEntityConfig(...)` return value (see
+ * `MutualConfig.asEntity` in `@monorise/base`) — its `name` field is the entity type identifier
+ * (`MonoriseEntityConfig.name: string | T`), not a field literally called `entityType`.
+ */
+export function resolveAsEntityOptions<A extends EntityType>(
+  mutualConfig:
+    | Pick<MutualConfig, 'asEntity' | 'ensureEntityStrongConsistentWrite'>
+    | undefined,
+  callOptions: {
+    asEntity?: A;
+    ensureEntityStrongConsistentWrite?: boolean;
+  } = {},
+): { asEntity: A | undefined; ensureEntityStrongConsistentWrite: boolean } {
+  const asEntity = (callOptions.asEntity ??
+    (mutualConfig?.asEntity?.name as A | undefined)) as A | undefined;
+
+  if (!asEntity) {
+    return { asEntity: undefined, ensureEntityStrongConsistentWrite: false };
+  }
+
+  const ensureEntityStrongConsistentWrite =
+    callOptions.ensureEntityStrongConsistentWrite ??
+    mutualConfig?.ensureEntityStrongConsistentWrite ??
+    false;
+
+  return { asEntity, ensureEntityStrongConsistentWrite };
+}
 
 export class MutualService {
   constructor(
@@ -26,10 +67,16 @@ export class MutualService {
     private entityServiceLifeCycle: EntityServiceLifeCycle,
   ) {}
 
-  private getMutualDataSchema(
+  /**
+   * @description Resolves the full `MutualConfig` (not just its `mutualDataSchema`) declared on
+   * either side's `mutualFields` for a given entity pair — bidirectional, same lookup
+   * `getMutualDataSchema` used inline before being generalized into this shared helper. Used both
+   * to resolve the data schema and to resolve `asEntity`/`ensureEntityStrongConsistentWrite`.
+   */
+  private getMutualFieldConfig(
     byEntityType: EntityType,
     entityType: EntityType,
-  ) {
+  ): MutualConfig | undefined {
     // Check byEntityType → entityType direction first, then reverse
     for (const [from, to] of [
       [byEntityType, entityType],
@@ -39,12 +86,23 @@ export class MutualService {
       if (!mutualFields) continue;
 
       for (const config of Object.values(mutualFields)) {
-        if (config.entityType === to && config.mutual?.mutualDataSchema) {
-          return config.mutual.mutualDataSchema;
+        // Checks the whole `config.mutual` object (not `config.mutual?.mutualDataSchema`, as
+        // this used to) because this helper now also needs to resolve `asEntity`/
+        // `ensureEntityStrongConsistentWrite`, not just the data schema. This is a safe
+        // loosening, not a behavior change in practice: by the time a `MutualConfig` reaches
+        // here, `mutualDataSchema` is always populated — either authored directly, or derived
+        // from `asEntity.finalSchema` by `createMutualConfig` — so every config this used to
+        // match (truthy schema) is still matched, and no additional ones are.
+        if (config.entityType === to && config.mutual) {
+          return config.mutual;
         }
       }
     }
     return undefined;
+  }
+
+  private getMutualDataSchema(byEntityType: EntityType, entityType: EntityType) {
+    return this.getMutualFieldConfig(byEntityType, entityType)?.mutualDataSchema;
   }
 
   createMutual = async <
@@ -84,8 +142,6 @@ export class MutualService {
     };
   }) => {
     const {
-      ensureEntityStrongConsistentWrite = false,
-      asEntity,
       createAndUpdateDatetime,
       mutualId,
       skipMutualCreation = false,
@@ -93,6 +149,16 @@ export class MutualService {
       ExpressionAttributeNames,
       ExpressionAttributeValues,
     } = options;
+
+    // Config-level `asEntity`/`ensureEntityStrongConsistentWrite` (declared once via
+    // `createMutualConfig({ asEntity, ensureEntityStrongConsistentWrite })`) is the default; an
+    // explicit call-site `options.asEntity`/`options.ensureEntityStrongConsistentWrite` always
+    // wins — see `resolveAsEntityOptions`.
+    const mutualFieldConfig = this.getMutualFieldConfig(byEntityType, entityType);
+    const { asEntity, ensureEntityStrongConsistentWrite } = resolveAsEntityOptions(
+      mutualFieldConfig,
+      options,
+    );
 
     const errorContext: Record<string, unknown> = {
       arguments: {
@@ -173,6 +239,19 @@ export class MutualService {
     const entityTransactions = [];
     let entity: Entity<A> | undefined;
 
+    // NOTE on keeping the synthetic entity in sync after this point: this method only ever
+    // CREATES the synthetic entity (here, or via the async CREATE_ENTITY event below). It does
+    // NOT need to (and does not) handle propagating a later `updateMutual`/`deleteMutual` to this
+    // entity — that already happens via a separate, pre-existing mechanism: DynamoDB Streams
+    // replication (`replication-processor.ts`). `createEntityTransactItems(entity, { mutualId:
+    // mutual.mainPk })` below sets `R2PK` on the synthetic entity to the mutual's own PK
+    // (`MUTUAL#<mutualId>`, see `Mutual.mainPk`), which the `MUTUAL_REPLICATION_INDEX` GSI uses to
+    // find it whenever that mutual is later updated (`MODIFY` → new `mutualData`) or deleted
+    // (`REMOVE`). This makes the synthetic entity a READ-ONLY projection: never call
+    // `updateEntity`/`deleteEntity` on it directly — always update/delete the mutual, and
+    // replication keeps the entity in sync automatically (asynchronously, eventually
+    // consistent) — see the "asEntity" section of www/docs/concepts/mutuals.md.
+
     // construct entity transact item only if need to ensure strong consistent write
     if (asEntity && ensureEntityStrongConsistentWrite) {
       entity = new Entity(
@@ -214,11 +293,11 @@ export class MutualService {
     // publish an event to create entity if asEntity defined
     // since it's event-driven, it would be the creation of entity
     // would be eventual consistent
-    if (options.asEntity && !ensureEntityStrongConsistentWrite) {
+    if (asEntity && !ensureEntityStrongConsistentWrite) {
       await this.publishEvent({
         event: EVENT.CORE.CREATE_ENTITY,
         payload: {
-          entityType: options.asEntity,
+          entityType: asEntity,
           entityId: mutual.mutualId,
           entityPayload: mutual.mutualData,
           accountId,
