@@ -273,8 +273,11 @@ export const tagHandler = coreFactory.tagProcessor;
 export const treeHandler = coreFactory.prejoinProcessor;
 export const appHandler = coreFactory.appHandler(${appHandlerPayload});
 
-// WebSocket handlers (re-exported for SST to resolve)
-export { wsConnect, wsDisconnect, wsDefault, wsBroadcast } from '${coreImportPath}';
+// WebSocket handlers (wrapped with DependencyContainer for SST to resolve)
+export const wsConnect = coreFactory.wsConnect;
+export const wsDisconnect = coreFactory.wsDisconnect;
+export const wsDefault = coreFactory.wsDefault;
+export const wsBroadcast = coreFactory.wsBroadcast;
 `;
   fs.writeFileSync(handleOutputPath, combinedContent);
   console.log('Successfully generated handle.ts!');
