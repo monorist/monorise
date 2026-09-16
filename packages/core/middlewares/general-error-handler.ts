@@ -10,7 +10,20 @@ const generalErrorHandler = (dependencies = getDependencies()) =>
 
       const errorId = nanoid();
 
-      const body = await c.req.json();
+      // The route handler that produced `c.error` has very likely already
+      // consumed the request body stream (e.g. its own `c.req.json()` call).
+      // Reading it again here throws on an already-disturbed stream — and
+      // since that throw was previously unguarded, it escaped this
+      // already-in-error-handling middleware entirely, cascading into Hono's
+      // own fallback response construction with a malformed error object and
+      // producing an opaque `RangeError: init["status"] must be in the range
+      // of 200 to 599` deep in dispatch, masking the real error underneath.
+      let body: unknown;
+      try {
+        body = await c.req.json();
+      } catch {
+        body = undefined;
+      }
 
       await publishErrorEvent({
         serviceName: 'monorise-core',
