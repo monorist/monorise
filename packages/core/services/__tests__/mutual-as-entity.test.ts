@@ -31,6 +31,33 @@ const badgeEntityConfig = createEntityConfig({
   createSchema: z.object({ role: z.string(), enrolledAt: z.string() }),
 });
 
+// An `asEntity` target that declares its OWN further mutualFields, with the mutual field made
+// REQUIRED at create time via `createMutualSchema`. `finalSchema` therefore requires `badgeIds`,
+// and `finalSchema` is the first thing `entityService.createEntity` validates a `CREATE_ENTITY`
+// payload against — so a storage-narrowed payload doesn't just lose the wiring, it throws.
+const enrollmentWithRequiredBadgesConfig = createEntityConfig({
+  name: TestEntity.ENROLLMENT,
+  displayName: 'Enrollment',
+  baseSchema: z.object({ role: z.string(), enrolledAt: z.string() }).partial(),
+  createSchema: z.object({ role: z.string(), enrolledAt: z.string() }),
+  mutual: {
+    mutualSchema: z.object({ badgeIds: z.string().array() }).partial(),
+    createMutualSchema: z.object({ badgeIds: z.string().array() }),
+    mutualFields: {
+      badgeIds: {
+        entityType: TestEntity.BADGE as unknown as EntityType,
+        mutual: createMutualConfig({
+          entities: [
+            TestEntity.ENROLLMENT as unknown as EntityType,
+            TestEntity.BADGE as unknown as EntityType,
+          ],
+          mutualDataSchema: z.object({}),
+        }),
+      },
+    },
+  },
+});
+
 describe('createMutualConfig — asEntity', () => {
   it('throws synchronously when both asEntity and mutualDataSchema are provided', () => {
     expect(() =>
@@ -388,6 +415,65 @@ describe('MutualService.createMutual — asEntity integration', () => {
     const calls = createEntityEventCalls(deps.publishEvent);
     expect(calls).toHaveLength(1);
     expect(calls[0][0].payload).toMatchObject({ entityType: TestEntity.BADGE });
+  });
+
+  it("async CREATE_ENTITY payload keeps the target entity's own mutual-field keys, while stored mutualData stays narrowed", async () => {
+    const mutualWithRequiredFurtherField = createMutualConfig({
+      entities: [
+        TestEntity.STUDENT as unknown as EntityType,
+        TestEntity.COURSE as unknown as EntityType,
+      ],
+      asEntity: enrollmentWithRequiredBadgesConfig,
+      // async default — the path whose payload shape this test is about.
+    });
+
+    const EntityConfig = buildEntityConfig(mutualWithRequiredFurtherField);
+    EntityConfig[TestEntity.ENROLLMENT] = enrollmentWithRequiredBadgesConfig;
+    const deps = buildDeps();
+    const service = new MutualService(
+      EntityConfig,
+      deps.entityRepository as any,
+      deps.mutualRepository as any,
+      deps.publishEvent as any,
+      deps.ddbUtils as any,
+      deps.entityServiceLifeCycle as any,
+    );
+
+    const { mutual } = await service.createMutual({
+      byEntityType: TestEntity.STUDENT as unknown as EntityType,
+      byEntityId: 'student-1',
+      entityType: TestEntity.COURSE as unknown as EntityType,
+      entityId: 'course-1',
+      mutualPayload: {
+        role: 'student',
+        enrolledAt: '2026-01-01',
+        badgeIds: ['badge-1'],
+      },
+    });
+
+    // Storage stays narrowed — ENROLLMENT's own relationship ids must not be baked into the
+    // mutual's stored data, where they'd go stale the moment those relationships change.
+    expect(mutual.mutualData).toEqual({
+      role: 'student',
+      enrolledAt: '2026-01-01',
+    });
+    expect(mutual.mutualData).not.toHaveProperty('badgeIds');
+
+    const calls = createEntityEventCalls(deps.publishEvent);
+    expect(calls).toHaveLength(1);
+    const { entityPayload } = calls[0][0].payload;
+
+    // ...but the event payload does not: `createEntity` runs `finalSchema.parse` on it and then
+    // forwards it unstripped to `afterCreateEntityHook`, which needs `badgeIds` to wire
+    // ENROLLMENT's own mutuals. Narrowed, this parse throws and the record DLQs.
+    expect(entityPayload).toMatchObject({
+      role: 'student',
+      enrolledAt: '2026-01-01',
+      badgeIds: ['badge-1'],
+    });
+    expect(() =>
+      enrollmentWithRequiredBadgesConfig.finalSchema.parse(entityPayload),
+    ).not.toThrow();
   });
 
   it('precedence: call-site options.asEntity + explicit ensureEntityStrongConsistentWrite together override the config fully', async () => {

@@ -217,14 +217,28 @@ export class MutualService {
     // synthetic entity's `data` never end up storing values that belong to a DIFFERENT entity's
     // relationships — see `createMutualConfig`'s own comment on why `mutualDataSchema` itself
     // stays as `finalSchema` (still used below via `getMutualFieldConfig`/hook-wiring paths).
+    const mutualDataSchema = this.getMutualDataSchema(byEntityType, entityType);
     const schema =
-      asEntityStorageSchema ??
-      this.getMutualDataSchema(byEntityType, entityType) ??
-      z.record(z.string(), z.any());
+      asEntityStorageSchema ?? mutualDataSchema ?? z.record(z.string(), z.any());
     console.log('[MONORISE_DEBUG] createMutual schema resolved');
 
     const parsedMutualPayload = schema.parse(mutualPayload);
     console.log('[MONORISE_DEBUG] createMutual payload parsed:', parsedMutualPayload);
+
+    // Parsed a SECOND time, against the fuller `mutualDataSchema`, purely for the async
+    // `CREATE_ENTITY` event payload below — never for storage. The narrowing above is right for
+    // `new Mutual(...)`/`new Entity(...)`, but wrong for that event: its consumer
+    // (`entityService.createEntity`) runs `finalSchema.parse(entityPayload)` and then passes the
+    // UNSTRIPPED payload to `afterCreateEntityHook`, which parses it with `effectiveMutualSchema`
+    // to wire the synthetic entity's OWN further `mutualFields`. Sending the narrowed value would
+    // silently stop that wiring, and would hard-fail `finalSchema.parse` outright whenever the
+    // target entity declares a REQUIRED `createMutualSchema` field. The strong-consistent branch
+    // below has never had this problem — it hands the raw `mutualPayload` straight to the hook.
+    // When `asEntityStorageSchema` is undefined there was no narrowing to undo, so this is the
+    // same object; no second parse is performed.
+    const eventMutualPayload = asEntityStorageSchema
+      ? (mutualDataSchema?.parse(mutualPayload) ?? mutualPayload)
+      : parsedMutualPayload;
 
     console.log('[MONORISE_DEBUG] createMutual fetching entities...');
     const [{ data: byEntityData }, { data: entityData }] = await Promise.all([
@@ -337,7 +351,11 @@ export class MutualService {
         payload: {
           entityType: asEntity,
           entityId: mutual.mutualId,
-          entityPayload: mutual.mutualData,
+          // `eventMutualPayload`, not `mutual.mutualData` — the latter is deliberately
+          // storage-narrowed (see where it's parsed above) and is the wrong shape for this
+          // event's consumer. Keeps this async path's hook wiring identical to the
+          // strong-consistent branch directly above, which passes `mutualPayload` to the hook.
+          entityPayload: eventMutualPayload,
           accountId,
           options: {
             createAndUpdateDatetime: mutual.createdAt,
