@@ -409,7 +409,6 @@ const enrollmentEntityConfig = createEntityConfig({
 const enrollmentMutual = createMutualConfig({
   entities: [Entity.STUDENT, Entity.COURSE],
   asEntity: enrollmentEntityConfig,
-  ensureEntityStrongConsistentWrite: true, // default false
 });
 ```
 
@@ -417,14 +416,9 @@ const enrollmentMutual = createMutualConfig({
 
 When `asEntity` is set, creating the mutual also creates a real `Entity`: `entityType = asEntity.name`, `entityId = <the mutual's own generated ulid>`, `data = <the mutual's own parsed mutualData>`.
 
-### Synchronous vs. asynchronous creation
+That entity is written in the **same DynamoDB transaction** as the mutual itself, and its `afterCreateEntityHook` (tags/mutualFields wiring) fires immediately after the commit. Either both records land or neither does, so a business flow can read the materialized entity the moment `createMutual` returns — an immediate redirect to `GET /entity/enrollment/:id` is safe — and there is never a committed mutual whose projection is missing.
 
-`ensureEntityStrongConsistentWrite` controls when that entity is actually created:
-
-- **`false` (default)** — entity creation is published as an async `CREATE_ENTITY` event and processed separately. Eventually consistent: there's a brief window after the mutual write where the entity doesn't exist yet. Cheaper, since it avoids widening the mutual write into a bigger transaction.
-- **`true`** — the entity is created synchronously, in the **same DynamoDB transaction** as the mutual write, and its `afterCreateEntityHook` (tags/mutualFields wiring) fires immediately.
-
-Reach for `ensureEntityStrongConsistentWrite: true` when your business flow reads the materialized entity right after creating the mutual (e.g. an immediate redirect to `GET /entity/enrollment/:id`) and can't tolerate the async path's brief inconsistency window.
+The cost is honest but real: a `TransactWriteItems` consumes **2x the write capacity** of a plain write and adds some latency. The transaction stays small regardless of how many relationships you're wiring — the declarative `mutualFields` processor issues one transaction per mutual, so it's roughly 5 items against DynamoDB's 100-item transaction limit, not one giant transaction for the whole array. That extra WCU buys a projection that cannot silently diverge from the edge it projects.
 
 ::: warning The synthetic entity is read-only — never update or delete it directly
 Once materialized, the entity is a **projection** of the mutual, not an independent record. Never call `updateEntity`, `deleteEntity`, or any other direct entity API on it — always [update or delete the mutual](#querying-mutuals-react) instead.

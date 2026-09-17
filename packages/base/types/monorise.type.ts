@@ -66,29 +66,26 @@ export interface MutualConfigInput<MD extends z.ZodRawShape = z.ZodRawShape> {
    * that wiring for any `asEntity`-targeted entity that itself declares further relationships.
    * Providing both `asEntity` and `mutualDataSchema` is a build-time AND runtime error.
    *
-   * An explicit `options.asEntity`/`options.ensureEntityStrongConsistentWrite` passed directly
-   * at an imperative `createMutual(...)` call site always overrides this config-level value —
-   * see `resolveAsEntityOptions` in `@monorise/core`'s `mutual.service`.
+   * The synthetic entity is always created SYNCHRONOUSLY, in the same DynamoDB transaction as
+   * the mutual write, with its `afterCreateEntityHook` (tags/mutualFields wiring) firing
+   * immediately after the commit. There is no asynchronous mode: the entity either exists the
+   * moment the mutual does, or neither is written. That costs a `TransactWriteItems` (2x WCU
+   * versus a plain write) but leaves no window in which the mutual exists and its projection
+   * does not.
+   *
+   * An explicit `options.asEntity` passed directly at an imperative `createMutual(...)` call
+   * site always overrides this config-level value — see `resolveAsEntity` in `@monorise/core`'s
+   * `mutual.service`.
    *
    * @example
    * ```ts
    * const enrollmentMutual = createMutualConfig({
    *   entities: [Entity.STUDENT, Entity.COURSE],
    *   asEntity: enrollmentEntityConfig, // the createEntityConfig(...) result for Entity.ENROLLMENT
-   *   ensureEntityStrongConsistentWrite: true,
    * });
    * ```
    */
   asEntity?: ReturnType<typeof createEntityConfig>;
-  /**
-   * @description Only meaningful alongside `asEntity`. When true, the synthetic entity is
-   * created synchronously in the SAME DynamoDB transaction as the mutual write, and its
-   * `afterCreateEntityHook` (tags/mutualFields wiring) fires immediately. When false/omitted,
-   * entity creation is instead published as an async `CREATE_ENTITY` event — eventually
-   * consistent.
-   * @default false
-   */
-  ensureEntityStrongConsistentWrite?: boolean;
 }
 
 /**
