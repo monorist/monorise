@@ -6,7 +6,7 @@ import {
 } from '../../../base';
 import type { Entity as EntityType } from '../../../base';
 import { EVENT } from '../../types/event';
-import { MutualService, resolveAsEntityOptions } from '../mutual.service';
+import { MutualService, resolveAsEntity } from '../mutual.service';
 
 enum TestEntity {
   STUDENT = 'student',
@@ -32,9 +32,9 @@ const badgeEntityConfig = createEntityConfig({
 });
 
 // An `asEntity` target that declares its OWN further mutualFields, with the mutual field made
-// REQUIRED at create time via `createMutualSchema`. `finalSchema` therefore requires `badgeIds`,
-// and `finalSchema` is the first thing `entityService.createEntity` validates a `CREATE_ENTITY`
-// payload against — so a storage-narrowed payload doesn't just lose the wiring, it throws.
+// REQUIRED at create time via `createMutualSchema` — the strictest case for the storage
+// narrowing: `badgeIds` is required by the target entity's own create-path validation, yet must
+// never be persisted as this mutual's `mutualData` or the synthetic entity's `data`.
 const enrollmentWithRequiredBadgesConfig = createEntityConfig({
   name: TestEntity.ENROLLMENT,
   displayName: 'Enrollment',
@@ -99,65 +99,32 @@ describe('createMutualConfig — asEntity', () => {
   });
 });
 
-describe('resolveAsEntityOptions', () => {
-  it('resolves asEntity/ensureEntityStrongConsistentWrite from config when no call-site options are given', () => {
-    const result = resolveAsEntityOptions({
-      asEntity: enrollmentEntityConfig,
-      ensureEntityStrongConsistentWrite: true,
-    });
-
-    expect(result).toEqual({
-      asEntity: TestEntity.ENROLLMENT,
-      ensureEntityStrongConsistentWrite: true,
-    });
+describe('resolveAsEntity', () => {
+  it('resolves asEntity from config when no call-site options are given', () => {
+    expect(resolveAsEntity({ asEntity: enrollmentEntityConfig })).toBe(
+      TestEntity.ENROLLMENT,
+    );
   });
 
   it('call-site asEntity overrides config-level asEntity', () => {
-    const result = resolveAsEntityOptions(
-      { asEntity: enrollmentEntityConfig, ensureEntityStrongConsistentWrite: true },
+    const result = resolveAsEntity(
+      { asEntity: enrollmentEntityConfig },
       { asEntity: TestEntity.BADGE as unknown as EntityType },
     );
 
-    expect(result.asEntity).toBe(TestEntity.BADGE);
+    expect(result).toBe(TestEntity.BADGE);
   });
 
-  it('call-site ensureEntityStrongConsistentWrite overrides config-level value', () => {
-    const result = resolveAsEntityOptions(
-      { asEntity: enrollmentEntityConfig, ensureEntityStrongConsistentWrite: true },
-      { ensureEntityStrongConsistentWrite: false },
-    );
-
-    expect(result).toEqual({
-      asEntity: TestEntity.ENROLLMENT,
-      ensureEntityStrongConsistentWrite: false,
-    });
-  });
-
-  it('works from call-site asEntity alone (no config) and defaults ensureEntityStrongConsistentWrite to false', () => {
-    const result = resolveAsEntityOptions(undefined, {
+  it('works from call-site asEntity alone (no config)', () => {
+    const result = resolveAsEntity(undefined, {
       asEntity: TestEntity.BADGE as unknown as EntityType,
     });
 
-    expect(result).toEqual({
-      asEntity: TestEntity.BADGE,
-      ensureEntityStrongConsistentWrite: false,
-    });
+    expect(result).toBe(TestEntity.BADGE);
   });
 
-  it('returns undefined asEntity when neither config nor call-site set it', () => {
-    expect(resolveAsEntityOptions(undefined, {})).toEqual({
-      asEntity: undefined,
-      ensureEntityStrongConsistentWrite: false,
-    });
-  });
-
-  it('defaults ensureEntityStrongConsistentWrite to false when config sets asEntity but not ensureEntityStrongConsistentWrite', () => {
-    const result = resolveAsEntityOptions({ asEntity: enrollmentEntityConfig });
-
-    expect(result).toEqual({
-      asEntity: TestEntity.ENROLLMENT,
-      ensureEntityStrongConsistentWrite: false,
-    });
+  it('returns undefined when neither config nor call-site set it', () => {
+    expect(resolveAsEntity(undefined, {})).toBeUndefined();
   });
 });
 
@@ -176,16 +143,6 @@ describe('MutualService.createMutual — asEntity integration', () => {
       TestEntity.COURSE as unknown as EntityType,
     ],
     asEntity: enrollmentEntityConfig,
-    ensureEntityStrongConsistentWrite: true,
-  });
-
-  const mutualWithAsEntityAsync = createMutualConfig({
-    entities: [
-      TestEntity.STUDENT as unknown as EntityType,
-      TestEntity.COURSE as unknown as EntityType,
-    ],
-    asEntity: enrollmentEntityConfig,
-    // ensureEntityStrongConsistentWrite omitted — defaults to async CREATE_ENTITY event path.
   });
 
   const buildEntityConfig = (mutual: ReturnType<typeof createMutualConfig>) =>
@@ -268,7 +225,7 @@ describe('MutualService.createMutual — asEntity integration', () => {
     expect(createEntityEventCalls(deps.publishEvent)).toHaveLength(0);
   });
 
-  it('existing behavior unchanged: imperative call-site asEntity + ensureEntityStrongConsistentWrite:true (no config-level asEntity) creates the entity synchronously', async () => {
+  it('imperative call-site asEntity (no config-level asEntity) creates the entity in the same transaction', async () => {
     const EntityConfig = buildEntityConfig(mutualWithoutAsEntity);
     const deps = buildDeps();
     const service = new MutualService(
@@ -288,7 +245,6 @@ describe('MutualService.createMutual — asEntity integration', () => {
       mutualPayload: { role: 'student', enrolledAt: '2026-01-01' },
       options: {
         asEntity: TestEntity.ENROLLMENT as unknown as EntityType,
-        ensureEntityStrongConsistentWrite: true,
       },
     });
 
@@ -301,35 +257,7 @@ describe('MutualService.createMutual — asEntity integration', () => {
     expect(createEntityEventCalls(deps.publishEvent)).toHaveLength(0);
   });
 
-  it('existing behavior unchanged: imperative call-site asEntity without ensureEntityStrongConsistentWrite publishes the async CREATE_ENTITY event instead', async () => {
-    const EntityConfig = buildEntityConfig(mutualWithoutAsEntity);
-    const deps = buildDeps();
-    const service = new MutualService(
-      EntityConfig,
-      deps.entityRepository as any,
-      deps.mutualRepository as any,
-      deps.publishEvent as any,
-      deps.ddbUtils as any,
-      deps.entityServiceLifeCycle as any,
-    );
-
-    await service.createMutual({
-      byEntityType: TestEntity.STUDENT as unknown as EntityType,
-      byEntityId: 'student-1',
-      entityType: TestEntity.COURSE as unknown as EntityType,
-      entityId: 'course-1',
-      mutualPayload: { role: 'student', enrolledAt: '2026-01-01' },
-      options: { asEntity: TestEntity.ENROLLMENT as unknown as EntityType },
-    });
-
-    expect(deps.entityRepository.createEntityTransactItems).not.toHaveBeenCalled();
-    expect(deps.entityServiceLifeCycle.afterCreateEntityHook).not.toHaveBeenCalled();
-    const calls = createEntityEventCalls(deps.publishEvent);
-    expect(calls).toHaveLength(1);
-    expect(calls[0][0].payload).toMatchObject({ entityType: TestEntity.ENROLLMENT });
-  });
-
-  it('config-level asEntity (no call-site options) resolves from createMutualConfig and creates the entity synchronously per the config', async () => {
+  it('config-level asEntity (no call-site options) resolves from createMutualConfig and creates the entity in the same transaction', async () => {
     const EntityConfig = buildEntityConfig(mutualWithAsEntity);
     const deps = buildDeps();
     const service = new MutualService(
@@ -357,40 +285,7 @@ describe('MutualService.createMutual — asEntity integration', () => {
     expect(createEntityEventCalls(deps.publishEvent)).toHaveLength(0);
   });
 
-  it('config-level asEntity with ensureEntityStrongConsistentWrite omitted (async default) publishes CREATE_ENTITY instead of calling afterCreateEntityHook', async () => {
-    const EntityConfig = buildEntityConfig(mutualWithAsEntityAsync);
-    const deps = buildDeps();
-    const service = new MutualService(
-      EntityConfig,
-      deps.entityRepository as any,
-      deps.mutualRepository as any,
-      deps.publishEvent as any,
-      deps.ddbUtils as any,
-      deps.entityServiceLifeCycle as any,
-    );
-
-    await service.createMutual({
-      byEntityType: TestEntity.STUDENT as unknown as EntityType,
-      byEntityId: 'student-1',
-      entityType: TestEntity.COURSE as unknown as EntityType,
-      entityId: 'course-1',
-      mutualPayload: { role: 'student', enrolledAt: '2026-01-01' },
-    });
-
-    expect(deps.entityRepository.createEntityTransactItems).not.toHaveBeenCalled();
-    expect(deps.entityServiceLifeCycle.afterCreateEntityHook).not.toHaveBeenCalled();
-    const calls = createEntityEventCalls(deps.publishEvent);
-    expect(calls).toHaveLength(1);
-    expect(calls[0][0].payload).toMatchObject({ entityType: TestEntity.ENROLLMENT });
-  });
-
-  it('precedence: call-site options.asEntity overrides a config-level asEntity, but does NOT inherit the config-level ensureEntityStrongConsistentWrite it did not ask for', async () => {
-    // `mutualWithAsEntity`'s `ensureEntityStrongConsistentWrite: true` belongs to ITS OWN
-    // `asEntity` (ENROLLMENT) — a call site overriding `asEntity` to a different entity type
-    // (BADGE) has no config-level consistency setting of its own to inherit, so this must default
-    // to `false` (async) unless the call site also explicitly asks for strong consistency (see
-    // the next test). Prior to fixing this, the override would silently inherit ENROLLMENT's
-    // `true` for an entity type it has nothing to do with.
+  it('precedence: call-site options.asEntity overrides a config-level asEntity', async () => {
     const EntityConfig = buildEntityConfig(mutualWithAsEntity);
     const deps = buildDeps();
     const service = new MutualService(
@@ -411,20 +306,19 @@ describe('MutualService.createMutual — asEntity integration', () => {
       options: { asEntity: TestEntity.BADGE as unknown as EntityType },
     });
 
-    expect(deps.entityServiceLifeCycle.afterCreateEntityHook).not.toHaveBeenCalled();
-    const calls = createEntityEventCalls(deps.publishEvent);
-    expect(calls).toHaveLength(1);
-    expect(calls[0][0].payload).toMatchObject({ entityType: TestEntity.BADGE });
+    expect(
+      deps.entityServiceLifeCycle.afterCreateEntityHook.mock.calls[0][0].entityType,
+    ).toBe(TestEntity.BADGE);
+    expect(createEntityEventCalls(deps.publishEvent)).toHaveLength(0);
   });
 
-  it("async CREATE_ENTITY payload keeps the target entity's own mutual-field keys, while stored mutualData stays narrowed", async () => {
+  it("storage stays narrowed while afterCreateEntityHook receives the target entity's own mutual-field keys", async () => {
     const mutualWithRequiredFurtherField = createMutualConfig({
       entities: [
         TestEntity.STUDENT as unknown as EntityType,
         TestEntity.COURSE as unknown as EntityType,
       ],
       asEntity: enrollmentWithRequiredBadgesConfig,
-      // async default — the path whose payload shape this test is about.
     });
 
     const EntityConfig = buildEntityConfig(mutualWithRequiredFurtherField);
@@ -459,49 +353,21 @@ describe('MutualService.createMutual — asEntity integration', () => {
     });
     expect(mutual.mutualData).not.toHaveProperty('badgeIds');
 
-    const calls = createEntityEventCalls(deps.publishEvent);
-    expect(calls).toHaveLength(1);
-    const { entityPayload } = calls[0][0].payload;
+    const syntheticEntity =
+      deps.entityRepository.createEntityTransactItems.mock.calls[0][0];
+    expect(syntheticEntity.data).toEqual({
+      role: 'student',
+      enrolledAt: '2026-01-01',
+    });
 
-    // ...but the event payload does not: `createEntity` runs `finalSchema.parse` on it and then
-    // forwards it unstripped to `afterCreateEntityHook`, which needs `badgeIds` to wire
-    // ENROLLMENT's own mutuals. Narrowed, this parse throws and the record DLQs.
-    expect(entityPayload).toMatchObject({
+    // ...but the hook does not get narrowed: it parses what it's given with
+    // `effectiveMutualSchema` to wire ENROLLMENT's own mutuals, so it needs `badgeIds`.
+    const [, hookPayload] =
+      deps.entityServiceLifeCycle.afterCreateEntityHook.mock.calls[0];
+    expect(hookPayload).toMatchObject({
       role: 'student',
       enrolledAt: '2026-01-01',
       badgeIds: ['badge-1'],
     });
-    expect(() =>
-      enrollmentWithRequiredBadgesConfig.finalSchema.parse(entityPayload),
-    ).not.toThrow();
-  });
-
-  it('precedence: call-site options.asEntity + explicit ensureEntityStrongConsistentWrite together override the config fully', async () => {
-    const EntityConfig = buildEntityConfig(mutualWithAsEntity);
-    const deps = buildDeps();
-    const service = new MutualService(
-      EntityConfig,
-      deps.entityRepository as any,
-      deps.mutualRepository as any,
-      deps.publishEvent as any,
-      deps.ddbUtils as any,
-      deps.entityServiceLifeCycle as any,
-    );
-
-    await service.createMutual({
-      byEntityType: TestEntity.STUDENT as unknown as EntityType,
-      byEntityId: 'student-1',
-      entityType: TestEntity.COURSE as unknown as EntityType,
-      entityId: 'course-1',
-      mutualPayload: { role: 'student', enrolledAt: '2026-01-01' },
-      options: {
-        asEntity: TestEntity.BADGE as unknown as EntityType,
-        ensureEntityStrongConsistentWrite: true,
-      },
-    });
-
-    expect(
-      deps.entityServiceLifeCycle.afterCreateEntityHook.mock.calls[0][0].entityType,
-    ).toBe(TestEntity.BADGE);
   });
 });
