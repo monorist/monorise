@@ -3,6 +3,7 @@ import type {
   Entity,
   MonoriseEntityConfig,
   MutualConfig,
+  MutualConfigInput,
 } from '../types/monorise.type';
 
 /**
@@ -105,7 +106,60 @@ const createEntityConfig = <
 };
 
 const createMutualConfig = <MD extends z.ZodRawShape>(
-  config: MutualConfig<MD>,
-) => config;
+  config: MutualConfigInput<MD>,
+): MutualConfig<MD> => {
+  // Catches a specific footgun before it falls through to the generic
+  // "one of mutualDataSchema or asEntity is required" error below: a config
+  // module that does `asEntity: importedEntityConfig` where
+  // `importedEntityConfig` comes from a circular import (e.g. student.ts
+  // imports enrollmentEntityConfig, which itself lives in a module that
+  // imports student.ts) evaluates to `undefined` at this point, not a
+  // missing key — `'asEntity' in config` is true, `config.asEntity` is not.
+  // The generic error below would say "one of ... is required", which sends
+  // people looking for a typo instead of an import cycle.
+  if ('asEntity' in config && config.asEntity === undefined) {
+    throw new Error(
+      "createMutualConfig: 'asEntity' is undefined — likely a circular import between entity config files (the imported entity config module hasn't finished initializing yet). Restructure the imports to break the cycle.",
+    );
+  }
+
+  if (config.asEntity && config.mutualDataSchema) {
+    throw new Error(
+      "createMutualConfig: 'asEntity' and 'mutualDataSchema' are mutually exclusive. " +
+        "When 'asEntity' is set, mutualDataSchema is derived automatically from " +
+        "asEntity.finalSchema — remove the explicit mutualDataSchema (or drop 'asEntity' " +
+        'if this mutual should keep its own independently-authored schema).',
+    );
+  }
+
+  if (!config.asEntity && !config.mutualDataSchema) {
+    throw new Error(
+      "createMutualConfig: one of 'mutualDataSchema' or 'asEntity' is required.",
+    );
+  }
+
+  // Unchanged identity behavior when `asEntity` isn't set — existing configs are unaffected.
+  // `mutualDataSchema` is guaranteed present here (checked above), so this cast just tells
+  // TypeScript what the runtime guard already established.
+  if (!config.asEntity) return config as MutualConfig<MD>;
+
+  // `finalSchema` (not baseSchema/createSchema alone) on purpose: the declarative mutual
+  // processor's `afterCreateEntityHook` call needs the full schema to correctly wire the
+  // synthetic entity's own further `mutualFields` too (see mutual-processor.ts).
+  //
+  // This does NOT mean finalSchema-shaped data is what gets PERSISTED as this mutual's
+  // `mutualData` or the synthetic entity's `data` — both `MutualService.createMutual` and
+  // `mutual-processor.ts` re-derive a narrower `asEntity.createSchema ?? asEntity.baseSchema`
+  // parse for anything actually written to storage, specifically so the target entity's own
+  // mutual-field keys (e.g. `courseIds`, if the target entity itself declares `mutualFields`)
+  // never get baked into stored data — the same "mutual fields are never stored" invariant
+  // `makeSchema` already documents for ordinary entities. `mutualDataSchema` staying as
+  // `finalSchema` is what makes the fuller shape available to whichever call site needs it for
+  // hook-wiring purposes, without that fuller shape leaking into what's actually persisted.
+  return {
+    ...config,
+    mutualDataSchema: config.asEntity.finalSchema as unknown as z.ZodObject<MD>,
+  };
+};
 
 export { createEntityConfig, createMutualConfig, resolveEffectiveMutualSchema };

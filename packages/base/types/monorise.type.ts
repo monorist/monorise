@@ -1,4 +1,5 @@
 import type { z } from 'zod';
+import type { createEntityConfig } from '../utils';
 import type { WhereConditions } from './conditions.type';
 
 export enum Entity {}
@@ -22,13 +23,82 @@ export interface EntitySchemaMap {
  * });
  * ```
  */
-export interface MutualConfig<MD extends z.ZodRawShape = z.ZodRawShape> {
+/**
+ * @description The shape `createMutualConfig(...)` is CALLED with — looser than the resolved
+ * `MutualConfig` it returns. `mutualDataSchema` is optional here (and mutually exclusive with
+ * `asEntity`) because `createMutualConfig` resolves it before returning: every OTHER consumer in
+ * this codebase (`mutualFields[key].mutual`, `MutualService`, the processors) reads the resolved
+ * `MutualConfig` type below, where `mutualDataSchema` stays REQUIRED — the same "loose input,
+ * strict resolved output" split `createEntityConfig`/`MonoriseEntityConfig` already use for
+ * `finalSchema`/`effectiveMutualSchema`. Import this type only if you're writing something that
+ * itself calls `createMutualConfig`; every other call site should keep using `MutualConfig`.
+ */
+export interface MutualConfigInput<MD extends z.ZodRawShape = z.ZodRawShape> {
   /**
    * Stable analytics dataset name. When provided, it must be lower-kebab-case;
    * the generator validates this so unnamed mutuals remain backwards compatible.
    */
   name?: string;
   entities: [Entity, Entity];
+  /** Required unless `asEntity` is set — see `asEntity`'s own doc comment. */
+  mutualDataSchema?: z.ZodObject<MD>;
+
+  /**
+   * @description (Optional) Materialize this mutual relationship as a real,
+   * independently-queryable `Entity` whenever it's created — whether imperatively via
+   * `MutualService.createMutual` or automatically via a declarative `mutualFields` entry that
+   * references this config — by passing the `createEntityConfig(...)` return value for the
+   * entity type it should materialize as.
+   *
+   * When set, in addition to the mutual edge, a real `Entity` is created:
+   * `entityType = asEntity.name`, `entityId = <the mutual's own generated ulid>`,
+   * `data = <the mutual's own parsed mutualData>`. This lets the relationship be looked up via
+   * monorise's `tags` mechanism (an indexed GSI lookup) instead of scanning and filtering every
+   * edge in application code, and lets the synthetic entity carry its own `mutualFields`.
+   *
+   * `mutualDataSchema` must be OMITTED when `asEntity` is set: it's derived automatically from
+   * `asEntity.finalSchema` (that entity's own `baseSchema` + `createSchema` +
+   * `effectiveMutualSchema`, merged — the same schema this codebase already validates every
+   * normal `createEntity` payload against). Chosen over a narrower `baseSchema`/`createSchema`
+   * derivation because `MutualService.createMutual`'s `asEntity` path fires
+   * `afterCreateEntityHook` on the synthetic entity — the same hook that wires up an entity's
+   * OWN further `mutualFields` — so anything narrower than `finalSchema` would silently break
+   * that wiring for any `asEntity`-targeted entity that itself declares further relationships.
+   * Providing both `asEntity` and `mutualDataSchema` is a build-time AND runtime error.
+   *
+   * The synthetic entity is always created SYNCHRONOUSLY, in the same DynamoDB transaction as
+   * the mutual write, with its `afterCreateEntityHook` (tags/mutualFields wiring) firing
+   * immediately after the commit. There is no asynchronous mode: the entity either exists the
+   * moment the mutual does, or neither is written. That costs a `TransactWriteItems` (2x WCU
+   * versus a plain write) but leaves no window in which the mutual exists and its projection
+   * does not.
+   *
+   * An explicit `options.asEntity` passed directly at an imperative `createMutual(...)` call
+   * site always overrides this config-level value — see `resolveAsEntity` in `@monorise/core`'s
+   * `mutual.service`.
+   *
+   * @example
+   * ```ts
+   * const enrollmentMutual = createMutualConfig({
+   *   entities: [Entity.STUDENT, Entity.COURSE],
+   *   asEntity: enrollmentEntityConfig, // the createEntityConfig(...) result for Entity.ENROLLMENT
+   * });
+   * ```
+   */
+  asEntity?: ReturnType<typeof createEntityConfig>;
+}
+
+/**
+ * @description The resolved shape `createMutualConfig(...)` RETURNS, and what every other
+ * consumer in this codebase (`mutualFields[key].mutual`, `MutualService`, the mutual processor)
+ * actually references. Unlike `MutualConfigInput`, `mutualDataSchema` is REQUIRED here — by the
+ * time a `MutualConfig` object exists, `createMutualConfig` has already derived it from
+ * `asEntity.finalSchema` when needed, so every existing `.mutualDataSchema` read across this
+ * codebase keeps its original, always-defined guarantee regardless of whether the mutual uses
+ * `asEntity` or not.
+ */
+export interface MutualConfig<MD extends z.ZodRawShape = z.ZodRawShape>
+  extends Omit<MutualConfigInput<MD>, 'mutualDataSchema'> {
   mutualDataSchema: z.ZodObject<MD>;
 }
 
