@@ -135,14 +135,14 @@ export interface MonoriseEntityConfig<
     subscribes?: { entityType: Entity }[];
     /**
      * @description Virtual schema for mutual relationship. The schema is only used for validation purpose, but these fields are not stored in the database.
-     * Used to validate mutual fields on BOTH create and update — keep it `.partial()` if you want updates that don't touch every mutual relationship to remain valid.
+     * Used to validate mutual fields on create, and — derived to a partial — on update. You do NOT need to author this `.partial()`: the SDK partials it for the update path, so an update that doesn't touch every mutual relationship stays valid regardless of how this is declared.
      */
     mutualSchema: MO;
 
     /**
      * @description (Optional) Stricter schema applied ONLY when the entity is created — falls back to `mutualSchema` if not provided, so existing configs are unaffected. When provided, its shape is merged over `mutualSchema` for create; fields only `mutualSchema` declares (and `createMutualSchema` doesn't mention) are still validated and wired, not dropped.
      *
-     * Use this when a mutual relationship must always be wired at creation time (e.g. every Competition must have an owning Organisation from the start), but you don't want to force every future *update* to also resend that relationship — `mutualSchema` itself stays `.partial()` for updates, while `createMutualSchema` enforces the required fields only on create.
+     * Use this when a mutual relationship must always be wired at creation time (e.g. every Competition must have an owning Organisation from the start). It does not affect updates either way — the update path derives a partial from `mutualSchema` itself, so a required-at-create relationship never has to be resent on an unrelated patch.
      *
      * Without this, a create silently succeeds even if a required mutual link is omitted from the payload — the entity is created but never gets wired to the relationship, with no error anywhere.
      *
