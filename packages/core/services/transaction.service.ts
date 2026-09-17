@@ -16,6 +16,7 @@ import { Entity, type EntityRepository } from '../data/Entity';
 import type { EventUtils } from '../data/EventUtils';
 import { StandardError, StandardErrorCode } from '../errors/standard-error';
 import type { publishEvent as publishEventType } from '../helpers/event';
+import { toPartialUpdateSchema } from '../helpers/update-schema';
 import type { EventDetail } from '../types/event';
 import { EVENT } from '../types/event';
 import type {
@@ -341,9 +342,13 @@ export class TransactionService {
       );
     }
 
-    const parsedPayload = entitySchema.partial().parse(op.payload) as Partial<
-      EntitySchemaMap[EntityType]
-    >;
+    // Same partial-for-update contract as EntityService.updateEntity; routed
+    // through the shared helper so the derived schema is built once per config
+    // rather than per operation (executeTransaction can carry up to
+    // MAX_TRANSACTION_ITEMS of these in one request).
+    const parsedPayload = toPartialUpdateSchema(entitySchema).parse(
+      op.payload,
+    ) as Partial<EntitySchemaMap[EntityType]>;
 
     const currentDatetime = new Date().toISOString();
     const toUpdateExpressions = this.entityRepository.toUpdate({
@@ -582,11 +587,22 @@ export class TransactionService {
   ): PendingEvent[] {
     const events: PendingEvent[] = [];
 
-    // Mutual update events
+    // Mutual update events.
+    //
+    // The ordinary `mutualSchema` (never `effectiveMutualSchema` — that one
+    // folds in `createMutualSchema` and is create-only, see
+    // collectCreateEvents), made partial for the same reason buildUpdateItem
+    // above makes the base schema partial: `op.payload` is a patch. Parsing a
+    // patch against the un-partialed mutual schema rejected the whole
+    // transaction with a `Required` error for every mutual field the update
+    // wasn't touching — the caller would have had to re-fetch and re-send
+    // every existing relationship id just to change an unrelated field.
     const config = this.EntityConfig[op.entityType];
     const mutualSchema = config?.mutual?.mutualSchema;
     if (mutualSchema) {
-      const parsedMutualPayload = mutualSchema.parse(op.payload);
+      const parsedMutualPayload = toPartialUpdateSchema(mutualSchema).parse(
+        op.payload,
+      );
       if (parsedMutualPayload) {
         for (const [fieldKey, fieldConfig] of Object.entries(
           config.mutual?.mutualFields || {},
