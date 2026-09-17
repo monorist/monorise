@@ -9,4 +9,6 @@ Three controllers detected a `ZodError` with `(err as ZodError).constructor?.nam
 
 This only reproduces in a bundled build. Unbundled source keeps the original class name, so local runs and unit tests pass either way — which is why it went unnoticed.
 
-Now checks `(err as ZodError)?.name === 'ZodError'`. zod sets `name` as an instance property, so it survives bundling, and it is also robust to more than one copy of zod being present (where `instanceof` would not be).
+Now checks `(err as ZodError)?.name === 'ZodError'`. zod sets `name` as an own instance property in its constructor, so it survives identifier renaming — under `--minify` the class becomes something like `r`, while `name` stays `'ZodError'`.
+
+The three sites that detect with `instanceof ZodError` (`upsert-entity`, `create-mutual`, `update-mutual`) are deliberately unchanged: the imported binding and the thrown class are renamed together, so identity still holds under bundling. Only `constructor.name` was broken.
