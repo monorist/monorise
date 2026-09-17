@@ -270,12 +270,22 @@ export const handler =
                   payload: {
                     entityType: asEntity,
                     entityId: mutual.mutualId,
-                    // `storedMutualData`, not `parsedMutualData` — `entityService.createEntity`
-                    // (the eventual consumer, `create-entity-processor.ts`) re-strips to
-                    // createSchema/baseSchema internally regardless, but passing the already-
-                    // narrowed value here keeps this call site consistent with the strong-write
-                    // branch above rather than relying on that downstream stripping alone.
-                    entityPayload: storedMutualData,
+                    // `parsedMutualData` (the fuller, mutualDataSchema/finalSchema-shaped
+                    // value), NOT the narrowed `storedMutualData` — this is a PAYLOAD, not
+                    // something persisted. `entityService.createEntity` does its own
+                    // `entitySchema.parse` before writing, so the narrowing is applied there
+                    // anyway; but it ALSO does `finalSchema.parse(entityPayload)` first and
+                    // then hands the UNSTRIPPED `entityPayload` to `afterCreateEntityHook`,
+                    // which parses it with `effectiveMutualSchema` to wire the synthetic
+                    // entity's OWN further `mutualFields`. Narrowing here would therefore
+                    // (a) silently stop those mutualFields from ever firing on this async
+                    // path while the strong-write branch above still fires them, and
+                    // (b) hard-fail `finalSchema.parse` — and DLQ the record — whenever the
+                    // target entity declares a REQUIRED `createMutualSchema` field, since
+                    // `finalSchema` requires the very key `storedMutualData` strips.
+                    // Keep `storedMutualData` for what is actually written to storage
+                    // (`new Mutual(...)` / `new EntityRecord(...)` above).
+                    entityPayload: parsedMutualData,
                     options: {
                       createAndUpdateDatetime: mutual.createdAt,
                       mutualId: mutual.mutualId,
@@ -365,7 +375,19 @@ export const handler =
               // transaction succeeded (entity exists) but only its `afterCreateEntityHook` call
               // failed — that's not detectable from entity existence alone; a known remaining
               // gap, not silently claimed fixed here.
-              if (asEntity) {
+              //
+              // Gated on `!ensureEntityStrongConsistentWrite` so the per-id `getEntity` is only
+              // paid where it can actually find anything: on the strong-write path the synthetic
+              // entity is created in the SAME `transactWriteItems` call as the mutual, so a
+              // mutual reaching this branch (i.e. one that exists) always has its entity too —
+              // the lookup can only ever come back "exists", making it pure cost on every event.
+              // Only the async path can leave a committed mutual with no entity. Tradeoff stated
+              // plainly: this also means flipping an existing config from async to
+              // `ensureEntityStrongConsistentWrite: true` stops back-filling entities for mutuals
+              // created while it was async — that's a migration/backfill concern, not the
+              // post-commit retry gap this self-heal exists for, and it was never reliably
+              // covered anyway (it only healed ids that happened to be re-published).
+              if (asEntity && !ensureEntityStrongConsistentWrite) {
                 const mutualId = mutualIdByEntityId.get(id);
                 if (mutualId) {
                   const entityExists = await entityRepository
@@ -387,7 +409,14 @@ export const handler =
                       payload: {
                         entityType: asEntity,
                         entityId: mutualId,
-                        entityPayload: storedMutualData,
+                        // Same reasoning as the `addEntities` branch's CREATE_ENTITY publish:
+                        // the fuller `parsedMutualData`, not the storage-narrowed value — this
+                        // is re-driving the exact event that was lost, so it must carry the
+                        // shape `createEntity`'s `finalSchema.parse` + `afterCreateEntityHook`
+                        // need. Publishing `storedMutualData` here would make the self-heal
+                        // produce an entity with its own `mutualFields` unwired, or DLQ on a
+                        // required `createMutualSchema` field.
+                        entityPayload: parsedMutualData,
                         options: {
                           createAndUpdateDatetime: publishedAt,
                           mutualId,

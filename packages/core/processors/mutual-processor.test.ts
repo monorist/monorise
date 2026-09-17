@@ -86,12 +86,56 @@ const mutualWithAsEntityAndFurtherMutualFields = createMutualConfig({
   ensureEntityStrongConsistentWrite: true,
 });
 
+// Same as `enrollmentWithBadgesConfig`, but with `badgeIds` made REQUIRED at create time via
+// `createMutualSchema` — the whole reason that option exists (see `resolveEffectiveMutualSchema`).
+// `finalSchema` therefore REQUIRES `badgeIds`, and `finalSchema` is exactly what
+// `entityService.createEntity` validates a `CREATE_ENTITY` payload against before doing anything
+// else. That makes this config the one that turns "the async payload got storage-narrowed" from a
+// silent wiring loss into a hard parse failure and a DLQ'd record.
+const enrollmentWithRequiredBadgesConfig = createEntityConfig({
+  name: TestEntity.ENROLLMENT,
+  displayName: 'Enrollment',
+  baseSchema: z.object({ role: z.string() }).partial(),
+  createSchema: z.object({ role: z.string() }),
+  mutual: {
+    mutualSchema: z.object({ badgeIds: z.string().array() }).partial(),
+    createMutualSchema: z.object({ badgeIds: z.string().array() }),
+    mutualFields: {
+      badgeIds: {
+        entityType: TestEntity.BADGE as unknown as EntityType,
+        mutual: enrollmentBadgeMutual,
+      },
+    },
+  },
+});
+
+const mutualWithAsEntityAsyncAndFurtherMutualFields = createMutualConfig({
+  entities: [
+    TestEntity.STUDENT as unknown as EntityType,
+    TestEntity.COURSE as unknown as EntityType,
+  ],
+  asEntity: enrollmentWithBadgesConfig,
+  // async default — the path where the CREATE_ENTITY payload shape actually matters.
+});
+
+const mutualWithAsEntityAsyncAndRequiredMutualField = createMutualConfig({
+  entities: [
+    TestEntity.STUDENT as unknown as EntityType,
+    TestEntity.COURSE as unknown as EntityType,
+  ],
+  asEntity: enrollmentWithRequiredBadgesConfig,
+});
+
 function buildContainer(
   mutualConfig: ReturnType<typeof createMutualConfig>,
   opts: {
     mutualDataProcessor?: (...args: any[]) => Record<string, unknown>;
     getEntity?: ReturnType<typeof vi.fn>;
     listEntitiesByEntity?: ReturnType<typeof vi.fn>;
+    // The processor resolves `asEntity` from the mutual config itself and never reads
+    // `EntityConfig[asEntity]`, so this is only here to keep the fixture honest when a test uses
+    // a mutual whose `asEntity` is not the plain `enrollmentEntityConfig`.
+    asEntityConfig?: ReturnType<typeof createEntityConfig>;
   } = {},
 ) {
   const EntityConfig = {
@@ -117,7 +161,7 @@ function buildContainer(
       displayName: 'Course',
       baseSchema: z.object({ title: z.string() }).partial(),
     }),
-    [TestEntity.ENROLLMENT]: enrollmentEntityConfig,
+    [TestEntity.ENROLLMENT]: opts.asEntityConfig ?? enrollmentEntityConfig,
     [TestEntity.BADGE]: createEntityConfig({
       name: TestEntity.BADGE,
       displayName: 'Badge',
@@ -287,6 +331,61 @@ describe('mutual-processor handler — asEntity (declarative mutualFields path)'
     expect(hookPayload).toMatchObject({ role: 'student', badgeIds: ['badge-1'] });
   });
 
+  it("async CREATE_ENTITY payload keeps the target entity's own mutual-field keys (badgeIds) — narrowing is for storage only, never for the event payload", async () => {
+    const { container, publishEvent } = buildContainer(
+      mutualWithAsEntityAsyncAndFurtherMutualFields,
+      {
+        mutualDataProcessor: () => ({ role: 'student', badgeIds: ['badge-1'] }),
+        asEntityConfig: enrollmentWithBadgesConfig,
+      },
+    );
+
+    const result = await handler(container)(buildEvent());
+
+    expect(result.batchItemFailures).toEqual([]);
+
+    const calls = createEntityEventCalls(publishEvent);
+    expect(calls).toHaveLength(1);
+    const { entityPayload } = calls[0][0].payload;
+
+    // `entityService.createEntity` hands this payload UNSTRIPPED to `afterCreateEntityHook`,
+    // which parses it with `effectiveMutualSchema` to publish the synthetic entity's own
+    // create-mutual events. Strip `badgeIds` here and ENROLLMENT's own mutualFields silently
+    // never fire on the async path, while the strong-write path still fires them.
+    expect(entityPayload).toMatchObject({ role: 'student', badgeIds: ['badge-1'] });
+  });
+
+  it('async CREATE_ENTITY payload survives finalSchema.parse when the target entity has a REQUIRED createMutualSchema field (storage-narrowed payload would DLQ the record)', async () => {
+    const { container, publishEvent, mutualRepository } = buildContainer(
+      mutualWithAsEntityAsyncAndRequiredMutualField,
+      {
+        mutualDataProcessor: () => ({ role: 'student', badgeIds: ['badge-1'] }),
+        asEntityConfig: enrollmentWithRequiredBadgesConfig,
+      },
+    );
+
+    const result = await handler(container)(buildEvent());
+
+    expect(result.batchItemFailures).toEqual([]);
+
+    const calls = createEntityEventCalls(publishEvent);
+    expect(calls).toHaveLength(1);
+    const { entityPayload } = calls[0][0].payload;
+
+    // This is literally the first thing `entityService.createEntity` does with the payload
+    // (`finalSchema.parse(entityPayload)`), so asserting it here reproduces the downstream
+    // failure exactly: a `createSchema`-narrowed payload has no `badgeIds`, `finalSchema`
+    // requires it, the consumer throws, the record is retried and eventually DLQ'd.
+    expect(() =>
+      enrollmentWithRequiredBadgesConfig.finalSchema.parse(entityPayload),
+    ).not.toThrow();
+
+    // Storage is still narrowed — fixing the payload must not undo the storage fix.
+    const storedMutual =
+      mutualRepository.createMutualTransactItems.mock.calls[0][0];
+    expect(storedMutual.mutualData).toEqual({ role: 'student' });
+  });
+
   it('self-heal: toUpdateEntityIds re-publishes CREATE_ENTITY when a prior attempt left the mutual created but the synthetic entity missing', async () => {
     const existingMutualId = 'existing-mutual-ulid-1';
     // Only the self-heal check's own lookup (ENROLLMENT by mutualId) should miss — the ordinary
@@ -340,6 +439,69 @@ describe('mutual-processor handler — asEntity (declarative mutualFields path)'
 
     expect(result.batchItemFailures).toEqual([]);
     expect(getEntity).toHaveBeenCalledWith(TestEntity.ENROLLMENT, existingMutualId);
+    expect(createEntityEventCalls(publishEvent)).toHaveLength(0);
+  });
+
+  it("self-heal: the re-published CREATE_ENTITY carries the same fuller payload as the original, not the storage-narrowed one", async () => {
+    const existingMutualId = 'existing-mutual-ulid-3';
+    const getEntity = vi.fn().mockImplementation((entityType: string) => {
+      if (entityType === TestEntity.ENROLLMENT) {
+        return Promise.reject(
+          new StandardError(StandardErrorCode.ENTITY_IS_UNDEFINED, 'Entity item empty'),
+        );
+      }
+      return Promise.resolve({ data: {} });
+    });
+    const listEntitiesByEntity = vi.fn().mockResolvedValue({
+      items: [{ entityId: 'course-1', mutualId: existingMutualId }],
+    });
+
+    const { container, publishEvent } = buildContainer(
+      mutualWithAsEntityAsyncAndRequiredMutualField,
+      {
+        getEntity,
+        listEntitiesByEntity,
+        mutualDataProcessor: () => ({ role: 'student', badgeIds: ['badge-1'] }),
+        asEntityConfig: enrollmentWithRequiredBadgesConfig,
+      },
+    );
+
+    const result = await handler(container)(buildEvent({ mutualIds: ['course-1'] }));
+
+    expect(result.batchItemFailures).toEqual([]);
+
+    const calls = createEntityEventCalls(publishEvent);
+    expect(calls).toHaveLength(1);
+    const { entityPayload } = calls[0][0].payload;
+
+    // The self-heal re-drives the event that was lost, so it has to re-drive the same shape —
+    // otherwise it "heals" into exactly the broken state the create branch was fixed to avoid.
+    expect(entityPayload).toMatchObject({ role: 'student', badgeIds: ['badge-1'] });
+    expect(() =>
+      enrollmentWithRequiredBadgesConfig.finalSchema.parse(entityPayload),
+    ).not.toThrow();
+  });
+
+  it('self-heal: skips the per-id getEntity entirely on the strong-write path, where the entity is committed in the same transaction as the mutual', async () => {
+    const existingMutualId = 'existing-mutual-ulid-4';
+    const getEntity = vi.fn().mockResolvedValue({ data: {} });
+    const listEntitiesByEntity = vi.fn().mockResolvedValue({
+      items: [{ entityId: 'course-1', mutualId: existingMutualId }],
+    });
+
+    const { container, publishEvent } = buildContainer(mutualWithAsEntitySync, {
+      getEntity,
+      listEntitiesByEntity,
+    });
+
+    const result = await handler(container)(buildEvent({ mutualIds: ['course-1'] }));
+
+    expect(result.batchItemFailures).toEqual([]);
+    // The ordinary byEntity lookup still happens; the ENROLLMENT self-heal probe must not.
+    expect(getEntity).not.toHaveBeenCalledWith(
+      TestEntity.ENROLLMENT,
+      existingMutualId,
+    );
     expect(createEntityEventCalls(publishEvent)).toHaveLength(0);
   });
 });
