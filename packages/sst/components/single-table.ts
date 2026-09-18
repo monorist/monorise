@@ -5,6 +5,7 @@ import {
 } from '../constants/table';
 
 type SingleTableArgs = {
+  ttl?: string;
   runtime?: sst.aws.FunctionArgs['runtime'];
   logging?: sst.aws.FunctionArgs['logging'];
   configRoot?: string;
@@ -69,7 +70,7 @@ export class SingleTable {
             },
           },
           stream: 'new-and-old-images',
-          ttl: 'expiresAt',
+          ttl: args?.ttl,
           ...(args?.pointInTimeRecoveryEnabled
             ? { transform: { table: { pointInTimeRecovery: { enabled: true } } } }
             : {}),

@@ -76,5 +76,13 @@ export const setupCommonRoutes = (container: DependencyContainer): Hono => {
    */
   app.post('/transaction', container.executeTransactionController.controller);
 
+  /*
+   * WebSocket ticket endpoint
+   */
+  app.post(
+    '/ws/ticket/:entityType/:entityId',
+    container.createTicketController.controller,
+  );
+
   return app;
 };
