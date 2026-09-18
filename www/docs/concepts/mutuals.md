@@ -98,9 +98,11 @@ const config = createEntityConfig({
 
 ## Requiring a mutual field only on create
 
-`mutualSchema` validates the same payload shape on both create and update. That's a tradeoff: making a field required so a create can't skip it also forces every future *update* to resend that field, even for edits that have nothing to do with the relationship. Keeping it `.partial()` avoids that, but then a create can silently omit a required link — the entity is created, but never wired to the relationship, with no error anywhere.
+Without `createMutualSchema`, a create can silently omit a required link — the entity is created, but never wired to the relationship, with no error anywhere. That is the problem this solves.
 
-`createMutualSchema` is an optional, stricter sibling of `mutualSchema` that's validated **only on create**. When present, its shape is merged into `mutualSchema` for the create payload — so any mutual field `mutualSchema` declares but `createMutualSchema` doesn't repeat is still validated and wired, and `createMutualSchema` only needs to list the field(s) it's tightening. `mutualSchema` itself keeps validating updates as normal.
+It costs you nothing on the update path: updates are validated against a partial derived from `mutualSchema` by the SDK, so making a field required here never forces an unrelated patch to resend it.
+
+`createMutualSchema` is an optional, stricter sibling of `mutualSchema` that's validated **only on create**. When present, its shape is merged into `mutualSchema` for the create payload — so any mutual field `mutualSchema` declares but `createMutualSchema` doesn't repeat is still validated and wired, and `createMutualSchema` only needs to list the field(s) it's tightening. `mutualSchema` itself keeps validating updates, as a derived partial.
 
 ```ts
 const config = createEntityConfig({

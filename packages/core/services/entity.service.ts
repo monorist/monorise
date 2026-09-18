@@ -13,6 +13,7 @@ import type { EntityRepository } from '../data/Entity';
 import { buildConditionExpression } from '../data/utils/build-condition-expression';
 import { StandardError, StandardErrorCode } from '../errors/standard-error';
 import type { publishEvent as publishEventType } from '../helpers/event';
+import { toPartialUpdateSchema } from '../helpers/update-schema';
 import type { EventDetailBody as MutualProcessorEventDetailBody } from '../processors/mutual-processor';
 import { EVENT } from '../types/event';
 import type { EntityServiceLifeCycle } from './entity-service-lifecycle';
@@ -233,10 +234,25 @@ export class EntityService {
         );
       }
 
-      const parsedEntityPayload = entitySchema.parse(entityPayload) as Partial<
-        EntitySchemaMap[T]
-      >;
-      const parsedMutualPayload = mutualSchema?.parse(entityPayload);
+      // Both schemas are made partial for the update path — see
+      // toPartialUpdateSchema. `entityPayload` is declared `Partial<...>` on
+      // this method's own signature, and an update emits a field-level SET
+      // expression over exactly the keys sent, so a key the caller omitted is
+      // a key this write never touches — not a missing required value.
+      //
+      // The mutual side matters just as much as the base side: `mutualSchema`
+      // is authored to be strict enough for creation (see `createMutualSchema`,
+      // which exists precisely so a relationship can be mandatory at create
+      // time), and parsing an unrelated patch against it rejected the patch
+      // for fields it wasn't touching. The loop below already treats an absent
+      // mutual field as "nothing to rewire" (`if (!mutualPayload) continue`);
+      // the parse has to let it get that far.
+      const parsedEntityPayload = toPartialUpdateSchema(entitySchema).parse(
+        entityPayload,
+      ) as Partial<EntitySchemaMap[T]>;
+      const parsedMutualPayload = mutualSchema
+        ? toPartialUpdateSchema(mutualSchema).parse(entityPayload)
+        : undefined;
       errorContext.parsedMutualPayload = parsedMutualPayload;
 
       let opts:
@@ -280,6 +296,45 @@ export class EntityService {
           '[monorise] $where is deprecated. Use named conditions via $condition instead.',
         );
         opts = buildConditionExpression(where);
+      }
+
+      // Deliberately AFTER condition/$where validation. This guard rejects a
+      // body with no recognised fields, and the controller strips `$condition`
+      // and `$where` out of the payload before it reaches here — so a request
+      // carrying ONLY a (possibly invalid) condition arrives with an empty
+      // payload. Running the guard first masked the real reason with a generic
+      // "no recognised fields", which is how it broke the allowLegacyWhere
+      // rejection test. Let the condition report its own error first.
+      //
+      // Partial parsing removed the only thing that used to reject a body with
+      // no recognised keys: for a non-`.partial()` `baseSchema`, `{ statuz:
+      // 'X' }` previously failed on the missing required fields, whereas
+      // `.parse()` now strips the unknown key and yields `{}`. Without this
+      // guard that becomes a silent 200 that writes nothing but still bumps
+      // `updatedAt` and publishes `entity-updated` — a typo'd field name would
+      // look like a successful write.
+      //
+      // Both halves are required. A body of only mutual fields parses to an
+      // empty BASE payload while still being a legitimate patch (it rewires
+      // relationships via the loop below), so emptiness of one side alone must
+      // not reject.
+      const hasBaseKeys = Object.keys(parsedEntityPayload).length > 0;
+      const hasMutualKeys =
+        !!parsedMutualPayload &&
+        Object.keys(parsedMutualPayload as Record<string, unknown>).length > 0;
+      if (!hasBaseKeys && !hasMutualKeys) {
+        // A ZodError rather than a StandardError on purpose: this is a
+        // validation failure, and every controller already maps ZodError to
+        // `400 API_VALIDATION_ERROR`. A StandardError with a new code would
+        // fall through those handlers to a 500.
+        throw new z.ZodError([
+          {
+            code: 'custom',
+            path: [],
+            message:
+              'Update payload contains no recognised fields. At least one base or mutual field must be supplied.',
+          },
+        ]);
       }
 
       const entity = await this.entityRepository.updateEntity(

@@ -30,7 +30,11 @@ export class ExecuteTransactionController {
       c.status(httpStatus.OK);
       return c.json(result);
     } catch (err) {
-      if ((err as ZodError).constructor?.name === 'ZodError') {
+      // `.name`, NOT `.constructor.name`: zod sets `name` as an instance
+      // property, so it survives bundling, whereas the bundler renames the
+      // class itself (observed as `_ZodError` in a deployed bundle) and the
+      // constructor check silently fell through to a 500.
+      if ((err as ZodError)?.name === 'ZodError') {
         c.status(httpStatus.BAD_REQUEST);
         return c.json({
           code: 'API_VALIDATION_ERROR',
