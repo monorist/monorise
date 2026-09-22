@@ -608,7 +608,7 @@ async function broadcastToSubscribers(
  * For an entity change to channel:A, we check if any feed subscriber
  * directly has channel:A as their feed entity.
  */
-async function broadcastToFeedSubscribers(
+export async function broadcastToFeedSubscribers(
   managementApi: ApiGatewayManagementApiClient,
   wsRepo: WebSocketRepository,
   byEntityType: string,
@@ -622,9 +622,10 @@ async function broadcastToFeedSubscribers(
     byEntityId,
   );
 
-  if (!connections.length) return;
-
-  // Also check the entity itself as a feed subscriber
+  // The subject is always a candidate recipient, mutuals or not -- a client
+  // subscribed to an entity that happens to have no mutual connections still
+  // wants its own changes. Returning early on an empty `connections` would
+  // skip the `add` below and deliver silence to exactly that subscriber.
   const connectedEntities = new Set(
     connections.map((c) => `${c.entityType}:${c.entityId}`),
   );

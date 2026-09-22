@@ -1,6 +1,7 @@
 import type { CreatedEntity, Entity } from '@monorise/base';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { produce } from 'immer';
+import { parseMutualStateKey } from '../lib/utils';
 import type { MonoriseStore } from '../store/monorise.store';
 import type {
   ConnectionState,
@@ -492,6 +493,54 @@ export const initWebSocketActions = (
     const [isConnected, setIsConnected] = useState(false);
     const [error, setError] = useState<{ code: string; message: string } | null>(null);
     const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const hasConnectedOnceRef = useRef(false);
+
+    /**
+     * Refill the mutual lists this feed's subject already has loaded.
+     *
+     * Deliberately only refetches slices that were fetched before
+     * (`isFirstFetched`): a reconnect should close gaps in what the caller is
+     * already showing, not start pulling lists nobody asked for. Single-mutual
+     * entries (those with a trailing entityId) are skipped -- they are one row,
+     * not a paginated list.
+     */
+    const resyncFromHttp = async () => {
+      if (!httpActions) return;
+      const snapshot = monoriseStore.getState();
+      const keys = Object.keys(snapshot.mutual ?? {});
+
+      for (const key of keys) {
+        const parsed = parseMutualStateKey(key);
+        if (parsed.entityId) continue;
+        if (parsed.byEntityId !== entityId) continue;
+        if (!snapshot.mutual[key]?.isFirstFetched) continue;
+
+        try {
+          const result = await httpActions.listEntitiesByEntity(
+            parsed.byEntity,
+            parsed.byEntityId as string,
+            parsed.entity,
+          );
+          if (!isMountedRef.current) return;
+          monoriseStore.setState(
+            produce((draft) => {
+              const slice = draft.mutual[key];
+              if (!slice) return;
+              slice.dataMap.clear();
+              for (const mutual of result.entities as {
+                entityId: string;
+              }[]) {
+                slice.dataMap.set(mutual.entityId, mutual);
+              }
+              slice.lastKey = result.lastKey;
+            }),
+          );
+        } catch {
+          // A failed refill leaves the existing rows in place, which is the
+          // safer of the two wrong answers.
+        }
+      }
+    };
     const wsManagerRef = useRef<WebSocketManager | null>(null);
     const isMountedRef = useRef(true);
     const connectingRef = useRef(false);
@@ -579,8 +628,14 @@ export const initWebSocketActions = (
       const wsUrlWithTicket = `${wsUrl}?ticket=${encodeURIComponent(ticket)}`;
       const manager = new WsManagerClass(wsUrlWithTicket, '');
       manager.disableAutoReconnect = true;
+      // Deliberately NOT assigned to `globalWsManager`. That global is the
+      // shared socket behind `useEntitySocket`/`useMutualSocket` and the public
+      // `getWebSocketManager()`. This one is a different connection: ticket
+      // -scoped, feed-only, with auto-reconnect disabled. Pointing the shared
+      // accessor at it makes those hooks subscribe on the wrong socket while
+      // this hook is mounted, and leaves them holding a disconnected manager
+      // after it unmounts, since cleanup only clears the local ref.
       wsManagerRef.current = manager;
-      globalWsManager = manager;
 
       manager.onStateChange((state: ConnectionState) => {
         if (!isMountedRef.current) return;
@@ -593,6 +648,15 @@ export const initWebSocketActions = (
           lastConnectedAtRef.current = Date.now();
           setIsConnected(true);
           setError(null);
+
+          // Broadcasts sent while the socket was down are gone -- the server
+          // does not replay them -- so a reconnect has to refill from HTTP or
+          // the stores silently keep stale rows. Skipped on the FIRST connect,
+          // where whatever loaded the list has already fetched it.
+          if (hasConnectedOnceRef.current) {
+            void resyncFromHttp();
+          }
+          hasConnectedOnceRef.current = true;
         } else if (state === 'disconnected') {
           connectingRef.current = false;
           setIsConnected(false);

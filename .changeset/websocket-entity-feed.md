@@ -41,6 +41,10 @@ The browser WebSocket API cannot set headers, which usually leaves a token in th
 - `baseSchema` is now always included in `FinalSchemaType`
 - The `sst` peer dependency is loosened from an exact `4.7.3` to `^4.7.3`
 
+### No change to DynamoDB TTL
+
+Calling this out because an earlier revision of this branch did change it: `SingleTable` still hardcodes the TTL attribute as `expiresAt`, and neither it nor `MonoriseCore` accepts a `ttl`/`tableTtl` argument. That is unchanged behaviour, not a new constraint -- monorise's own internals (mutual and tag locks, entity-level TTL, analytics executions) all write that attribute name, so it cannot be configurable.
+
 ### Note on fan-out cost
 
 Fan-out is proportional to the changed entity's mutual degree, so an entity whose per-update payload grows with the number of related records produces frames that grow with it. The fix is schema-side: split frequently-updated fields onto their own entity so each update touches a small, flat record.

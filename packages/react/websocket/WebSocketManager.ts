@@ -81,6 +81,10 @@ export class WebSocketManager {
   private pendingMessages: ClientMessage[] = [];
 
   public disableAutoReconnect = false;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Set by `disconnect()`. Without it, closing the socket fires `handleClose`,
+   *  which schedules a reconnect and brings the socket straight back up. */
+  private isIntentionalClose = false;
 
   constructor(url: string, token: string) {
     this.url = url;
@@ -90,6 +94,7 @@ export class WebSocketManager {
   connect(): void {
     if (this.ws?.readyState === WebSocket.OPEN) return;
 
+    this.isIntentionalClose = false;
     this.setState('connecting');
 
     try {
@@ -111,6 +116,12 @@ export class WebSocketManager {
   disconnect(): void {
     this.stopHeartbeat();
     this.reconnectAttempts = 0;
+    this.isIntentionalClose = true;
+
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
 
     if (this.ws) {
       this.ws.close();
@@ -294,7 +305,7 @@ export class WebSocketManager {
     this.stopHeartbeat();
     this.ws = null;
 
-    if (this.disableAutoReconnect) {
+    if (this.disableAutoReconnect || this.isIntentionalClose) {
       this.setState('disconnected');
       return;
     }
@@ -327,7 +338,9 @@ export class WebSocketManager {
   }
 
   private scheduleReconnect(): void {
-    setTimeout(() => {
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
       this.reconnectAttempts++;
       this.reconnectDelay = Math.min(
         this.reconnectDelay * 2,

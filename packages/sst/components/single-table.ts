@@ -5,7 +5,6 @@ import {
 } from '../constants/table';
 
 type SingleTableArgs = {
-  ttl?: string;
   runtime?: sst.aws.FunctionArgs['runtime'];
   logging?: sst.aws.FunctionArgs['logging'];
   configRoot?: string;
@@ -70,7 +69,11 @@ export class SingleTable {
             },
           },
           stream: 'new-and-old-images',
-          ttl: args?.ttl,
+          // Always 'expiresAt', never configurable: monorise's own internals
+          // (mutual/tag locks, entity-level TTL, analytics executions) all write
+          // that attribute name. A previous release removed the `ttl`/`tableTtl`
+          // args for exactly this reason -- see www/docs/sst.md.
+          ttl: 'expiresAt',
           ...(args?.pointInTimeRecoveryEnabled
             ? { transform: { table: { pointInTimeRecovery: { enabled: true } } } }
             : {}),

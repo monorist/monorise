@@ -21,7 +21,6 @@ type WebSocketConfig = {
 
 export type MonoriseCoreArgs = {
   fromTableName?: $util.Input<string>;
-  tableTtl?: string;
   slackWebhook?: string;
   allowHeaders?: string[];
   allowOrigins?: string[];
@@ -80,7 +79,6 @@ export class MonoriseCore {
     this.bus = new sst.aws.Bus(`${id}-monorise-bus`);
     const analyticsEnabled = Boolean(args?.analytics && args.analytics.enabled !== false);
     this.table = new SingleTable(id, {
-      ttl: args?.tableTtl,
       runtime,
       configRoot: args?.configRoot,
       fromTableName: args?.fromTableName,
