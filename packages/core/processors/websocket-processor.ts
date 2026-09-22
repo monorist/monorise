@@ -29,6 +29,21 @@ const SUB_MUTUAL_TYPE = 'SUB#MUTUAL#'; // SUB#MUTUAL#{byEntityType}#{byEntityId}
 const SUB_EPHEMERAL = 'SUB#EPHEMERAL#'; // SUB#EPHEMERAL#{channel}
 const SUB_FEED = 'SUB#FEED#'; // SUB#FEED#{entityType}#{entityId}
 
+/**
+ * PK prefixes for monorise's own bookkeeping rows, which the broadcast walk
+ * must skip. Listed explicitly rather than inferred: this used to be decided
+ * by `firstPart === firstPart.toUpperCase()`, which quietly treats a consumer's
+ * all-caps entity type (nothing forbids `ORDER = 'ORDER'`) as internal and
+ * disables every broadcast for it.
+ */
+const INTERNAL_PK_PREFIXES = [
+  'CONN#',
+  'SUB#',
+  'TICKET#',
+  'LIST#',
+  'MUTUAL#',
+];
+
 interface ClientMessage {
   action: 'subscribe' | 'unsubscribe' | 'ephemeral' | 'ping';
   id: string;
@@ -431,7 +446,10 @@ export const broadcast =
       const pkParts = pk.split('#');
       if (pkParts.length < 2) continue;
       const firstPart = pkParts[0];
-      if (firstPart === firstPart.toUpperCase() || firstPart.includes(':')) {
+      if (
+        INTERNAL_PK_PREFIXES.some((prefix) => pk.startsWith(prefix)) ||
+        firstPart.includes(':')
+      ) {
         continue;
       }
 
@@ -631,13 +649,25 @@ export async function broadcastToFeedSubscribers(
   );
   connectedEntities.add(`${byEntityType}:${byEntityId}`);
 
-  // Step 2: For each connected entity, check if they have a feed subscription
+  // Step 2: For each connected entity, check if they have a feed subscription.
+  // Resolved concurrently: this runs per stream record, and a mutual write
+  // produces both a forward and a reverse sub-record, so a subject with N
+  // mutuals was N+1 serial round trips twice over -- the read amplification
+  // reaches the broadcast function's timeout well before frame count matters.
   const sentConnections = new Set<string>();
 
-  for (const connEntity of connectedEntities) {
-    const [entityType, entityId] = connEntity.split(':');
-    const feedSubs = await wsRepo.queryFeedSubscriptions(entityType, entityId);
+  const resolved = await Promise.all(
+    Array.from(connectedEntities).map(async (connEntity) => {
+      const [entityType, entityId] = connEntity.split(':');
+      return {
+        entityType,
+        entityId,
+        feedSubs: await wsRepo.queryFeedSubscriptions(entityType, entityId),
+      };
+    }),
+  );
 
+  for (const { entityType, entityId, feedSubs } of resolved) {
     if (!feedSubs.length) continue;
 
     for (const feedSub of feedSubs) {

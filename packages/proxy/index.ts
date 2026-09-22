@@ -55,7 +55,10 @@ export const generateWebSocketTicket = async (
   const { entityType, entityId, feedTypes } = options;
 
   const response = await fetch(
-    `${apiBaseUrl}/ws/ticket/${entityType}/${entityId}`,
+    // `/core` is monorise's own Hono basePath (packages/core/handles/app.ts),
+    // not part of API_BASE_URL -- the React default endpoint spells the same
+    // path as `/api/core/ws/ticket/...`.
+    `${apiBaseUrl}/core/ws/ticket/${entityType}/${entityId}`,
     {
       method: 'POST',
       headers: {

@@ -7,6 +7,10 @@ import {
 } from '@aws-sdk/lib-dynamodb';
 import { Repository } from './abstract/Repository.base';
 
+/** 24h; API Gateway caps a WebSocket connection at 2h, so this only ever
+ *  reaps rows a failed `$disconnect` left behind. */
+const SUBSCRIPTION_TTL_SECONDS = 24 * 60 * 60;
+
 export interface ConnectionRecord {
   connectionId: string;
   entityType?: string;
@@ -101,6 +105,12 @@ export class WebSocketRepository extends Repository {
           R1PK: `CONN#${connectionId}`,
           R1SK: subKey,
           connectionId,
+          // Backstop only. $disconnect is what normally removes these, but it
+          // is not guaranteed to run or to see every row, and without a TTL a
+          // missed cleanup leaves the subscription forever. Comfortably longer
+          // than API Gateway's own 2h max WebSocket connection lifetime, so it
+          // never expires a live subscription.
+          expiresAt: Math.floor(Date.now() / 1000) + SUBSCRIPTION_TTL_SECONDS,
           ...data,
         },
       }),
@@ -122,18 +132,44 @@ export class WebSocketRepository extends Repository {
     );
   }
 
+
+  /**
+   * Run a query to exhaustion.
+   *
+   * Every caller below fans a broadcast out to the rows it returns, so a
+   * single-page query silently drops recipients past DynamoDB's 1MB limit --
+   * and on `$disconnect`, silently leaves their subscription rows behind. The
+   * `ConsistentRead` on these queries exists to avoid dropping recipients;
+   * stopping at one page drops them the same way, just at a different
+   * threshold.
+   */
+  private async queryAllPages(
+    input: ConstructorParameters<typeof QueryCommand>[0],
+  ): Promise<Record<string, unknown>[]> {
+    const items: Record<string, unknown>[] = [];
+    let lastKey: Record<string, unknown> | undefined;
+
+    do {
+      const result = await this.docClient.send(
+        new QueryCommand({ ...input, ExclusiveStartKey: lastKey }),
+      );
+      items.push(...((result.Items || []) as Record<string, unknown>[]));
+      lastKey = result.LastEvaluatedKey as Record<string, unknown> | undefined;
+    } while (lastKey);
+
+    return items;
+  }
+
   async querySubscriptionsByKey(subKey: string): Promise<SubscriptionRecord[]> {
-    const result = await this.docClient.send(
-      new QueryCommand({
-        TableName: this.tableName,
-        KeyConditionExpression: 'PK = :pk',
-        ExpressionAttributeValues: {
-          ':pk': subKey,
-        },
-        ConsistentRead: true,
-      }),
-    );
-    return (result.Items || []) as SubscriptionRecord[];
+    const items = await this.queryAllPages({
+      TableName: this.tableName,
+      KeyConditionExpression: 'PK = :pk',
+      ExpressionAttributeValues: {
+        ':pk': subKey,
+      },
+      ConsistentRead: true,
+    });
+    return items as SubscriptionRecord[];
   }
 
   async querySubscriptionsByConnectionId(
@@ -142,17 +178,15 @@ export class WebSocketRepository extends Repository {
     const { ENTITY_REPLICATION_INDEX } = await import(
       '../configs/service.config'
     );
-    const result = await this.docClient.send(
-      new QueryCommand({
-        TableName: this.tableName,
-        IndexName: ENTITY_REPLICATION_INDEX,
-        KeyConditionExpression: 'R1PK = :r1pk',
-        ExpressionAttributeValues: {
-          ':r1pk': `CONN#${connectionId}`,
-        },
-      }),
-    );
-    return (result.Items || []) as SubscriptionRecord[];
+    const items = await this.queryAllPages({
+      TableName: this.tableName,
+      IndexName: ENTITY_REPLICATION_INDEX,
+      KeyConditionExpression: 'R1PK = :r1pk',
+      ExpressionAttributeValues: {
+        ':r1pk': `CONN#${connectionId}`,
+      },
+    });
+    return items as SubscriptionRecord[];
   }
 
   async createTicket(
@@ -220,20 +254,18 @@ export class WebSocketRepository extends Repository {
     byEntityType: string,
     byEntityId: string,
   ): Promise<{ entityType: string; entityId: string }[]> {
-    const result = await this.docClient.send(
-      new QueryCommand({
-        TableName: this.tableName,
-        KeyConditionExpression: 'PK = :pk',
-        ExpressionAttributeValues: {
-          ':pk': `${byEntityType}#${byEntityId}`,
-        },
-        ProjectionExpression: 'SK',
-        ConsistentRead: true,
-      }),
-    );
+    const items = await this.queryAllPages({
+      TableName: this.tableName,
+      KeyConditionExpression: 'PK = :pk',
+      ExpressionAttributeValues: {
+        ':pk': `${byEntityType}#${byEntityId}`,
+      },
+      ProjectionExpression: 'SK',
+      ConsistentRead: true,
+    });
 
     const connections: { entityType: string; entityId: string }[] = [];
-    for (const item of result.Items || []) {
+    for (const item of items) {
       const sk = item.SK as string;
       if (!sk || sk === '#METADATA#' || sk.startsWith('#')) continue;
 
@@ -249,16 +281,14 @@ export class WebSocketRepository extends Repository {
     entityType: string,
     entityId: string,
   ): Promise<SubscriptionRecord[]> {
-    const result = await this.docClient.send(
-      new QueryCommand({
-        TableName: this.tableName,
-        KeyConditionExpression: 'PK = :pk',
-        ExpressionAttributeValues: {
-          ':pk': `SUB#FEED#${entityType}#${entityId}`,
-        },
-        ConsistentRead: true,
-      }),
-    );
-    return (result.Items || []) as SubscriptionRecord[];
+    const items = await this.queryAllPages({
+      TableName: this.tableName,
+      KeyConditionExpression: 'PK = :pk',
+      ExpressionAttributeValues: {
+        ':pk': `SUB#FEED#${entityType}#${entityId}`,
+      },
+      ConsistentRead: true,
+    });
+    return items as SubscriptionRecord[];
   }
 }

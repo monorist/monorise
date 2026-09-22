@@ -23,8 +23,35 @@ export class CreateTicketController {
 
     // If no feedTypes specified, resolve all reachable entity types from config
     // Traverses the mutual graph transitively: user → channel → message
+    //
+    // The walk is UNDIRECTED. `mutualFields` is not guaranteed symmetric -- a
+    // config may declare the edge on only one side -- and following it forward
+    // only would miss exactly the case that makes this whole resolution
+    // necessary: a type whose edge is declared on the far side is still a type
+    // whose changes fan out to this subject, and omitting it produces a socket
+    // that connects and then delivers silence for that type.
     if (!feedTypes || feedTypes.length === 0) {
       const allConfigs = this.container.config.EntityConfig;
+
+      // Adjacency in both directions, built once from the whole config.
+      const adjacency = new Map<string, Set<string>>();
+      const link = (from: string, to: string) => {
+        if (!adjacency.has(from)) adjacency.set(from, new Set());
+        adjacency.get(from)?.add(to);
+      };
+
+      for (const [type, config] of Object.entries(allConfigs) as [
+        string,
+        { mutual?: { mutualFields?: Record<string, { entityType: string }> } },
+      ][]) {
+        const fields = config?.mutual?.mutualFields;
+        if (!fields) continue;
+        for (const field of Object.values(fields)) {
+          link(type, field.entityType);
+          link(field.entityType, type);
+        }
+      }
+
       const visited = new Set<string>();
       const queue: string[] = [entityType];
 
@@ -34,18 +61,8 @@ export class CreateTicketController {
         if (visited.has(current)) continue;
         visited.add(current);
 
-        const config =
-          allConfigs[current as unknown as keyof typeof allConfigs];
-        if (config?.mutual?.mutualFields) {
-          for (const field of Object.values(
-            config.mutual.mutualFields,
-          ) as unknown as {
-            entityType: string;
-          }[]) {
-            if (!visited.has(field.entityType)) {
-              queue.push(field.entityType);
-            }
-          }
+        for (const neighbour of adjacency.get(current) ?? []) {
+          if (!visited.has(neighbour)) queue.push(neighbour);
         }
       }
 
