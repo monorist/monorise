@@ -873,8 +873,10 @@ const initCoreActions = (
     // directly would let a standalone editEntity/createEntity call on that
     // same target collide with this transaction via lib/api.ts's
     // `ongoingRequests` dedupe, handing either caller the other's
-    // differently-shaped response. Still deterministic: identical operation
-    // sets dedupe onto one request, same as any other action's key.
+    // differently-shaped response. Unique per call rather than deterministic,
+    // because a transaction is a batch of non-idempotent writes -- see
+    // getTransactionCallRequestKey for why deduping them silently loses
+    // writes. Pass `opts.requestKey` explicitly to opt back into dedupe.
     const callRequestKey =
       opts.requestKey || getTransactionCallRequestKey(operations);
     const callPromise = coreService.executeTransaction(operations, {
