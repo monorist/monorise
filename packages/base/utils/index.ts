@@ -51,10 +51,10 @@ function makeSchema<
   // to be strict.
   type FinalSchemaType = CO extends z.AnyZodObject
     ? MO extends z.AnyZodObject
-      ? z.ZodObject<MO['shape'] & CO['shape']>
-      : CO
+      ? z.ZodObject<B & CO['shape'] & MO['shape']>
+      : z.ZodObject<B & CO['shape']>
     : MO extends z.AnyZodObject
-      ? z.ZodObject<MO['shape'] & B>
+      ? z.ZodObject<B & MO['shape']>
       : z.ZodObject<B>;
 
   const finalSchema = z.object({

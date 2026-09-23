@@ -41,6 +41,11 @@
     "./cli": {
       "import": "./dist/cli/cli.js",
       "types": "./dist/cli/cli.d.ts"
+    },
+    "./proxy": {
+      "import": "./dist/proxy/index.js",
+      "types": "./dist/proxy/index.d.ts",
+      "require": "./dist/proxy/index.js"
     }
   },
   "typesVersions": {
@@ -59,6 +64,9 @@
       ],
       "cli": [
         "./dist/cli/cli.d.ts"
+      ],
+      "proxy": [
+        "./dist/proxy/index.d.ts"
       ]
     }
   },
@@ -79,9 +87,11 @@
     "@aws-sdk/client-athena": "^3.1091.0",
     "@aws-sdk/client-dynamodb": "^3.758.0",
     "@aws-sdk/client-dynamodb-streams": "^3.758.0",
+    "@aws-sdk/client-apigatewaymanagementapi": "^3.758.0",
     "@aws-sdk/client-eventbridge": "^3.758.0",
     "@aws-sdk/client-firehose": "^3.1091.0",
     "@aws-sdk/client-s3": "^3.1091.0",
+    "@aws-sdk/lib-dynamodb": "^3.758.0",
     "@aws-sdk/util-dynamodb": "^3.758.0",
     "axios": "^1.8.1",
     "chokidar": "^4.0.3",
