@@ -1,3 +1,4 @@
+import { nanoid } from 'nanoid';
 import type { Entity, EntitySchemaMap } from '@monorise/base';
 import { getEntityRequestKey } from '../lib/utils';
 
@@ -73,16 +74,27 @@ export const getTransactionOperationRequestKey = (
 };
 
 // The requestKey for the ONE real HTTP call `executeTransaction` makes.
-// Deterministic (identical operation sets dedupe onto one request, same as
-// any other action's key) but namespaced under `transaction/` so it can
-// never collide with a single-entity action's own key — reusing e.g.
-// `opRequestKeys[0]` directly would let a standalone editEntity/createEntity
-// call on that same target swallow (or be swallowed by) the transaction via
-// lib/api.ts's `ongoingRequests` dedupe, since both would share one key but
-// resolve to differently-shaped responses.
+//
+// UNIQUE PER CALL, deliberately. lib/api.ts's `makeRequest` hands any caller
+// with a matching `requestKey` the in-flight promise instead of issuing a
+// second request, which is right for idempotent reads and for "the user
+// double-clicked Save" -- and wrong for a transaction, which is a batch of
+// NON-idempotent writes. A key derived only from the operation shapes is
+// identical for every structurally identical batch, so two writes issued
+// close together (scoring twice with the same statistic, appending two events
+// to one log) silently collapse into one: the second caller awaits the first
+// call's promise, is told it succeeded, and its operations are never sent.
+//
+// Found end-to-end -- three scores recorded, one observed.
+//
+// The operation shapes stay in the key for debuggability, and the
+// `transaction/` namespace still keeps it from colliding with a
+// single-entity action's own key. A caller that genuinely wants dedupe can
+// still pass an explicit `opts.requestKey`.
 export const getTransactionCallRequestKey = (
   operations: TransactionOperation[],
-): string => `transaction/${operations.map(getTransactionOperationRequestKey).join('|')}`;
+): string =>
+  `transaction/${operations.map(getTransactionOperationRequestKey).join('|')}#${nanoid()}`;
 
 // NOTE: packages/core/helpers/transactional.ts is the server-side copy of
 // this builder. Both emit the same wire format for the execute-transaction
