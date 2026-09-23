@@ -1,5 +1,6 @@
 ---
 "@monorise/react": patch
+"monorise": patch
 ---
 
 Stop `executeTransaction` from de-duplicating its HTTP call by operation shape.
