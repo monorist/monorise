@@ -663,7 +663,14 @@ export const initWebSocketActions = (
 
           // Only auto-reconnect if we were connected for >5s (stable connection)
           // and haven't exceeded max reconnect attempts
-          const wasStable = Date.now() - lastConnectedAtRef.current > 5000;
+          // `hasConnectedOnceRef` is load-bearing here, not belt-and-braces:
+          // `lastConnectedAtRef` starts at 0, so `Date.now() - 0` is ~1.8e12
+          // and the >5s test passes for a socket that never opened -- burning
+          // all five reconnect attempts on exactly the first-connect failure
+          // this guard exists to suppress.
+          const wasStable =
+            hasConnectedOnceRef.current &&
+            Date.now() - lastConnectedAtRef.current > 5000;
           if (wasStable && reconnectCountRef.current < 5) {
             reconnectCountRef.current++;
             const delay = 2000 * Math.pow(2, reconnectCountRef.current - 1);

@@ -29,20 +29,6 @@ const SUB_MUTUAL_TYPE = 'SUB#MUTUAL#'; // SUB#MUTUAL#{byEntityType}#{byEntityId}
 const SUB_EPHEMERAL = 'SUB#EPHEMERAL#'; // SUB#EPHEMERAL#{channel}
 const SUB_FEED = 'SUB#FEED#'; // SUB#FEED#{entityType}#{entityId}
 
-/**
- * PK prefixes for monorise's own bookkeeping rows, which the broadcast walk
- * must skip. Listed explicitly rather than inferred: this used to be decided
- * by `firstPart === firstPart.toUpperCase()`, which quietly treats a consumer's
- * all-caps entity type (nothing forbids `ORDER = 'ORDER'`) as internal and
- * disables every broadcast for it.
- */
-const INTERNAL_PK_PREFIXES = [
-  'CONN#',
-  'SUB#',
-  'TICKET#',
-  'LIST#',
-  'MUTUAL#',
-];
 
 interface ClientMessage {
   action: 'subscribe' | 'unsubscribe' | 'ephemeral' | 'ping';
@@ -441,20 +427,26 @@ export const broadcast =
       const pk = image.PK?.S || '';
       const sk = image.SK?.S || '';
 
-      // Only process entity/mutual records (format: entityType#entityId)
-      // Skip all other record types (CONN#, SUB#, TICKET#, LIST#, MUTUAL#, etc.)
+      // Only process entity/mutual records (format: entityType#entityId).
+      //
+      // ALLOWLIST, not a denylist. A configured entity type is the exact
+      // definition of "broadcastable", needs no maintenance as record types
+      // are added, and fails closed rather than open. The two alternatives
+      // both leak: testing `firstPart === firstPart.toUpperCase()` treats a
+      // consumer's all-caps entity type (nothing forbids `ORDER = 'ORDER'`)
+      // as internal and silently disables every broadcast for it, while an
+      // explicit prefix list has to be updated in lockstep with core's own
+      // record types and says nothing when it isn't -- a missing `EMAIL#`
+      // makes PK `EMAIL#{email}` / SK `{entityType}#{entityId}` parse as a
+      // mutual, whose SK resolves to a REAL entity, delivering that user's
+      // own email row to their live feed as a `mutual.updated`.
       const pkParts = pk.split('#');
       if (pkParts.length < 2) continue;
-      const firstPart = pkParts[0];
-      if (
-        INTERNAL_PK_PREFIXES.some((prefix) => pk.startsWith(prefix)) ||
-        firstPart.includes(':')
-      ) {
-        continue;
-      }
 
       const entityType = pkParts[0];
       const entityId = pkParts[1];
+
+      if (!(entityType in container.config.EntityConfig)) continue;
       const isMutual = !sk.startsWith('#METADATA#') && sk.includes('#');
 
       try {

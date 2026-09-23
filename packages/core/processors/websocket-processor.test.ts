@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { broadcastToFeedSubscribers } from './websocket-processor';
+import { broadcast, broadcastToFeedSubscribers } from './websocket-processor';
 
 /**
  * Regression coverage for feed fan-out.
@@ -117,5 +117,77 @@ describe('broadcastToFeedSubscribers', () => {
     );
 
     expect(managementApi.send).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Regression coverage for which stream records `broadcast` treats as
+ * broadcastable.
+ *
+ * This filter has been wrong twice in opposite directions, so it is worth
+ * pinning from both sides. Deciding "internal" by testing whether the PK's
+ * first segment is all-uppercase silently disables every broadcast for a
+ * consumer entity type that happens to be all-caps. Replacing that with a
+ * list of known internal prefixes leaks whatever the list forgets -- notably
+ * `EMAIL#`, whose SK is `{entityType}#{entityId}` and therefore parses as a
+ * mutual pointing at a REAL entity, delivering a user their own email row.
+ *
+ * Both cases are covered below; the config allowlist is what satisfies them
+ * at once.
+ */
+function makeBroadcastRecord(pk: string, sk: string) {
+  return {
+    eventName: 'MODIFY',
+    dynamodb: { NewImage: { PK: { S: pk }, SK: { S: sk } } },
+  };
+}
+
+function makeContainer(entityTypes: string[]) {
+  const wsRepo = {
+    querySubscriptionsByKey: vi.fn().mockResolvedValue([]),
+    queryMutualConnections: vi.fn().mockResolvedValue([]),
+    queryFeedSubscriptions: vi.fn().mockResolvedValue([]),
+    deleteSubscription: vi.fn().mockResolvedValue(undefined),
+  };
+  const config = {
+    EntityConfig: Object.fromEntries(entityTypes.map((t) => [t, {}])),
+  };
+  return { container: { websocketRepository: wsRepo, config }, wsRepo };
+}
+
+describe('broadcast record filtering', () => {
+  it('ignores an EMAIL# record, whose SK would otherwise parse as a mutual', async () => {
+    const { container, wsRepo } = makeContainer(['student']);
+
+    await broadcast(container as never)({
+      Records: [makeBroadcastRecord('EMAIL#alice@example.com', 'student#s1')],
+    } as never);
+
+    expect(wsRepo.queryMutualConnections).not.toHaveBeenCalled();
+    expect(wsRepo.querySubscriptionsByKey).not.toHaveBeenCalled();
+  });
+
+  it('ignores TAG# and UNIQUE# records', async () => {
+    const { container, wsRepo } = makeContainer(['student']);
+
+    await broadcast(container as never)({
+      Records: [
+        makeBroadcastRecord('TAG#student#s1', '#LOCK#'),
+        makeBroadcastRecord('UNIQUE#email#alice@example.com', 'student'),
+      ],
+    } as never);
+
+    expect(wsRepo.queryMutualConnections).not.toHaveBeenCalled();
+    expect(wsRepo.querySubscriptionsByKey).not.toHaveBeenCalled();
+  });
+
+  it('still broadcasts an all-caps entity type, which the casing heuristic dropped', async () => {
+    const { container, wsRepo } = makeContainer(['COURSE']);
+
+    await broadcast(container as never)({
+      Records: [makeBroadcastRecord('COURSE#c1', '#METADATA#')],
+    } as never);
+
+    expect(wsRepo.querySubscriptionsByKey).toHaveBeenCalled();
   });
 });
