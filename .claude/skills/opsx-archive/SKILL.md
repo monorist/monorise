@@ -57,7 +57,13 @@ Archive a completed change.
    - If changes needed: "Sync now (recommended)", "Archive without syncing"
    - If already synced: "Archive now", "Sync anyway", "Cancel"
 
-   If user chooses sync, use Task tool (subagent_type: "general-purpose", prompt: "Use Skill tool to invoke openspec-sync-specs for change '<name>'. Delta spec analysis: <include the analyzed delta spec summary>"). Proceed to archive regardless of choice.
+   Act on the choice, rather than treating it as advisory:
+   - **Cancel** — stop here. Do NOT archive. Report that nothing was changed.
+   - **Sync now / Sync anyway** — invoke the `opsx-sync` skill for this change,
+     passing the delta spec summary you analysed above. Archive once it succeeds;
+     if it fails, stop and report rather than archiving an unsynced change.
+   - **Archive without syncing** — proceed, and say so in the summary so the
+     unsynced state is visible.
 
 5. **Perform the archive**
 
@@ -68,12 +74,16 @@ Archive a completed change.
 
    Generate target name using current date: `YYYY-MM-DD-<change-name>`
 
-   **Check if target already exists:**
-   - If yes: Fail with error, suggest renaming existing archive or using different date
-   - If no: Move the change directory to archive
+   **Check if target already exists, and let the shell enforce it.** A bare
+   `mv` onto an existing DIRECTORY moves the source *inside* it — you get
+   `archive/YYYY-MM-DD-<name>/<name>/`, exit status 0, and step 6 reports
+   success. Two changes archived on the same day under the same name is
+   exactly when this fires, so the guard is not optional:
 
    ```bash
-   mv openspec/changes/<name> openspec/changes/archive/YYYY-MM-DD-<name>
+   target="openspec/changes/archive/$(date +%F)-<name>"
+   [ -e "$target" ] && { echo "archive target exists: $target"; exit 1; }
+   mv "openspec/changes/<name>" "$target"
    ```
 
 6. **Display summary**
@@ -104,5 +114,5 @@ All artifacts complete. All tasks complete.
 - Don't block archive on warnings - just inform and confirm
 - Preserve .openspec.yaml when moving to archive (it moves with the directory)
 - Show clear summary of what happened
-- If sync is requested, use openspec-sync-specs approach (agent-driven)
+- If sync is requested, use opsx-sync approach (agent-driven)
 - If delta specs exist, always run the sync assessment and show the combined summary before prompting

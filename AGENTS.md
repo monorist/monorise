@@ -1,7 +1,7 @@
 # Monorise — AI Agent Guide
 
 > This document provides essential context for AI coding agents working on the Monorise project.
-> Last updated: March 2026
+> Last updated: September 2026
 
 ---
 
@@ -59,6 +59,7 @@ monorise/
 │   ├── core/index.ts
 │   ├── react/index.ts
 │   └── sst/index.ts
+├── .claude/skills/    # Agent skill definitions (Claude Code loads these)
 ├── examples/          # Example projects (basic, ledger, websocket-chat)
 ├── www/               # Documentation website
 ├── docs/              # Additional documentation (CONCEPT.MD, etc.)
@@ -85,6 +86,35 @@ monorise → combines all above
 ```
 
 ---
+
+## Agent Skills
+
+`.claude/skills/` holds this repo's skill definitions, which Claude Code
+discovers at `.claude/skills/<name>/SKILL.md` and which are invoked as
+`/skill:<name>`. The `.gitignore` ignores `.claude/*` but re-includes
+`.claude/skills/`, so the skills are committed while local Claude Code state
+is not.
+
+The ten `opsx-*` skills drive the OpenSpec change workflow:
+
+| Skill | Purpose |
+|---|---|
+| `opsx-new` | Start a change using the artifact workflow |
+| `opsx-propose` | Create a NEW change and generate all its artifacts |
+| `opsx-ff` | Fast-forward an EXISTING change: fill every remaining artifact at once |
+| `opsx-continue` | Advance an existing change one artifact at a time |
+| `opsx-apply` | Implement the tasks of a change |
+| `opsx-explore` | Think a problem through before committing to an approach |
+| `opsx-verify` | Check an implementation against its artifacts |
+| `opsx-sync` | Merge a change's delta specs into the main specs |
+| `opsx-archive` | Archive one completed change |
+| `opsx-bulk-archive` | Archive several completed changes in one run |
+
+**Prerequisite:** every one of them shells out to the `openspec` CLI, which is
+deliberately NOT a dependency of this repo — there is no `openspec/` directory
+here, and monorise itself does not use the workflow. Install it separately
+(e.g. `npm i -g openspec`) before invoking any of them, or the first step
+fails with `command not found`.
 
 ## Build System
 
@@ -312,8 +342,10 @@ npx @biomejs/biome format .     # Format files
 
 - Base config extends `@tsconfig/node20`
 - Target: ES2016
-- Module: CommonJS (for compatibility)
-- Module resolution: Node
+- Module: `esnext` in every published package (the root `tsconfig.json` says
+  `commonjs`, but no package builds under it — and tsup emits `format: ['esm']`
+  only, as noted above)
+- Module resolution: `bundler` (`node` in `cli`)
 - Strict mode enabled
 - Declaration files generated with source maps
 
@@ -353,9 +385,17 @@ npx vitest run        # Run once (CI mode)
 
 ### Test Files
 
-Located alongside source files:
-- `packages/core/data/__tests__/Entity.test.ts`
-- `packages/core/data/__tests__/Mutual.test.ts`
+Located alongside source files, e.g. `packages/core/data/__tests__/`:
+- `AdjustEntity.test.ts`
+- `ConditionalAdjustEntityHttp.test.ts`
+- `ConditionalUpdateEntityHttp.test.ts`
+- `Entity.test.ts`
+- `Mutual.test.ts`
+- `TransactionHttp.test.ts`
+- `TransactionProcessors.test.ts`
+
+Plus suites under `packages/core/processors/`, `packages/core/services/__tests__/`,
+`packages/core/controllers/entity/__tests__/` and `packages/cli/commands/utils/`.
 
 ### Test Utilities
 

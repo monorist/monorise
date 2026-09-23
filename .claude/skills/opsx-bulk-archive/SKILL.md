@@ -89,7 +89,7 @@ This skill allows you to batch-archive changes, handling spec conflicts intellig
    For conflicts, show the resolution:
    ```
    * Conflict resolution:
-     - auth spec: Will apply add-oauth then add-jwt (both implemented, chronological order)
+     - auth spec: Will apply add-oauth then project-config (both implemented, chronological order)
    ```
 
    For incomplete changes, show warnings:
@@ -115,15 +115,24 @@ This skill allows you to batch-archive changes, handling spec conflicts intellig
    Process changes in the determined order (respecting conflict resolution):
 
    a. **Sync specs** if delta specs exist:
-      - Use the openspec-sync-specs approach (agent-driven intelligent merge)
+      - Use the opsx-sync approach (agent-driven intelligent merge)
       - For conflicts, apply in resolved order
       - Track if sync was done
 
-   b. **Perform the archive**:
+   b. **Perform the archive**, guarding the target:
       ```bash
       mkdir -p openspec/changes/archive
-      mv openspec/changes/<name> openspec/changes/archive/YYYY-MM-DD-<name>
+      target="openspec/changes/archive/$(date +%F)-<name>"
+      [ -e "$target" ] && { echo "archive target exists: $target"; exit 1; }
+      mv "openspec/changes/<name>" "$target"
       ```
+
+      The guard is what makes the "fail that change but continue with the
+      others" guardrail below actually hold. A bare `mv` onto an existing
+      DIRECTORY moves the source inside it and exits 0, so the collision would
+      be recorded as a Success. Bulk mode makes it likelier, not less: several
+      changes archived under the same `YYYY-MM-DD` prefix in one run. Route a
+      failed guard to the Failed bucket and carry on with the rest.
 
    c. **Track outcome** for each change:
       - Success: archived successfully
