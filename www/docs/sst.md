@@ -49,6 +49,7 @@ new MonoriseCore(id: string, args?: MonoriseCoreArgs)
 | `cloudwatchLogRetention` | `sst.aws.FunctionArgs['logging']['retention']` | `'1 month'` | CloudWatch log retention period for Monorise-owned Lambda functions |
 | `cloudwatchDashboard` | `{ enabled?: boolean }` | `{ enabled: true }` | Built-in CloudWatch dashboard. Disable to skip creating it |
 | `analytics` | `AnalyticsArgs` | Disabled | Opt-in Athena analytics for canonical entity and named mutual data — see [Analytics](#analytics) |
+| `webSocket` | `{ enabled: true, handler?: { memory?, timeout? } }` | Disabled | Enable WebSocket support for real-time updates. See [WebSocket](/websocket) |
 
 `cloudwatchLogRetention` is passed to SST's Lambda logging configuration for the API handler, replication processor, and built-in event processors. It accepts SST's supported retention values, for example `'1 day'`, `'1 week'`, `'1 month'`, `'1 year'`, or `'forever'`.
 
@@ -161,6 +162,7 @@ bus.subscribe('custom-handler', {
 | `table` | `SingleTable` | DynamoDB single table with GSIs and replication |
 | `table.table` | `sst.aws.Dynamo` | The underlying DynamoDB table resource |
 | `alarmTopic` | `sst.aws.SnsTopic` | SNS topic for DLQ alarms — connected to Slack webhook notifications when `slackWebhook` is configured. Reuse this when creating custom `QFunction` processors to get alerts in the same Slack channel |
+| `websocket` | `sst.aws.ApiGatewayWebSocket \| undefined` | WebSocket API Gateway — only present when `webSocket.enabled` is set. Provides `.url` (client connection URL) and `.managementEndpoint` (server-side push URL) |
 
 ### What it provisions
 

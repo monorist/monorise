@@ -1,6 +1,6 @@
 {
   "name": "@monorise/react",
-  "version": "8.1.0",
+  "version": "8.2.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/monorist/monorise.git",
@@ -30,7 +30,8 @@
   "dependencies": {
     "@tabler/icons-react": "^3.30.0",
     "axios": "^1.8.1",
-    "immer": "^10.1.1"
+    "immer": "^10.1.1",
+    "nanoid": "^5.1.3"
   },
   "devDependencies": {
     "@types/react": "^19",

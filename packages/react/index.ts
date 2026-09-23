@@ -4,6 +4,17 @@ import { initAppActions } from './actions/app.action';
 import { initAuthActions } from './actions/auth.action';
 import { initConfigActions } from './actions/config.action';
 import { initCoreActions } from './actions/core.action';
+import {
+  initWebSocketActions,
+  initializeWebSocketManager,
+  getWebSocketManager,
+} from './actions/websocket.action';
+import {
+  WebSocketManager,
+  type ConnectionState,
+  type ClientMessage,
+  type ServerMessage,
+} from './websocket';
 import { initAxiosInterceptor, injectAxiosInterceptor } from './lib/api';
 import {
   getEntityRequestKey,
@@ -52,6 +63,39 @@ const initMonorise = () => {
 
   const authActions = initAuthActions(store, authService);
   const coreActions = initCoreActions(store, appActions, coreService);
+  // The socket hooks need an HTTP read path, not just the socket: they fetch
+  // the initial page on mount and re-fetch on reconnect to recover whatever
+  // was missed while the connection was down. `httpActions` is optional on
+  // `initWebSocketActions`, and omitting it fails quietly rather than loudly —
+  // `fetchData` early-returns, so `isLoading` never leaves its initial `true`
+  // and the documented resync-on-reconnect never happens.
+  //
+  // Note the argument order: `coreService`'s own `listEntitiesByEntity` takes
+  // (byEntityType, entityType, byEntityId) while the socket actions pass
+  // (byEntityType, byEntityId, entityType). They are adapted here rather than
+  // passed straight through.
+  const websocketActions = initWebSocketActions(store, {
+    listEntities: async (entityType, params) => {
+      const { data } = await coreService
+        .makeEntityService(entityType)
+        .listEntities({ limit: params?.limit, lastKey: params?.lastKey });
+      return { data: data.data, lastKey: data.lastKey };
+    },
+    listEntitiesByEntity: async (
+      byEntityType,
+      byEntityId,
+      entityType,
+      params,
+    ) => {
+      const { data } = await coreService
+        .makeMutualService(byEntityType, entityType)
+        .listEntitiesByEntity(byEntityId, {
+          limit: params?.limit,
+          params: { lastKey: params?.lastKey },
+        });
+      return { entities: data.entities, lastKey: data.lastKey };
+    },
+  });
 
   const axiosInterceptor = injectAxiosInterceptor(
     appActions,
@@ -93,6 +137,7 @@ const initMonorise = () => {
     ...appActions,
     ...authActions,
     ...coreActions,
+    ...websocketActions,
   };
 };
 
@@ -149,6 +194,10 @@ const {
   getEntity,
   updateLocalTaggedEntity,
   deleteLocalTaggedEntity,
+  useEntitySocket,
+  useMutualSocket,
+  useEphemeralSocket,
+  useEntityFeed,
 } = Monorise;
 
 export {
@@ -206,6 +255,16 @@ export {
   getEntity,
   updateLocalTaggedEntity,
   deleteLocalTaggedEntity,
+  useEntitySocket,
+  useMutualSocket,
+  useEphemeralSocket,
+  useEntityFeed,
+  initializeWebSocketManager,
+  getWebSocketManager,
+  WebSocketManager,
+  type ConnectionState,
+  type ClientMessage,
+  type ServerMessage,
 };
 
 export default Monorise;
