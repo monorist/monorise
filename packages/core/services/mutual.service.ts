@@ -10,6 +10,7 @@ import { z } from 'zod';
 import type { DbUtils } from '../data/DbUtils';
 import { Entity, type EntityRepository } from '../data/Entity';
 import { Mutual, type MutualRepository } from '../data/Mutual';
+import { StandardError, StandardErrorCode } from '../errors/standard-error';
 import type { publishEvent as publishEventType } from '../helpers/event';
 import { EVENT } from '../types/event';
 import type { EntityServiceLifeCycle } from './entity-service-lifecycle';
@@ -35,6 +36,35 @@ export function resolveAsEntity<A extends EntityType>(
   return (callOptions.asEntity ??
     (mutualConfig?.asEntity?.name as A | undefined)) as A | undefined;
 }
+
+type CreateMutualParams<
+  B extends EntityType,
+  T extends EntityType,
+  A extends EntityType,
+> = {
+  byEntityType: B;
+  byEntityId: string;
+  entityType: T;
+  entityId: string;
+  mutualPayload?: Record<string, unknown>;
+  accountId?: string | string[];
+  options?: {
+    // When set (here, or once on the mutual's own `createMutualConfig`), the mutual is also
+    // materialized as a real Entity. That entity is always written SYNCHRONOUSLY, in the same
+    // DynamoDB transaction as the mutual itself — there is no asynchronous mode. A failure to
+    // write the entity therefore rolls the mutual write back too, rather than leaving an edge
+    // with no projection behind it.
+    asEntity?: A;
+    mutualId?: string;
+    // only use for migration purpose, for example when mutual is already created,
+    // but when you need this mutual to be created as entity, mutual creation can be skipped
+    skipMutualCreation?: boolean;
+    createAndUpdateDatetime?: Date;
+    ConditionExpression?: string;
+    ExpressionAttributeNames?: Record<string, string>;
+    ExpressionAttributeValues?: Record<string, AttributeValue>;
+  };
+};
 
 export class MutualService {
   constructor(
@@ -95,7 +125,15 @@ export class MutualService {
     return this.getMutualFieldConfig(byEntityType, entityType)?.mutualDataSchema;
   }
 
-  createMutual = async <
+  /**
+   * @description Everything `createMutual` does before it writes: validates the payload, reads
+   * both entities, checks no live mutual exists, and builds the TransactWriteItems (plus the
+   * `asEntity` projection's items, when there is one). Nothing is written. `createMutual` commits
+   * the items on their own; `TransactionService` folds them into a larger transaction. Either
+   * caller then runs `afterCreateEntityHook` for `entity` (when set) and publishes MUTUAL_CREATED
+   * once the write has committed.
+   */
+  prepareCreateMutual = async <
     B extends EntityType,
     T extends EntityType,
     A extends EntityType,
@@ -105,32 +143,8 @@ export class MutualService {
     entityType,
     entityId,
     mutualPayload,
-    accountId,
     options = {},
-  }: {
-    byEntityType: B;
-    byEntityId: string;
-    entityType: T;
-    entityId: string;
-    mutualPayload?: Record<string, unknown>;
-    accountId?: string | string[];
-    options?: {
-      // When set (here, or once on the mutual's own `createMutualConfig`), the mutual is also
-      // materialized as a real Entity. That entity is always written SYNCHRONOUSLY, in the same
-      // DynamoDB transaction as the mutual itself — there is no asynchronous mode. A failure to
-      // write the entity therefore rolls the mutual write back too, rather than leaving an edge
-      // with no projection behind it.
-      asEntity?: A;
-      mutualId?: string;
-      // only use for migration purpose, for example when mutual is already created,
-      // but when you need this mutual to be created as entity, mutual creation can be skipped
-      skipMutualCreation?: boolean;
-      createAndUpdateDatetime?: Date;
-      ConditionExpression?: string;
-      ExpressionAttributeNames?: Record<string, string>;
-      ExpressionAttributeValues?: Record<string, AttributeValue>;
-    };
-  }) => {
+  }: CreateMutualParams<B, T, A>) => {
     const {
       createAndUpdateDatetime,
       mutualId,
@@ -281,14 +295,35 @@ export class MutualService {
     }
 
     // write to db regardless of options
-    const createTransactItems = [...mutualTransactions, ...entityTransactions];
-    errorContext.createTransactItems = createTransactItems;
+    const transactItems = [...mutualTransactions, ...entityTransactions];
+    errorContext.createTransactItems = transactItems;
+
+    return { mutual, entity, transactItems, parsedMutualPayload };
+  };
+
+  createMutual = async <
+    B extends EntityType,
+    T extends EntityType,
+    A extends EntityType,
+  >(
+    params: CreateMutualParams<B, T, A>,
+  ) => {
+    const {
+      byEntityType,
+      byEntityId,
+      entityType,
+      entityId,
+      mutualPayload,
+      accountId,
+    } = params;
+    const { mutual, entity, transactItems, parsedMutualPayload } =
+      await this.prepareCreateMutual(params);
 
     console.log('[MONORISE_DEBUG] createMutual executing transaction:', {
-      transactItemCount: createTransactItems.length,
+      transactItemCount: transactItems.length,
     });
     await this.ddbUtils.executeTransactWrite({
-      TransactItems: createTransactItems,
+      TransactItems: transactItems,
     });
     console.log('[MONORISE_DEBUG] createMutual transaction succeeded');
 
@@ -405,6 +440,45 @@ export class MutualService {
     console.log('[MONORISE_DEBUG] updateMutual service complete');
 
     return mutual;
+  };
+
+  /**
+   * @description Resolves the live mutual and builds the TransactWriteItems that delete it,
+   * without writing — for `TransactionService`. Throws `MUTUAL_NOT_FOUND` (same as
+   * `deleteMutual`) when there is no live mutual for the pair.
+   */
+  prepareDeleteMutual = async ({
+    byEntityType,
+    byEntityId,
+    entityType,
+    entityId,
+  }: {
+    byEntityType: EntityType;
+    byEntityId: string;
+    entityType: EntityType;
+    entityId: string;
+  }) => {
+    try {
+      return await this.mutualRepository.prepareDeleteMutual(
+        byEntityType,
+        byEntityId,
+        entityType,
+        entityId,
+      );
+    } catch (err) {
+      if (
+        err instanceof StandardError &&
+        err.code === StandardErrorCode.MUTUAL_IS_UNDEFINED
+      ) {
+        throw new StandardError(
+          StandardErrorCode.MUTUAL_NOT_FOUND,
+          'Mutual not found',
+          err,
+          { byEntityType, byEntityId, entityType, entityId },
+        );
+      }
+      throw err;
+    }
   };
 
   deleteMutual = async ({

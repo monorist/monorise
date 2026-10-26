@@ -927,6 +927,62 @@ const initCoreActions = (
               return;
             }
 
+            // createMutual / deleteMutual: same store updates as the
+            // standalone createMutual / deleteMutual actions, both sides.
+            if (
+              entry.operation === 'createMutual' ||
+              entry.operation === 'deleteMutual'
+            ) {
+              const byEntityType = entry.byEntityType as Entity;
+              const byEntityId = entry.byEntityId as string;
+              const bySide = getMutualStateKey(
+                byEntityType,
+                byEntityId,
+                entityType,
+              );
+              const side = getMutualStateKey(
+                entityType,
+                entityId,
+                byEntityType,
+              );
+
+              if (entry.operation === 'deleteMutual') {
+                state.mutual[bySide]?.dataMap.delete(entityId);
+                state.mutual[side]?.dataMap.delete(byEntityId);
+                return;
+              }
+
+              const mutual = {
+                byEntityType,
+                byEntityId,
+                entityType,
+                entityId,
+                mutualId: entry.mutualId,
+                data: entry.data ?? {},
+                mutualData: entry.mutualData ?? {},
+                createdAt: entry.createdAt,
+                updatedAt: entry.updatedAt,
+                mutualUpdatedAt: entry.mutualUpdatedAt,
+              } as unknown as Mutual;
+
+              if (!state.mutual[bySide]) {
+                state.mutual[bySide] = { dataMap: new Map() };
+              }
+              state.mutual[bySide].dataMap = new Map(
+                state.mutual[bySide]?.dataMap,
+              ).set(entityId, mutual);
+
+              if (!state.mutual[side]) {
+                state.mutual[side] = { dataMap: new Map() };
+              }
+              const byEntityData =
+                state.entity[byEntityType]?.dataMap.get(byEntityId)?.data ?? {};
+              state.mutual[side].dataMap = new Map(
+                state.mutual[side]?.dataMap,
+              ).set(byEntityId, flipMutual(mutual, byEntityData));
+              return;
+            }
+
             if (entry.operation === 'createEntity') {
               const createdEntity = {
                 entityId,

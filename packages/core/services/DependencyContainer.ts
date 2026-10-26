@@ -271,6 +271,7 @@ export class DependencyContainer {
       this.publishEvent,
       this.entityServiceLifeCycle,
       this.eventUtils,
+      this.mutualService,
     );
   }
 

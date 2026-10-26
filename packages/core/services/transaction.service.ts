@@ -22,13 +22,16 @@ import { EVENT } from '../types/event';
 import type {
   TransactionAdjustEntity,
   TransactionCreateEntity,
+  TransactionCreateMutual,
   TransactionDeleteEntity,
+  TransactionDeleteMutual,
   TransactionOperation,
   TransactionResult,
   TransactionResultEntry,
   TransactionUpdateEntity,
 } from '../types/transaction';
 import type { EntityServiceLifeCycle } from './entity-service-lifecycle';
+import type { MutualService } from './mutual.service';
 import {
   resolveAdjustmentCondition,
   resolveUpdateCondition,
@@ -39,6 +42,16 @@ const MAX_TRANSACTION_ITEMS = 100;
 type PendingEvent = {
   event: EventDetail;
   payload: Record<string, unknown>;
+};
+
+type ProcessedOperation = {
+  items: TransactWriteItem[];
+  events: PendingEvent[];
+  // Work that must run after the commit and before events are published —
+  // today only an asEntity mutual's afterCreateEntityHook, matching the
+  // order a standalone createMutual runs it in.
+  afterCommit?: () => Promise<unknown>;
+  resultEntry: TransactionResultEntry;
 };
 
 export class TransactionService {
@@ -53,6 +66,10 @@ export class TransactionService {
     private publishEvent: typeof publishEventType,
     private entityServiceLifeCycle: EntityServiceLifeCycle,
     private eventUtils: EventUtils,
+    // Optional so a TransactionService built without it (entity-only callers,
+    // existing tests) keeps working; createMutual/deleteMutual operations
+    // require it. DependencyContainer always passes it.
+    private mutualService?: MutualService,
   ) {}
 
   executeTransaction = async (
@@ -76,9 +93,11 @@ export class TransactionService {
     const processed = await Promise.all(
       operations.map((op) => this.processOperation(op, accountId)),
     );
-    for (const { items, events, resultEntry } of processed) {
+    const afterCommits: (() => Promise<unknown>)[] = [];
+    for (const { items, events, afterCommit, resultEntry } of processed) {
       allTransactItems.push(...items);
       pendingEvents.push(...events);
+      if (afterCommit) afterCommits.push(afterCommit);
       resultEntries.push(resultEntry);
     }
 
@@ -143,6 +162,20 @@ export class TransactionService {
     });
     await Promise.all(readPromises);
 
+    // Phase 4b: Post-commit hooks. Committed already, so — like event
+    // publishing below — a failure is surfaced rather than thrown.
+    const afterCommitResults = await Promise.allSettled(
+      afterCommits.map((run) => run()),
+    );
+    for (const result of afterCommitResults) {
+      if (result.status === 'rejected') {
+        console.error(
+          '[monorise] Post-commit hook failed after transaction commit:',
+          { reason: result.reason },
+        );
+      }
+    }
+
     // Phase 5: Publish events (fire-and-forget, same pattern as existing operations).
     // The transaction has already committed at this point, so a publish failure
     // can't be rolled back — surface it instead of swallowing it silently.
@@ -168,11 +201,7 @@ export class TransactionService {
   private async processOperation(
     op: TransactionOperation,
     accountId?: string,
-  ): Promise<{
-    items: TransactWriteItem[];
-    events: PendingEvent[];
-    resultEntry: TransactionResultEntry;
-  }> {
+  ): Promise<ProcessedOperation> {
     switch (op.operation) {
       case 'createEntity': {
         const { items, entity } = await this.buildCreateItems(op);
@@ -246,12 +275,151 @@ export class TransactionService {
           },
         };
       }
+      case 'createMutual':
+        return this.processCreateMutual(op, accountId);
+      case 'deleteMutual':
+        return this.processDeleteMutual(op, accountId);
       default:
         throw new StandardError(
           StandardErrorCode.TRANSACTION_INVALID_OPERATION,
           `Unknown operation: '${(op as TransactionOperation).operation}'`,
         );
     }
+  }
+
+  // Same validation, reads and records as MutualService.createMutual — only
+  // the write is deferred into this transaction. A mutual created here
+  // publishes the same MUTUAL_CREATED event, and an asEntity mutual's
+  // projection is written in the same transaction.
+  private async processCreateMutual(
+    op: TransactionCreateMutual,
+    accountId?: string,
+  ): Promise<ProcessedOperation> {
+    this.assertMutualOperation(op);
+    const mutualPayload = op.payload ?? {};
+    const { mutual, entity, transactItems, parsedMutualPayload } =
+      await this.requireMutualService(op).prepareCreateMutual({
+        byEntityType: op.byEntityType,
+        byEntityId: op.byEntityId,
+        entityType: op.entityType,
+        entityId: op.entityId,
+        mutualPayload,
+      });
+
+    return {
+      items: transactItems,
+      events: [
+        {
+          event: EVENT.CORE.MUTUAL_CREATED(op.byEntityType, op.entityType),
+          payload: {
+            byEntityType: op.byEntityType,
+            byEntityId: op.byEntityId,
+            entityType: op.entityType,
+            entityId: op.entityId,
+            parsedMutualPayload,
+            accountId,
+            publishedAt: mutual.createdAt ?? new Date().toISOString(),
+          },
+        },
+      ],
+      afterCommit: entity
+        ? () =>
+            this.entityServiceLifeCycle.afterCreateEntityHook(
+              entity,
+              mutualPayload,
+              accountId,
+            )
+        : undefined,
+      resultEntry: {
+        operation: 'createMutual',
+        byEntityType: op.byEntityType,
+        byEntityId: op.byEntityId,
+        entityType: op.entityType,
+        entityId: op.entityId,
+        mutualId: mutual.mutualId,
+        data: mutual.data as Record<string, unknown>,
+        mutualData: mutual.mutualData as Record<string, unknown>,
+        createdAt: mutual.createdAt,
+        updatedAt: mutual.updatedAt,
+        mutualUpdatedAt: mutual.mutualUpdatedAt,
+      },
+    };
+  }
+
+  // Same soft delete as MutualService.deleteMutual, and the same event.
+  private async processDeleteMutual(
+    op: TransactionDeleteMutual,
+    accountId?: string,
+  ): Promise<ProcessedOperation> {
+    this.assertMutualOperation(op);
+    const { mutual, TransactItems } = await this.requireMutualService(
+      op,
+    ).prepareDeleteMutual({
+      byEntityType: op.byEntityType,
+      byEntityId: op.byEntityId,
+      entityType: op.entityType,
+      entityId: op.entityId,
+    });
+
+    return {
+      items: TransactItems,
+      events: [
+        {
+          event: EVENT.CORE.MUTUAL_UPDATED(op.byEntityType, op.entityType),
+          payload: {
+            byEntityType: op.byEntityType,
+            byEntityId: op.byEntityId,
+            entityType: op.entityType,
+            entityId: op.entityId,
+            deletedByAccountId: accountId,
+          },
+        },
+      ],
+      resultEntry: {
+        operation: 'deleteMutual',
+        byEntityType: op.byEntityType,
+        byEntityId: op.byEntityId,
+        entityType: op.entityType,
+        entityId: op.entityId,
+        mutualId: mutual.mutualId,
+      },
+    };
+  }
+
+  private assertMutualOperation(
+    op: TransactionCreateMutual | TransactionDeleteMutual,
+  ) {
+    for (const type of [op.byEntityType, op.entityType]) {
+      if (!this.EntityConfig[type]) {
+        throw new StandardError(
+          StandardErrorCode.INVALID_ENTITY_TYPE,
+          `Unknown entity type: '${type}'`,
+        );
+      }
+    }
+    for (const [field, id] of [
+      ['byEntityId', op.byEntityId],
+      ['entityId', op.entityId],
+    ]) {
+      if (typeof id !== 'string' || id.length === 0) {
+        throw new StandardError(
+          StandardErrorCode.TRANSACTION_INVALID_OPERATION,
+          `'${op.operation}' requires a non-empty ${field}`,
+        );
+      }
+    }
+  }
+
+  private requireMutualService(
+    op: TransactionCreateMutual | TransactionDeleteMutual,
+  ): MutualService {
+    if (!this.mutualService) {
+      throw new StandardError(
+        StandardErrorCode.TRANSACTION_INVALID_OPERATION,
+        `'${op.operation}' needs a TransactionService constructed with a MutualService`,
+      );
+    }
+    return this.mutualService;
   }
 
   private async buildCreateItems(

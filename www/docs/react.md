@@ -437,14 +437,30 @@ await coreService.transaction([
 | `updateEntity` | Partial update (no unique field changes allowed in transactions) |
 | `adjustEntity` | Atomic numeric increment/decrement (with condition support) |
 | `deleteEntity` | Delete an entity |
+| `createMutual` | Link two entities, with mutual data validated against the pair's `mutualDataSchema` |
+| `deleteMutual` | Unlink two entities |
 
 **Conditions**: `adjustEntity` and `updateEntity` support the `condition` field, referencing `adjustmentConditions` or `updateConditions` defined in the entity config.
 
-**DynamoDB limits**: Maximum 100 items per transaction. Each `createEntity` uses 2+ items (main record + list index + unique fields). Other operations use 1 item each.
+**Mutuals in a transaction**: `createMutual` and `deleteMutual` take the same arguments, in the same order, as the standalone `createMutual` and `deleteMutual` ([Mutual actions](#mutual-actions)). They let a link change commit together with an entity change — for example, removing a member while keeping a counter that must never drop below one:
 
-**Atomicity**: If any operation fails (condition violation, duplicate unique field, missing entity for delete), the entire transaction is rolled back — no partial writes.
+```ts
+import { executeTransaction, transactional as tx } from 'monorise/react';
 
-**Events**: Events (`ENTITY_CREATED`, `ENTITY_UPDATED`, `ENTITY_DELETED`) are published only after the transaction commits successfully. Replication, tag, and mutual processors work normally.
+// adjustmentConditions: { leave: { memberCount: { $gte: 2 } } }
+await executeTransaction([
+  tx.adjustEntity(Entity.TEAM, teamId, { memberCount: -1, $condition: 'leave' }),
+  tx.deleteMutual(Entity.USER, Entity.TEAM, userId, teamId),
+]);
+```
+
+If the condition fails, the link is kept and the counter is untouched. A transactional mutual runs the same validation and writes the same records as the standalone call, including an `asEntity` projection, whose `afterCreateEntityHook` runs once the transaction commits. `executeTransaction` updates both sides of any loaded `useMutuals` lists, the same as the standalone calls.
+
+**DynamoDB limits**: Maximum 100 items per transaction. Each `createEntity` uses 2+ items (main record + list index + unique fields). `createMutual` and `deleteMutual` use 3 items each (plus the projection's items for an `asEntity` mutual). Other operations use 1 item each. A transaction can't touch the same record twice, so a link can't be created and deleted in the same transaction.
+
+**Atomicity**: If any operation fails (condition violation, duplicate unique field, missing entity for delete), the entire transaction is rolled back — no partial writes. A `createMutual` for an already-linked pair fails with `409 MUTUAL_EXISTS`, and a `deleteMutual` for an unlinked pair with `404 MUTUAL_NOT_FOUND`.
+
+**Events**: Events (`ENTITY_CREATED`, `ENTITY_UPDATED`, `ENTITY_DELETED`, and the same mutual events the standalone `createMutual`/`deleteMutual` publish) are published only after the transaction commits successfully. Replication, tag, and mutual processors work normally.
 
 ### Mutual actions
 

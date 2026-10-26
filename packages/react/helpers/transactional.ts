@@ -1,5 +1,5 @@
 import type { Entity, EntitySchemaMap } from '@monorise/base';
-import { getEntityRequestKey } from '../lib/utils';
+import { getEntityRequestKey, getMutualRequestKey } from '../lib/utils';
 
 export type TransactionCreateEntity<T extends Entity = Entity> = {
   operation: 'createEntity';
@@ -30,11 +30,36 @@ export type TransactionDeleteEntity<T extends Entity = Entity> = {
   entityId: string;
 };
 
+export type TransactionCreateMutual<
+  B extends Entity = Entity,
+  T extends Entity = Entity,
+> = {
+  operation: 'createMutual';
+  byEntityType: B;
+  byEntityId: string;
+  entityType: T;
+  entityId: string;
+  payload?: Record<string, unknown>;
+};
+
+export type TransactionDeleteMutual<
+  B extends Entity = Entity,
+  T extends Entity = Entity,
+> = {
+  operation: 'deleteMutual';
+  byEntityType: B;
+  byEntityId: string;
+  entityType: T;
+  entityId: string;
+};
+
 export type TransactionOperation =
   | TransactionCreateEntity
   | TransactionUpdateEntity
   | TransactionAdjustEntity
-  | TransactionDeleteEntity;
+  | TransactionDeleteEntity
+  | TransactionCreateMutual
+  | TransactionDeleteMutual;
 
 // Mirrors packages/core/types/transaction.ts's TransactionResultEntry/Result —
 // the client can't import from @monorise/core (server-only, pulls in the AWS
@@ -46,6 +71,12 @@ export type TransactionResultEntry<T extends Entity = Entity> = {
   data?: Record<string, unknown>;
   createdAt?: string;
   updatedAt?: string;
+  // createMutual / deleteMutual entries only.
+  byEntityType?: Entity;
+  byEntityId?: string;
+  mutualId?: string;
+  mutualData?: Record<string, unknown>;
+  mutualUpdatedAt?: string;
 };
 
 export type TransactionResult = {
@@ -69,6 +100,22 @@ export const getTransactionOperationRequestKey = (
       return getEntityRequestKey('adjust', op.entityType, op.entityId);
     case 'deleteEntity':
       return getEntityRequestKey('delete', op.entityType, op.entityId);
+    // Same keys the standalone createMutual / deleteMutual calls use.
+    case 'createMutual':
+      return getMutualRequestKey(
+        'create',
+        op.byEntityType,
+        op.entityType,
+        op.byEntityId,
+      );
+    case 'deleteMutual':
+      return getMutualRequestKey(
+        'delete',
+        op.byEntityType,
+        op.entityType,
+        op.byEntityId,
+        op.entityId,
+      );
   }
 };
 
@@ -140,6 +187,35 @@ export const transactional = {
     entityId: string,
   ): TransactionDeleteEntity<T> => ({
     operation: 'deleteEntity',
+    entityType,
+    entityId,
+  }),
+
+  // Same argument order as the standalone createMutual / deleteMutual actions.
+  createMutual: <B extends Entity, T extends Entity>(
+    byEntityType: B,
+    entityType: T,
+    byEntityId: string,
+    entityId: string,
+    payload?: Record<string, unknown>,
+  ): TransactionCreateMutual<B, T> => ({
+    operation: 'createMutual',
+    byEntityType,
+    byEntityId,
+    entityType,
+    entityId,
+    ...(payload !== undefined && { payload }),
+  }),
+
+  deleteMutual: <B extends Entity, T extends Entity>(
+    byEntityType: B,
+    entityType: T,
+    byEntityId: string,
+    entityId: string,
+  ): TransactionDeleteMutual<B, T> => ({
+    operation: 'deleteMutual',
+    byEntityType,
+    byEntityId,
     entityType,
     entityId,
   }),
