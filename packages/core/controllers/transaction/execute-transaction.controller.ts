@@ -56,9 +56,11 @@ export class ExecuteTransactionController {
         // Thrown by getEntity (via Entity.fromItem) when a condition function
         // reads an entity that doesn't exist — same code adjust-entity.controller.ts
         // maps to 404 for the non-transactional path.
+        // MUTUAL_NOT_FOUND: a deleteMutual op whose pair has no live mutual.
         if (
           code === StandardErrorCode.ENTITY_IS_UNDEFINED ||
-          code === StandardErrorCode.ENTITY_NOT_FOUND
+          code === StandardErrorCode.ENTITY_NOT_FOUND ||
+          code === StandardErrorCode.MUTUAL_NOT_FOUND
         ) {
           c.status(httpStatus.NOT_FOUND);
           return c.json({ ...err.toJSON() });
@@ -78,10 +80,12 @@ export class ExecuteTransactionController {
           return c.json({ ...err.toJSON() });
         }
 
+        // MUTUAL_EXISTS: a createMutual op whose pair already has a live mutual.
         if (
           code === StandardErrorCode.TRANSACTION_FAILED ||
           code === StandardErrorCode.CONDITIONAL_CHECK_FAILED ||
-          code === StandardErrorCode.UNIQUE_VALUE_EXISTS
+          code === StandardErrorCode.UNIQUE_VALUE_EXISTS ||
+          code === StandardErrorCode.MUTUAL_EXISTS
         ) {
           c.status(httpStatus.CONFLICT);
           return c.json({ ...err.toJSON() });

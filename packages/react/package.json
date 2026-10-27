@@ -22,7 +22,8 @@
   },
   "scripts": {
     "build": "tsup && tsc --emitDeclarationOnly --outDir dist || true",
-    "dev": "tsup --watch"
+    "dev": "tsup --watch",
+    "test": "vitest run"
   },
   "keywords": [],
   "author": "",
@@ -35,7 +36,8 @@
   },
   "devDependencies": {
     "@types/react": "^19",
-    "@types/react-dom": "^19"
+    "@types/react-dom": "^19",
+    "vitest": "^3.1.1"
   },
   "peerDependencies": {
     "@monorise/base": "^4.4.0",

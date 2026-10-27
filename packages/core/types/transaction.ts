@@ -29,11 +29,53 @@ export type TransactionDeleteEntity<T extends EntityType = EntityType> = {
   entityId: string;
 };
 
+export type TransactionCreateMutual<
+  B extends EntityType = EntityType,
+  T extends EntityType = EntityType,
+> = {
+  operation: 'createMutual';
+  byEntityType: B;
+  byEntityId: string;
+  entityType: T;
+  entityId: string;
+  // The mutual's own data, validated against the pair's mutualDataSchema —
+  // the same body a standalone POST /mutual/... takes.
+  payload?: Record<string, unknown>;
+};
+
+export type TransactionUpdateMutual<
+  B extends EntityType = EntityType,
+  T extends EntityType = EntityType,
+> = {
+  operation: 'updateMutual';
+  byEntityType: B;
+  byEntityId: string;
+  entityType: T;
+  entityId: string;
+  // A patch of the mutual's own data, validated against the pair's
+  // mutualDataSchema — the same body a standalone PATCH /mutual/... takes.
+  payload: Record<string, unknown>;
+};
+
+export type TransactionDeleteMutual<
+  B extends EntityType = EntityType,
+  T extends EntityType = EntityType,
+> = {
+  operation: 'deleteMutual';
+  byEntityType: B;
+  byEntityId: string;
+  entityType: T;
+  entityId: string;
+};
+
 export type TransactionOperation =
   | TransactionCreateEntity
   | TransactionUpdateEntity
   | TransactionAdjustEntity
-  | TransactionDeleteEntity;
+  | TransactionDeleteEntity
+  | TransactionCreateMutual
+  | TransactionUpdateMutual
+  | TransactionDeleteMutual;
 
 export type TransactionResultEntry = {
   operation: string;
@@ -42,6 +84,14 @@ export type TransactionResultEntry = {
   data?: Record<string, unknown>;
   createdAt?: string;
   updatedAt?: string;
+  // Set on createMutual / updateMutual / deleteMutual entries only. A
+  // createMutual or updateMutual entry carries the same fields the standalone
+  // call returns (`data` is the target entity's data, as on any mutual).
+  byEntityType?: EntityType;
+  byEntityId?: string;
+  mutualId?: string;
+  mutualData?: Record<string, unknown>;
+  mutualUpdatedAt?: string;
 };
 
 export type TransactionResult = {

@@ -504,6 +504,113 @@ export class MutualRepository extends Repository {
     return mutual;
   }
 
+  /**
+   * @description Resolves the live mutual and builds the TransactWriteItems that update its
+   * `mutualData` on all three records, without writing them. `updateMutual` writes them on their
+   * own; `TransactionService` folds them into a larger transaction. Throws `MUTUAL_IS_UNDEFINED`
+   * when there is no live mutual for the pair.
+   */
+  async prepareUpdateMutual<
+    B extends Entity,
+    T extends Entity,
+    M extends Record<string, unknown>,
+  >(
+    byEntityType: B,
+    byEntityId: string,
+    entityType: T,
+    entityId: string,
+    toUpdate: {
+      mutualData: Record<string, unknown>;
+      mutualUpdatedAt?: string;
+      updatedAt?: string;
+    },
+    opts?: {
+      ConditionExpression?: string;
+      ExpressionAttributeNames?: Record<string, string>;
+      ExpressionAttributeValues?: Record<string, AttributeValue>;
+      maxObjectUpdateLevel?: number;
+    },
+  ): Promise<{ mutual: Mutual<B, T, M>; TransactItems: TransactWriteItem[] }> {
+    console.log('[MONORISE_DEBUG] updateMutual fetching mutual...');
+    const mutual = await this.getMutual<B, T, M>(
+      byEntityType,
+      byEntityId,
+      entityType,
+      entityId,
+      { ProjectionExpression: PROJECTION_EXPRESSION.NO_DATA },
+    );
+    console.log('[MONORISE_DEBUG] updateMutual mutual found:', {
+      mutualId: mutual.mutualId,
+      mainPk: mutual.mainPk,
+      byFullEntityId: mutual.byFullEntityId,
+      fullEntityId: mutual.fullEntityId,
+    });
+
+    const currentDatetime = new Date().toISOString();
+    const toUpdateExpressions = this.toUpdate(
+      {
+        mutualUpdatedAt: currentDatetime,
+        ...toUpdate,
+      },
+      { maxLevel: opts?.maxObjectUpdateLevel },
+    );
+    console.log('[MONORISE_DEBUG] updateMutual update expression:', {
+      UpdateExpression: toUpdateExpressions.UpdateExpression,
+      ExpressionAttributeNames: toUpdateExpressions.ExpressionAttributeNames,
+      hasExpressionAttributeValues:
+        !!toUpdateExpressions.ExpressionAttributeValues,
+    });
+
+    const updateExpression = {
+      ConditionExpression: opts?.ConditionExpression || 'attribute_exists(PK)',
+      UpdateExpression: toUpdateExpressions.UpdateExpression,
+      ExpressionAttributeNames: {
+        ...toUpdateExpressions.ExpressionAttributeNames,
+        ...opts?.ExpressionAttributeNames,
+      },
+      ExpressionAttributeValues: {
+        ...toUpdateExpressions.ExpressionAttributeValues,
+        ...opts?.ExpressionAttributeValues,
+      },
+    };
+
+    const TransactItems: TransactWriteItem[] = [
+      {
+        Update: {
+          TableName: this.TABLE_NAME,
+          Key: mutual.mainKeys(),
+          ...updateExpression,
+        },
+      },
+      {
+        Update: {
+          TableName: this.TABLE_NAME,
+          Key: {
+            PK: { S: mutual.byFullEntityId },
+            SK: { S: mutual.fullEntityId },
+          },
+          ...updateExpression,
+        },
+      },
+      {
+        Update: {
+          TableName: this.TABLE_NAME,
+          Key: {
+            PK: { S: mutual.fullEntityId },
+            SK: { S: mutual.byFullEntityId },
+          },
+          ...updateExpression,
+        },
+      },
+    ];
+    console.log('[MONORISE_DEBUG] updateMutual transact items prepared:', {
+      itemCount: TransactItems.length,
+      tableName: this.TABLE_NAME,
+    });
+
+    return { mutual, TransactItems };
+  }
+
   async updateMutual<
     B extends Entity,
     T extends Entity,
@@ -538,83 +645,15 @@ export class MutualRepository extends Repository {
     const errorContext: Record<string, unknown> = {};
 
     try {
-      console.log('[MONORISE_DEBUG] updateMutual fetching mutual...');
-      const mutual = await this.getMutual<B, T, M>(
+      const { TransactItems } = await this.prepareUpdateMutual<B, T, M>(
         byEntityType,
         byEntityId,
         entityType,
         entityId,
-        { ProjectionExpression: PROJECTION_EXPRESSION.NO_DATA },
+        toUpdate,
+        opts,
       );
-      console.log('[MONORISE_DEBUG] updateMutual mutual found:', {
-        mutualId: mutual.mutualId,
-        mainPk: mutual.mainPk,
-        byFullEntityId: mutual.byFullEntityId,
-        fullEntityId: mutual.fullEntityId,
-      });
-
-      const currentDatetime = new Date().toISOString();
-      const toUpdateExpressions = this.toUpdate(
-        {
-          mutualUpdatedAt: currentDatetime,
-          ...toUpdate,
-        },
-        { maxLevel: opts?.maxObjectUpdateLevel },
-      );
-      console.log('[MONORISE_DEBUG] updateMutual update expression:', {
-        UpdateExpression: toUpdateExpressions.UpdateExpression,
-        ExpressionAttributeNames: toUpdateExpressions.ExpressionAttributeNames,
-        hasExpressionAttributeValues: !!toUpdateExpressions.ExpressionAttributeValues,
-      });
-      
-      const updateExpression = {
-        ConditionExpression:
-          opts?.ConditionExpression || 'attribute_exists(PK)',
-        UpdateExpression: toUpdateExpressions.UpdateExpression,
-        ExpressionAttributeNames: {
-          ...toUpdateExpressions.ExpressionAttributeNames,
-          ...opts?.ExpressionAttributeNames,
-        },
-        ExpressionAttributeValues: {
-          ...toUpdateExpressions.ExpressionAttributeValues,
-          ...opts?.ExpressionAttributeValues,
-        },
-      };
-
-      const TransactItems: TransactWriteItem[] = [
-        {
-          Update: {
-            TableName: this.TABLE_NAME,
-            Key: mutual.mainKeys(),
-            ...updateExpression,
-          },
-        },
-        {
-          Update: {
-            TableName: this.TABLE_NAME,
-            Key: {
-              PK: { S: mutual.byFullEntityId },
-              SK: { S: mutual.fullEntityId },
-            },
-            ...updateExpression,
-          },
-        },
-        {
-          Update: {
-            TableName: this.TABLE_NAME,
-            Key: {
-              PK: { S: mutual.fullEntityId },
-              SK: { S: mutual.byFullEntityId },
-            },
-            ...updateExpression,
-          },
-        },
-      ];
       errorContext.TransactItems = TransactItems;
-      console.log('[MONORISE_DEBUG] updateMutual transact items prepared:', {
-        itemCount: TransactItems.length,
-        tableName: this.TABLE_NAME,
-      });
 
       console.log('[MONORISE_DEBUG] updateMutual executing transaction...');
       await this.ddbUtils.executeTransactWrite({ TransactItems });
@@ -660,6 +699,88 @@ export class MutualRepository extends Repository {
     }
   }
 
+  /**
+   * @description Resolves the live mutual and builds the TransactWriteItems that soft-delete it
+   * (all three records get a 10-minute `expiresAt`), without writing them. `deleteMutual` writes
+   * them on their own; `TransactionService` folds them into a larger transaction. Throws
+   * `MUTUAL_IS_UNDEFINED` when there is no live mutual for the pair.
+   */
+  async prepareDeleteMutual<
+    B extends Entity,
+    T extends Entity,
+    M extends Record<string, unknown>,
+  >(
+    byEntityType: B,
+    byEntityId: string,
+    entityType: T,
+    entityId: string,
+    opts?: {
+      ConditionExpression?: string;
+      ExpressionAttributeNames?: Record<string, string>;
+      ExpressionAttributeValues?: Record<string, AttributeValue>;
+    },
+  ): Promise<{ mutual: Mutual<B, T, M>; TransactItems: TransactWriteItem[] }> {
+    const mutual = await this.getMutual<B, T, M>(
+      byEntityType,
+      byEntityId,
+      entityType,
+      entityId,
+      { ProjectionExpression: PROJECTION_EXPRESSION.NO_DATA },
+    );
+
+    const tenMinsLater = Math.floor(new Date().getTime() / 1000 + 10 * 60);
+    const expressions = {
+      UpdateExpression:
+        'SET #expiresAt = :expiresAt, #mutualUpdatedAt = :mutualUpdatedAt, #updatedAt = :mutualUpdatedAt',
+      ConditionExpression:
+        opts?.ConditionExpression ||
+        'attribute_exists(PK) AND attribute_not_exists(#expiresAt)',
+      ExpressionAttributeNames: {
+        '#expiresAt': 'expiresAt',
+        '#mutualUpdatedAt': 'mutualUpdatedAt',
+        '#updatedAt': 'updatedAt',
+        ...opts?.ExpressionAttributeNames,
+      },
+      ExpressionAttributeValues: {
+        ':expiresAt': { N: String(tenMinsLater) },
+        ':mutualUpdatedAt': { S: new Date().toISOString() },
+        ...opts?.ExpressionAttributeValues,
+      },
+    };
+
+    const TransactItems: TransactWriteItem[] = [
+      {
+        Update: {
+          TableName: this.TABLE_NAME,
+          Key: mutual.mainKeys(),
+          ...expressions,
+        },
+      },
+      {
+        Update: {
+          TableName: this.TABLE_NAME,
+          Key: {
+            PK: { S: mutual.byFullEntityId },
+            SK: { S: mutual.fullEntityId },
+          },
+          ...expressions,
+        },
+      },
+      {
+        Update: {
+          TableName: this.TABLE_NAME,
+          Key: {
+            PK: { S: mutual.fullEntityId },
+            SK: { S: mutual.byFullEntityId },
+          },
+          ...expressions,
+        },
+      },
+    ];
+
+    return { mutual, TransactItems };
+  }
+
   async deleteMutual<
     B extends Entity,
     T extends Entity,
@@ -683,63 +804,13 @@ export class MutualRepository extends Repository {
     };
 
     try {
-      const mutual = await this.getMutual<B, T, M>(
+      const { mutual, TransactItems } = await this.prepareDeleteMutual<B, T, M>(
         byEntityType,
         byEntityId,
         entityType,
         entityId,
-        { ProjectionExpression: PROJECTION_EXPRESSION.NO_DATA },
+        opts,
       );
-
-      const tenMinsLater = Math.floor(new Date().getTime() / 1000 + 10 * 60);
-      const expressions = {
-        UpdateExpression:
-          'SET #expiresAt = :expiresAt, #mutualUpdatedAt = :mutualUpdatedAt, #updatedAt = :mutualUpdatedAt',
-        ConditionExpression:
-          opts?.ConditionExpression ||
-          'attribute_exists(PK) AND attribute_not_exists(#expiresAt)',
-        ExpressionAttributeNames: {
-          '#expiresAt': 'expiresAt',
-          '#mutualUpdatedAt': 'mutualUpdatedAt',
-          '#updatedAt': 'updatedAt',
-          ...opts?.ExpressionAttributeNames,
-        },
-        ExpressionAttributeValues: {
-          ':expiresAt': { N: String(tenMinsLater) },
-          ':mutualUpdatedAt': { S: new Date().toISOString() },
-          ...opts?.ExpressionAttributeValues,
-        },
-      };
-
-      const TransactItems: TransactWriteItem[] = [
-        {
-          Update: {
-            TableName: this.TABLE_NAME,
-            Key: mutual.mainKeys(),
-            ...expressions,
-          },
-        },
-        {
-          Update: {
-            TableName: this.TABLE_NAME,
-            Key: {
-              PK: { S: mutual.byFullEntityId },
-              SK: { S: mutual.fullEntityId },
-            },
-            ...expressions,
-          },
-        },
-        {
-          Update: {
-            TableName: this.TABLE_NAME,
-            Key: {
-              PK: { S: mutual.fullEntityId },
-              SK: { S: mutual.byFullEntityId },
-            },
-            ...expressions,
-          },
-        },
-      ];
       errorContext.TransactItems = TransactItems;
 
       await this.dynamodbClient.transactWriteItems({ TransactItems });
