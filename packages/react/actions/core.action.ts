@@ -34,7 +34,7 @@ import type { CommonStore } from '../types/monorise.type';
 import type { Mutual, MutualData } from '../types/mutual.type';
 import type { AppActions } from './app.action';
 import {
-  getTransactionCallRequestKey,
+  createTransactionCallRequestKey,
   getTransactionOperationRequestKey,
   type TransactionCreateEntity,
   type TransactionOperation,
@@ -875,10 +875,10 @@ const initCoreActions = (
     // `ongoingRequests` dedupe, handing either caller the other's
     // differently-shaped response. Unique per call rather than deterministic,
     // because a transaction is a batch of non-idempotent writes -- see
-    // getTransactionCallRequestKey for why deduping them silently loses
+    // createTransactionCallRequestKey for why deduping them silently loses
     // writes. Pass `opts.requestKey` explicitly to opt back into dedupe.
     const callRequestKey =
-      opts.requestKey || getTransactionCallRequestKey(operations);
+      opts.requestKey || createTransactionCallRequestKey(operations);
     const callPromise = coreService.executeTransaction(operations, {
       ...opts,
       requestKey: callRequestKey,
@@ -1077,6 +1077,13 @@ const initCoreActions = (
           if (callAppError) {
             setError({ requestKey, error: callAppError });
           }
+        }
+        // A generated key cannot be recomputed by a consumer or reused by a
+        // later success, so retaining its interceptor error would leak one
+        // unreachable errorStack entry per failed transaction. Explicit keys
+        // remain observable and are therefore left intact.
+        if (!opts.requestKey) {
+          clearError(callRequestKey);
         }
       }
 

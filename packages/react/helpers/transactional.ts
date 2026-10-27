@@ -178,7 +178,7 @@ const getTransactionOperationCallSegment = (
 // `transaction/` namespace still keeps it from colliding with a
 // single-entity action's own key. A caller that genuinely wants dedupe can
 // still pass an explicit `opts.requestKey`.
-export const getTransactionCallRequestKey = (
+export const createTransactionCallRequestKey = (
   operations: TransactionOperation[],
 ): string =>
   `transaction/${operations.map(getTransactionOperationCallSegment).join('|')}#${nanoid()}`;

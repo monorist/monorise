@@ -3,7 +3,7 @@ import type { AxiosRequestConfig } from 'axios';
 import {
   type TransactionOperation,
   type TransactionResult,
-  getTransactionCallRequestKey,
+  createTransactionCallRequestKey,
 } from '../helpers/transactional';
 import {
   getEntityRequestKey,
@@ -299,7 +299,8 @@ const initCoreService = (
         // namespaced so it can never match a single-entity key and unique per
         // call so non-idempotent transaction writes cannot be silently
         // deduplicated. Callers can pass opts.requestKey to opt into dedupe.
-        requestKey: opts.requestKey || getTransactionCallRequestKey(operations),
+        requestKey:
+          opts.requestKey || createTransactionCallRequestKey(operations),
         isInterruptive: opts.isInterruptive ?? true,
         feedback: {
           loading: 'Processing transaction',
