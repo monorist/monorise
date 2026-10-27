@@ -42,6 +42,18 @@ export type TransactionCreateMutual<
   payload?: Record<string, unknown>;
 };
 
+export type TransactionUpdateMutual<
+  B extends Entity = Entity,
+  T extends Entity = Entity,
+> = {
+  operation: 'updateMutual';
+  byEntityType: B;
+  byEntityId: string;
+  entityType: T;
+  entityId: string;
+  payload: Record<string, unknown>;
+};
+
 export type TransactionDeleteMutual<
   B extends Entity = Entity,
   T extends Entity = Entity,
@@ -59,6 +71,7 @@ export type TransactionOperation =
   | TransactionAdjustEntity
   | TransactionDeleteEntity
   | TransactionCreateMutual
+  | TransactionUpdateMutual
   | TransactionDeleteMutual;
 
 // Mirrors packages/core/types/transaction.ts's TransactionResultEntry/Result —
@@ -71,7 +84,7 @@ export type TransactionResultEntry<T extends Entity = Entity> = {
   data?: Record<string, unknown>;
   createdAt?: string;
   updatedAt?: string;
-  // createMutual / deleteMutual entries only.
+  // createMutual / updateMutual / deleteMutual entries only.
   byEntityType?: Entity;
   byEntityId?: string;
   mutualId?: string;
@@ -100,13 +113,22 @@ export const getTransactionOperationRequestKey = (
       return getEntityRequestKey('adjust', op.entityType, op.entityId);
     case 'deleteEntity':
       return getEntityRequestKey('delete', op.entityType, op.entityId);
-    // Same keys the standalone createMutual / deleteMutual calls use.
+    // Same keys the standalone createMutual / editMutual / deleteMutual calls
+    // use, so a component watching one sees the transaction's loading/error.
     case 'createMutual':
       return getMutualRequestKey(
         'create',
         op.byEntityType,
         op.entityType,
         op.byEntityId,
+      );
+    case 'updateMutual':
+      return getMutualRequestKey(
+        'update',
+        op.byEntityType,
+        op.entityType,
+        op.byEntityId,
+        op.entityId,
       );
     case 'deleteMutual':
       return getMutualRequestKey(
@@ -119,6 +141,25 @@ export const getTransactionOperationRequestKey = (
   }
 };
 
+// The segment an op contributes to the call key. Same as its loading key,
+// except for createMutual: that key leaves out the target id (as the
+// standalone createMutual's does), so two transactions linking one entity to
+// two different targets would otherwise share a call key, and lib/api.ts's
+// dedupe would hand the second caller the first's response without sending
+// its operations.
+const getTransactionOperationCallSegment = (
+  op: TransactionOperation,
+): string =>
+  op.operation === 'createMutual'
+    ? getMutualRequestKey(
+        'create',
+        op.byEntityType,
+        op.entityType,
+        op.byEntityId,
+        op.entityId,
+      )
+    : getTransactionOperationRequestKey(op);
+
 // The requestKey for the ONE real HTTP call `executeTransaction` makes.
 // Deterministic (identical operation sets dedupe onto one request, same as
 // any other action's key) but namespaced under `transaction/` so it can
@@ -129,7 +170,8 @@ export const getTransactionOperationRequestKey = (
 // resolve to differently-shaped responses.
 export const getTransactionCallRequestKey = (
   operations: TransactionOperation[],
-): string => `transaction/${operations.map(getTransactionOperationRequestKey).join('|')}`;
+): string =>
+  `transaction/${operations.map(getTransactionOperationCallSegment).join('|')}`;
 
 // NOTE: packages/core/helpers/transactional.ts is the server-side copy of
 // this builder. Both emit the same wire format for the execute-transaction
@@ -191,7 +233,8 @@ export const transactional = {
     entityId,
   }),
 
-  // Same argument order as the standalone createMutual / deleteMutual actions.
+  // Same argument order as the standalone createMutual / editMutual /
+  // deleteMutual actions.
   createMutual: <B extends Entity, T extends Entity>(
     byEntityType: B,
     entityType: T,
@@ -205,6 +248,21 @@ export const transactional = {
     entityType,
     entityId,
     ...(payload !== undefined && { payload }),
+  }),
+
+  updateMutual: <B extends Entity, T extends Entity>(
+    byEntityType: B,
+    entityType: T,
+    byEntityId: string,
+    entityId: string,
+    payload: Record<string, unknown>,
+  ): TransactionUpdateMutual<B, T> => ({
+    operation: 'updateMutual',
+    byEntityType,
+    byEntityId,
+    entityType,
+    entityId,
+    payload,
   }),
 
   deleteMutual: <B extends Entity, T extends Entity>(

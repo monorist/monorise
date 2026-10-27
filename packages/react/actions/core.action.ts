@@ -927,10 +927,12 @@ const initCoreActions = (
               return;
             }
 
-            // createMutual / deleteMutual: same store updates as the
-            // standalone createMutual / deleteMutual actions, both sides.
+            // createMutual / updateMutual / deleteMutual: the same store
+            // updates the standalone createMutual / editMutual / deleteMutual
+            // actions make, on both sides of the link.
             if (
               entry.operation === 'createMutual' ||
+              entry.operation === 'updateMutual' ||
               entry.operation === 'deleteMutual'
             ) {
               const byEntityType = entry.byEntityType as Entity;
@@ -949,6 +951,13 @@ const initCoreActions = (
               if (entry.operation === 'deleteMutual') {
                 state.mutual[bySide]?.dataMap.delete(entityId);
                 state.mutual[side]?.dataMap.delete(byEntityId);
+                return;
+              }
+
+              // An updateMutual whose post-commit read failed carries no
+              // stored values — leave the cache alone rather than guess at
+              // the merge, as for updateEntity below.
+              if (entry.operation === 'updateMutual' && !entry.mutualData) {
                 return;
               }
 
@@ -1557,11 +1566,10 @@ const initCoreActions = (
           );
           const side = getMutualStateKey(entityType, entityId, byEntityType);
 
-          state.mutual[bySide].dataMap.delete(data.entityId);
-
-          if (state.mutual[side]) {
-            state.mutual[side].dataMap.delete(data.byEntityId);
-          }
+          // Either list may never have been fetched; the delete still
+          // succeeded, so don't report it as failed.
+          state.mutual[bySide]?.dataMap.delete(data.entityId);
+          state.mutual[side]?.dataMap.delete(data.byEntityId);
         }),
         undefined,
         `mr/mutual/delete/${getMutualStateKey(byEntityType, byEntityId, entityType, entityId)}`,
