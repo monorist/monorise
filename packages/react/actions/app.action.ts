@@ -1,7 +1,7 @@
 import { produce } from 'immer';
 import { useEffect, useState } from 'react';
-import type { ApplicationRequestError, ModalProps } from '../types/api.type';
 import type { MonoriseStore } from '../store/monorise.store';
+import type { ApplicationRequestError, ModalProps } from '../types/api.type';
 
 type StartLoadingPayload<T> = {
   requestKey: string;
@@ -12,15 +12,19 @@ type StartLoadingPayload<T> = {
   // it registers `requestKey` in `ongoingRequests`, which lib/api.ts's
   // `makeRequest` uses to hand back an in-flight promise to ANY other caller
   // using that same key, even one making a structurally different request.
+  // The entry lasts only while `request` is in flight: once it settles, the
+  // next call with the key (a retry after a failure, say) is sent afresh.
   request?: Promise<T>;
 };
 
 type EndLoadingPayload = {
   requestKey: string;
   isInterruptive?: boolean;
-  // Must match whether the matching startLoading call passed `request` —
-  // otherwise this can delete a genuinely different concurrent call's
-  // `ongoingRequests` entry for the same key.
+  /**
+   * @deprecated No longer needed: endLoading no longer touches
+   * `ongoingRequests`; startLoading drops a request from it when the request
+   * settles.
+   */
   skipDedupe?: boolean;
 };
 
@@ -63,22 +67,35 @@ const initAppActions = (store: MonoriseStore) => {
       undefined,
       `mr/start-loading/${requestKey}`,
     );
+
+    if (request) {
+      // Share the request only while it's in flight. Checked by identity, so
+      // a newer request under the same key is never the one removed.
+      const forget = () => {
+        if (store.getState().app.ongoingRequests.get(requestKey) !== request) {
+          return;
+        }
+        store.setState(
+          produce((state) => {
+            state.app.ongoingRequests.delete(requestKey);
+          }),
+          undefined,
+          `mr/settle-request/${requestKey}`,
+        );
+      };
+      request.then(forget, forget);
+    }
   };
 
-  const endLoading = ({
-    requestKey,
-    isInterruptive,
-    skipDedupe,
-  }: EndLoadingPayload) => {
+  const endLoading = ({ requestKey, isInterruptive }: EndLoadingPayload) => {
+    // The loading signal lingers briefly so it doesn't flicker. Request
+    // dedupe isn't touched here: by now a retry may already be in flight
+    // under the same key.
     setTimeout(() => {
       store.setState(
         produce((state) => {
           const stackType = isInterruptive ? 'intLoadStack' : 'loadStack';
           const requestKeyCount = state.app[stackType].get(requestKey);
-
-          if (!skipDedupe && state.app.ongoingRequests.has(requestKey)) {
-            state.app.ongoingRequests.delete(requestKey);
-          }
 
           if (typeof requestKeyCount === 'number' && requestKeyCount > 1) {
             state.app[stackType].set(requestKey, requestKeyCount - 1);
