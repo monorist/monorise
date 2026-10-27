@@ -6,6 +6,7 @@ import {
   createTransactionCallRequestKey,
 } from '../helpers/transactional';
 import {
+  createMutationCallRequestKey,
   getEntityRequestKey,
   getMutualRequestKey,
   getMutualStateKey,
@@ -70,6 +71,16 @@ const initCoreService = (
   opts?: ConfigOptions,
 ) => {
   let options: ConfigOptions = opts || {};
+
+  const getMutationRequestConfig = (stateKey: string, opts: CommonOptions) => ({
+    requestKey: opts.requestKey ?? createMutationCallRequestKey(stateKey),
+    // Keep the stable mutation key reactive while requestKey remains unique
+    // per write. An explicit key is also observable for backwards
+    // compatibility with useLoadStore/useErrorStore consumers.
+    stateKeys: Array.from(
+      new Set([stateKey, ...(opts.requestKey ? [opts.requestKey] : [])]),
+    ),
+  });
 
   const listEntities = <T extends Entity>(
     entityType: T,
@@ -172,12 +183,12 @@ const initCoreService = (
   ) => {
     const { entityApiBaseUrl = ENTITY_API_BASE_URL } = options;
     const entityConfig = monoriseStore.getState().config;
+    const stateKey = getEntityRequestKey('create', entityType);
     return axios.post<CreatedEntity<T>>(
       opts.customUrl || `${entityApiBaseUrl}/${entityType}`,
       { ...values, ...(opts.entityId && { entityId: opts.entityId }) },
       {
-        requestKey:
-          opts.requestKey || getEntityRequestKey('create', entityType),
+        ...getMutationRequestConfig(stateKey, opts),
         isInterruptive: opts.isInterruptive ?? true,
         feedback: {
           loading: `Creating ${entityConfig[entityType].displayName}`,
@@ -196,11 +207,12 @@ const initCoreService = (
   ) => {
     const { entityApiBaseUrl = ENTITY_API_BASE_URL } = options;
     const entityConfig = monoriseStore.getState().config;
+    const stateKey = getEntityRequestKey('upsert', entityType, id);
     return axios.put<CreatedEntity<T>>(
       opts.customUrl || `${entityApiBaseUrl}/${entityType}/${id}`,
       values,
       {
-        requestKey: getEntityRequestKey('upsert', entityType, id),
+        ...getMutationRequestConfig(stateKey, opts),
         isInterruptive: opts.isInterruptive ?? true,
         feedback: {
           loading: `Updating ${entityConfig[entityType].displayName}`,
@@ -219,11 +231,12 @@ const initCoreService = (
   ) => {
     const { entityApiBaseUrl = ENTITY_API_BASE_URL } = options;
     const entityConfig = monoriseStore.getState().config;
+    const stateKey = getEntityRequestKey('edit', entityType, id);
     return axios.patch<CreatedEntity<T>>(
       opts.customUrl || `${entityApiBaseUrl}/${entityType}/${id}`,
       values,
       {
-        requestKey: getEntityRequestKey('edit', entityType, id),
+        ...getMutationRequestConfig(stateKey, opts),
         isInterruptive: opts.isInterruptive ?? true,
         feedback: {
           loading: `Updating ${entityConfig[entityType].displayName}`,
@@ -242,6 +255,7 @@ const initCoreService = (
   ) => {
     const { entityApiBaseUrl = ENTITY_API_BASE_URL } = options;
     const entityConfig = monoriseStore.getState().config;
+    const stateKey = getEntityRequestKey('adjust', entityType, id);
     const body = opts.condition
       ? { ...adjustments, $condition: opts.condition }
       : adjustments;
@@ -249,7 +263,7 @@ const initCoreService = (
       opts.customUrl || `${entityApiBaseUrl}/${entityType}/${id}/adjust`,
       body,
       {
-        requestKey: getEntityRequestKey('adjust', entityType, id),
+        ...getMutationRequestConfig(stateKey, opts),
         isInterruptive: opts.isInterruptive ?? true,
         feedback: {
           loading: `Updating ${entityConfig[entityType].displayName}`,
@@ -267,10 +281,11 @@ const initCoreService = (
   ) => {
     const { entityApiBaseUrl = ENTITY_API_BASE_URL } = options;
     const entityConfig = monoriseStore.getState().config;
+    const stateKey = getEntityRequestKey('delete', entityType, id);
     return axios.delete(
       opts.customUrl || `${entityApiBaseUrl}/${entityType}/${id}`,
       {
-        requestKey: getEntityRequestKey('delete', entityType, id),
+        ...getMutationRequestConfig(stateKey, opts),
         isInterruptive: opts.isInterruptive ?? true,
         feedback: {
           loading: `Deleting ${entityConfig[entityType].displayName}`,
@@ -300,7 +315,7 @@ const initCoreService = (
         // call so non-idempotent transaction writes cannot be silently
         // deduplicated. Callers can pass opts.requestKey to opt into dedupe.
         requestKey:
-          opts.requestKey || createTransactionCallRequestKey(operations),
+          opts.requestKey ?? createTransactionCallRequestKey(operations),
         isInterruptive: opts.isInterruptive ?? true,
         feedback: {
           loading: 'Processing transaction',
@@ -377,17 +392,19 @@ const initCoreService = (
     opts: CommonOptions = {},
   ) => {
     const { mutualApiBaseUrl = MUTUAL_API_BASE_URL } = options;
+    const stateKey = getMutualRequestKey(
+      'create',
+      byEntityType,
+      entityType,
+      byEntityId,
+      entityId,
+    );
     return axios.post<Mutual<B, T>>(
       opts.customUrl ||
         `${mutualApiBaseUrl}/${getMutualStateKey(byEntityType, byEntityId, entityType, entityId)}`,
       payload,
       {
-        requestKey: getMutualRequestKey(
-          'create',
-          byEntityType,
-          entityType,
-          byEntityId,
-        ),
+        ...getMutationRequestConfig(stateKey, opts),
         isInterruptive: opts.isInterruptive ?? true,
         feedback: {
           loading: 'Creating linkage',
@@ -407,18 +424,19 @@ const initCoreService = (
     opts: CommonOptions = {},
   ) => {
     const { mutualApiBaseUrl = MUTUAL_API_BASE_URL } = options;
+    const stateKey = getMutualRequestKey(
+      'update',
+      byEntityType,
+      entityType,
+      byEntityId,
+      entityId,
+    );
     return axios.patch<Mutual<B, T>>(
       opts.customUrl ||
         `${mutualApiBaseUrl}/${getMutualStateKey(byEntityType, byEntityId, entityType, entityId)}`,
       payload,
       {
-        requestKey: getMutualRequestKey(
-          'update',
-          byEntityType,
-          entityType,
-          byEntityId,
-          entityId,
-        ),
+        ...getMutationRequestConfig(stateKey, opts),
         isInterruptive: opts.isInterruptive ?? true,
         feedback: {
           loading: 'Updating linkage',
@@ -437,17 +455,18 @@ const initCoreService = (
     opts: CommonOptions = {},
   ) => {
     const { mutualApiBaseUrl = MUTUAL_API_BASE_URL } = options;
+    const stateKey = getMutualRequestKey(
+      'delete',
+      byEntityType,
+      entityType,
+      byEntityId,
+      entityId,
+    );
     return axios.delete(
       opts.customUrl ||
         `${mutualApiBaseUrl}/${getMutualStateKey(byEntityType, byEntityId, entityType, entityId)}`,
       {
-        requestKey: getMutualRequestKey(
-          'delete',
-          byEntityType,
-          entityType,
-          byEntityId,
-          entityId,
-        ),
+        ...getMutationRequestConfig(stateKey, opts),
         isInterruptive: opts.isInterruptive ?? true,
         feedback: {
           loading: 'Removing linkage',

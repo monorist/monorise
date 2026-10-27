@@ -256,6 +256,92 @@ Access raw entity store state for a given entity type.
 const entityState = useEntityState(Entity.USER);
 ```
 
+### Mutation hooks
+
+Mutation hooks bind the entity or mutual identity at render time and expose the mutation together with its reactive request state:
+
+```tsx
+const {
+  mutate: editGame,
+  isLoading,
+  error,
+  clearError,
+  requestKey,
+} = useEditEntity(Entity.GAME, gameId);
+
+const result = await editGame({ status: 'completed' });
+```
+
+Every mutation hook returns:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `mutate` | `(...args) => Promise<{ data } \| { error }>` | Runs the corresponding mutation action. |
+| `isLoading` | `boolean` | Whether a matching mutation is in flight. |
+| `error` | `ApplicationRequestError \| undefined` | Normalized error from the last matching mutation. A later success clears it. |
+| `clearError` | `() => void` | Explicitly clears the stored error. It does not cancel a request or change cached data. |
+| `requestKey` | `string` | Stable key used to observe this logical mutation. |
+
+The state is shared by logical target, not local to one component. Calling the existing action function, another instance of the same hook, or an `executeTransaction` operation for that target updates the same `isLoading` and `error` state.
+
+Entity mutation hooks:
+
+| Hook | `mutate` arguments |
+|------|--------------------|
+| `useCreateEntity(entityType, opts?)` | `(data, opts?)` |
+| `useUpsertEntity(entityType, id, opts?)` | `(data, opts?)` |
+| `useEditEntity(entityType, id, opts?)` | `(data, opts?)` |
+| `useAdjustEntity(entityType, id, opts?)` | `(adjustments, opts?)` |
+| `useDeleteEntity(entityType, id, opts?)` | `(opts?)` |
+
+Mutual mutation hooks:
+
+| Hook | `mutate` arguments |
+|------|--------------------|
+| `useCreateMutual(byType, entityType, byId, entityId, opts?)` | `(payload?, opts?)` |
+| `useEditMutual(byType, entityType, byId, entityId, opts?)` | `(payload?, opts?)` |
+| `useDeleteMutual(byType, entityType, byId, entityId, opts?)` | `(opts?)` |
+
+Hook-level options are defaults. Options passed to `mutate` override them, while `feedback` fields are merged:
+
+```tsx
+const { mutate: createEvent, isLoading } = useCreateEntity(
+  Entity.GAME_EVENT,
+  { isInterruptive: false },
+);
+
+await createEvent(event, {
+  feedback: { success: 'Event recorded' },
+});
+```
+
+Writes are sent separately by default, even when two concurrent calls have the same mutation target. This prevents non-idempotent creates, adjustments, and other writes from being silently dropped. Pass the same explicit `requestKey` when deduplication is intentional, such as sharing the in-flight result of a double-click:
+
+```tsx
+const { mutate: createUser } = useCreateEntity(Entity.USER, {
+  requestKey: `create-user/${submissionId}`,
+});
+```
+
+An explicit key changes HTTP deduplication only; the hook continues to expose state under its stable `requestKey`.
+
+`createMutual` state is target-specific. If you manually observe it with `getMutualRequestKey`, include the target ID: `getMutualRequestKey('create', byType, entityType, byId, entityId)`.
+
+Transactions have the same interface. Operations are bound when the hook is created:
+
+```tsx
+import { transactional as tx, useExecuteTransaction } from 'monorise/react';
+
+const transaction = useExecuteTransaction([
+  tx.createEntity(Entity.GAME_EVENT, event),
+  tx.updateEntity(Entity.GAME, gameId, gameUpdate),
+]);
+
+await transaction.mutate();
+```
+
+While it runs, `transaction.isLoading` is true and each contained operation also activates its matching entity or mutual mutation hook.
+
 ### Utility hooks
 
 | Hook | Purpose |
@@ -468,6 +554,8 @@ A mutual entry in the result carries the same fields the standalone call returns
 - while the call is pending, each mutual operation drives the same loading key as its standalone call (`getMutualRequestKey('create' | 'update' | 'delete', …)`), and a failure is recorded on those keys too.
 
 Each transaction call gets a unique request key by default, including when its operations have the same shape as an in-flight transaction. Transactions contain non-idempotent writes, so implicitly de-duplicating them could report success without sending the later write. Pass the same `opts.requestKey` explicitly when you intentionally want multiple calls to share one in-flight request. A `createMutual`'s target id remains in the descriptive part of generated keys.
+
+For reactive transaction state, use [`useExecuteTransaction`](#mutation-hooks). The hook observes a stable transaction key while each HTTP call remains unique by default.
 
 **DynamoDB limits**: Maximum 100 items per transaction. Each `createEntity` uses 2+ items (main record + list index + unique fields). `createMutual`, `updateMutual` and `deleteMutual` use 3 items each (plus the projection's items for an `asEntity` mutual). Other operations use 1 item each. A transaction can't touch the same record twice, so one link can only be created, updated or deleted once per transaction. A `createMutual` reads both entities before the commit, so it can't link to an entity created in the same transaction.
 

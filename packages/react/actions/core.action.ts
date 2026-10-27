@@ -5,7 +5,14 @@ import type {
   EntitySchemaMap,
 } from '@monorise/base';
 import { produce } from 'immer';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import {
+  type TransactionCreateEntity,
+  type TransactionOperation,
+  createTransactionCallRequestKey,
+  getTransactionOperationRequestKey,
+  getTransactionRequestKey,
+} from '../helpers/transactional';
 import {
   byEntityId,
   constructLocal,
@@ -33,12 +40,6 @@ import type { ApplicationRequestError } from '../types/api.type';
 import type { CommonStore } from '../types/monorise.type';
 import type { Mutual, MutualData } from '../types/mutual.type';
 import type { AppActions } from './app.action';
-import {
-  createTransactionCallRequestKey,
-  getTransactionOperationRequestKey,
-  type TransactionCreateEntity,
-  type TransactionOperation,
-} from '../helpers/transactional';
 
 // ===== Important tips ======
 // Should we use store.getState() or store()?
@@ -521,24 +522,26 @@ const initCoreActions = (
                 }
 
                 // check if any processor result matches this tag store's params
-                const matches = processorResults.some((result) => {
-                  if (keyParams.group && result.group !== keyParams.group) {
-                    return false;
-                  }
-                  if (
-                    keyParams.start &&
-                    (!result.sortValue || result.sortValue < keyParams.start)
-                  ) {
-                    return false;
-                  }
-                  if (
-                    keyParams.end &&
-                    (!result.sortValue || result.sortValue > keyParams.end)
-                  ) {
-                    return false;
-                  }
-                  return true;
-                });
+                const matches = processorResults.some(
+                  (result: { group?: string; sortValue?: string }) => {
+                    if (keyParams.group && result.group !== keyParams.group) {
+                      return false;
+                    }
+                    if (
+                      keyParams.start &&
+                      (!result.sortValue || result.sortValue < keyParams.start)
+                    ) {
+                      return false;
+                    }
+                    if (
+                      keyParams.end &&
+                      (!result.sortValue || result.sortValue > keyParams.end)
+                    ) {
+                      return false;
+                    }
+                    return true;
+                  },
+                );
 
                 if (matches) {
                   state.tag[tagKey].dataMap.set(data.entityId, data);
@@ -867,9 +870,14 @@ const initCoreActions = (
   ) => {
     const onError = opts.onError ?? defaultOnError;
     const isInterruptive = opts.isInterruptive ?? true;
-    const opRequestKeys = operations.map(getTransactionOperationRequestKey);
+    const stateRequestKeys = Array.from(
+      new Set([
+        getTransactionRequestKey(operations),
+        ...operations.map(getTransactionOperationRequestKey),
+      ]),
+    );
     // The joined key is namespaced under `transaction/` so it can never
-    // match a single-entity action's own key — using e.g. opRequestKeys[0]
+    // match a single-entity action's own key — using e.g. one operation key
     // directly would let a standalone editEntity/createEntity call on that
     // same target collide with this transaction via lib/api.ts's
     // `ongoingRequests` dedupe, handing either caller the other's
@@ -878,14 +886,15 @@ const initCoreActions = (
     // createTransactionCallRequestKey for why deduping them silently loses
     // writes. Pass `opts.requestKey` explicitly to opt back into dedupe.
     const callRequestKey =
-      opts.requestKey || createTransactionCallRequestKey(operations);
+      opts.requestKey ?? createTransactionCallRequestKey(operations);
     const callPromise = coreService.executeTransaction(operations, {
       ...opts,
       requestKey: callRequestKey,
     });
     const loadingMessage = opts.feedback?.loading ?? 'Processing transaction';
 
-    // Drive the same per-entity loading/error signal a standalone
+    // Drive the transaction hook's key plus the same per-target loading/error
+    // signal a standalone
     // createEntity/editEntity/adjustEntity/deleteEntity call on each op's
     // target would have driven, so a component checking any op's target via
     // useLoadStore/getError sees "mutating" during a transaction too. `request`
@@ -894,7 +903,7 @@ const initCoreActions = (
     // target dedupe onto (and never actually send) its own write. These keys
     // exist purely for loading/error *signaling*, not for de-duplicating this
     // HTTP call — that's callRequestKey's job.
-    for (const requestKey of opRequestKeys) {
+    for (const requestKey of stateRequestKeys) {
       startLoading({ requestKey, isInterruptive, message: loadingMessage });
     }
 
@@ -910,7 +919,7 @@ const initCoreActions = (
     try {
       const { data } = await callPromise;
 
-      for (const requestKey of opRequestKeys) {
+      for (const requestKey of stateRequestKeys) {
         endLoading({ requestKey, isInterruptive, skipDedupe: true });
         clearError(requestKey);
       }
@@ -1072,7 +1081,7 @@ const initCoreActions = (
         // than re-deriving the AxiosError → ApplicationRequestError shaping
         // logic here.
         const callAppError = getError(callRequestKey);
-        for (const requestKey of opRequestKeys) {
+        for (const requestKey of stateRequestKeys) {
           endLoading({ requestKey, isInterruptive, skipDedupe: true });
           if (callAppError) {
             setError({ requestKey, error: callAppError });
@@ -1664,6 +1673,254 @@ const initCoreActions = (
       undefined,
       `mr/mutual/local-delete-by-entity/${entityType}/${id}`,
     );
+  };
+
+  const mergeMutationOptions = (
+    hookOptions: CommonOptions,
+    mutateOptions: CommonOptions,
+  ): CommonOptions => ({
+    ...hookOptions,
+    ...mutateOptions,
+    ...((hookOptions.feedback || mutateOptions.feedback) && {
+      feedback: {
+        ...hookOptions.feedback,
+        ...mutateOptions.feedback,
+      },
+    }),
+  });
+
+  const useMutationState = (requestKey: string) => {
+    const isLoading = useLoadStore(requestKey);
+    const error = useErrorStore(requestKey);
+    const clearMutationError = useCallback(
+      () => clearError(requestKey),
+      [requestKey],
+    );
+
+    return {
+      isLoading,
+      error,
+      requestKey,
+      clearError: clearMutationError,
+    };
+  };
+
+  const useCreateEntity = <T extends Entity>(
+    entityType: T,
+    opts: CommonOptions = {},
+  ) => {
+    const mutation = useMutationState(
+      getEntityRequestKey('create', entityType),
+    );
+    const mutate = useCallback(
+      (entity: DraftEntity<T>, mutateOpts: CommonOptions = {}) =>
+        createEntity(
+          entityType,
+          entity,
+          mergeMutationOptions(opts, mutateOpts),
+        ),
+      [entityType, opts],
+    );
+
+    return { mutate, ...mutation };
+  };
+
+  const useUpsertEntity = <T extends Entity>(
+    entityType: T,
+    id: string,
+    opts: CommonOptions = {},
+  ) => {
+    const mutation = useMutationState(
+      getEntityRequestKey('upsert', entityType, id),
+    );
+    const mutate = useCallback(
+      (entity: DraftEntity<T>, mutateOpts: CommonOptions = {}) =>
+        upsertEntity(
+          entityType,
+          id,
+          entity,
+          mergeMutationOptions(opts, mutateOpts),
+        ),
+      [entityType, id, opts],
+    );
+
+    return { mutate, ...mutation };
+  };
+
+  const useEditEntity = <T extends Entity>(
+    entityType: T,
+    id: string,
+    opts: CommonOptions = {},
+  ) => {
+    const mutation = useMutationState(
+      getEntityRequestKey('edit', entityType, id),
+    );
+    const mutate = useCallback(
+      (entity: Partial<DraftEntity<T>>, mutateOpts: CommonOptions = {}) =>
+        editEntity(
+          entityType,
+          id,
+          entity,
+          mergeMutationOptions(opts, mutateOpts),
+        ),
+      [entityType, id, opts],
+    );
+
+    return { mutate, ...mutation };
+  };
+
+  const useAdjustEntity = <T extends Entity>(
+    entityType: T,
+    id: string,
+    opts: CommonOptions = {},
+  ) => {
+    const mutation = useMutationState(
+      getEntityRequestKey('adjust', entityType, id),
+    );
+    const mutate = useCallback(
+      (adjustments: Record<string, number>, mutateOpts: CommonOptions = {}) =>
+        adjustEntity(
+          entityType,
+          id,
+          adjustments,
+          mergeMutationOptions(opts, mutateOpts),
+        ),
+      [entityType, id, opts],
+    );
+
+    return { mutate, ...mutation };
+  };
+
+  const useDeleteEntity = <T extends Entity>(
+    entityType: T,
+    id: string,
+    opts: CommonOptions = {},
+  ) => {
+    const mutation = useMutationState(
+      getEntityRequestKey('delete', entityType, id),
+    );
+    const mutate = useCallback(
+      (mutateOpts: CommonOptions = {}) =>
+        deleteEntity(entityType, id, mergeMutationOptions(opts, mutateOpts)),
+      [entityType, id, opts],
+    );
+
+    return { mutate, ...mutation };
+  };
+
+  const useCreateMutual = <B extends Entity, T extends Entity>(
+    byEntityType: B,
+    entityType: T,
+    byEntityId: string,
+    entityId: string,
+    opts: CommonOptions = {},
+  ) => {
+    const mutation = useMutationState(
+      getMutualRequestKey(
+        'create',
+        byEntityType,
+        entityType,
+        byEntityId,
+        entityId,
+      ),
+    );
+    const mutate = useCallback(
+      (
+        payload: MutualData<B, T> | Record<string, any> = {},
+        mutateOpts: CommonOptions = {},
+      ) =>
+        createMutual(
+          byEntityType,
+          entityType,
+          byEntityId,
+          entityId,
+          payload,
+          mergeMutationOptions(opts, mutateOpts),
+        ),
+      [byEntityType, entityType, byEntityId, entityId, opts],
+    );
+
+    return { mutate, ...mutation };
+  };
+
+  const useEditMutual = <B extends Entity, T extends Entity>(
+    byEntityType: B,
+    entityType: T,
+    byEntityId: string,
+    entityId: string,
+    opts: CommonOptions = {},
+  ) => {
+    const mutation = useMutationState(
+      getMutualRequestKey(
+        'update',
+        byEntityType,
+        entityType,
+        byEntityId,
+        entityId,
+      ),
+    );
+    const mutate = useCallback(
+      (
+        payload: MutualData<B, T> | Record<string, any> = {},
+        mutateOpts: CommonOptions = {},
+      ) =>
+        editMutual(
+          byEntityType,
+          entityType,
+          byEntityId,
+          entityId,
+          payload,
+          mergeMutationOptions(opts, mutateOpts),
+        ),
+      [byEntityType, entityType, byEntityId, entityId, opts],
+    );
+
+    return { mutate, ...mutation };
+  };
+
+  const useDeleteMutual = <B extends Entity, T extends Entity>(
+    byEntityType: B,
+    entityType: T,
+    byEntityId: string,
+    entityId: string,
+    opts: CommonOptions = {},
+  ) => {
+    const mutation = useMutationState(
+      getMutualRequestKey(
+        'delete',
+        byEntityType,
+        entityType,
+        byEntityId,
+        entityId,
+      ),
+    );
+    const mutate = useCallback(
+      (mutateOpts: CommonOptions = {}) =>
+        deleteMutual(
+          byEntityType,
+          entityType,
+          byEntityId,
+          entityId,
+          mergeMutationOptions(opts, mutateOpts),
+        ),
+      [byEntityType, entityType, byEntityId, entityId, opts],
+    );
+
+    return { mutate, ...mutation };
+  };
+
+  const useExecuteTransaction = (
+    operations: TransactionOperation[],
+    opts: CommonOptions = {},
+  ) => {
+    const mutation = useMutationState(getTransactionRequestKey(operations));
+    const mutate = useCallback(
+      (mutateOpts: CommonOptions = {}) =>
+        executeTransaction(operations, mergeMutationOptions(opts, mutateOpts)),
+      [operations, opts],
+    );
+
+    return { mutate, ...mutation };
   };
 
   const useEntity = <T extends Entity>(
@@ -2281,6 +2538,15 @@ const initCoreActions = (
     editMutual,
     deleteMutual,
     deleteLocalMutual,
+    useCreateEntity,
+    useUpsertEntity,
+    useEditEntity,
+    useAdjustEntity,
+    useDeleteEntity,
+    useExecuteTransaction,
+    useCreateMutual,
+    useEditMutual,
+    useDeleteMutual,
     useEntity,
     useEntityByUniqueField,
     useEntities,

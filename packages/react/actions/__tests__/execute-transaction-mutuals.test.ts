@@ -473,7 +473,7 @@ describe('executeTransaction mutual request keys', () => {
       tx.deleteMutual(USER, TEAM, 'u2', 't9'),
     ];
     const keys = [
-      getMutualRequestKey('create', USER, TEAM, 'u1'),
+      getMutualRequestKey('create', USER, TEAM, 'u1', 't1'),
       getMutualRequestKey('update', USER, TEAM, 'u1', 't9'),
       getMutualRequestKey('delete', USER, TEAM, 'u2', 't9'),
     ];
@@ -535,7 +535,7 @@ describe('executeTransaction mutual request keys', () => {
       },
     );
     const keys = [
-      getMutualRequestKey('create', USER, TEAM, 'u1'),
+      getMutualRequestKey('create', USER, TEAM, 'u1', 't1'),
       getMutualRequestKey('delete', USER, TEAM, 'u2', 't9'),
     ];
     const prior = snapshot(h.store);

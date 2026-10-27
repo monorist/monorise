@@ -1,4 +1,5 @@
 import type { Entity } from '@monorise/base';
+import { nanoid } from 'nanoid';
 
 export const convertToMap = <T extends Record<string, any>>(
   data: T[],
@@ -69,6 +70,14 @@ export const getEntityRequestKey = (
 ) => {
   return `entity/${entityType}/${mode}${entityId ? `/${entityId}` : ''}`;
 };
+
+/**
+ * Creates the key for one non-idempotent mutation call. The stable key stays
+ * in the prefix for debugging while the nonce prevents an unrelated write
+ * from receiving this call's in-flight promise.
+ */
+export const createMutationCallRequestKey = (requestKey: string) =>
+  `${requestKey}#${nanoid()}`;
 
 export const getMutualRequestKey = (
   mode: 'create' | 'update' | 'delete' | 'get' | 'list',

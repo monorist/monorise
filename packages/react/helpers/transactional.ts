@@ -1,6 +1,9 @@
 import type { Entity, EntitySchemaMap } from '@monorise/base';
-import { nanoid } from 'nanoid';
-import { getEntityRequestKey, getMutualRequestKey } from '../lib/utils';
+import {
+  createMutationCallRequestKey,
+  getEntityRequestKey,
+  getMutualRequestKey,
+} from '../lib/utils';
 
 export type TransactionCreateEntity<T extends Entity = Entity> = {
   operation: 'createEntity';
@@ -122,6 +125,7 @@ export const getTransactionOperationRequestKey = (
         op.byEntityType,
         op.entityType,
         op.byEntityId,
+        op.entityId,
       );
     case 'updateMutual':
       return getMutualRequestKey(
@@ -142,23 +146,12 @@ export const getTransactionOperationRequestKey = (
   }
 };
 
-// The segment an op contributes to the call key. Same as its loading key,
-// except for createMutual: that key leaves out the target id (as the
-// standalone createMutual's does). Keep the target here so the descriptive
-// part of call keys still distinguishes transactions linking different
-// entities; the nonce below is what guarantees uniqueness between calls.
-const getTransactionOperationCallSegment = (
-  op: TransactionOperation,
+// Stable key shared by every observer of this transaction shape. Unlike the
+// call key below, this key is never used to deduplicate HTTP requests.
+export const getTransactionRequestKey = (
+  operations: TransactionOperation[],
 ): string =>
-  op.operation === 'createMutual'
-    ? getMutualRequestKey(
-        'create',
-        op.byEntityType,
-        op.entityType,
-        op.byEntityId,
-        op.entityId,
-      )
-    : getTransactionOperationRequestKey(op);
+  `transaction/${operations.map(getTransactionOperationRequestKey).join('|')}`;
 
 // The requestKey for the ONE real HTTP call `executeTransaction` makes.
 //
@@ -180,8 +173,7 @@ const getTransactionOperationCallSegment = (
 // still pass an explicit `opts.requestKey`.
 export const createTransactionCallRequestKey = (
   operations: TransactionOperation[],
-): string =>
-  `transaction/${operations.map(getTransactionOperationCallSegment).join('|')}#${nanoid()}`;
+): string => createMutationCallRequestKey(getTransactionRequestKey(operations));
 
 // NOTE: packages/core/helpers/transactional.ts is the server-side copy of
 // this builder. Both emit the same wire format for the execute-transaction
