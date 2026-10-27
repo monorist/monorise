@@ -7,6 +7,7 @@ export {
   MutualService,
   MutualRepository,
   TagRepository,
+  WebSocketRepository,
   PROJECTION_EXPRESSION,
   createEntityProcessor,
   mutualProcessor,
@@ -16,6 +17,10 @@ export {
   DependencyContainer,
   StandardError,
   StandardErrorCode,
+  wsConnect,
+  wsDisconnect,
+  wsDefault,
+  wsBroadcast,
 } from '../../packages/core/index';
 
 import CoreFactory from '../../packages/core';

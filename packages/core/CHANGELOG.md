@@ -1,5 +1,105 @@
 # @monorise/core
 
+## 4.10.0
+
+### Minor Changes
+
+- 0a6dde6: Feature: `createMutual`, `updateMutual` and `deleteMutual` operations in `executeTransaction` (`POST /transaction`).
+
+  A link change can now commit atomically with entity changes. The motivating case is a counter that must never drop below a floor while a link is removed — e.g. a player who must always keep at least one guardian:
+
+  ```ts
+  import { executeTransaction, transactional as tx } from "monorise/react";
+
+  // player adjustmentConditions: { leave: { guardianCount: { $gte: 2 } } }
+  await executeTransaction([
+    tx.adjustEntity(Entity.PLAYER, playerId, {
+      guardianCount: -1,
+      $condition: "leave",
+    }),
+    tx.deleteMutual(Entity.GUARDIAN, Entity.PLAYER, guardianId, playerId),
+  ]);
+  ```
+
+  Previously the two writes had to be issued separately, so a failure between them, or two guardians leaving at once, could leave the counter and the links out of step. Now, if the condition fails, the transaction returns `409 TRANSACTION_FAILED`, the link is kept and the counter is untouched.
+
+  - **Same behaviour as the standalone calls.** Each operation reuses the standalone path's own preparation, so a transactional mutual validates and writes exactly what the standalone call would:
+    - `MutualService.createMutual` is split into `prepareCreateMutual` (validate the payload against `mutualDataSchema`, read both entities, check no live link exists, build the records) and the commit. An `asEntity` projection is written in the same transaction, and its `afterCreateEntityHook` runs after the commit and before events are published.
+    - `MutualRepository.updateMutual` is split into `prepareUpdateMutual` and the commit, with unchanged behaviour (`maxObjectUpdateLevel`, `returnUpdatedValue`, and `CONDITIONAL_CHECK_FAILED` → `MUTUAL_NOT_FOUND`). `MutualService.prepareUpdateMutual` validates the patch with the same `asEntity`-aware schema as `updateMutual`.
+    - `MutualRepository.deleteMutual` builds its 10-minute soft delete through the new `prepareDeleteMutual`.
+    - Each publishes the same event as its standalone call: `MUTUAL_CREATED`, `MUTUAL_UPDATED` with `updatedByAccountId`, and `MUTUAL_UPDATED` with `deletedByAccountId` for a delete.
+  - **Builders.** `transactional.createMutual(byEntityType, entityType, byEntityId, entityId, payload?)`, `transactional.updateMutual(byEntityType, entityType, byEntityId, entityId, payload)` and `transactional.deleteMutual(byEntityType, entityType, byEntityId, entityId)`, in both `@monorise/core` and `@monorise/react`, take the same argument order as the standalone `createMutual`, `editMutual` and `deleteMutual`.
+  - **Results.** Mutual entries carry the fields the standalone call returns: `byEntityType`, `byEntityId`, `mutualId`, `data`, `mutualData`, `createdAt`, `updatedAt` and `mutualUpdatedAt`. An `updateMutual` entry is read back after the commit, as `PATCH /mutual/...` is. When the same transaction also updated or adjusted a link's target entity, the entry's `data` is that entity's committed data, whatever the operation order.
+  - **React cache.** `executeTransaction` updates the store exactly as the standalone `createMutual`, `editMutual` and `deleteMutual` do: both sides of the link, `useMutual` for the pair, lists never fetched (created, not marked fetched), chain-query lists left alone, new Map references so subscribers re-render, and each operation's standalone loading and error key. If an `updateMutual`'s post-commit read failed, the cache is left as it was. `@monorise/react` now has a vitest suite (run from the root `npm test`) that checks each of these against the standalone actions.
+  - **Errors.** `MUTUAL_EXISTS` (createMutual on a linked pair) maps to `409`, and `MUTUAL_NOT_FOUND` (updateMutual or deleteMutual on an unlinked pair) to `404`, in line with the transaction endpoint's existing conflict and not-found codes. An unknown entity type is `400 INVALID_ENTITY_TYPE`, and a missing id or `updateMutual` payload `400 TRANSACTION_INVALID_OPERATION`.
+  - **Limits.** Each mutual operation uses 3 of DynamoDB's 100 transaction items (plus the projection's items for an `asEntity` mutual). A transaction can't touch the same record twice, so one link can be changed only once per transaction (`TRANSACTION_VALIDATION_ERROR`). A `createMutual` reads both entities before the commit, so it can't link to an entity created in the same transaction.
+
+  Two fixes in `@monorise/react` alongside:
+
+  - **Transactions linking one entity to different targets no longer share an in-flight request.** The transaction call key is derived from its operations, and identically shaped batches still share one request. A `createMutual`'s loading key leaves out the target id, as the standalone `createMutual`'s does, so its share of the call key now includes it. Without that, a second transaction linking the same entity to another target was handed the first one's response and never sent.
+  - **The standalone `deleteMutual` no longer reports a successful delete as failed when the by-side list was never fetched.** It updated `state.mutual[bySide]` without checking that the list existed.
+
+  `TransactionService` takes `MutualService` as a new, optional, last constructor argument. `DependencyContainer` passes it, and a service built without it rejects mutual operations with `TRANSACTION_INVALID_OPERATION`, so existing direct constructions keep working.
+
+## 4.9.0
+
+### Minor Changes
+
+- 2610ad5: Add an optional WebSocket layer for real-time entity and mutual updates, plus graph-aware entity feed subscriptions.
+
+  Opt in with `webSocket: { enabled: true }` on `MonoriseCore`; projects that leave it off are unaffected. Mutations continue to go over HTTP, so authorization stays a per-write check and callers keep cache invalidation for free; the socket carries reads only.
+
+  ### WebSocket layer
+
+  - Lambda handlers for `$connect`, `$disconnect`, `$default` and broadcast
+  - SST `MonoriseCore` gains a `webSocket` option that provisions an API Gateway WebSocket API
+  - DynamoDB Streams drive broadcast of entity and mutual changes
+  - CLI generates the WebSocket handler re-exports in `handle.ts`
+  - React hooks `useEntitySocket`, `useMutualSocket` and `useEphemeralSocket`, with exponential-backoff reconnect and auto-refetch on reconnect so events missed while disconnected are not lost
+  - Subscriptions are keyed by entity TYPE rather than entity id, which bounds connection-table growth
+
+  ### Entity feed subscriptions
+
+  `broadcastToFeedSubscribers()` resolves recipients by walking the changed entity's mutual relationships plus the entity itself, so a client subscribed to one subject also receives changes to entities connected to it without subscribing to each one. `useEntityFeed` routes those broadcasts into the stores, so components using the existing hooks update with no extra wiring.
+
+  Two behaviours worth knowing when adopting this:
+
+  - `feedTypes` are resolved transitively through the mutual config graph. Deriving them from the subject's own `mutualFields` alone misses any type whose edge is declared on the other side of the relationship, and the failure is silent: the socket connects and then delivers nothing.
+  - A shared entity id does not imply feed reachability. Two entities sharing an id are still unrelated for fan-out; a mutual is required.
+
+  Broadcast subscriber queries use `ConsistentRead`, since an eventually-consistent read here drops recipients, and `$disconnect` clears every subscription record for the connection via the R1 GSI.
+
+  ### Ticket-based auth
+
+  The browser WebSocket API cannot set headers, which usually leaves a token in the query string or an unauthenticated connect. Instead, `POST /ws/ticket/:entityType/:entityId` issues a short-lived (30 minute), one-time, DynamoDB-stored ticket. `$connect` accepts ticket auth alongside token auth and creates the feed subscription on connect. `@monorise/proxy` exports `generateWebSocketTicket()` so a server-side proxy can mint one for a client that must not hold a long-lived credential.
+
+  ### Fixes
+
+  - `baseSchema` is now always included in `FinalSchemaType`
+  - The `sst` peer dependency is loosened from an exact `4.7.3` to `^4.7.3`
+
+  ### No change to DynamoDB TTL
+
+  Calling this out because an earlier revision of this branch did change it: `SingleTable` still hardcodes the TTL attribute as `expiresAt`, and neither it nor `MonoriseCore` accepts a `ttl`/`tableTtl` argument. That is unchanged behaviour, not a new constraint -- monorise's own internals (mutual and tag locks, entity-level TTL, analytics executions) all write that attribute name, so it cannot be configurable.
+
+  ### Note on fan-out cost
+
+  Fan-out is proportional to the changed entity's mutual degree, so an entity whose per-update payload grows with the number of related records produces frames that grow with it. The fix is schema-side: split frequently-updated fields onto their own entity so each update touches a small, flat record.
+
+  ### Moved exports
+
+  `WebSocketManager` and `OptimisticEngine` now live in `@monorise/react` rather than `@monorise/core`:
+
+  ```typescript
+  // Before
+  import { WebSocketManager } from "@monorise/core";
+
+  // After
+  import { WebSocketManager } from "@monorise/react";
+  ```
+
+  This is a breaking move for anyone importing either symbol from `@monorise/core`. It is released as a minor deliberately: the WebSocket layer has no consumers on these exports yet, so spending a major on relocating them buys nothing.
+
 ## 4.8.0
 
 ### Minor Changes

@@ -2,9 +2,12 @@ import type { Entity as EntityType, EntitySchemaMap } from '@monorise/base';
 import type {
   TransactionAdjustEntity,
   TransactionCreateEntity,
+  TransactionCreateMutual,
   TransactionDeleteEntity,
+  TransactionDeleteMutual,
   TransactionOperation,
   TransactionUpdateEntity,
+  TransactionUpdateMutual,
 } from '../types/transaction';
 
 // NOTE: packages/react/helpers/transactional.ts is a browser-safe copy of
@@ -63,6 +66,51 @@ export const transactional = {
     entityId: string,
   ): TransactionDeleteEntity<T> => ({
     operation: 'deleteEntity',
+    entityType,
+    entityId,
+  }),
+
+  // Same argument order as the client's standalone createMutual / editMutual
+  // / deleteMutual.
+  createMutual: <B extends EntityType, T extends EntityType>(
+    byEntityType: B,
+    entityType: T,
+    byEntityId: string,
+    entityId: string,
+    payload?: Record<string, unknown>,
+  ): TransactionCreateMutual<B, T> => ({
+    operation: 'createMutual',
+    byEntityType,
+    byEntityId,
+    entityType,
+    entityId,
+    ...(payload && { payload }),
+  }),
+
+  updateMutual: <B extends EntityType, T extends EntityType>(
+    byEntityType: B,
+    entityType: T,
+    byEntityId: string,
+    entityId: string,
+    payload: Record<string, unknown>,
+  ): TransactionUpdateMutual<B, T> => ({
+    operation: 'updateMutual',
+    byEntityType,
+    byEntityId,
+    entityType,
+    entityId,
+    payload,
+  }),
+
+  deleteMutual: <B extends EntityType, T extends EntityType>(
+    byEntityType: B,
+    entityType: T,
+    byEntityId: string,
+    entityId: string,
+  ): TransactionDeleteMutual<B, T> => ({
+    operation: 'deleteMutual',
+    byEntityType,
+    byEntityId,
     entityType,
     entityId,
   }),

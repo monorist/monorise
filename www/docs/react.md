@@ -437,14 +437,43 @@ await coreService.transaction([
 | `updateEntity` | Partial update (no unique field changes allowed in transactions) |
 | `adjustEntity` | Atomic numeric increment/decrement (with condition support) |
 | `deleteEntity` | Delete an entity |
+| `createMutual` | Link two entities, with mutual data validated against the pair's `mutualDataSchema` |
+| `updateMutual` | Patch a link's mutual data, validated the same way as the standalone `editMutual` |
+| `deleteMutual` | Unlink two entities |
 
 **Conditions**: `adjustEntity` and `updateEntity` support the `condition` field, referencing `adjustmentConditions` or `updateConditions` defined in the entity config.
 
-**DynamoDB limits**: Maximum 100 items per transaction. Each `createEntity` uses 2+ items (main record + list index + unique fields). Other operations use 1 item each.
+**Mutuals in a transaction**: `createMutual`, `updateMutual` and `deleteMutual` take the same arguments, in the same order, as the standalone `createMutual`, `editMutual` and `deleteMutual` ([Mutual actions](#mutual-actions)). They let a link change commit together with an entity change — for example, removing a member while keeping a counter that must never drop below one:
 
-**Atomicity**: If any operation fails (condition violation, duplicate unique field, missing entity for delete), the entire transaction is rolled back — no partial writes.
+```ts
+import { executeTransaction, transactional as tx } from 'monorise/react';
 
-**Events**: Events (`ENTITY_CREATED`, `ENTITY_UPDATED`, `ENTITY_DELETED`) are published only after the transaction commits successfully. Replication, tag, and mutual processors work normally.
+// adjustmentConditions: { leave: { memberCount: { $gte: 2 } } }
+await executeTransaction([
+  tx.adjustEntity(Entity.TEAM, teamId, { memberCount: -1, $condition: 'leave' }),
+  tx.deleteMutual(Entity.USER, Entity.TEAM, userId, teamId),
+]);
+```
+
+If the condition fails, the link is kept and the counter is untouched. A transactional mutual runs the same validation and writes the same records as the standalone call, including an `asEntity` projection, whose `afterCreateEntityHook` runs once the transaction commits.
+
+A mutual entry in the result carries the same fields the standalone call returns. For `updateMutual` that is the stored `mutualData`, read back after the commit. When the same transaction also updated or adjusted the link's target entity, the entry's `data` is that entity's committed data, whatever the operation order.
+
+**Cache**: `executeTransaction` updates the store exactly as the standalone `createMutual`, `editMutual` and `deleteMutual` do:
+
+- both sides of the link (`useMutuals(by, entity, byId)` and `useMutuals(entity, by, entityId)`), and so `useMutual` for the pair, which reads the same list;
+- a list that was never fetched is created but not marked fetched, so its first `useMutuals` mount still loads it;
+- lists keyed with a chain query are not touched, as with the standalone calls;
+- if an `updateMutual`'s post-commit read failed, its entry carries no stored values and the cache is left as it was;
+- while the call is pending, each mutual operation drives the same loading key as its standalone call (`getMutualRequestKey('create' | 'update' | 'delete', …)`), and a failure is recorded on those keys too.
+
+Each transaction call gets a unique request key by default, including when its operations have the same shape as an in-flight transaction. Transactions contain non-idempotent writes, so implicitly de-duplicating them could report success without sending the later write. Pass the same `opts.requestKey` explicitly when you intentionally want multiple calls to share one in-flight request. A `createMutual`'s target id remains in the descriptive part of generated keys.
+
+**DynamoDB limits**: Maximum 100 items per transaction. Each `createEntity` uses 2+ items (main record + list index + unique fields). `createMutual`, `updateMutual` and `deleteMutual` use 3 items each (plus the projection's items for an `asEntity` mutual). Other operations use 1 item each. A transaction can't touch the same record twice, so one link can only be created, updated or deleted once per transaction. A `createMutual` reads both entities before the commit, so it can't link to an entity created in the same transaction.
+
+**Atomicity**: If any operation fails (condition violation, duplicate unique field, missing entity for delete), the entire transaction is rolled back — no partial writes. A `createMutual` for an already-linked pair fails with `409 MUTUAL_EXISTS`, and an `updateMutual` or `deleteMutual` for an unlinked pair with `404 MUTUAL_NOT_FOUND`.
+
+**Events**: Events (`ENTITY_CREATED`, `ENTITY_UPDATED`, `ENTITY_DELETED`, and the same mutual events the standalone `createMutual`/`editMutual`/`deleteMutual` publish) are published only after the transaction commits successfully. Replication, tag, and mutual processors work normally.
 
 ### Mutual actions
 
@@ -466,3 +495,18 @@ When you call `createEntity`, `editEntity`, or `deleteEntity`, the store automat
 - **Delete**: Entity is removed from all mutual and tag stores
 
 This means `useMutuals` and `useTaggedEntities` reflect changes immediately without a manual refetch.
+
+---
+
+## WebSocket Hooks
+
+Monorise provides WebSocket hooks for real-time updates. These are documented in detail on the [WebSocket](/websocket) page.
+
+| Hook | Purpose |
+|------|---------|
+| `useEntityFeed(opts)` | Graph-aware real-time feed for an entity — recommended for most apps |
+| `useEntitySocket(entityType, opts?)` | Subscribe to all CRUD events for an entity type |
+| `useMutualSocket(byType, byId, entityType, opts?)` | Subscribe to mutual changes for a specific entity pair |
+| `useEphemeralSocket(channel, opts?)` | Non-persisted messages (typing indicators, presence) |
+
+The feed hook auto-updates the same stores that `useEntities` and `useMutuals` read from — no new API to learn. See the [WebSocket chat example](/websocket#example-chat-app) for a complete working app with entity feed, unread tracking, typing indicators, and connection recovery.

@@ -929,6 +929,71 @@ const initCoreActions = (
               return;
             }
 
+            // createMutual / updateMutual / deleteMutual: the same store
+            // updates the standalone createMutual / editMutual / deleteMutual
+            // actions make, on both sides of the link.
+            if (
+              entry.operation === 'createMutual' ||
+              entry.operation === 'updateMutual' ||
+              entry.operation === 'deleteMutual'
+            ) {
+              const byEntityType = entry.byEntityType as Entity;
+              const byEntityId = entry.byEntityId as string;
+              const bySide = getMutualStateKey(
+                byEntityType,
+                byEntityId,
+                entityType,
+              );
+              const side = getMutualStateKey(
+                entityType,
+                entityId,
+                byEntityType,
+              );
+
+              if (entry.operation === 'deleteMutual') {
+                state.mutual[bySide]?.dataMap.delete(entityId);
+                state.mutual[side]?.dataMap.delete(byEntityId);
+                return;
+              }
+
+              // An updateMutual whose post-commit read failed carries no
+              // stored values — leave the cache alone rather than guess at
+              // the merge, as for updateEntity below.
+              if (entry.operation === 'updateMutual' && !entry.mutualData) {
+                return;
+              }
+
+              const mutual = {
+                byEntityType,
+                byEntityId,
+                entityType,
+                entityId,
+                mutualId: entry.mutualId,
+                data: entry.data ?? {},
+                mutualData: entry.mutualData ?? {},
+                createdAt: entry.createdAt,
+                updatedAt: entry.updatedAt,
+                mutualUpdatedAt: entry.mutualUpdatedAt,
+              } as unknown as Mutual;
+
+              if (!state.mutual[bySide]) {
+                state.mutual[bySide] = { dataMap: new Map() };
+              }
+              state.mutual[bySide].dataMap = new Map(
+                state.mutual[bySide]?.dataMap,
+              ).set(entityId, mutual);
+
+              if (!state.mutual[side]) {
+                state.mutual[side] = { dataMap: new Map() };
+              }
+              const byEntityData =
+                state.entity[byEntityType]?.dataMap.get(byEntityId)?.data ?? {};
+              state.mutual[side].dataMap = new Map(
+                state.mutual[side]?.dataMap,
+              ).set(byEntityId, flipMutual(mutual, byEntityData));
+              return;
+            }
+
             if (entry.operation === 'createEntity') {
               const createdEntity = {
                 entityId,
@@ -1503,11 +1568,10 @@ const initCoreActions = (
           );
           const side = getMutualStateKey(entityType, entityId, byEntityType);
 
-          state.mutual[bySide].dataMap.delete(data.entityId);
-
-          if (state.mutual[side]) {
-            state.mutual[side].dataMap.delete(data.byEntityId);
-          }
+          // Either list may never have been fetched; the delete still
+          // succeeded, so don't report it as failed.
+          state.mutual[bySide]?.dataMap.delete(data.entityId);
+          state.mutual[side]?.dataMap.delete(data.byEntityId);
         }),
         undefined,
         `mr/mutual/delete/${getMutualStateKey(byEntityType, byEntityId, entityType, entityId)}`,
