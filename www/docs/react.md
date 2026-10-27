@@ -467,7 +467,7 @@ A mutual entry in the result carries the same fields the standalone call returns
 - if an `updateMutual`'s post-commit read failed, its entry carries no stored values and the cache is left as it was;
 - while the call is pending, each mutual operation drives the same loading key as its standalone call (`getMutualRequestKey('create' | 'update' | 'delete', …)`), and a failure is recorded on those keys too.
 
-Identically shaped transactions share one in-flight request (a double submit sends once). A `createMutual`'s target id is part of that key, so linking one entity to two different targets sends two requests.
+Each transaction call gets a unique request key by default, including when its operations have the same shape as an in-flight transaction. Transactions contain non-idempotent writes, so implicitly de-duplicating them could report success without sending the later write. Pass the same `opts.requestKey` explicitly when you intentionally want multiple calls to share one in-flight request. A `createMutual`'s target id remains in the descriptive part of generated keys.
 
 **DynamoDB limits**: Maximum 100 items per transaction. Each `createEntity` uses 2+ items (main record + list index + unique fields). `createMutual`, `updateMutual` and `deleteMutual` use 3 items each (plus the projection's items for an `asEntity` mutual). Other operations use 1 item each. A transaction can't touch the same record twice, so one link can only be created, updated or deleted once per transaction. A `createMutual` reads both entities before the commit, so it can't link to an entity created in the same transaction.
 

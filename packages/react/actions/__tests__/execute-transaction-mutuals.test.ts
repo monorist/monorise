@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   type TransactionOperation,
   type TransactionResultEntry,
-  getTransactionCallRequestKey,
+  createTransactionCallRequestKey,
   getTransactionOperationRequestKey,
   transactional as tx,
 } from '../../helpers/transactional';
@@ -524,10 +524,12 @@ describe('executeTransaction mutual request keys', () => {
       code: 'TRANSACTION_FAILED',
       message: 'Transaction failed',
     };
+    let generatedCallRequestKey = '';
     // Stand in for lib/api.ts's interceptor, which records the call's error
     // under its own request key before rejecting.
     h.coreService.executeTransaction.mockImplementation(
       (_ops: unknown, opts: { requestKey: string }) => {
+        generatedCallRequestKey = opts.requestKey;
         h.appActions.setError({ requestKey: opts.requestKey, error: appError });
         return Promise.reject(new Error('Transaction failed'));
       },
@@ -553,19 +555,55 @@ describe('executeTransaction mutual request keys', () => {
       false,
       false,
     ]);
+    expect(h.appActions.getError(generatedCallRequestKey)).toBeUndefined();
     expect(snapshot(h.store)).toEqual(prior);
   });
 
-  it('gives transactions linking one entity to different targets different call keys', () => {
+  it('retains a call error stored under an explicit request key', async () => {
+    const h = makeHarness();
+    seed(h, fetchedLists());
+    const appError: ApplicationRequestError = {
+      status: 409,
+      code: 'TRANSACTION_FAILED',
+      message: 'Transaction failed',
+    };
+    const requestKey = 'transaction/intentional-dedupe';
+    h.coreService.executeTransaction.mockImplementation(
+      (_ops: unknown, opts: { requestKey: string }) => {
+        h.appActions.setError({ requestKey: opts.requestKey, error: appError });
+        return Promise.reject(new Error('Transaction failed'));
+      },
+    );
+
+    await h.actions.executeTransaction(
+      [tx.deleteMutual(USER, TEAM, 'u1', 't1')],
+      { requestKey },
+    );
+
+    expect(h.appActions.getError(requestKey)).toEqual(appError);
+  });
+
+  it('gives every transaction call a unique, descriptive key', () => {
     const toT1 = [tx.createMutual(USER, TEAM, 'u1', 't1')];
     const toT9 = [tx.createMutual(USER, TEAM, 'u1', 't9')];
-    expect(getTransactionCallRequestKey(toT1)).not.toBe(
-      getTransactionCallRequestKey(toT9),
+    const t1Key = createTransactionCallRequestKey(toT1);
+    const repeatedT1Key = createTransactionCallRequestKey([
+      tx.createMutual(USER, TEAM, 'u1', 't1'),
+    ]);
+    const t9Key = createTransactionCallRequestKey(toT9);
+
+    // Transactions are non-idempotent, so even identical batches must not
+    // dedupe unless the caller explicitly supplies opts.requestKey.
+    expect(t1Key).not.toBe(repeatedT1Key);
+    expect(t1Key).not.toBe(t9Key);
+
+    // Preserve the target id in the descriptive segment added with
+    // transactional mutual operations; the nonce is appended after it.
+    expect(t1Key).toMatch(
+      /^transaction\/mutual\/user\/u1\/team\/t1\/create#.+/,
     );
-    // Identical batches still share one key (an accidental double submit
-    // sends once), as for every other transaction.
-    expect(getTransactionCallRequestKey(toT1)).toBe(
-      getTransactionCallRequestKey([tx.createMutual(USER, TEAM, 'u1', 't1')]),
+    expect(t9Key).toMatch(
+      /^transaction\/mutual\/user\/u1\/team\/t9\/create#.+/,
     );
   });
 });

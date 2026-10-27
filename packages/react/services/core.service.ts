@@ -1,9 +1,9 @@
 import type { CreatedEntity, DraftEntity, Entity } from '@monorise/base';
 import type { AxiosRequestConfig } from 'axios';
 import {
-  getTransactionCallRequestKey,
   type TransactionOperation,
   type TransactionResult,
+  createTransactionCallRequestKey,
 } from '../helpers/transactional';
 import {
   getEntityRequestKey,
@@ -285,8 +285,7 @@ const initCoreService = (
     operations: TransactionOperation[],
     opts: CommonOptions = {},
   ) => {
-    const { transactionApiBaseUrl = TRANSACTION_API_BASE_URL } =
-      options as any;
+    const { transactionApiBaseUrl = TRANSACTION_API_BASE_URL } = options as any;
     return axios.post<TransactionResult>(
       opts.customUrl || transactionApiBaseUrl,
       { operations },
@@ -297,9 +296,11 @@ const initCoreService = (
         // a standalone editEntity/createEntity call on that same target,
         // via lib/api.ts's `ongoingRequests` dedupe, which would hand either
         // caller the other's differently-shaped response. The joined key is
-        // still deterministic (identical operation sets dedupe onto one
-        // request) but namespaced so it can never match a single-entity key.
-        requestKey: opts.requestKey || getTransactionCallRequestKey(operations),
+        // namespaced so it can never match a single-entity key and unique per
+        // call so non-idempotent transaction writes cannot be silently
+        // deduplicated. Callers can pass opts.requestKey to opt into dedupe.
+        requestKey:
+          opts.requestKey || createTransactionCallRequestKey(operations),
         isInterruptive: opts.isInterruptive ?? true,
         feedback: {
           loading: 'Processing transaction',
