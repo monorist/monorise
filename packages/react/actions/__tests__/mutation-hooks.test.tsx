@@ -67,6 +67,18 @@ const response = (
   statusText: 'OK',
 });
 
+const requestError = (
+  config: InternalAxiosRequestConfig,
+  message: string,
+) =>
+  new AxiosError(message, 'BAD_REQUEST', config, undefined, {
+    config,
+    data: message,
+    headers: {},
+    status: 400,
+    statusText: 'BAD_REQUEST',
+  });
+
 afterEach(() => {
   vi.useRealTimers();
 });
@@ -176,22 +188,26 @@ describe('mutation hooks', () => {
     expect(h.adapter).toHaveBeenCalledTimes(1);
   });
 
-  it('merges hook options with per-call feedback overrides', async () => {
+  it('keeps mutate stable while using the latest hook options', async () => {
     const h = makeHarness(async (config) =>
       response(config, user('u1', 'Ada')),
     );
-    const hook = renderHook(() =>
-      h.actions.useCreateEntity(USER, {
-        isInterruptive: false,
-        feedback: { loading: 'Creating user', success: 'User created' },
-      }),
+    const hook = renderHook(
+      ({ success }: { success: string }) =>
+        h.actions.useCreateEntity(USER, {
+          isInterruptive: false,
+          feedback: { loading: 'Creating user', success },
+        }),
+      { initialProps: { success: 'User created' } },
     );
+    const mutate = hook.result.current.mutate;
+
+    hook.rerender({ success: 'Ada created' });
+
+    expect(hook.result.current.mutate).toBe(mutate);
 
     await act(async () => {
-      await hook.result.current.mutate(
-        { name: 'Ada' } as never,
-        { feedback: { success: 'Ada created' } },
-      );
+      await hook.result.current.mutate({ name: 'Ada' } as never);
     });
 
     const [config] = h.adapter.mock.calls[0];
@@ -201,21 +217,21 @@ describe('mutation hooks', () => {
     });
   });
 
+  it('keeps mutate stable when hook options use their default', () => {
+    const h = makeHarness(async (config) =>
+      response(config, user('u1', 'Ada')),
+    );
+    const hook = renderHook(() => h.actions.useCreateEntity(USER));
+    const mutate = hook.result.current.mutate;
+
+    hook.rerender();
+
+    expect(hook.result.current.mutate).toBe(mutate);
+  });
+
   it('exposes normalized errors and clears them explicitly', async () => {
     const h = makeHarness(async (config) => {
-      throw new AxiosError(
-        'Name is invalid',
-        'BAD_REQUEST',
-        config,
-        undefined,
-        {
-          config,
-          data: 'Name is invalid',
-          headers: {},
-          status: 400,
-          statusText: 'BAD_REQUEST',
-        },
-      );
+      throw requestError(config, 'Name is invalid');
     });
     const hook = renderHook(() =>
       h.actions.useCreateEntity(USER, { isInterruptive: false }),
@@ -232,6 +248,48 @@ describe('mutation hooks', () => {
 
     act(() => hook.result.current.clearError());
     expect(hook.result.current.error).toBeUndefined();
+  });
+
+  it('keeps the latest error across consecutive failures', async () => {
+    let attempt = 0;
+    const h = makeHarness(async (config) => {
+      attempt += 1;
+      throw requestError(config, `Failure ${attempt}`);
+    });
+    const hook = renderHook(() =>
+      h.actions.useCreateEntity(USER, { isInterruptive: false }),
+    );
+
+    await act(async () => {
+      await hook.result.current.mutate({ name: '' } as never);
+    });
+    expect(hook.result.current.error?.message).toBe('Failure 1');
+
+    await act(async () => {
+      await hook.result.current.mutate({ name: '' } as never);
+    });
+    expect(hook.result.current.error?.message).toBe('Failure 2');
+  });
+
+  it('does not clear shared errors when one observer unmounts', async () => {
+    const h = makeHarness(async (config) => {
+      throw requestError(config, 'Shared failure');
+    });
+    const first = renderHook(() =>
+      h.actions.useCreateEntity(USER, { isInterruptive: false }),
+    );
+    const second = renderHook(() =>
+      h.actions.useCreateEntity(USER, { isInterruptive: false }),
+    );
+
+    await act(async () => {
+      await first.result.current.mutate({ name: '' } as never);
+    });
+    expect(second.result.current.error?.message).toBe('Shared failure');
+
+    first.unmount();
+
+    expect(second.result.current.error?.message).toBe('Shared failure');
   });
 
   it('tracks a transaction and each mutation contained in it', async () => {
@@ -278,6 +336,34 @@ describe('mutation hooks', () => {
 
     expect(transaction.result.current.isLoading).toBe(false);
     expect(create.result.current.isLoading).toBe(false);
+  });
+
+  it('keeps transaction mutate stable and executes the latest operations', async () => {
+    const h = makeHarness(async (config) =>
+      response(config, {
+        results: [{ operation: 'createEntity', ...user('u1', 'Grace') }],
+      }),
+    );
+    const transaction = renderHook(
+      ({ name }: { name: string }) =>
+        h.actions.useExecuteTransaction([
+          tx.createEntity(USER, { name } as never),
+        ]),
+      { initialProps: { name: 'Ada' } },
+    );
+    const mutate = transaction.result.current.mutate;
+
+    transaction.rerender({ name: 'Grace' });
+
+    expect(transaction.result.current.mutate).toBe(mutate);
+    await act(async () => {
+      await transaction.result.current.mutate();
+    });
+
+    const [config] = h.adapter.mock.calls[0];
+    const body =
+      typeof config.data === 'string' ? JSON.parse(config.data) : config.data;
+    expect(body.operations[0].payload).toEqual({ name: 'Grace' });
   });
 
   it('uses the target entity in a create-mutual hook key', () => {

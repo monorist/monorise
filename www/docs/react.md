@@ -325,7 +325,7 @@ const { mutate: createUser } = useCreateEntity(Entity.USER, {
 
 An explicit key changes HTTP deduplication only; the hook continues to expose state under its stable `requestKey`.
 
-`createMutual` state is target-specific. If you manually observe it with `getMutualRequestKey`, include the target ID: `getMutualRequestKey('create', byType, entityType, byId, entityId)`.
+`createMutual` hook state is target-specific. If you manually observe it with `getMutualRequestKey`, include the target ID: `getMutualRequestKey('create', byType, entityType, byId, entityId)`. The previous four-argument key remains active for backwards compatibility, but it observes every create from that source rather than one target.
 
 Transactions have the same interface. Operations are bound when the hook is created:
 

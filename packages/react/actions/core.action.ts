@@ -5,12 +5,12 @@ import type {
   EntitySchemaMap,
 } from '@monorise/base';
 import { produce } from 'immer';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   type TransactionCreateEntity,
   type TransactionOperation,
   createTransactionCallRequestKey,
-  getTransactionOperationRequestKey,
+  getTransactionOperationRequestKeys,
   getTransactionRequestKey,
 } from '../helpers/transactional';
 import {
@@ -873,7 +873,7 @@ const initCoreActions = (
     const stateRequestKeys = Array.from(
       new Set([
         getTransactionRequestKey(operations),
-        ...operations.map(getTransactionOperationRequestKey),
+        ...operations.flatMap(getTransactionOperationRequestKeys),
       ]),
     );
     // The joined key is namespaced under `transaction/` so it can never
@@ -1689,9 +1689,20 @@ const initCoreActions = (
     }),
   });
 
+  const useLatestRef = <T,>(value: T) => {
+    const ref = useRef(value);
+    ref.current = value;
+    return ref;
+  };
+
   const useMutationState = (requestKey: string) => {
     const isLoading = useLoadStore(requestKey);
-    const error = useErrorStore(requestKey);
+    // Mutation errors are shared state. Unlike useErrorStore, this must not
+    // clear on effect cleanup: replacing one error with the next runs cleanup
+    // for the old value, and unmounting one observer must not affect another.
+    const error = monoriseStore((state) =>
+      state.app.errorStack.get(requestKey),
+    );
     const clearMutationError = useCallback(
       () => clearError(requestKey),
       [requestKey],
@@ -1709,6 +1720,7 @@ const initCoreActions = (
     entityType: T,
     opts: CommonOptions = {},
   ) => {
+    const optsRef = useLatestRef(opts);
     const mutation = useMutationState(
       getEntityRequestKey('create', entityType),
     );
@@ -1717,9 +1729,9 @@ const initCoreActions = (
         createEntity(
           entityType,
           entity,
-          mergeMutationOptions(opts, mutateOpts),
+          mergeMutationOptions(optsRef.current, mutateOpts),
         ),
-      [entityType, opts],
+      [entityType, optsRef],
     );
 
     return { mutate, ...mutation };
@@ -1730,6 +1742,7 @@ const initCoreActions = (
     id: string,
     opts: CommonOptions = {},
   ) => {
+    const optsRef = useLatestRef(opts);
     const mutation = useMutationState(
       getEntityRequestKey('upsert', entityType, id),
     );
@@ -1739,9 +1752,9 @@ const initCoreActions = (
           entityType,
           id,
           entity,
-          mergeMutationOptions(opts, mutateOpts),
+          mergeMutationOptions(optsRef.current, mutateOpts),
         ),
-      [entityType, id, opts],
+      [entityType, id, optsRef],
     );
 
     return { mutate, ...mutation };
@@ -1752,6 +1765,7 @@ const initCoreActions = (
     id: string,
     opts: CommonOptions = {},
   ) => {
+    const optsRef = useLatestRef(opts);
     const mutation = useMutationState(
       getEntityRequestKey('edit', entityType, id),
     );
@@ -1761,9 +1775,9 @@ const initCoreActions = (
           entityType,
           id,
           entity,
-          mergeMutationOptions(opts, mutateOpts),
+          mergeMutationOptions(optsRef.current, mutateOpts),
         ),
-      [entityType, id, opts],
+      [entityType, id, optsRef],
     );
 
     return { mutate, ...mutation };
@@ -1774,6 +1788,7 @@ const initCoreActions = (
     id: string,
     opts: CommonOptions = {},
   ) => {
+    const optsRef = useLatestRef(opts);
     const mutation = useMutationState(
       getEntityRequestKey('adjust', entityType, id),
     );
@@ -1783,9 +1798,9 @@ const initCoreActions = (
           entityType,
           id,
           adjustments,
-          mergeMutationOptions(opts, mutateOpts),
+          mergeMutationOptions(optsRef.current, mutateOpts),
         ),
-      [entityType, id, opts],
+      [entityType, id, optsRef],
     );
 
     return { mutate, ...mutation };
@@ -1796,13 +1811,18 @@ const initCoreActions = (
     id: string,
     opts: CommonOptions = {},
   ) => {
+    const optsRef = useLatestRef(opts);
     const mutation = useMutationState(
       getEntityRequestKey('delete', entityType, id),
     );
     const mutate = useCallback(
       (mutateOpts: CommonOptions = {}) =>
-        deleteEntity(entityType, id, mergeMutationOptions(opts, mutateOpts)),
-      [entityType, id, opts],
+        deleteEntity(
+          entityType,
+          id,
+          mergeMutationOptions(optsRef.current, mutateOpts),
+        ),
+      [entityType, id, optsRef],
     );
 
     return { mutate, ...mutation };
@@ -1815,6 +1835,7 @@ const initCoreActions = (
     entityId: string,
     opts: CommonOptions = {},
   ) => {
+    const optsRef = useLatestRef(opts);
     const mutation = useMutationState(
       getMutualRequestKey(
         'create',
@@ -1835,9 +1856,9 @@ const initCoreActions = (
           byEntityId,
           entityId,
           payload,
-          mergeMutationOptions(opts, mutateOpts),
+          mergeMutationOptions(optsRef.current, mutateOpts),
         ),
-      [byEntityType, entityType, byEntityId, entityId, opts],
+      [byEntityType, entityType, byEntityId, entityId, optsRef],
     );
 
     return { mutate, ...mutation };
@@ -1850,6 +1871,7 @@ const initCoreActions = (
     entityId: string,
     opts: CommonOptions = {},
   ) => {
+    const optsRef = useLatestRef(opts);
     const mutation = useMutationState(
       getMutualRequestKey(
         'update',
@@ -1870,9 +1892,9 @@ const initCoreActions = (
           byEntityId,
           entityId,
           payload,
-          mergeMutationOptions(opts, mutateOpts),
+          mergeMutationOptions(optsRef.current, mutateOpts),
         ),
-      [byEntityType, entityType, byEntityId, entityId, opts],
+      [byEntityType, entityType, byEntityId, entityId, optsRef],
     );
 
     return { mutate, ...mutation };
@@ -1885,6 +1907,7 @@ const initCoreActions = (
     entityId: string,
     opts: CommonOptions = {},
   ) => {
+    const optsRef = useLatestRef(opts);
     const mutation = useMutationState(
       getMutualRequestKey(
         'delete',
@@ -1901,9 +1924,9 @@ const initCoreActions = (
           entityType,
           byEntityId,
           entityId,
-          mergeMutationOptions(opts, mutateOpts),
+          mergeMutationOptions(optsRef.current, mutateOpts),
         ),
-      [byEntityType, entityType, byEntityId, entityId, opts],
+      [byEntityType, entityType, byEntityId, entityId, optsRef],
     );
 
     return { mutate, ...mutation };
@@ -1913,11 +1936,16 @@ const initCoreActions = (
     operations: TransactionOperation[],
     opts: CommonOptions = {},
   ) => {
+    const operationsRef = useLatestRef(operations);
+    const optsRef = useLatestRef(opts);
     const mutation = useMutationState(getTransactionRequestKey(operations));
     const mutate = useCallback(
       (mutateOpts: CommonOptions = {}) =>
-        executeTransaction(operations, mergeMutationOptions(opts, mutateOpts)),
-      [operations, opts],
+        executeTransaction(
+          operationsRef.current,
+          mergeMutationOptions(optsRef.current, mutateOpts),
+        ),
+      [operationsRef, optsRef],
     );
 
     return { mutate, ...mutation };

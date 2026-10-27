@@ -146,6 +146,26 @@ export const getTransactionOperationRequestKey = (
   }
 };
 
+// State keys driven by one transaction operation. createMutual additionally
+// drives the pre-hook broad key so existing useLoadStore/useErrorStore callers
+// that omit the target id keep observing the request.
+export const getTransactionOperationRequestKeys = (
+  op: TransactionOperation,
+): string[] => {
+  const requestKey = getTransactionOperationRequestKey(op);
+  if (op.operation !== 'createMutual') return [requestKey];
+
+  return [
+    requestKey,
+    getMutualRequestKey(
+      'create',
+      op.byEntityType,
+      op.entityType,
+      op.byEntityId,
+    ),
+  ];
+};
+
 // Stable key shared by every observer of this transaction shape. Unlike the
 // call key below, this key is never used to deduplicate HTTP requests.
 export const getTransactionRequestKey = (

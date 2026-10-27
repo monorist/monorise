@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { initAppActions } from '../../actions/app.action';
 import { initConfigActions } from '../../actions/config.action';
 import { initAxiosInterceptor } from '../../lib/api';
+import { getMutualRequestKey } from '../../lib/utils';
 import { initMonoriseStore } from '../../store/monorise.store';
 import initCoreService, { type CoreService } from '../core.service';
 
@@ -119,5 +120,21 @@ describe.each(mutationCalls)('%s request dedupe', (_name, mutate) => {
     ]);
 
     expect(adapter).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('createMutual state keys', () => {
+  it('also drives the legacy key without a target id', async () => {
+    const { adapter, coreService } = makeHarness();
+
+    await coreService
+      .makeMutualService(USER, TEAM)
+      .createMutual('u1', 't1', {});
+
+    const [config] = adapter.mock.calls[0];
+    expect(config.stateKeys).toEqual([
+      getMutualRequestKey('create', USER, TEAM, 'u1', 't1'),
+      getMutualRequestKey('create', USER, TEAM, 'u1'),
+    ]);
   });
 });

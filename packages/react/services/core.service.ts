@@ -72,13 +72,21 @@ const initCoreService = (
 ) => {
   let options: ConfigOptions = opts || {};
 
-  const getMutationRequestConfig = (stateKey: string, opts: CommonOptions) => ({
+  const getMutationRequestConfig = (
+    stateKey: string,
+    opts: CommonOptions,
+    compatibilityStateKeys: string[] = [],
+  ) => ({
     requestKey: opts.requestKey ?? createMutationCallRequestKey(stateKey),
     // Keep the stable mutation key reactive while requestKey remains unique
-    // per write. An explicit key is also observable for backwards
-    // compatibility with useLoadStore/useErrorStore consumers.
+    // per write. An explicit key and any legacy observation keys remain
+    // observable for backwards compatibility with useLoadStore/useErrorStore.
     stateKeys: Array.from(
-      new Set([stateKey, ...(opts.requestKey ? [opts.requestKey] : [])]),
+      new Set([
+        stateKey,
+        ...compatibilityStateKeys,
+        ...(opts.requestKey ? [opts.requestKey] : []),
+      ]),
     ),
   });
 
@@ -399,12 +407,18 @@ const initCoreService = (
       byEntityId,
       entityId,
     );
+    const legacyStateKey = getMutualRequestKey(
+      'create',
+      byEntityType,
+      entityType,
+      byEntityId,
+    );
     return axios.post<Mutual<B, T>>(
       opts.customUrl ||
         `${mutualApiBaseUrl}/${getMutualStateKey(byEntityType, byEntityId, entityType, entityId)}`,
       payload,
       {
-        ...getMutationRequestConfig(stateKey, opts),
+        ...getMutationRequestConfig(stateKey, opts, [legacyStateKey]),
         isInterruptive: opts.isInterruptive ?? true,
         feedback: {
           loading: 'Creating linkage',
