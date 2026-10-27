@@ -23,7 +23,8 @@ import {
 } from '../../helpers/test/test-utils';
 import { DependencyContainer } from '../../services/DependencyContainer';
 
-// createMutual / deleteMutual inside POST /transaction, against LocalStack.
+// createMutual / updateMutual / deleteMutual inside POST /transaction,
+// against LocalStack.
 // The shape is a guardian <-> player link plus a counter on the player that
 // must never drop below one guardian: the case a single transaction across
 // a mutual and a conditional adjust exists for.
@@ -37,7 +38,7 @@ const PLAYER = TestEntity.PLAYER as unknown as EntityType;
 
 const guardianPlayerMutual = createMutualConfig({
   entities: [GUARDIAN, PLAYER],
-  mutualDataSchema: z.object({ role: z.enum(['GUARDIAN']) }),
+  mutualDataSchema: z.object({ role: z.enum(['GUARDIAN', 'SELF']) }),
 });
 
 const entityConfig = {
@@ -148,6 +149,27 @@ const createMutualOp = (
   payload,
 });
 
+const updateMutualOp = (
+  guardianId: string,
+  playerId: string,
+  payload: Record<string, unknown>,
+) => ({
+  operation: 'updateMutual',
+  byEntityType: TestEntity.GUARDIAN,
+  byEntityId: guardianId,
+  entityType: TestEntity.PLAYER,
+  entityId: playerId,
+  payload,
+});
+
+const mutualDataOf = async (guardianId: string, playerId: string) =>
+  (await mutualRepository.getMutual(GUARDIAN, guardianId, PLAYER, playerId))
+    .mutualData;
+
+const reverseMutualDataOf = async (guardianId: string, playerId: string) =>
+  (await mutualRepository.getMutual(PLAYER, playerId, GUARDIAN, guardianId))
+    .mutualData;
+
 const deleteMutualOp = (guardianId: string, playerId: string) => ({
   operation: 'deleteMutual',
   byEntityType: TestEntity.GUARDIAN,
@@ -164,7 +186,7 @@ const adjustOp = (playerId: string, delta: number, condition: string) => ({
   condition,
 });
 
-describe('POST /transaction — createMutual / deleteMutual', () => {
+describe('POST /transaction — createMutual / updateMutual / deleteMutual', () => {
   beforeAll(async () => {
     await createTestTable(TABLE_NAME, dynamodbClient);
   }, 60000);
@@ -367,5 +389,130 @@ describe('POST /transaction — createMutual / deleteMutual', () => {
     ]);
     expect(missingId.status).toBe(400);
     expect(missingId.data.code).toBe('TRANSACTION_INVALID_OPERATION');
+  });
+
+  it('commits updateMutual and a conditional adjust together, returning the stored values', async () => {
+    const guardianId = await createGuardian('Sam');
+    const playerId = await createPlayer(1);
+    await link(guardianId, playerId);
+    mockPublishEvent.mockClear();
+
+    const { status, data } = await post([
+      updateMutualOp(guardianId, playerId, { role: 'SELF' }),
+      adjustOp(playerId, 1, 'join'),
+    ]);
+
+    expect(status).toBe(200);
+    expect(await mutualDataOf(guardianId, playerId)).toEqual({ role: 'SELF' });
+    expect(await reverseMutualDataOf(guardianId, playerId)).toEqual({
+      role: 'SELF',
+    });
+    expect(await guardianCountOf(playerId)).toBe(2);
+
+    const [entry] = data.results as Record<string, unknown>[];
+    expect(entry).toMatchObject({
+      operation: 'updateMutual',
+      byEntityType: TestEntity.GUARDIAN,
+      byEntityId: guardianId,
+      entityType: TestEntity.PLAYER,
+      entityId: playerId,
+      mutualData: { role: 'SELF' },
+      // The same transaction adjusted the player, so the entry carries its
+      // committed data, not the copy read before the commit.
+      data: { name: 'Alex', guardianCount: 2 },
+    });
+    expect(entry.mutualId).toEqual(expect.any(String));
+    expect(entry.mutualUpdatedAt).toEqual(expect.any(String));
+
+    const updated = mockPublishEvent.mock.calls.find(
+      ([ev]) =>
+        ev.event.DetailType ===
+        `mutual-updated:${TestEntity.GUARDIAN}:${TestEntity.PLAYER}`,
+    );
+    expect(updated?.[0].payload).toMatchObject({
+      byEntityId: guardianId,
+      entityId: playerId,
+      parsedMutualPayload: { role: 'SELF' },
+      updatedByAccountId: 'acc-1',
+    });
+  });
+
+  it('rolls the updateMutual back when the adjust condition fails', async () => {
+    const guardianId = await createGuardian('Sam');
+    const playerId = await createPlayer(1);
+    await link(guardianId, playerId);
+    mockPublishEvent.mockClear();
+
+    const { status, data } = await post([
+      updateMutualOp(guardianId, playerId, { role: 'SELF' }),
+      adjustOp(playerId, -1, 'leave'),
+    ]);
+
+    expect(status).toBe(409);
+    expect(data.code).toBe('TRANSACTION_FAILED');
+    expect(await mutualDataOf(guardianId, playerId)).toEqual({
+      role: 'GUARDIAN',
+    });
+    expect(await guardianCountOf(playerId)).toBe(1);
+    expect(mockPublishEvent).not.toHaveBeenCalled();
+  });
+
+  it('returns 404 MUTUAL_NOT_FOUND for updateMutual on an unlinked pair, writing nothing', async () => {
+    const guardianId = await createGuardian('Sam');
+    const playerId = await createPlayer(1);
+
+    const { status, data } = await post([
+      updateMutualOp(guardianId, playerId, { role: 'SELF' }),
+      adjustOp(playerId, 1, 'join'),
+    ]);
+
+    expect(status).toBe(404);
+    expect(data.code).toBe('MUTUAL_NOT_FOUND');
+    expect(await guardianCountOf(playerId)).toBe(1);
+  });
+
+  it('returns 400 when the updateMutual payload fails the mutualDataSchema', async () => {
+    const guardianId = await createGuardian('Sam');
+    const playerId = await createPlayer(1);
+    await link(guardianId, playerId);
+
+    const { status, data } = await post([
+      updateMutualOp(guardianId, playerId, { role: 'COACH' }),
+    ]);
+
+    expect(status).toBe(400);
+    expect(data.code).toBe('API_VALIDATION_ERROR');
+    expect(await mutualDataOf(guardianId, playerId)).toEqual({
+      role: 'GUARDIAN',
+    });
+  });
+
+  it('returns 400 for an updateMutual without a payload', async () => {
+    const { status, data } = await post([
+      { ...updateMutualOp('g', 'p', {}), payload: undefined },
+    ]);
+
+    expect(status).toBe(400);
+    expect(data.code).toBe('TRANSACTION_INVALID_OPERATION');
+  });
+
+  it('gives a createMutual entry the committed data of a target adjusted in the same transaction', async () => {
+    const firstGuardian = await createGuardian('Sam');
+    const secondGuardian = await createGuardian('Jo');
+    const playerId = await createPlayer(1);
+    await link(firstGuardian, playerId);
+
+    // The adjust comes first, so the createMutual read the player before it.
+    const { status, data } = await post([
+      adjustOp(playerId, 1, 'join'),
+      createMutualOp(secondGuardian, playerId),
+    ]);
+
+    expect(status).toBe(200);
+    const createEntry = (data.results as Record<string, unknown>[])[1];
+    expect(createEntry).toMatchObject({
+      operation: 'createMutual',
+      data: { name: 'Alex', guardianCount: 2 },
+    });
   });
 });

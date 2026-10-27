@@ -128,4 +128,44 @@ describe('TransactionService — mutual operations', () => {
     ).rejects.toMatchObject({ code: 'TRANSACTION_INVALID_OPERATION' });
     expect(transactWriteItems).not.toHaveBeenCalled();
   });
+
+  it('returns an updateMutual entry without stored values when the post-commit read fails', async () => {
+    const mutualService = {
+      prepareUpdateMutual: vi.fn(async () => ({
+        mutual: { mutualId: 'm1' },
+        TransactItems: [{ Update: { TableName: 't', Key: {} } }],
+        parsedMutualPayload: { name: 'Ada' },
+      })),
+      getMutual: vi.fn(async () => {
+        throw new Error('read failed');
+      }),
+    };
+    const { service, calls, publishEvent } = buildService({ mutualService });
+
+    const { results } = await service.executeTransaction(
+      [{ ...createMutualOp, operation: 'updateMutual' }],
+      'acc-1',
+    );
+
+    // Committed, so the call succeeds; the client then leaves its cache alone
+    // rather than guessing at the merged mutualData.
+    expect(results[0]).toEqual({
+      operation: 'updateMutual',
+      byEntityType: 'student',
+      byEntityId: 's1',
+      entityType: 'course',
+      entityId: 'c1',
+      mutualId: 'm1',
+    });
+    expect(calls).toEqual(['commit', 'publish']);
+    expect(publishEvent).toHaveBeenCalledWith({
+      event: expect.objectContaining({
+        DetailType: 'mutual-updated:student:course',
+      }),
+      payload: expect.objectContaining({
+        parsedMutualPayload: { name: 'Ada' },
+        updatedByAccountId: 'acc-1',
+      }),
+    });
+  });
 });

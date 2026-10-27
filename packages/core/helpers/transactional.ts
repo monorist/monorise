@@ -7,6 +7,7 @@ import type {
   TransactionDeleteMutual,
   TransactionOperation,
   TransactionUpdateEntity,
+  TransactionUpdateMutual,
 } from '../types/transaction';
 
 // NOTE: packages/react/helpers/transactional.ts is a browser-safe copy of
@@ -69,7 +70,8 @@ export const transactional = {
     entityId,
   }),
 
-  // Same argument order as the client's standalone createMutual/deleteMutual.
+  // Same argument order as the client's standalone createMutual / editMutual
+  // / deleteMutual.
   createMutual: <B extends EntityType, T extends EntityType>(
     byEntityType: B,
     entityType: T,
@@ -83,6 +85,21 @@ export const transactional = {
     entityType,
     entityId,
     ...(payload && { payload }),
+  }),
+
+  updateMutual: <B extends EntityType, T extends EntityType>(
+    byEntityType: B,
+    entityType: T,
+    byEntityId: string,
+    entityId: string,
+    payload: Record<string, unknown>,
+  ): TransactionUpdateMutual<B, T> => ({
+    operation: 'updateMutual',
+    byEntityType,
+    byEntityId,
+    entityType,
+    entityId,
+    payload,
   }),
 
   deleteMutual: <B extends EntityType, T extends EntityType>(

@@ -363,6 +363,105 @@ export class MutualService {
     return { mutual, eventPayload };
   };
 
+  // Same `asEntity`-aware narrowing as `createMutual` — an update to an `asEntity` mutual must
+  // not re-introduce the target entity's own further `mutualFields` keys into stored
+  // `mutualData` any more than the initial create does (see `createMutual`'s own comment).
+  // Shared by `updateMutual` and `prepareUpdateMutual` so both validate a patch identically.
+  private getMutualUpdateSchema(
+    byEntityType: EntityType,
+    entityType: EntityType,
+  ) {
+    const mutualFieldConfig = this.getMutualFieldConfig(
+      byEntityType,
+      entityType,
+    );
+    const asEntityStorageSchema = mutualFieldConfig?.asEntity
+      ? (mutualFieldConfig.asEntity.createSchema ??
+        mutualFieldConfig.asEntity.baseSchema)
+      : undefined;
+    return (
+      asEntityStorageSchema ??
+      mutualFieldConfig?.mutualDataSchema ??
+      z.record(z.string(), z.any())
+    );
+  }
+
+  /**
+   * @description Reads the live mutual for a pair, with its stored `data` and `mutualData` —
+   * the same read `updateMutual` returns with `returnUpdatedValue`. Throws `MUTUAL_IS_UNDEFINED`
+   * when there is none.
+   */
+  getMutual = ({
+    byEntityType,
+    byEntityId,
+    entityType,
+    entityId,
+  }: {
+    byEntityType: EntityType;
+    byEntityId: string;
+    entityType: EntityType;
+    entityId: string;
+  }) =>
+    this.mutualRepository.getMutual(
+      byEntityType,
+      byEntityId,
+      entityType,
+      entityId,
+    );
+
+  /**
+   * @description Everything `updateMutual` does before it writes: validates the patch with the
+   * same schema, resolves the live mutual and builds the TransactWriteItems. Nothing is written —
+   * for `TransactionService`, which publishes the same MUTUAL_UPDATED event once its transaction
+   * commits. Throws `MUTUAL_NOT_FOUND` when there is no live mutual for the pair.
+   */
+  prepareUpdateMutual = async ({
+    byEntityType,
+    byEntityId,
+    entityType,
+    entityId,
+    mutualPayload,
+    options,
+  }: {
+    byEntityType: EntityType;
+    byEntityId: string;
+    entityType: EntityType;
+    entityId: string;
+    mutualPayload: Record<string, unknown>;
+    options?: { maxObjectUpdateLevel?: number };
+  }) => {
+    const parsedMutualPayload = this.getMutualUpdateSchema(
+      byEntityType,
+      entityType,
+    ).parse(mutualPayload) as Record<string, unknown>;
+
+    try {
+      const { mutual, TransactItems } =
+        await this.mutualRepository.prepareUpdateMutual(
+          byEntityType,
+          byEntityId,
+          entityType,
+          entityId,
+          { mutualData: parsedMutualPayload },
+          options,
+        );
+      return { mutual, TransactItems, parsedMutualPayload };
+    } catch (err) {
+      if (
+        err instanceof StandardError &&
+        err.code === StandardErrorCode.MUTUAL_IS_UNDEFINED
+      ) {
+        throw new StandardError(
+          StandardErrorCode.MUTUAL_NOT_FOUND,
+          'Mutual not found',
+          err,
+          { byEntityType, byEntityId, entityType, entityId },
+        );
+      }
+      throw err;
+    }
+  };
+
   updateMutual = async <
     B extends EntityType,
     T extends EntityType,
@@ -396,17 +495,7 @@ export class MutualService {
       options,
     });
 
-    // Same `asEntity`-aware narrowing as `createMutual` — an update to an `asEntity` mutual must
-    // not re-introduce the target entity's own further `mutualFields` keys into stored
-    // `mutualData` any more than the initial create does (see `createMutual`'s own comment).
-    const mutualFieldConfig = this.getMutualFieldConfig(byEntityType, entityType);
-    const asEntityStorageSchema = mutualFieldConfig?.asEntity
-      ? (mutualFieldConfig.asEntity.createSchema ?? mutualFieldConfig.asEntity.baseSchema)
-      : undefined;
-    const schema =
-      asEntityStorageSchema ??
-      mutualFieldConfig?.mutualDataSchema ??
-      z.record(z.string(), z.any());
+    const schema = this.getMutualUpdateSchema(byEntityType, entityType);
     console.log('[MONORISE_DEBUG] updateMutual schema resolved');
 
     const parsedMutualPayload = schema.parse(mutualPayload);

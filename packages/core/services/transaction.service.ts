@@ -29,6 +29,7 @@ import type {
   TransactionResult,
   TransactionResultEntry,
   TransactionUpdateEntity,
+  TransactionUpdateMutual,
 } from '../types/transaction';
 import type { EntityServiceLifeCycle } from './entity-service-lifecycle';
 import type { MutualService } from './mutual.service';
@@ -67,8 +68,8 @@ export class TransactionService {
     private entityServiceLifeCycle: EntityServiceLifeCycle,
     private eventUtils: EventUtils,
     // Optional so a TransactionService built without it (entity-only callers,
-    // existing tests) keeps working; createMutual/deleteMutual operations
-    // require it. DependencyContainer always passes it.
+    // existing tests) keeps working; createMutual/updateMutual/deleteMutual
+    // operations require it. DependencyContainer always passes it.
     private mutualService?: MutualService,
   ) {}
 
@@ -142,7 +143,9 @@ export class TransactionService {
       throw err;
     }
 
-    // Phase 4: Post-commit reads for update/adjust results
+    // Phase 4: Post-commit reads for update/adjust results, and for
+    // updateMutual results (a patch, so the stored mutualData is only known
+    // after the write — the same read a standalone PATCH /mutual/... returns).
     const readPromises = resultEntries.map(async (entry) => {
       if (
         (entry.operation === 'updateEntity' ||
@@ -159,8 +162,56 @@ export class TransactionService {
           // Entity read failed — return without data
         }
       }
+      if (entry.operation === 'updateMutual' && this.mutualService) {
+        try {
+          const mutual = await this.mutualService.getMutual({
+            byEntityType: entry.byEntityType as EntityType,
+            byEntityId: entry.byEntityId as string,
+            entityType: entry.entityType,
+            entityId: entry.entityId,
+          });
+          entry.mutualId = mutual.mutualId;
+          entry.data = mutual.data as Record<string, unknown>;
+          entry.mutualData = mutual.mutualData as Record<string, unknown>;
+          entry.createdAt = mutual.createdAt;
+          entry.updatedAt = mutual.updatedAt;
+          entry.mutualUpdatedAt = mutual.mutualUpdatedAt;
+        } catch {
+          // Mutual read failed — return without the stored values
+        }
+      }
     });
     await Promise.all(readPromises);
+
+    // A createMutual/updateMutual entry's `data` is the target entity as read
+    // before the commit (or the mutual's stored copy of it). When the same
+    // transaction also updated or adjusted that entity, use its post-commit
+    // data instead, so the result describes the committed state whatever the
+    // operation order.
+    const committedEntityData = new Map<string, Record<string, unknown>>();
+    for (const entry of resultEntries) {
+      if (
+        (entry.operation === 'updateEntity' ||
+          entry.operation === 'adjustEntity') &&
+        entry.data
+      ) {
+        committedEntityData.set(
+          `${entry.entityType}#${entry.entityId}`,
+          entry.data,
+        );
+      }
+    }
+    for (const entry of resultEntries) {
+      if (
+        entry.operation === 'createMutual' ||
+        entry.operation === 'updateMutual'
+      ) {
+        const fresh = committedEntityData.get(
+          `${entry.entityType}#${entry.entityId}`,
+        );
+        if (fresh) entry.data = fresh;
+      }
+    }
 
     // Phase 4b: Post-commit hooks. Committed already, so — like event
     // publishing below — a failure is surfaced rather than thrown.
@@ -277,6 +328,8 @@ export class TransactionService {
       }
       case 'createMutual':
         return this.processCreateMutual(op, accountId);
+      case 'updateMutual':
+        return this.processUpdateMutual(op, accountId);
       case 'deleteMutual':
         return this.processDeleteMutual(op, accountId);
       default:
@@ -346,6 +399,55 @@ export class TransactionService {
     };
   }
 
+  // Same validation and records as MutualService.updateMutual, and the same
+  // MUTUAL_UPDATED event. The stored values are read back after the commit
+  // (Phase 4), as a standalone PATCH /mutual/... returns them.
+  private async processUpdateMutual(
+    op: TransactionUpdateMutual,
+    accountId?: string,
+  ): Promise<ProcessedOperation> {
+    this.assertMutualOperation(op);
+    if (!op.payload || typeof op.payload !== 'object') {
+      throw new StandardError(
+        StandardErrorCode.TRANSACTION_INVALID_OPERATION,
+        "'updateMutual' requires a payload object",
+      );
+    }
+    const { mutual, TransactItems, parsedMutualPayload } =
+      await this.requireMutualService(op).prepareUpdateMutual({
+        byEntityType: op.byEntityType,
+        byEntityId: op.byEntityId,
+        entityType: op.entityType,
+        entityId: op.entityId,
+        mutualPayload: op.payload,
+      });
+
+    return {
+      items: TransactItems,
+      events: [
+        {
+          event: EVENT.CORE.MUTUAL_UPDATED(op.byEntityType, op.entityType),
+          payload: {
+            byEntityType: op.byEntityType,
+            byEntityId: op.byEntityId,
+            entityType: op.entityType,
+            entityId: op.entityId,
+            parsedMutualPayload,
+            updatedByAccountId: accountId,
+          },
+        },
+      ],
+      resultEntry: {
+        operation: 'updateMutual',
+        byEntityType: op.byEntityType,
+        byEntityId: op.byEntityId,
+        entityType: op.entityType,
+        entityId: op.entityId,
+        mutualId: mutual.mutualId,
+      },
+    };
+  }
+
   // Same soft delete as MutualService.deleteMutual, and the same event.
   private async processDeleteMutual(
     op: TransactionDeleteMutual,
@@ -387,7 +489,10 @@ export class TransactionService {
   }
 
   private assertMutualOperation(
-    op: TransactionCreateMutual | TransactionDeleteMutual,
+    op:
+      | TransactionCreateMutual
+      | TransactionUpdateMutual
+      | TransactionDeleteMutual,
   ) {
     for (const type of [op.byEntityType, op.entityType]) {
       if (!this.EntityConfig[type]) {
@@ -411,7 +516,10 @@ export class TransactionService {
   }
 
   private requireMutualService(
-    op: TransactionCreateMutual | TransactionDeleteMutual,
+    op:
+      | TransactionCreateMutual
+      | TransactionUpdateMutual
+      | TransactionDeleteMutual,
   ): MutualService {
     if (!this.mutualService) {
       throw new StandardError(
