@@ -1,5 +1,6 @@
 ---
 '@monorise/react': minor
+'monorise': minor
 ---
 
 Add mutation hooks for entity, mutual, and transaction writes.
