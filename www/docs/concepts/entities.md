@@ -216,7 +216,7 @@ await coreService.transaction([
 ]);
 ```
 
-Supported operations: `createEntity`, `updateEntity`, `adjustEntity`, `deleteEntity`, `createMutual`, `deleteMutual`. Conditions from `adjustmentConditions` and `updateConditions` are supported within transactions, so a link can change in step with a guarded counter (see [`transaction`](/react#transaction)). Events are published only after the transaction commits.
+Supported operations: `createEntity`, `updateEntity`, `adjustEntity`, `deleteEntity`, `createMutual`, `updateMutual`, `deleteMutual`. Conditions from `adjustmentConditions` and `updateConditions` are supported within transactions, so a link can change in step with a guarded counter (see [`transaction`](/react#transaction)). Events are published only after the transaction commits.
 
 ## Data layout
 

@@ -438,11 +438,12 @@ await coreService.transaction([
 | `adjustEntity` | Atomic numeric increment/decrement (with condition support) |
 | `deleteEntity` | Delete an entity |
 | `createMutual` | Link two entities, with mutual data validated against the pair's `mutualDataSchema` |
+| `updateMutual` | Patch a link's mutual data, validated the same way as the standalone `editMutual` |
 | `deleteMutual` | Unlink two entities |
 
 **Conditions**: `adjustEntity` and `updateEntity` support the `condition` field, referencing `adjustmentConditions` or `updateConditions` defined in the entity config.
 
-**Mutuals in a transaction**: `createMutual` and `deleteMutual` take the same arguments, in the same order, as the standalone `createMutual` and `deleteMutual` ([Mutual actions](#mutual-actions)). They let a link change commit together with an entity change — for example, removing a member while keeping a counter that must never drop below one:
+**Mutuals in a transaction**: `createMutual`, `updateMutual` and `deleteMutual` take the same arguments, in the same order, as the standalone `createMutual`, `editMutual` and `deleteMutual` ([Mutual actions](#mutual-actions)). They let a link change commit together with an entity change — for example, removing a member while keeping a counter that must never drop below one:
 
 ```ts
 import { executeTransaction, transactional as tx } from 'monorise/react';
@@ -454,13 +455,25 @@ await executeTransaction([
 ]);
 ```
 
-If the condition fails, the link is kept and the counter is untouched. A transactional mutual runs the same validation and writes the same records as the standalone call, including an `asEntity` projection, whose `afterCreateEntityHook` runs once the transaction commits. `executeTransaction` updates both sides of any loaded `useMutuals` lists, the same as the standalone calls.
+If the condition fails, the link is kept and the counter is untouched. A transactional mutual runs the same validation and writes the same records as the standalone call, including an `asEntity` projection, whose `afterCreateEntityHook` runs once the transaction commits.
 
-**DynamoDB limits**: Maximum 100 items per transaction. Each `createEntity` uses 2+ items (main record + list index + unique fields). `createMutual` and `deleteMutual` use 3 items each (plus the projection's items for an `asEntity` mutual). Other operations use 1 item each. A transaction can't touch the same record twice, so a link can't be created and deleted in the same transaction.
+A mutual entry in the result carries the same fields the standalone call returns. For `updateMutual` that is the stored `mutualData`, read back after the commit. When the same transaction also updated or adjusted the link's target entity, the entry's `data` is that entity's committed data, whatever the operation order.
 
-**Atomicity**: If any operation fails (condition violation, duplicate unique field, missing entity for delete), the entire transaction is rolled back — no partial writes. A `createMutual` for an already-linked pair fails with `409 MUTUAL_EXISTS`, and a `deleteMutual` for an unlinked pair with `404 MUTUAL_NOT_FOUND`.
+**Cache**: `executeTransaction` updates the store exactly as the standalone `createMutual`, `editMutual` and `deleteMutual` do:
 
-**Events**: Events (`ENTITY_CREATED`, `ENTITY_UPDATED`, `ENTITY_DELETED`, and the same mutual events the standalone `createMutual`/`deleteMutual` publish) are published only after the transaction commits successfully. Replication, tag, and mutual processors work normally.
+- both sides of the link (`useMutuals(by, entity, byId)` and `useMutuals(entity, by, entityId)`), and so `useMutual` for the pair, which reads the same list;
+- a list that was never fetched is created but not marked fetched, so its first `useMutuals` mount still loads it;
+- lists keyed with a chain query are not touched, as with the standalone calls;
+- if an `updateMutual`'s post-commit read failed, its entry carries no stored values and the cache is left as it was;
+- while the call is pending, each mutual operation drives the same loading key as its standalone call (`getMutualRequestKey('create' | 'update' | 'delete', …)`), and a failure is recorded on those keys too.
+
+Identically shaped transactions share one in-flight request (a double submit sends once). A `createMutual`'s target id is part of that key, so linking one entity to two different targets sends two requests.
+
+**DynamoDB limits**: Maximum 100 items per transaction. Each `createEntity` uses 2+ items (main record + list index + unique fields). `createMutual`, `updateMutual` and `deleteMutual` use 3 items each (plus the projection's items for an `asEntity` mutual). Other operations use 1 item each. A transaction can't touch the same record twice, so one link can only be created, updated or deleted once per transaction. A `createMutual` reads both entities before the commit, so it can't link to an entity created in the same transaction.
+
+**Atomicity**: If any operation fails (condition violation, duplicate unique field, missing entity for delete), the entire transaction is rolled back — no partial writes. A `createMutual` for an already-linked pair fails with `409 MUTUAL_EXISTS`, and an `updateMutual` or `deleteMutual` for an unlinked pair with `404 MUTUAL_NOT_FOUND`.
+
+**Events**: Events (`ENTITY_CREATED`, `ENTITY_UPDATED`, `ENTITY_DELETED`, and the same mutual events the standalone `createMutual`/`editMutual`/`deleteMutual` publish) are published only after the transaction commits successfully. Replication, tag, and mutual processors work normally.
 
 ### Mutual actions
 
