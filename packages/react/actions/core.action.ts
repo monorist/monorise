@@ -5,7 +5,7 @@ import type {
   EntitySchemaMap,
 } from '@monorise/base';
 import { produce } from 'immer';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   byEntityId,
   constructLocal,
@@ -44,6 +44,10 @@ import {
 // Should we use store.getState() or store()?
 // USE store.getState() WHEN using within an action such as getEntity, getProfile
 // USE store() WHEN using within a react hook so that it gets the benefit of reactivity, such as useProfile, useEntity
+
+// The map a hook reads before the store has a slice for it: one shared
+// instance, so the arrays built from it keep their identity across renders.
+const EMPTY_MAP = new Map();
 
 const defaultOnError = (error: ApplicationRequestError | Error) => {
   if (!(error instanceof Error) && error.status >= 500) {
@@ -1806,9 +1810,8 @@ const initCoreActions = (
     const error = useErrorStore(requestKey);
     const state = monoriseStore((state) => state.entity[entityType]);
     const { dataMap, searchResults, isFirstFetched, lastKey } = state ?? {
-      dataMap: new Map(),
+      dataMap: EMPTY_MAP,
     };
-    const [entities, setEntities] = useState<CreatedEntity<T>[]>();
     const [query, setQuery] = useState<string>('');
     const [skRange, setBetween] = useState(params.skRange);
     const [all, setAll] = useState(params.all);
@@ -1845,52 +1848,31 @@ const initCoreActions = (
     }, [all, entityType, skRange, opts, isFirstFetched, opts?.forceFetch, limit]);
 
     useEffect(() => {
-      let queryTimeout: NodeJS.Timeout;
-
-      if (query?.length) {
-        setIsSearching(true);
-        queryTimeout = setTimeout(async () => {
-          await searchEntities(entityType, query);
-          setIsSearching(false);
-        }, opts.searchInterval ?? 700);
+      // Clearing the query cancels a pending search, so it's no longer searching.
+      if (!query?.length) {
+        setIsSearching(false);
+        return;
       }
-
-      return () => queryTimeout && clearTimeout(queryTimeout);
+      setIsSearching(true);
+      const queryTimeout = setTimeout(async () => {
+        await searchEntities(entityType, query);
+        setIsSearching(false);
+      }, opts.searchInterval ?? 700);
+      return () => clearTimeout(queryTimeout);
     }, [entityType, query]);
 
-    useEffect(() => {
-      if (!query) {
-        const dataMapArray = Array.from(dataMap.values()).sort(
-          byEntityId,
-        ) as CreatedEntity<T>[];
-        // Compare size AND content so that edits which keep the same set of
-        // entityIds but mutate their data (e.g. editEntity) still propagate
-        // to the local `entities` snapshot. Matches the comparison already
-        // used in `useMutuals`.
-        if (
-          dataMap.size !== entities?.length ||
-          dataMapArray.some(
-            (item, index) =>
-              JSON.stringify(item) !== JSON.stringify(entities?.[index]),
-          )
-        ) {
-          setIsSearching(false);
-          setEntities(dataMapArray);
-        }
-      }
-
-      if (query) {
-        setEntities(searchResults as CreatedEntity<T>[]);
-      }
-    }, [
-      dataMap,
-      dataMap.size,
-      entities,
-      entities?.length,
-      query,
-      searchResults,
-      searchResults?.length,
-    ]);
+    // Read from the store during render, so `entities` is always in step with
+    // `isFirstFetched` and `entitiesMap`. Memoised on the store's map, which
+    // the store replaces on every change, so the array keeps its identity
+    // until the data changes.
+    const listed = useMemo(
+      () =>
+        Array.from(dataMap.values()).sort(byEntityId) as CreatedEntity<T>[],
+      [dataMap],
+    );
+    const entities = query
+      ? (searchResults as CreatedEntity<T>[] | undefined)
+      : listed;
 
     const handleQueryChange = (event: React.ChangeEvent<HTMLInputElement>) => {
       setQuery(event.target.value);
@@ -2007,9 +1989,14 @@ const initCoreActions = (
     );
     const state = monoriseStore((state) => state.mutual[stateKey]);
     const { dataMap, isFirstFetched, lastKey } = state || {
-      dataMap: new Map(),
+      dataMap: EMPTY_MAP,
     };
-    const [mutuals, setMutuals] = useState<Mutual<B, T>[]>([]);
+    // Read from the store during render, so `mutuals` is always in step with
+    // `isFirstFetched` and `mutualsMap` (see useEntities).
+    const mutuals = useMemo(
+      () => Array.from(dataMap.values()) as Mutual<B, T>[],
+      [dataMap],
+    );
     const requestKey = getMutualRequestKey(
       'list',
       byEntityType,
@@ -2042,19 +2029,6 @@ const initCoreActions = (
       opts?.forceFetch,
       opts?.noData,
     ]);
-
-    useEffect(() => {
-      const dataMapArray = Array.from(dataMap.values());
-      if (
-        dataMap.size !== mutuals?.length ||
-        dataMapArray.some(
-          (item, index) =>
-            JSON.stringify(item) !== JSON.stringify(mutuals[index]),
-        )
-      ) {
-        setMutuals(dataMapArray as Mutual<B, T>[]);
-      }
-    }, [dataMap, dataMap.size, mutuals?.length]);
 
     return {
       mutuals,
@@ -2150,9 +2124,21 @@ const initCoreActions = (
     const stateKey = getTagStateKey(entityType, tagName, params);
     const state = monoriseStore((state) => state.tag[stateKey]);
     const { dataMap, isFirstFetched, lastKey } = state || {
-      dataMap: new Map(),
+      dataMap: EMPTY_MAP,
     };
-    const [entities, setEntities] = useState<CreatedEntity<T>[]>([]);
+    const group = params?.group;
+    // Read from the store during render, so `entities` is always in step with
+    // `isFirstFetched` and `entitiesMap` (see useEntities).
+    const entities = useMemo(
+      () =>
+        sortTaggedEntitiesLikeServer(
+          Array.from(dataMap.values()) as CreatedEntity<T>[],
+          entityType,
+          tagName,
+          group,
+        ),
+      [dataMap, entityType, tagName, group],
+    );
     const requestKey = getTagRequestKey('list', entityType, tagName, params);
     const isLoading = useLoadStore(requestKey);
     const error = useErrorStore(requestKey);
@@ -2162,24 +2148,6 @@ const initCoreActions = (
         listEntitiesByTag(entityType, tagName, opts);
       }
     }, [entityType, opts, tagName, params, opts?.forceFetch]);
-
-    useEffect(() => {
-      const dataMapArray = sortTaggedEntitiesLikeServer(
-        Array.from(dataMap.values()) as CreatedEntity<T>[],
-        entityType,
-        tagName,
-        params?.group,
-      );
-      if (
-        dataMap.size !== entities?.length ||
-        dataMapArray.some(
-          (item, index) =>
-            JSON.stringify(item) !== JSON.stringify(entities[index]),
-        )
-      ) {
-        setEntities(dataMapArray);
-      }
-    }, [dataMap, dataMap.size, entities?.length]);
 
     return {
       entities,
