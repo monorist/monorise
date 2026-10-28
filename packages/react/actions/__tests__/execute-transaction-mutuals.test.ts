@@ -473,14 +473,17 @@ describe('executeTransaction mutual request keys', () => {
       tx.deleteMutual(USER, TEAM, 'u2', 't9'),
     ];
     const keys = [
-      getMutualRequestKey('create', USER, TEAM, 'u1'),
+      getMutualRequestKey('create', USER, TEAM, 'u1', 't1'),
       getMutualRequestKey('update', USER, TEAM, 'u1', 't9'),
       getMutualRequestKey('delete', USER, TEAM, 'u2', 't9'),
     ];
+    const legacyCreateKey = getMutualRequestKey('create', USER, TEAM, 'u1');
+    const observedKeys = [...keys, legacyCreateKey];
     expect(operations.map(getTransactionOperationRequestKey)).toEqual(keys);
 
     const pending = h.actions.executeTransaction(operations);
-    expect(keys.map((k) => h.appActions.checkIsLoading(k))).toEqual([
+    expect(observedKeys.map((k) => h.appActions.checkIsLoading(k))).toEqual([
+      true,
       true,
       true,
       true,
@@ -503,12 +506,14 @@ describe('executeTransaction mutual request keys', () => {
     });
     await pending;
     await vi.advanceTimersByTimeAsync(LOADING_SETTLE_MS);
-    expect(keys.map((k) => h.appActions.checkIsLoading(k))).toEqual([
+    expect(observedKeys.map((k) => h.appActions.checkIsLoading(k))).toEqual([
+      false,
       false,
       false,
       false,
     ]);
-    expect(keys.map((k) => h.appActions.getError(k))).toEqual([
+    expect(observedKeys.map((k) => h.appActions.getError(k))).toEqual([
+      undefined,
       undefined,
       undefined,
       undefined,
@@ -535,9 +540,11 @@ describe('executeTransaction mutual request keys', () => {
       },
     );
     const keys = [
-      getMutualRequestKey('create', USER, TEAM, 'u1'),
+      getMutualRequestKey('create', USER, TEAM, 'u1', 't1'),
       getMutualRequestKey('delete', USER, TEAM, 'u2', 't9'),
     ];
+    const legacyCreateKey = getMutualRequestKey('create', USER, TEAM, 'u1');
+    const observedKeys = [...keys, legacyCreateKey];
     const prior = snapshot(h.store);
 
     const { error } = await h.actions.executeTransaction([
@@ -547,11 +554,13 @@ describe('executeTransaction mutual request keys', () => {
     await vi.advanceTimersByTimeAsync(LOADING_SETTLE_MS);
 
     expect(error).toBeInstanceOf(Error);
-    expect(keys.map((k) => h.appActions.getError(k))).toEqual([
+    expect(observedKeys.map((k) => h.appActions.getError(k))).toEqual([
+      appError,
       appError,
       appError,
     ]);
-    expect(keys.map((k) => h.appActions.checkIsLoading(k))).toEqual([
+    expect(observedKeys.map((k) => h.appActions.checkIsLoading(k))).toEqual([
+      false,
       false,
       false,
     ]);

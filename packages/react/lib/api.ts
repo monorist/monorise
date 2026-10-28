@@ -10,6 +10,7 @@ import type { ApplicationRequestError } from '../types/api.type';
 
 type IntercepterAxiosRequestConfig<D> = AxiosRequestConfig<D> & {
   requestKey: string;
+  stateKeys?: string[];
   isInterruptive?: boolean;
   feedback?: {
     loading?: string | boolean;
@@ -28,7 +29,12 @@ const initAxiosInterceptor = (store: MonoriseStore, appActions: AppActions) => {
     config: AxiosRequestConfig<D>,
     data?: D,
   ): Promise<R> {
-    const { requestKey, isInterruptive = false, feedback } = config;
+    const {
+      requestKey,
+      stateKeys = [],
+      isInterruptive = false,
+      feedback,
+    } = config;
     const { ongoingRequests } = store.getState().app;
 
     if (ongoingRequests.has(requestKey)) {
@@ -50,6 +56,17 @@ const initAxiosInterceptor = (store: MonoriseStore, appActions: AppActions) => {
       message: feedback?.loading,
       request: promise,
     });
+    for (const stateKey of new Set(stateKeys)) {
+      if (stateKey !== requestKey) {
+        // State keys are loading/error observers only. Registering the request
+        // under them would make a different write to the same target dedupe.
+        startLoading({
+          requestKey: stateKey,
+          isInterruptive,
+          message: feedback?.loading,
+        });
+      }
+    }
 
     return promise;
   }
@@ -110,11 +127,32 @@ const injectAxiosInterceptor = (
     message: "Ops, something doesn't seems right",
   };
 
+  const settleLoading = (config: AxiosRequestConfig) => {
+    const { requestKey, stateKeys = [], isInterruptive } = config;
+    endLoading({ requestKey, isInterruptive });
+    for (const stateKey of new Set(stateKeys)) {
+      if (stateKey !== requestKey) {
+        endLoading({
+          requestKey: stateKey,
+          isInterruptive,
+          skipDedupe: true,
+        });
+      }
+    }
+  };
+
+  const getErrorKeys = (config: AxiosRequestConfig) => {
+    const { requestKey, stateKeys = [] } = config;
+    return stateKeys.length > 0 ? new Set(stateKeys) : new Set([requestKey]);
+  };
+
   axios.interceptors.response.use(
     (response) => {
-      const { requestKey, isInterruptive, feedback } = response.config;
-      endLoading({ requestKey, isInterruptive });
-      clearError(requestKey);
+      const { feedback } = response.config;
+      settleLoading(response.config);
+      for (const errorKey of getErrorKeys(response.config)) {
+        clearError(errorKey);
+      }
 
       if (feedback?.success) {
         options.onApiSuccess?.(response, feedback.success);
@@ -139,8 +177,8 @@ const injectAxiosInterceptor = (
       return Promise.resolve(response);
     },
     (error: AxiosError<string>) => {
-      const { requestKey, isInterruptive } = error.config as AxiosRequestConfig;
-      endLoading({ requestKey, isInterruptive });
+      const config = error.config as AxiosRequestConfig;
+      settleLoading(config);
 
       const appError = error.response?.data
         ? {
@@ -149,7 +187,9 @@ const injectAxiosInterceptor = (
             message: error.response?.data,
           }
         : unknownError;
-      setError({ requestKey, error: appError });
+      for (const errorKey of getErrorKeys(config)) {
+        setError({ requestKey: errorKey, error: appError });
+      }
       if (error.response?.status === 401) {
         setIsUnauthorized(true);
       }
