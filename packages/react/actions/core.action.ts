@@ -47,7 +47,9 @@ import {
 
 // The map a hook reads before the store has a slice for it: one shared
 // instance, so the arrays built from it keep their identity across renders.
-const EMPTY_MAP = new Map();
+// Hooks hand it out as `entitiesMap` / `mutualsMap`, so it must never be
+// mutated: anything set on it would show in every hook without a slice.
+const EMPTY_MAP = new Map<never, never>();
 
 const defaultOnError = (error: ApplicationRequestError | Error) => {
   if (!(error instanceof Error) && error.status >= 500) {
@@ -1862,9 +1864,10 @@ const initCoreActions = (
     }, [entityType, query]);
 
     // Read from the store during render, so `entities` is always in step with
-    // `isFirstFetched` and `entitiesMap`. Memoised on the store's map, which
-    // the store replaces on every change, so the array keeps its identity
-    // until the data changes.
+    // `isFirstFetched` and `entitiesMap`. Memoised on the store's map, so the
+    // array keeps its identity until the store replaces that map, which it
+    // does on any write to the slice, including a refetch that returns the
+    // same data.
     const listed = useMemo(
       () =>
         Array.from(dataMap.values()).sort(byEntityId) as CreatedEntity<T>[],

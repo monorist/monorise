@@ -173,8 +173,10 @@ describe('hook arrays on the render that reports them loaded', () => {
       tagged: actions.useTaggedEntities(TEAM, 'by-region', {
         params: { group: 'north' },
       }).entities,
+      // Was `undefined` until the hook's first effect ran.
+      entities: actions.useEntities(TEAM).entities,
     }));
 
-    expect(result).toEqual({ mutuals: [], tagged: [] });
+    expect(result).toEqual({ mutuals: [], tagged: [], entities: [] });
   });
 });
