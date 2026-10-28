@@ -19,8 +19,10 @@ tsconfig.tsbuildinfo
 .monorise
 .next
 
-# claude code
-.claude/
+# claude code — everything except the committed project skills, which Claude
+# Code only discovers at .claude/skills/<name>/SKILL.md
+.claude/*
+!.claude/skills/
 
 # npm pack output
 *.tgz
