@@ -45,6 +45,13 @@ Every built-in route checks the key's policy before it runs:
 - `POST /transaction` checks every operation before any runs. If the key can't perform one, the whole transaction is rejected with that operation's `operationIndex`.
 - `POST /ws/ticket` accepts only `full` keys, because a ticket's feed isn't scoped yet.
 
+Relationships are granted per direction, under the first entity in the URL. `entities[Entity.LEARNER].mutuals[Entity.COURSE]` governs `/mutual/learner/:id/course` (the courses a learner applied to), never `/mutual/course/:id/learner`.
+
+- **No entry:** the direction takes its level from how the first entity is written. A shorthand string gives its own level; an object gives its `mutuals['*']`, or none.
+- **One grant for every write path:** `/mutual` routes, transaction mutual operations, and relationship fields in entity payloads. Create needs create on the direction. Update needs create and delete, since the new list replaces the old one.
+- **`asEntity`:** creating a relationship whose mutual config uses `asEntity` also needs create on that entity type.
+- **Chain queries** check every hop.
+
 Keys on `full`, which includes every key in the array form, pass every check, so existing projects see no change.
 
 Fixes unique-field lookups matching entity types by prefix. `GET /entity/user/unique/email/…` could return a `user-profile` entity with that email, and creating a `user` was rejected when a `user-profile` already used the value.

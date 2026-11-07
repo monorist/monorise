@@ -1,18 +1,61 @@
 import type { ApiKeyPolicies } from '@monorise/base';
 import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
+import {
+  type Entity as EntityType,
+  createEntityConfig,
+  createMutualConfig,
+} from '../../../base';
 import { setupCommonRoutes } from '../../controllers/setupRoutes';
 import { DependencyContainer } from '../../services/DependencyContainer';
 import { createApiKeyAuth, parseApiKeys } from '../api-key-auth';
 import {
+  createRouteGuards,
   customRouteGate,
-  requireEntity,
   requireFullPolicy,
-  requireMutualTypes,
-  requireTransactionOperations,
   requires,
   routeGuardRequirement,
 } from '../authorize';
+
+const as = (name: string) => name as unknown as EntityType;
+const named = (name: string) =>
+  createEntityConfig({
+    name,
+    displayName: name,
+    baseSchema: z.object({ name: z.string() }).partial(),
+  });
+
+const enrollment = named('enrollment');
+const entityConfig = {
+  learner: createEntityConfig({
+    name: 'learner',
+    displayName: 'Learner',
+    baseSchema: z.object({ name: z.string() }).partial(),
+    mutual: {
+      mutualSchema: z
+        .object({
+          courseIds: z.string().array(),
+          cohortIds: z.string().array(),
+        })
+        .partial(),
+      mutualFields: {
+        courseIds: { entityType: as('course') },
+        cohortIds: {
+          entityType: as('cohort'),
+          mutual: createMutualConfig({
+            entities: [as('learner'), as('cohort')],
+            asEntity: enrollment,
+          }),
+        },
+      },
+    },
+  }),
+  course: named('course'),
+  module: named('module'),
+  cohort: named('cohort'),
+  enrollment,
+};
 
 const policies: ApiKeyPolicies = {
   reader: { entities: { course: 'read', learner: { read: ['name'] } } },
@@ -22,13 +65,45 @@ const policies: ApiKeyPolicies = {
       learner: { update: ['name'] },
     },
   },
+  client: {
+    entities: {
+      learner: {
+        read: '*',
+        create: ['name'],
+        update: ['name'],
+        mutuals: { course: { read: '*', create: ['role'], delete: true } },
+      },
+      course: { read: '*', mutuals: { module: 'read' } },
+      module: 'read',
+      cohort: 'read',
+    },
+  },
+  enroller: {
+    entities: {
+      learner: { read: '*', mutuals: { cohort: 'write' } },
+      cohort: 'read',
+      enrollment: 'write',
+    },
+  },
+  'enroller-without-enrollment': {
+    entities: {
+      learner: { read: '*', mutuals: { cohort: 'write' } },
+      cohort: 'read',
+      enrollment: 'read',
+    },
+  },
 };
 
 const API_KEYS = JSON.stringify({
   full: ['full-key'],
   reader: ['reader-key'],
   editor: ['editor-key'],
+  client: ['client-key'],
+  enroller: ['enroller-key'],
+  'enroller-without-enrollment': ['enroller-without-enrollment-key'],
 });
+
+const guard = createRouteGuards(entityConfig);
 
 // The guards under test on the same paths setupCommonRoutes uses, in front of
 // a stub handler, so nothing reaches DynamoDB.
@@ -40,17 +115,23 @@ app.use(
   ),
 );
 const ok = (c: { json: (body: unknown) => Response }) => c.json({ ok: true });
-app.get('/entity/:entityType', requireEntity('read'), ok);
-app.post('/entity/:entityType', requireEntity('create'), ok);
-app.put('/entity/:entityType/:entityId', requireEntity('create', 'update'), ok);
-app.delete('/entity/:entityType/:entityId', requireEntity('delete'), ok);
+app.get('/entity/:entityType', guard.entity('read'), ok);
+app.post('/entity/:entityType', guard.entity('create'), ok);
+app.put('/entity/:entityType/:entityId', guard.entity('create', 'update'), ok);
+app.patch('/entity/:entityType/:entityId', guard.entity('update'), ok);
+app.delete('/entity/:entityType/:entityId', guard.entity('delete'), ok);
 app.get(
   '/mutual/:byEntityType/:byEntityId/:entityType',
-  requireMutualTypes(),
+  guard.mutual('read'),
   ok,
 );
+const mutualPath = '/mutual/:byEntityType/:byEntityId/:entityType/:entityId';
+app.get(mutualPath, guard.mutual('read'), ok);
+app.post(mutualPath, guard.mutual('create'), ok);
+app.patch(mutualPath, guard.mutual('update'), ok);
+app.delete(mutualPath, guard.mutual('delete'), ok);
 app.post('/ws/ticket/:entityType/:entityId', requireFullPolicy(), ok);
-app.post('/transaction', requireTransactionOperations(), async (c) => {
+app.post('/transaction', guard.transaction(), async (c) => {
   // Like the real controller: it reads the body the guard already parsed,
   // and answers 400 to a body that isn't JSON.
   try {
@@ -78,7 +159,7 @@ const call = async (
   return { status: res.status, body: await res.json() };
 };
 
-describe('requireEntity', () => {
+describe('entity guard', () => {
   it('lets the full policy through without checking', async () => {
     expect(
       (await call('full-key', 'DELETE', '/entity/anything/1')).status,
@@ -128,13 +209,13 @@ describe('requireEntity', () => {
 
   it('lets a request through when no API key was resolved', async () => {
     const bare = new Hono();
-    bare.get('/entity/:entityType', requireEntity('delete'), ok);
+    bare.get('/entity/:entityType', guard.entity('delete'), ok);
 
     expect((await bare.request('/entity/course')).status).toBe(200);
   });
 });
 
-describe('requireMutualTypes', () => {
+describe('mutual guard: listed types', () => {
   it('answers 404 when either type is unlisted', async () => {
     expect(
       (await call('reader-key', 'GET', '/mutual/course/1/payment')).status,
@@ -144,7 +225,7 @@ describe('requireMutualTypes', () => {
     ).toBe(404);
   });
 
-  it('allows the route when both types are listed', async () => {
+  it("allows the route when the first type's default grants the direction", async () => {
     expect(
       (await call('reader-key', 'GET', '/mutual/course/1/learner')).status,
     ).toBe(200);
@@ -170,7 +251,7 @@ describe('requireFullPolicy', () => {
   });
 });
 
-describe('requireTransactionOperations', () => {
+describe('transaction guard', () => {
   it('allows a transaction whose every operation is granted', async () => {
     const res = await call('editor-key', 'POST', '/transaction', {
       operations: [
@@ -268,15 +349,15 @@ describe('setupCommonRoutes', () => {
         ]),
       ),
     ).toEqual({
-      'GET /mutual/:byEntityType/:byEntityId/:entityType': 'mutual:types',
+      'GET /mutual/:byEntityType/:byEntityId/:entityType': 'mutual:read',
       'POST /mutual/:byEntityType/:byEntityId/:entityType/:entityId':
-        'mutual:types',
+        'mutual:create',
       'GET /mutual/:byEntityType/:byEntityId/:entityType/:entityId':
-        'mutual:types',
+        'mutual:read',
       'PATCH /mutual/:byEntityType/:byEntityId/:entityType/:entityId':
-        'mutual:types',
+        'mutual:update',
       'DELETE /mutual/:byEntityType/:byEntityId/:entityType/:entityId':
-        'mutual:types',
+        'mutual:delete',
       'GET /entity/:entityType': 'entity:read',
       'POST /entity/:entityType': 'entity:create',
       'GET /entity/:entityType/unique/:uniqueField/:uniqueFieldValue':
@@ -420,6 +501,227 @@ describe('custom route permissions', () => {
       readPayment: false,
       checkout: true,
       reports: false,
+    });
+  });
+});
+
+describe('relationship directions', () => {
+  it('reads and writes the direction the URL names, as its entry grants', async () => {
+    expect(
+      (await call('client-key', 'GET', '/mutual/learner/1/course')).status,
+    ).toBe(200);
+    expect(
+      (await call('client-key', 'POST', '/mutual/learner/1/course/9')).status,
+    ).toBe(200);
+    expect(
+      (await call('client-key', 'DELETE', '/mutual/learner/1/course/9')).status,
+    ).toBe(200);
+    expect(
+      await call('client-key', 'PATCH', '/mutual/learner/1/course/9'),
+    ).toEqual({
+      status: 403,
+      body: {
+        code: 'FORBIDDEN',
+        message:
+          "API key policy 'client' does not allow update on learner→course",
+      },
+    });
+  });
+
+  it('never applies an entry to the opposite direction', async () => {
+    // course is an object with no learner entry and no '*', so course→learner is closed,
+    // even though POST would form the same relationship as learner→course.
+    expect(await call('client-key', 'GET', '/mutual/course/9/learner')).toEqual(
+      {
+        status: 403,
+        body: {
+          code: 'FORBIDDEN',
+          message:
+            "API key policy 'client' does not allow read on course→learner",
+        },
+      },
+    );
+    expect(
+      (await call('client-key', 'POST', '/mutual/course/9/learner/1')).status,
+    ).toBe(403);
+  });
+
+  it('checks every hop of a chain query', async () => {
+    expect(
+      (
+        await call(
+          'client-key',
+          'GET',
+          '/mutual/learner/1/module?chainEntityQuery=course',
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await call(
+          'client-key',
+          'GET',
+          '/mutual/learner/1/course?chainEntityQuery=cohort',
+        )
+      ).body,
+    ).toEqual({
+      code: 'FORBIDDEN',
+      message: "API key policy 'client' does not allow read on learner→cohort",
+    });
+    expect(
+      (
+        await call(
+          'client-key',
+          'GET',
+          '/mutual/learner/1/course?chainEntityQuery=payment',
+        )
+      ).status,
+    ).toBe(404);
+  });
+
+  it('checks relationship fields in a create body as create on their direction', async () => {
+    expect(
+      (
+        await call('client-key', 'POST', '/entity/learner', {
+          name: 'a',
+          courseIds: ['9'],
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await call('client-key', 'POST', '/entity/learner', {
+          name: 'a',
+          cohortIds: ['2'],
+        })
+      ).body,
+    ).toEqual({
+      code: 'FORBIDDEN',
+      message:
+        "API key policy 'client' does not allow create on learner→cohort",
+    });
+  });
+
+  it('checks relationship fields in an update body as create and delete, since the list replaces the old one', async () => {
+    expect(
+      (
+        await call('client-key', 'PATCH', '/entity/learner/1', {
+          courseIds: ['9'],
+        })
+      ).status,
+    ).toBe(200);
+
+    const withoutDelete: ApiKeyPolicies = {
+      p: {
+        entities: {
+          learner: { update: ['name'], mutuals: { course: { create: '*' } } },
+          course: 'read',
+        },
+      },
+    };
+    const strict = new Hono();
+    strict.use(
+      createApiKeyAuth(parseApiKeys('{"p": ["k"]}', ['p']), withoutDelete),
+    );
+    strict.patch('/entity/:entityType/:entityId', guard.entity('update'), ok);
+
+    const res = await strict.request('/entity/learner/1', {
+      method: 'PATCH',
+      headers: { 'x-api-key': 'k', 'content-type': 'application/json' },
+      body: JSON.stringify({ courseIds: ['9'] }),
+    });
+    expect(await res.json()).toEqual({
+      code: 'FORBIDDEN',
+      message: "API key policy 'p' does not allow delete on learner→course",
+    });
+  });
+
+  it('requires create on the asEntity type a relationship creates', async () => {
+    expect(
+      (await call('enroller-key', 'POST', '/mutual/learner/1/cohort/2')).status,
+    ).toBe(200);
+    expect(
+      await call(
+        'enroller-without-enrollment-key',
+        'POST',
+        '/mutual/learner/1/cohort/2',
+      ),
+    ).toEqual({
+      status: 403,
+      body: {
+        code: 'FORBIDDEN',
+        message:
+          "API key policy 'enroller-without-enrollment' does not allow create on 'enrollment', which learner→cohort creates",
+      },
+    });
+  });
+
+  it('checks mutual operations and relationship fields in a transaction', async () => {
+    const run = (operations: unknown[]) =>
+      call('client-key', 'POST', '/transaction', { operations });
+
+    expect(
+      (
+        await run([
+          {
+            operation: 'createMutual',
+            byEntityType: 'learner',
+            byEntityId: '1',
+            entityType: 'course',
+            entityId: '9',
+          },
+          {
+            operation: 'deleteMutual',
+            byEntityType: 'learner',
+            byEntityId: '1',
+            entityType: 'course',
+            entityId: '8',
+          },
+        ])
+      ).status,
+    ).toBe(200);
+    expect(
+      await run([
+        {
+          operation: 'createMutual',
+          byEntityType: 'learner',
+          byEntityId: '1',
+          entityType: 'course',
+          entityId: '9',
+        },
+        {
+          operation: 'createMutual',
+          byEntityType: 'course',
+          byEntityId: '9',
+          entityType: 'learner',
+          entityId: '1',
+        },
+      ]),
+    ).toEqual({
+      status: 403,
+      body: {
+        code: 'FORBIDDEN',
+        message:
+          "API key policy 'client' does not allow create on course→learner",
+        operationIndex: 1,
+      },
+    });
+    expect(
+      (
+        await run([
+          {
+            operation: 'updateEntity',
+            entityType: 'learner',
+            entityId: '1',
+            payload: { cohortIds: ['2'] },
+          },
+        ])
+      ).body,
+    ).toEqual({
+      code: 'FORBIDDEN',
+      message:
+        "API key policy 'client' does not allow create on learner→cohort",
+      operationIndex: 0,
     });
   });
 });
