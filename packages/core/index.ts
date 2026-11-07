@@ -111,4 +111,6 @@ export {
   wsBroadcast,
 };
 
+export type { ApiKeyPrincipal } from './middlewares/api-key-auth';
+
 export default CoreFactory;
