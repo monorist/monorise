@@ -10,6 +10,11 @@ import {
   type AnalyticsConfig,
 } from './commands/utils/analytics-manifest';
 import { fileURLToPath } from 'node:url';
+import {
+  apiKeyPoliciesHandleParts,
+  resolveApiKeysPath,
+  validateApiKeyPoliciesFile,
+} from './commands/utils/api-key-policies';
 import { detectCombinedPackage } from './commands/utils/detect-package';
 import { ROOT_TSCONFIG_TEMPLATE } from './templates/root-tsconfig';
 
@@ -212,6 +217,7 @@ async function generateHandleFile(
   monoriseConfig: { customRoutes?: string; configDir: string },
   projectRoot: string,
   monoriseOutputDir: string,
+  apiKeysPath?: string,
 ): Promise<string> {
   const handleOutputPath = path.join(monoriseOutputDir, 'handle.ts');
   const customRoutesPath = monoriseConfig.customRoutes;
@@ -253,12 +259,16 @@ async function generateHandleFile(
   // Detect whether the consumer uses the combined 'monorise' package or scoped '@monorise/*' packages
   const usesCombinedPackage = detectCombinedPackage(projectRoot);
   const coreImportPath = usesCombinedPackage ? 'monorise/core' : '@monorise/core';
+  const apiKeyPolicies = apiKeyPoliciesHandleParts(
+    monoriseOutputDir,
+    apiKeysPath,
+  );
 
   const combinedContent = `
 import CoreFactory, { analyticsMaterializationProcessor, analyticsModelProcessor, analyticsQueryHandler as createAnalyticsQueryHandler, analyticsViewProcessor } from '${coreImportPath}';
 import config from './config';
 import analyticsManifest from './analytics-manifest.json';
-${routesImportLine ? `${routesImportLine}\n` : ''}const coreFactory = new CoreFactory(config);
+${routesImportLine ? `${routesImportLine}\n` : ''}${apiKeyPolicies.importLine ? `${apiKeyPolicies.importLine}\n` : ''}const coreFactory = new CoreFactory(${apiKeyPolicies.coreFactoryArg});
 
 export const replicationHandler = coreFactory.replicationProcessor;
 export const analyticsHandler = coreFactory.analyticsProcessor;
@@ -309,8 +319,21 @@ async function generateFiles(rootPath?: string): Promise<string> {
 
   fs.mkdirSync(monoriseOutputDir, { recursive: true });
 
-  await generateConfigFile(configDir, monoriseOutputDir, projectRoot);
-  await generateHandleFile(monoriseConfig, projectRoot, monoriseOutputDir);
+  const configOutputPath = await generateConfigFile(
+    configDir,
+    monoriseOutputDir,
+    projectRoot,
+  );
+  const apiKeysPath = resolveApiKeysPath(projectRoot, monoriseConfig.apiKeys);
+  if (apiKeysPath) {
+    await validateApiKeyPoliciesFile(apiKeysPath, configOutputPath);
+  }
+  await generateHandleFile(
+    monoriseConfig,
+    projectRoot,
+    monoriseOutputDir,
+    apiKeysPath,
+  );
 
   return configDir;
 }

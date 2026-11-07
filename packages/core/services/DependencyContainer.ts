@@ -1,5 +1,9 @@
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
-import type { Entity, createEntityConfig } from '@monorise/base';
+import type {
+  ApiKeyPolicies,
+  Entity,
+  createEntityConfig,
+} from '@monorise/base';
 import { CORE_TABLE } from '../configs/service.config';
 import { getDependencies } from '../helpers/dependencies';
 import type { publishEvent as publishEventType } from '../helpers/event';
@@ -43,6 +47,8 @@ export class DependencyContainer {
       EntityConfig: Record<Entity, ReturnType<typeof createEntityConfig>>;
       AllowedEntityTypes: Entity[];
       EmailAuthEnabledEntities: Entity[];
+      /** Policies from the file `apiKeys` points to in monorise.config.ts. */
+      ApiKeyPolicies?: ApiKeyPolicies;
       tableName?: string;
     },
   ) {

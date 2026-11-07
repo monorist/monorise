@@ -19,11 +19,35 @@ import type {
   WhereOperator,
 } from './types/conditions.type';
 
+import type {
+  ApiKeyAccessLevel,
+  ApiKeyEntityGrant,
+  ApiKeyFieldList,
+  ApiKeyMutualGrant,
+  ApiKeyPolicies,
+  ApiKeyPolicy,
+  ApiKeySystemField,
+} from './types/api-key-policy.type';
+
 import {
   createEntityConfig,
   createMutualConfig,
   resolveEffectiveMutualSchema,
 } from './utils';
+
+import {
+  FULL_API_KEY_POLICY,
+  compileApiKeyPolicy,
+  defineApiKeyPolicies,
+  validateApiKeyPolicies,
+} from './utils/api-key-policy';
+import type {
+  ApiKeyEntityAccess,
+  ApiKeyFieldAccess,
+  ApiKeyMutualAccess,
+  ApiKeyPolicyEntityConfig,
+  CompiledApiKeyPolicy,
+} from './utils/api-key-policy';
 
 export {
   Entity,
@@ -37,6 +61,10 @@ export {
   createEntityConfig,
   createMutualConfig,
   resolveEffectiveMutualSchema,
+  FULL_API_KEY_POLICY,
+  compileApiKeyPolicy,
+  defineApiKeyPolicies,
+  validateApiKeyPolicies,
 };
 
 export type {
@@ -47,4 +75,16 @@ export type {
   WhereClause,
   WhereConditions,
   WhereOperator,
+  ApiKeyAccessLevel,
+  ApiKeyEntityAccess,
+  ApiKeyEntityGrant,
+  ApiKeyFieldAccess,
+  ApiKeyFieldList,
+  ApiKeyMutualAccess,
+  ApiKeyMutualGrant,
+  ApiKeyPolicies,
+  ApiKeyPolicy,
+  ApiKeyPolicyEntityConfig,
+  ApiKeySystemField,
+  CompiledApiKeyPolicy,
 };

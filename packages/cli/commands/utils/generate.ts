@@ -4,6 +4,11 @@ import {
   writeAnalyticsManifest,
   type AnalyticsConfig,
 } from './analytics-manifest';
+import {
+  apiKeyPoliciesHandleParts,
+  resolveApiKeysPath,
+  validateApiKeyPoliciesFile,
+} from './api-key-policies';
 import { detectCombinedPackage } from './detect-package';
 
 function kebabToCamel(str: string): string {
@@ -325,6 +330,7 @@ async function generateHandleFile(
   monoriseConfig: { customRoutes?: string; configDir: string },
   projectRoot: string,
   monoriseOutputDir: string,
+  apiKeysPath?: string,
 ): Promise<string> {
   const handleOutputPath = path.join(monoriseOutputDir, 'handle.ts');
   const customRoutesPath = monoriseConfig.customRoutes;
@@ -377,14 +383,19 @@ async function generateHandleFile(
 
   const usesCombinedPackage = detectCombinedPackage(projectRoot);
   const coreImportPath = usesCombinedPackage ? 'monorise/core' : '@monorise/core';
+  const apiKeyPolicies = apiKeyPoliciesHandleParts(
+    monoriseOutputDir,
+    apiKeysPath,
+  );
 
   const combinedContent = `
 import CoreFactory, { analyticsMaterializationProcessor, analyticsModelProcessor, analyticsQueryHandler as createAnalyticsQueryHandler, analyticsViewProcessor } from '${coreImportPath}';
 import config from './config';
 import analyticsManifest from './analytics-manifest.json';
 import routes from '${relativePathToRoutes}';
+${apiKeyPolicies.importLine}
 
-const coreFactory = new CoreFactory(config);
+const coreFactory = new CoreFactory(${apiKeyPolicies.coreFactoryArg});
 
 export const replicationHandler = coreFactory.replicationProcessor;
 export const analyticsHandler = coreFactory.analyticsProcessor;
@@ -435,8 +446,20 @@ async function generateFiles(rootPath?: string): Promise<string> {
 
   fs.mkdirSync(monoriseOutputDir, { recursive: true });
 
-  await generateConfigFile(configDir, monoriseOutputDir);
-  await generateHandleFile(monoriseConfig, projectRoot, monoriseOutputDir);
+  const configOutputPath = await generateConfigFile(
+    configDir,
+    monoriseOutputDir,
+  );
+  const apiKeysPath = resolveApiKeysPath(projectRoot, monoriseConfig.apiKeys);
+  if (apiKeysPath) {
+    await validateApiKeyPoliciesFile(apiKeysPath, configOutputPath);
+  }
+  await generateHandleFile(
+    monoriseConfig,
+    projectRoot,
+    monoriseOutputDir,
+    apiKeysPath,
+  );
 
   return configDir;
 }

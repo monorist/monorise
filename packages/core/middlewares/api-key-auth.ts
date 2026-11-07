@@ -1,12 +1,12 @@
 import { createHash } from 'node:crypto';
+import {
+  type ApiKeyPolicies,
+  type ApiKeyPolicyEntityConfig,
+  FULL_API_KEY_POLICY,
+  validateApiKeyPolicies,
+} from '@monorise/base';
 import { createFactory } from 'hono/factory';
 import httpStatus from 'http-status';
-
-/**
- * Built-in policy: read, write and delete on every entity, relationship and
- * custom route. Every key in the legacy array form of `API_KEYS` maps to it.
- */
-export const FULL_POLICY = 'full';
 
 const SHA256_PREFIX = 'sha256:';
 
@@ -57,7 +57,7 @@ const assertKeyList = (value: unknown, where: string): string[] => {
  */
 export const parseApiKeys = (
   raw: string | undefined,
-  definedPolicies: readonly string[] = [FULL_POLICY],
+  definedPolicies: readonly string[] = [FULL_API_KEY_POLICY],
 ): Map<string, string> => {
   const fingerprints = new Map<string, string>();
   if (!raw) return fingerprints;
@@ -66,7 +66,7 @@ export const parseApiKeys = (
 
   if (Array.isArray(parsed)) {
     for (const key of assertKeyList(parsed, 'the array form')) {
-      fingerprints.set(toFingerprint(key), FULL_POLICY);
+      fingerprints.set(toFingerprint(key), FULL_API_KEY_POLICY);
     }
     return fingerprints;
   }
@@ -127,6 +127,28 @@ export const createApiKeyAuth = (fingerprints: Map<string, string>) =>
     return await next();
   });
 
-const apiKeyAuth = createApiKeyAuth(parseApiKeys(process.env.API_KEYS));
+/**
+ * Builds the API key middleware for the project's policies. Throws at cold
+ * start when the policies don't match the entity configs; the CLI runs the
+ * same validation at build time.
+ */
+export const apiKeyAuth = ({
+  policies = {},
+  entityConfig,
+  apiKeys = process.env.API_KEYS,
+}: {
+  policies?: ApiKeyPolicies;
+  entityConfig: Record<string, ApiKeyPolicyEntityConfig>;
+  apiKeys?: string;
+}) => {
+  const errors = validateApiKeyPolicies(policies, entityConfig);
+  if (errors.length) {
+    throw new Error(
+      `[monorise] Invalid API key policies:\n  - ${errors.join('\n  - ')}`,
+    );
+  }
 
-export default apiKeyAuth;
+  return createApiKeyAuth(
+    parseApiKeys(apiKeys, [FULL_API_KEY_POLICY, ...Object.keys(policies)]),
+  );
+};
