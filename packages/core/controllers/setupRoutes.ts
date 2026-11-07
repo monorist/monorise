@@ -63,7 +63,7 @@ export const setupCommonRoutes = (container: DependencyContainer): Hono => {
   );
   app.post(
     '/entity/:entityType/:entityId/adjust',
-    guard.entity('update'),
+    guard.entity('adjust'),
     container.adjustEntityController.controller,
   );
   app.get(
@@ -71,11 +71,9 @@ export const setupCommonRoutes = (container: DependencyContainer): Hono => {
     guard.entity('read'),
     container.getEntityController.controller,
   );
-  // Upsert creates or updates depending on whether the entity exists, and
-  // checking which before the write would race, so it needs both.
   app.put(
     '/entity/:entityType/:entityId',
-    guard.entity('create', 'update'),
+    guard.entity('upsert'),
     container.upsertEntityController.controller,
   );
   app.patch(

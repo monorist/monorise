@@ -52,6 +52,16 @@ Relationships are granted per direction, under the first entity in the URL. `ent
 - **`asEntity`:** creating a relationship whose mutual config uses `asEntity` also needs create on that entity type.
 - **Chain queries** check every hop.
 
+Writes are checked field by field. The following may only set fields in the matching create or update list:
+- a create, update or upsert body;
+- an adjustment;
+- a relationship's `mutualData`.
+
+Otherwise the request is rejected with 403 `FORBIDDEN_FIELDS`, listing the offending `fields`, and nothing is written. An upsert must satisfy both lists.
+
+- **System fields:** a create body that sets `entityId` or `createdAt` needs `$entityId` or `$createdAt` in the create list. So does an upsert, because its URL chooses the ID. A `'*'` list allows every field, system fields included.
+- **Legacy `$where`:** it may only name fields the key can read.
+
 Keys on `full`, which includes every key in the array form, pass every check, so existing projects see no change.
 
 Fixes unique-field lookups matching entity types by prefix. `GET /entity/user/unique/email/…` could return a `user-profile` entity with that email, and creating a `user` was rejected when a `user-profile` already used the value.

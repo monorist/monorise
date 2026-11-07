@@ -61,8 +61,23 @@ const policies: ApiKeyPolicies = {
   reader: { entities: { course: 'read', learner: { read: ['name'] } } },
   editor: {
     entities: {
-      course: { read: '*', create: ['title'], update: ['title'] },
+      course: { read: '*', create: ['title', '$entityId'], update: ['title'] },
       learner: { update: ['name'] },
+    },
+  },
+  writer: {
+    entities: {
+      order: {
+        read: ['total', 'status', 'notes'],
+        create: ['customerId', 'items', 'notes'],
+        update: ['status', 'notes', 'quantity'],
+      },
+      invoice: { create: '*', update: ['notes'] },
+      learner: {
+        read: '*',
+        mutuals: { course: { read: '*', create: ['role'], update: ['role'] } },
+      },
+      course: 'read',
     },
   },
   client: {
@@ -99,6 +114,7 @@ const API_KEYS = JSON.stringify({
   reader: ['reader-key'],
   editor: ['editor-key'],
   client: ['client-key'],
+  writer: ['writer-key'],
   enroller: ['enroller-key'],
   'enroller-without-enrollment': ['enroller-without-enrollment-key'],
 });
@@ -117,7 +133,8 @@ app.use(
 const ok = (c: { json: (body: unknown) => Response }) => c.json({ ok: true });
 app.get('/entity/:entityType', guard.entity('read'), ok);
 app.post('/entity/:entityType', guard.entity('create'), ok);
-app.put('/entity/:entityType/:entityId', guard.entity('create', 'update'), ok);
+app.put('/entity/:entityType/:entityId', guard.entity('upsert'), ok);
+app.post('/entity/:entityType/:entityId/adjust', guard.entity('adjust'), ok);
 app.patch('/entity/:entityType/:entityId', guard.entity('update'), ok);
 app.delete('/entity/:entityType/:entityId', guard.entity('delete'), ok);
 app.get(
@@ -362,9 +379,9 @@ describe('setupCommonRoutes', () => {
       'POST /entity/:entityType': 'entity:create',
       'GET /entity/:entityType/unique/:uniqueField/:uniqueFieldValue':
         'entity:read',
-      'POST /entity/:entityType/:entityId/adjust': 'entity:update',
+      'POST /entity/:entityType/:entityId/adjust': 'entity:adjust',
       'GET /entity/:entityType/:entityId': 'entity:read',
-      'PUT /entity/:entityType/:entityId': 'entity:create+update',
+      'PUT /entity/:entityType/:entityId': 'entity:upsert',
       'PATCH /entity/:entityType/:entityId': 'entity:update',
       'DELETE /entity/:entityType/:entityId': 'entity:delete',
       'GET /tag/:entityType/:tagName': 'entity:read',
@@ -723,5 +740,225 @@ describe('relationship directions', () => {
         "API key policy 'client' does not allow create on learner→cohort",
       operationIndex: 0,
     });
+  });
+});
+
+describe('field-level write', () => {
+  const write = (method: string, path: string, body: unknown) =>
+    call('writer-key', method, path, body);
+
+  it('allows a create that sets only fields in the create list', async () => {
+    expect(
+      (await write('POST', '/entity/order', { customerId: 'c', items: [] }))
+        .status,
+    ).toBe(200);
+  });
+
+  it('rejects a create that sets a field outside the list, naming it', async () => {
+    expect(
+      await write('POST', '/entity/order', {
+        customerId: 'c',
+        items: [],
+        cost: 5,
+      }),
+    ).toEqual({
+      status: 403,
+      body: {
+        code: 'FORBIDDEN_FIELDS',
+        message:
+          "API key policy 'writer' does not allow create on these fields of 'order': 'cost'",
+        fields: ['cost'],
+      },
+    });
+  });
+
+  it('treats entityId and createdAt in a create body as $entityId and $createdAt', async () => {
+    const res = await write('POST', '/entity/order', {
+      customerId: 'c',
+      entityId: 'chosen',
+      createdAt: '2020-01-01T00:00:00Z',
+    });
+
+    expect(res.body.fields).toEqual(['$entityId', '$createdAt']);
+    expect(
+      (
+        await write('POST', '/entity/invoice', {
+          entityId: 'chosen',
+          createdAt: '2020-01-01T00:00:00Z',
+        })
+      ).status,
+    ).toBe(200);
+  });
+
+  it('checks an update against the update list, ignoring $condition', async () => {
+    expect(
+      (
+        await write('PATCH', '/entity/order/1', {
+          status: 'paid',
+          $condition: 'unpaid',
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (await write('PATCH', '/entity/order/1', { total: 5 })).body.fields,
+    ).toEqual(['total']);
+  });
+
+  it('requires read on every field a legacy $where names', async () => {
+    expect(
+      (
+        await write('PATCH', '/entity/order/1', {
+          notes: 'x',
+          $where: { status: 'open' },
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      await write('PATCH', '/entity/order/1', {
+        notes: 'x',
+        $where: { cost: { $gt: 1 } },
+      }),
+    ).toEqual({
+      status: 403,
+      body: {
+        code: 'FORBIDDEN_FIELDS',
+        message:
+          "API key policy 'writer' does not allow $where on these fields of 'order', which it cannot read: 'cost'",
+        fields: ['cost'],
+      },
+    });
+  });
+
+  it('checks an upsert against both lists, and needs $entityId since the URL chooses the ID', async () => {
+    expect(
+      (await write('PUT', '/entity/order/1', { notes: 'x' })).body.fields,
+    ).toEqual(['$entityId']);
+    expect(
+      (await write('PUT', '/entity/invoice/1', { notes: 'x' })).status,
+    ).toBe(200);
+    expect(
+      (await write('PUT', '/entity/invoice/1', { total: 5 })).body,
+    ).toEqual({
+      code: 'FORBIDDEN_FIELDS',
+      message:
+        "API key policy 'writer' does not allow update on these fields of 'invoice': 'total'",
+      fields: ['total'],
+    });
+  });
+
+  it('checks adjusted fields against the update list', async () => {
+    expect(
+      (
+        await write('POST', '/entity/order/1/adjust', {
+          quantity: 1,
+          $condition: 'inStock',
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (await write('POST', '/entity/order/1/adjust', { total: 5 })).body.fields,
+    ).toEqual(['total']);
+  });
+
+  it('checks mutualData against the direction create and update lists', async () => {
+    expect(
+      (await write('POST', '/mutual/learner/1/course/9', { role: 'student' }))
+        .status,
+    ).toBe(200);
+    expect(
+      await write('POST', '/mutual/learner/1/course/9', {
+        role: 'student',
+        appliedAt: 'now',
+      }),
+    ).toEqual({
+      status: 403,
+      body: {
+        code: 'FORBIDDEN_FIELDS',
+        message:
+          "API key policy 'writer' does not allow create on these mutualData fields of learner→course: 'appliedAt'",
+        fields: ['appliedAt'],
+      },
+    });
+    expect(
+      (await write('PATCH', '/mutual/learner/1/course/9', { role: 'auditor' }))
+        .status,
+    ).toBe(200);
+  });
+
+  it('checks the same fields in transaction operations, with the operation index', async () => {
+    const run = (operations: unknown[]) =>
+      write('POST', '/transaction', { operations });
+
+    expect(
+      (
+        await run([
+          {
+            operation: 'createEntity',
+            entityType: 'order',
+            payload: { customerId: 'c' },
+          },
+          {
+            operation: 'updateEntity',
+            entityType: 'order',
+            entityId: '1',
+            payload: { status: 'paid' },
+          },
+          {
+            operation: 'adjustEntity',
+            entityType: 'order',
+            entityId: '1',
+            adjustments: { quantity: 1 },
+          },
+          {
+            operation: 'updateMutual',
+            byEntityType: 'learner',
+            byEntityId: '1',
+            entityType: 'course',
+            entityId: '9',
+            payload: { role: 'auditor' },
+          },
+        ])
+      ).status,
+    ).toBe(200);
+
+    const denied = async (operation: unknown) => (await run([operation])).body;
+    expect(
+      await denied({
+        operation: 'createEntity',
+        entityType: 'order',
+        entityId: 'x',
+        payload: {},
+      }),
+    ).toMatchObject({
+      code: 'FORBIDDEN_FIELDS',
+      fields: ['$entityId'],
+      operationIndex: 0,
+    });
+    expect(
+      await denied({
+        operation: 'updateEntity',
+        entityType: 'order',
+        entityId: '1',
+        payload: { total: 1 },
+      }),
+    ).toMatchObject({ fields: ['total'] });
+    expect(
+      await denied({
+        operation: 'adjustEntity',
+        entityType: 'order',
+        entityId: '1',
+        adjustments: { total: 1 },
+      }),
+    ).toMatchObject({ fields: ['total'] });
+    expect(
+      await denied({
+        operation: 'createMutual',
+        byEntityType: 'learner',
+        byEntityId: '1',
+        entityType: 'course',
+        entityId: '9',
+        payload: { appliedAt: 'now' },
+      }),
+    ).toMatchObject({ fields: ['appliedAt'] });
   });
 });

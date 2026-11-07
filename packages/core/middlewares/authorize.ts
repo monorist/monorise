@@ -1,5 +1,6 @@
 import type {
   ApiKeyEntityAccess,
+  ApiKeyFieldAccess,
   ApiKeyPolicyEntityConfig,
   ApiKeyRoutePermission,
 } from '@monorise/base';
@@ -10,11 +11,34 @@ import type { ApiKeyPrincipal } from './api-key-auth';
 
 export type EntityAction = 'read' | 'create' | 'update' | 'delete';
 
+/** The kinds of entity route, each with its own requirement and body. */
+export type EntityRoute =
+  | 'read'
+  | 'create'
+  | 'update'
+  | 'upsert'
+  | 'adjust'
+  | 'delete';
+
+const ENTITY_ROUTE_ACTIONS: Record<EntityRoute, EntityAction[]> = {
+  read: ['read'],
+  create: ['create'],
+  update: ['update'],
+  // Upsert creates or updates depending on whether the entity exists, and
+  // checking which before the write would race, so it needs both.
+  upsert: ['create', 'update'],
+  adjust: ['update'],
+  delete: ['delete'],
+};
+
 type EntityConfigs = Record<string, ApiKeyPolicyEntityConfig>;
 
 // Why a request is refused: 404 for a type the key's policy doesn't list,
-// 403 for anything else it doesn't grant.
-type Denial = { status: 404 } | { status: 403; message: string };
+// 403 for anything else it doesn't grant. `fields` lists the fields a
+// write may not set.
+type Denial =
+  | { status: 404 }
+  | { status: 403; message: string; fields?: string[] };
 
 const ROUTE_GUARD = Symbol.for('monorise.routeGuard');
 const ROUTE_PERMISSION = Symbol.for('monorise.routePermission');
@@ -47,6 +71,15 @@ const deny = (
   denial: Denial,
   details?: Record<string, unknown>,
 ) => {
+  if (denial.status === 403 && denial.fields) {
+    c.status(httpStatus.FORBIDDEN);
+    return c.json({
+      code: 'FORBIDDEN_FIELDS',
+      message: denial.message,
+      fields: denial.fields,
+      ...details,
+    });
+  }
   if (denial.status === 403) return forbidden(c, denial.message, details);
   // Same body entityTypeCheck answers for a type the API doesn't serve, so a
   // type the key can't see is indistinguishable from one that doesn't exist.
@@ -137,6 +170,59 @@ export const createRouteGuards = (entityConfig: EntityConfigs) => {
     return null;
   };
 
+  const quoted = (fields: string[]) =>
+    fields.map((field) => `'${field}'`).join(', ');
+
+  /** Fields outside `granted`, which is `'*'`, an allowlist, or `null` for none. */
+  const checkFields = (
+    key: ApiKeyPrincipal,
+    granted: ApiKeyFieldAccess | null,
+    fields: string[],
+    what: string,
+  ): Denial | null => {
+    const disallowed =
+      granted === '*' ? [] : fields.filter((field) => !granted?.has(field));
+    if (!disallowed.length) return null;
+    return {
+      status: 403,
+      message: `API key policy '${key.policy}' does not allow ${what}: ${quoted(disallowed)}`,
+      fields: disallowed,
+    };
+  };
+
+  const relationshipFieldNames = (entityType: string) =>
+    new Set(Object.keys(entityConfig[entityType]?.mutual?.mutualFields ?? {}));
+
+  // The data fields a payload sets. Relationship fields are checked against
+  // their direction instead, and `$` keys ($condition, $where) are not data.
+  const dataFields = (entityType: string, payload: unknown) => {
+    if (typeof payload !== 'object' || payload === null) return [];
+    const relationships = relationshipFieldNames(entityType);
+    return Object.keys(payload).filter(
+      (field) => !field.startsWith('$') && !relationships.has(field),
+    );
+  };
+
+  // A create body may also choose the entity's ID and backdate createdAt,
+  // which only a create list naming $entityId or $createdAt allows.
+  const createFields = (
+    entityType: string,
+    payload: unknown,
+    choosesEntityId: boolean,
+  ) => {
+    const fields = dataFields(entityType, payload).map((field) =>
+      field === 'entityId'
+        ? '$entityId'
+        : field === 'createdAt'
+          ? '$createdAt'
+          : field,
+    );
+    if (choosesEntityId && !fields.includes('$entityId')) {
+      fields.push('$entityId');
+    }
+    return fields;
+  };
+
   /**
    * Relationship fields in an entity payload write the direction from that
    * entity to the field's target. On create they only add relationships; on
@@ -167,41 +253,113 @@ export const createRouteGuards = (entityConfig: EntityConfigs) => {
     return null;
   };
 
+  const checkCreate = (
+    key: ApiKeyPrincipal,
+    entityType: string,
+    payload: unknown,
+    choosesEntityId: boolean,
+  ) =>
+    checkRelationshipFields(key, entityType, payload, 'create') ??
+    checkFields(
+      key,
+      key.access.entity(entityType).create,
+      createFields(entityType, payload, choosesEntityId),
+      `create on these fields of '${entityType}'`,
+    );
+
+  const checkUpdate = (
+    key: ApiKeyPrincipal,
+    entityType: string,
+    payload: unknown,
+  ) => {
+    const access = key.access.entity(entityType);
+    // Legacy $where conditions read the fields they name: a 200 vs 409
+    // answer would otherwise reveal values the key cannot read.
+    const where = (payload as { $where?: unknown } | null)?.$where;
+    return (
+      checkRelationshipFields(key, entityType, payload, 'update') ??
+      checkFields(
+        key,
+        access.update,
+        dataFields(entityType, payload),
+        `update on these fields of '${entityType}'`,
+      ) ??
+      (typeof where === 'object' && where !== null
+        ? checkFields(
+            key,
+            access.read,
+            Object.keys(where),
+            `$where on these fields of '${entityType}', which it cannot read`,
+          )
+        : null)
+    );
+  };
+
+  const checkAdjust = (
+    key: ApiKeyPrincipal,
+    entityType: string,
+    adjustments: unknown,
+  ) =>
+    checkFields(
+      key,
+      key.access.entity(entityType).update,
+      dataFields(entityType, adjustments),
+      `adjust on these fields of '${entityType}'`,
+    );
+
   /**
-   * Requires every listed action on the route's `:entityType`, and the right
-   * direction grants for any relationship fields in a create or update body.
+   * Requires the route's actions on `:entityType`, then checks what the body
+   * writes: data fields against the create or update list, relationship
+   * fields against their direction.
    */
-  const entity = (...actions: EntityAction[]) =>
+  const entity = (route: EntityRoute) =>
     routeGuard(
-      `entity:${actions.join('+')}`,
+      `entity:${route}`,
       createMiddleware(async (c, next) => {
         const key = restrictedKey(c);
         if (key) {
           const entityType = c.req.param('entityType') ?? '';
-          for (const action of actions) {
+          for (const action of ENTITY_ROUTE_ACTIONS[route]) {
             const denial = checkEntity(key, entityType, action);
             if (denial) return deny(c, denial);
           }
 
-          // Upsert can update, so a body that can update is checked as one.
-          const write = actions.includes('update')
-            ? 'update'
-            : actions.includes('create')
-              ? 'create'
-              : undefined;
-          if (write) {
-            const denial = checkRelationshipFields(
-              key,
-              entityType,
-              await jsonBody(c),
-              write,
-            );
-            if (denial) return deny(c, denial);
+          let denial: Denial | null = null;
+          if (route === 'create') {
+            denial = checkCreate(key, entityType, await jsonBody(c), false);
+          } else if (route === 'update') {
+            denial = checkUpdate(key, entityType, await jsonBody(c));
+          } else if (route === 'upsert') {
+            // The URL chooses the ID, so an upsert that creates needs $entityId.
+            const body = await jsonBody(c);
+            denial =
+              checkCreate(key, entityType, body, true) ??
+              checkUpdate(key, entityType, body);
+          } else if (route === 'adjust') {
+            denial = checkAdjust(key, entityType, await jsonBody(c));
           }
+          if (denial) return deny(c, denial);
         }
         await next();
       }),
     );
+
+  // mutualData fields a create or update of a relationship sets.
+  const checkMutualData = (
+    key: ApiKeyPrincipal,
+    byEntityType: string,
+    entityType: string,
+    action: 'create' | 'update',
+    payload: unknown,
+  ) =>
+    typeof payload === 'object' && payload !== null
+      ? checkFields(
+          key,
+          key.access.mutual(byEntityType, entityType)?.[action] ?? null,
+          Object.keys(payload),
+          `${action} on these mutualData fields of ${byEntityType}→${entityType}`,
+        )
+      : null;
 
   /**
    * Requires an action on the route's direction,
@@ -231,6 +389,17 @@ export const createRouteGuards = (entityConfig: EntityConfigs) => {
             );
             if (denial) return deny(c, denial);
           }
+
+          if (action === 'create' || action === 'update') {
+            const denial = checkMutualData(
+              key,
+              byEntityType,
+              entityType,
+              action,
+              await jsonBody(c),
+            );
+            if (denial) return deny(c, denial);
+          }
         }
         await next();
       }),
@@ -245,40 +414,56 @@ export const createRouteGuards = (entityConfig: EntityConfigs) => {
       case 'createEntity':
         return (
           checkEntity(key, operation.entityType, 'create') ??
-          checkRelationshipFields(
+          checkCreate(
             key,
             operation.entityType,
             operation.payload,
-            'create',
+            Boolean(operation.entityId),
           )
         );
       case 'updateEntity':
         return (
           checkEntity(key, operation.entityType, 'update') ??
-          checkRelationshipFields(
-            key,
-            operation.entityType,
-            operation.payload,
-            'update',
-          )
+          checkUpdate(key, operation.entityType, operation.payload)
         );
       case 'adjustEntity':
-        return checkEntity(key, operation.entityType, 'update');
+        return (
+          checkEntity(key, operation.entityType, 'update') ??
+          checkAdjust(key, operation.entityType, operation.adjustments)
+        );
       case 'deleteEntity':
         return checkEntity(key, operation.entityType, 'delete');
       case 'createMutual':
-        return checkDirection(
-          key,
-          operation.byEntityType,
-          operation.entityType,
-          'create',
+        return (
+          checkDirection(
+            key,
+            operation.byEntityType,
+            operation.entityType,
+            'create',
+          ) ??
+          checkMutualData(
+            key,
+            operation.byEntityType,
+            operation.entityType,
+            'create',
+            operation.payload,
+          )
         );
       case 'updateMutual':
-        return checkDirection(
-          key,
-          operation.byEntityType,
-          operation.entityType,
-          'update',
+        return (
+          checkDirection(
+            key,
+            operation.byEntityType,
+            operation.entityType,
+            'update',
+          ) ??
+          checkMutualData(
+            key,
+            operation.byEntityType,
+            operation.entityType,
+            'update',
+            operation.payload,
+          )
         );
       case 'deleteMutual':
         return checkDirection(
