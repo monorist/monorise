@@ -37,7 +37,7 @@ export function resolveApiKeysPath(
 export async function validateApiKeyPoliciesFile(
   apiKeysPath: string,
   configOutputPath: string,
-): Promise<void> {
+): Promise<Record<string, unknown>> {
   const { default: generatedConfig } = await import(configOutputPath);
   const { default: policies } = await import(apiKeysPath);
 
@@ -55,6 +55,42 @@ export async function validateApiKeyPoliciesFile(
     );
   }
   console.log('Validated API key policies.');
+  return policies;
+}
+
+/**
+ * Declares every custom route permission the policies grant, by augmenting
+ * `ApiKeyRoutePermissions` in @monorise/base, so `requires()` only accepts
+ * names some policy grants. Appended to config.ts.
+ */
+export function routePermissionDeclarations(
+  policies: Record<string, unknown>,
+  baseModuleNames: string[],
+): string {
+  const permissions = new Set<string>();
+  for (const policy of Object.values(policies)) {
+    const routes = (policy as { routes?: unknown })?.routes;
+    if (Array.isArray(routes)) {
+      for (const permission of routes) permissions.add(permission);
+    }
+  }
+  if (permissions.size === 0) return '';
+
+  const members = [...permissions]
+    .sort()
+    .map((permission) => `    ${JSON.stringify(permission)}: true;`)
+    .join('\n');
+  return baseModuleNames
+    .map(
+      (moduleName) => `
+declare module '${moduleName}' {
+  interface ApiKeyRoutePermissions {
+${members}
+  }
+}
+`,
+    )
+    .join('');
 }
 
 /**

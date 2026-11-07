@@ -248,6 +248,24 @@ describe('compileApiKeyPolicy', () => {
   });
 });
 
+describe('allowsRoute', () => {
+  it('grants the routes a policy lists, every route to full, and none to shorthands', () => {
+    const client = compileApiKeyPolicy('client', {
+      routes: ['checkout', 'checkout:discount'],
+    });
+
+    expect(client.allowsRoute('checkout')).toBe(true);
+    expect(client.allowsRoute('checkout:refund')).toBe(false);
+    expect(compileApiKeyPolicy('full').allowsRoute('anything')).toBe(true);
+    expect(compileApiKeyPolicy('reader', 'read').allowsRoute('checkout')).toBe(
+      false,
+    );
+    expect(compileApiKeyPolicy('writer', 'write').allowsRoute('checkout')).toBe(
+      false,
+    );
+  });
+});
+
 describe('validateApiKeyPolicies', () => {
   const validate = (policies: unknown) =>
     validateApiKeyPolicies(policies, entityConfig);
@@ -257,6 +275,7 @@ describe('validateApiKeyPolicies', () => {
       validate({
         'agent-read': 'read',
         writer: 'write',
+        support: { routes: ['reports', 'checkout:refund'] },
         client: {
           entities: {
             learner: {
@@ -284,6 +303,16 @@ describe('validateApiKeyPolicies', () => {
       "must be 'read', 'write' or an object",
     ],
     ['an unknown policy key', { p: { entity: {} } }, "unknown key 'entity'"],
+    [
+      'routes that are not an array of names',
+      { p: { routes: 'checkout' } },
+      "p'.routes must be an array of permission names",
+    ],
+    [
+      'an empty route name',
+      { p: { routes: [''] } },
+      "p'.routes must be an array of permission names",
+    ],
     [
       'an unknown entity type',
       { p: { entities: { lerner: 'read' } } },

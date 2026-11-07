@@ -28,7 +28,7 @@ const ENTITY_GRANT_KEYS = [
   'mutuals',
 ];
 const MUTUAL_GRANT_KEYS = ['read', 'create', 'update', 'write', 'delete'];
-const POLICY_KEYS = ['entities'];
+const POLICY_KEYS = ['entities', 'routes'];
 
 /** `'*'` for every field, or the allowed fields. */
 export type ApiKeyFieldAccess = '*' | ReadonlySet<string>;
@@ -63,6 +63,8 @@ export type CompiledApiKeyPolicy = {
    * type isn't listed.
    */
   mutual(byEntityType: string, entityType: string): ApiKeyMutualAccess | null;
+  /** Whether the policy grants a custom route permission. `full` grants every one. */
+  allowsRoute(permission: string): boolean;
 };
 
 type CompiledEntity = {
@@ -187,6 +189,10 @@ export const compileApiKeyPolicy = (
       ? { '*': policy }
       : (policy?.entities ?? {});
 
+  const routes = new Set(
+    !full && typeof policy === 'object' ? (policy.routes ?? []) : [],
+  );
+
   const cache = new Map<string, CompiledEntity>();
   const compiled = (entityType: string) => {
     let entry = cache.get(entityType);
@@ -210,6 +216,7 @@ export const compileApiKeyPolicy = (
         from.mutuals.get(entityType) ?? from.mutualDefault,
       );
     },
+    allowsRoute: (permission) => full || routes.has(permission),
   };
 };
 
@@ -467,6 +474,16 @@ export const validateApiKeyPolicies = (
       continue;
     }
     checkUnknownKeys(where, policy, POLICY_KEYS);
+
+    if (
+      policy.routes !== undefined &&
+      (!Array.isArray(policy.routes) ||
+        !policy.routes.every(
+          (permission) => typeof permission === 'string' && permission.length,
+        ))
+    ) {
+      errors.push(`${where}.routes must be an array of permission names`);
+    }
 
     const entities = policy.entities ?? {};
     if (!isPlainObject(entities)) {

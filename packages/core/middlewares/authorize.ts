@@ -1,4 +1,4 @@
-import type { ApiKeyEntityAccess } from '@monorise/base';
+import type { ApiKeyEntityAccess, ApiKeyRoutePermission } from '@monorise/base';
 import type { Context, MiddlewareHandler } from 'hono';
 import { createMiddleware } from 'hono/factory';
 import httpStatus from 'http-status';
@@ -6,6 +6,7 @@ import httpStatus from 'http-status';
 export type EntityAction = 'read' | 'create' | 'update' | 'delete';
 
 const ROUTE_GUARD = Symbol.for('monorise.routeGuard');
+const ROUTE_PERMISSION = Symbol.for('monorise.routePermission');
 
 // Tags a guard with what it requires, so a test can check that every route
 // declares a requirement and that each one is the intended requirement.
@@ -170,3 +171,58 @@ export const requireTransactionOperations = () =>
       await next();
     }),
   );
+
+/**
+ * Declares the permission a custom route requires. Policies grant it by name
+ * in `routes`; `full` keys always pass. Works per route or on a group:
+ *
+ * @example
+ * ```ts
+ * app.post('/checkout', requires('checkout'), handler);
+ * app.use('/reports/*', requires('reports'));
+ * ```
+ */
+export const requires = (
+  permission: ApiKeyRoutePermission,
+): MiddlewareHandler =>
+  Object.defineProperty(
+    createMiddleware(async (c, next) => {
+      const key = restrictedKey(c);
+      if (key && !key.has(permission)) {
+        return forbidden(
+          c,
+          `API key policy '${key.policy}' does not grant '${permission}'`,
+        );
+      }
+      await next();
+    }),
+    ROUTE_PERMISSION,
+    { value: permission },
+  );
+
+/**
+ * Runs in front of the custom routes. A route that declares no permission
+ * with `requires()` is callable only by `full` keys, so a custom route never
+ * opens up to scoped keys by accident.
+ */
+export const customRouteGate = () =>
+  createMiddleware(async (c, next) => {
+    const key = restrictedKey(c);
+    // `matchedRoutes` lists every handler the request will run, including
+    // the custom app's own, before any of them runs.
+    if (
+      key &&
+      !c.req.matchedRoutes.some(
+        (route) =>
+          (route.handler as unknown as Record<symbol, unknown>)[
+            ROUTE_PERMISSION
+          ] !== undefined,
+      )
+    ) {
+      return forbidden(
+        c,
+        "This route declares no permission with requires(), so only 'full' keys can call it",
+      );
+    }
+    await next();
+  });

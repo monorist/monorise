@@ -4,6 +4,7 @@ import { cors } from 'hono/cors';
 import { secureHeaders } from 'hono/secure-headers';
 import { setupCommonRoutes } from '../controllers/setupRoutes';
 import { apiKeyAuth } from '../middlewares/api-key-auth';
+import { customRouteGate } from '../middlewares/authorize';
 import generalErrorHandler from '../middlewares/general-error-handler';
 import type { DependencyContainer } from '../services/DependencyContainer';
 
@@ -34,6 +35,7 @@ export const appHandler =
       );
 
       if (routes) {
+        app.use('/app/*', customRouteGate());
         if (typeof routes !== 'function') {
           app.route('/app', routes);
         } else {

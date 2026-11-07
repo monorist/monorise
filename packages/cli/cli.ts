@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import {
   apiKeyPoliciesHandleParts,
   resolveApiKeysPath,
+  routePermissionDeclarations,
   validateApiKeyPoliciesFile,
 } from './commands/utils/api-key-policies';
 import { detectCombinedPackage } from './commands/utils/detect-package';
@@ -326,7 +327,16 @@ async function generateFiles(rootPath?: string): Promise<string> {
   );
   const apiKeysPath = resolveApiKeysPath(projectRoot, monoriseConfig.apiKeys);
   if (apiKeysPath) {
-    await validateApiKeyPoliciesFile(apiKeysPath, configOutputPath);
+    const policies = await validateApiKeyPoliciesFile(
+      apiKeysPath,
+      configOutputPath,
+    );
+    fs.appendFileSync(
+      configOutputPath,
+      routePermissionDeclarations(policies, [
+        detectCombinedPackage(projectRoot) ? 'monorise/base' : '@monorise/base',
+      ]),
+    );
   }
   await generateHandleFile(
     monoriseConfig,

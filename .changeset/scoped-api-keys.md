@@ -49,6 +49,22 @@ Keys on `full`, which includes every key in the array form, pass every check, so
 
 Fixes unique-field lookups matching entity types by prefix. `GET /entity/user/unique/email/…` could return a `user-profile` entity with that email, and creating a `user` was rejected when a `user-profile` already used the value.
 
-Custom routes can read the resolved key with `c.get('apiKey')`, which returns `{ policy, fingerprint, access }`. The fingerprint is the key's SHA-256 digest, so it is safe to log. `access` is the compiled policy: `access.entity(type)` and `access.mutual(from, to)` say what it grants.
+Custom routes declare the permission they require with `requires()` from `@monorise/core`, and a policy grants it by name in `routes`:
+
+```ts
+app.post('/checkout', requires('checkout'), handler);
+app.use('/reports/*', requires('reports'));
+
+// monorise/api-keys.ts
+client: { entities: { ... }, routes: ['checkout'] },
+```
+
+A custom route without `requires()` is callable only by `full` keys. Existing custom routes keep working for existing keys, which are all `full`, and stay closed to scoped ones. `full` holds every permission. The CLI types `requires()` with the names the policies grant, so a misspelled name fails to compile.
+
+Inside a route, `c.get('apiKey')` returns the resolved key:
+- `policy`: the policy name.
+- `fingerprint`: the key's SHA-256 digest, safe to log.
+- `can(action, entityType, fields?)` and `has(permission)`: for finer checks.
+- `access`: the compiled policy.
 
 Also removes a check meant to let `/core/public/*` through without a key. It compared the full request URL against a path-only pattern, so it never matched: every route already required a key, and still does.

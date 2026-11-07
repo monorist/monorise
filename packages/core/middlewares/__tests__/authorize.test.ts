@@ -5,10 +5,12 @@ import { setupCommonRoutes } from '../../controllers/setupRoutes';
 import { DependencyContainer } from '../../services/DependencyContainer';
 import { createApiKeyAuth, parseApiKeys } from '../api-key-auth';
 import {
+  customRouteGate,
   requireEntity,
   requireFullPolicy,
   requireMutualTypes,
   requireTransactionOperations,
+  requires,
   routeGuardRequirement,
 } from '../authorize';
 
@@ -287,6 +289,137 @@ describe('setupCommonRoutes', () => {
       'GET /tag/:entityType/:tagName': 'entity:read',
       'POST /transaction': 'transaction',
       'POST /ws/ticket/:entityType/:entityId': 'full',
+    });
+  });
+});
+
+describe('custom route permissions', () => {
+  const customPolicies: ApiKeyPolicies = {
+    client: {
+      entities: { order: { read: ['total'], update: ['status'] } },
+      routes: ['checkout'],
+    },
+    support: { entities: { '*': 'read' }, routes: ['reports'] },
+  };
+
+  const routes = new Hono();
+  routes.post('/checkout', requires('checkout'), (c) =>
+    c.json({ discount: c.get('apiKey')?.has('checkout:discount') ?? null }),
+  );
+  routes.use('/reports/*', requires('reports'));
+  routes.get('/reports/sales', ok);
+  routes.get('/health', ok);
+
+  const customApp = new Hono().basePath('/core');
+  customApp.use(
+    createApiKeyAuth(
+      parseApiKeys(
+        JSON.stringify({
+          full: ['full-key'],
+          client: ['client-key'],
+          support: ['support-key'],
+        }),
+        ['full', ...Object.keys(customPolicies)],
+      ),
+      customPolicies,
+    ),
+  );
+  customApp.use('/app/*', customRouteGate());
+  customApp.route('/app', routes);
+
+  const status = async (key: string, method: string, path: string) =>
+    (
+      await customApp.request(path, {
+        method,
+        headers: { 'x-api-key': key },
+      })
+    ).status;
+
+  it('lets a policy call a route whose permission it grants', async () => {
+    expect(await status('client-key', 'POST', '/core/app/checkout')).toBe(200);
+  });
+
+  it('answers 403 when the policy does not grant the permission', async () => {
+    const res = await customApp.request('/core/app/checkout', {
+      method: 'POST',
+      headers: { 'x-api-key': 'support-key' },
+    });
+
+    expect(res.status).toBe(403);
+    expect(await res.json()).toEqual({
+      code: 'FORBIDDEN',
+      message: "API key policy 'support' does not grant 'checkout'",
+    });
+  });
+
+  it('applies requires() set on a group of routes', async () => {
+    expect(await status('support-key', 'GET', '/core/app/reports/sales')).toBe(
+      200,
+    );
+    expect(await status('client-key', 'GET', '/core/app/reports/sales')).toBe(
+      403,
+    );
+  });
+
+  it('keeps a route without requires() to full keys', async () => {
+    const res = await customApp.request('/core/app/health', {
+      headers: { 'x-api-key': 'client-key' },
+    });
+
+    expect(res.status).toBe(403);
+    expect((await res.json()).message).toContain('declares no permission');
+    expect(await status('full-key', 'GET', '/core/app/health')).toBe(200);
+  });
+
+  it('lets full keys call every custom route', async () => {
+    const res = await customApp.request('/core/app/checkout', {
+      method: 'POST',
+      headers: { 'x-api-key': 'full-key' },
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ discount: true });
+  });
+
+  it('exposes can() and has() on the resolved key', async () => {
+    const inspect = new Hono();
+    inspect.use(
+      createApiKeyAuth(
+        parseApiKeys('{"client": ["client-key"]}', ['client']),
+        customPolicies,
+      ),
+    );
+    inspect.get('/', (c) => {
+      const key = c.get('apiKey');
+      return c.json({
+        readOrder: key.can('read', 'order'),
+        readTotal: key.can('read', 'order', ['total']),
+        readStatus: key.can('read', 'order', ['status']),
+        readCost: key.can('read', 'order', ['total', 'cost']),
+        updateStatus: key.can('update', 'order', ['status']),
+        createOrder: key.can('create', 'order'),
+        deleteOrder: key.can('delete', 'order'),
+        readPayment: key.can('read', 'payment'),
+        checkout: key.has('checkout'),
+        reports: key.has('reports'),
+      });
+    });
+
+    const res = await inspect.request('/', {
+      headers: { 'x-api-key': 'client-key' },
+    });
+
+    expect(await res.json()).toEqual({
+      readOrder: true,
+      readTotal: true,
+      readStatus: true,
+      readCost: false,
+      updateStatus: true,
+      createOrder: false,
+      deleteOrder: false,
+      readPayment: false,
+      checkout: true,
+      reports: false,
     });
   });
 });

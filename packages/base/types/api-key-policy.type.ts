@@ -68,6 +68,10 @@ export type ApiKeyEntityGrant<T extends Entity = Entity> =
       };
     };
 
+/**
+ * @description A policy. The shorthands `'read'` and `'write'` apply to every
+ * entity and relationship, and grant no custom routes.
+ */
 export type ApiKeyPolicy =
   | 'read'
   | 'write'
@@ -75,7 +79,26 @@ export type ApiKeyPolicy =
       entities?: { '*'?: ApiKeyAccessLevel } & {
         [T in Entity]?: ApiKeyEntityGrant<T>;
       };
+      /**
+       * Custom route permissions this policy grants: the names custom routes
+       * declare with `requires(...)`. A custom route without `requires(...)`
+       * is callable only by `full` keys.
+       */
+      routes?: string[];
     };
+
+/**
+ * @description Every custom route permission the project's policies grant.
+ * The CLI augments it from the policies, so `requires()` accepts only names
+ * some policy grants.
+ */
+// biome-ignore lint/suspicious/noEmptyInterface: augmented by the generated config
+export interface ApiKeyRoutePermissions {}
+
+/** A custom route permission name; any string until the CLI augments `ApiKeyRoutePermissions`. */
+export type ApiKeyRoutePermission = keyof ApiKeyRoutePermissions extends never
+  ? string
+  : Extract<keyof ApiKeyRoutePermissions, string>;
 
 /**
  * @description Policies keyed by name. `API_KEYS` maps these names to keys.

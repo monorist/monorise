@@ -26,6 +26,8 @@ import type {
   ApiKeyMutualGrant,
   ApiKeyPolicies,
   ApiKeyPolicy,
+  ApiKeyRoutePermission,
+  ApiKeyRoutePermissions,
   ApiKeySystemField,
 } from './types/api-key-policy.type';
 
@@ -85,6 +87,8 @@ export type {
   ApiKeyPolicies,
   ApiKeyPolicy,
   ApiKeyPolicyEntityConfig,
+  ApiKeyRoutePermission,
+  ApiKeyRoutePermissions,
   ApiKeySystemField,
   CompiledApiKeyPolicy,
 };

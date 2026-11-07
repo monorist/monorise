@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import {
   type ApiKeyPolicies,
   type ApiKeyPolicyEntityConfig,
+  type ApiKeyRoutePermission,
   type CompiledApiKeyPolicy,
   FULL_API_KEY_POLICY,
   compileApiKeyPolicy,
@@ -9,6 +10,7 @@ import {
 } from '@monorise/base';
 import { createFactory } from 'hono/factory';
 import httpStatus from 'http-status';
+import type { EntityAction } from './authorize';
 
 const SHA256_PREFIX = 'sha256:';
 
@@ -19,7 +21,34 @@ export type ApiKeyPrincipal = {
   fingerprint: string;
   /** What the policy grants, per entity type and relationship direction. */
   access: CompiledApiKeyPolicy;
+  /**
+   * Whether the policy allows an action on an entity type, and on every
+   * listed field when `fields` is given.
+   */
+  can(
+    action: EntityAction,
+    entityType: string,
+    fields?: readonly string[],
+  ): boolean;
+  /** Whether the policy grants a custom route permission. */
+  has(permission: ApiKeyRoutePermission): boolean;
 };
+
+const createPrincipal = (
+  policy: string,
+  access: CompiledApiKeyPolicy,
+): Omit<ApiKeyPrincipal, 'fingerprint'> => ({
+  policy,
+  access,
+  can: (action, entityType, fields) => {
+    const entity = access.entity(entityType);
+    if (action === 'delete') return entity.delete;
+    const granted = entity[action];
+    if (granted === null) return false;
+    return !fields || granted === '*' || fields.every((f) => granted.has(f));
+  },
+  has: (permission) => access.allowsRoute(permission),
+});
 
 declare module 'hono' {
   interface ContextVariableMap {
@@ -117,14 +146,18 @@ export const createApiKeyAuth = (
   fingerprints: Map<string, string>,
   policies: ApiKeyPolicies = {},
 ) => {
-  const compiled = new Map<string, CompiledApiKeyPolicy>();
-  const compiledPolicy = (name: string) => {
-    let policy = compiled.get(name);
-    if (!policy) {
-      policy = compileApiKeyPolicy(name, policies[name]);
-      compiled.set(name, policy);
+  // One principal per policy, shared by every request with a key under it.
+  const principals = new Map<string, Omit<ApiKeyPrincipal, 'fingerprint'>>();
+  const principalFor = (name: string) => {
+    let principal = principals.get(name);
+    if (!principal) {
+      principal = createPrincipal(
+        name,
+        compileApiKeyPolicy(name, policies[name]),
+      );
+      principals.set(name, principal);
     }
-    return policy;
+    return principal;
   };
 
   return factory.createMiddleware(async (c, next) => {
@@ -140,7 +173,7 @@ export const createApiKeyAuth = (
       });
     }
 
-    c.set('apiKey', { policy, fingerprint, access: compiledPolicy(policy) });
+    c.set('apiKey', { ...principalFor(policy), fingerprint });
     return await next();
   });
 };
