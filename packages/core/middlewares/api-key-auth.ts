@@ -2,7 +2,9 @@ import { createHash } from 'node:crypto';
 import {
   type ApiKeyPolicies,
   type ApiKeyPolicyEntityConfig,
+  type CompiledApiKeyPolicy,
   FULL_API_KEY_POLICY,
+  compileApiKeyPolicy,
   validateApiKeyPolicies,
 } from '@monorise/base';
 import { createFactory } from 'hono/factory';
@@ -15,6 +17,8 @@ export type ApiKeyPrincipal = {
   policy: string;
   /** SHA-256 hex digest of the key. Safe to log or store; the key itself is not. */
   fingerprint: string;
+  /** What the policy grants, per entity type and relationship direction. */
+  access: CompiledApiKeyPolicy;
 };
 
 declare module 'hono' {
@@ -109,8 +113,21 @@ export const parseApiKeys = (
 
 const factory = createFactory();
 
-export const createApiKeyAuth = (fingerprints: Map<string, string>) =>
-  factory.createMiddleware(async (c, next) => {
+export const createApiKeyAuth = (
+  fingerprints: Map<string, string>,
+  policies: ApiKeyPolicies = {},
+) => {
+  const compiled = new Map<string, CompiledApiKeyPolicy>();
+  const compiledPolicy = (name: string) => {
+    let policy = compiled.get(name);
+    if (!policy) {
+      policy = compileApiKeyPolicy(name, policies[name]);
+      compiled.set(name, policy);
+    }
+    return policy;
+  };
+
+  return factory.createMiddleware(async (c, next) => {
     const xApiKey = c.req.header('x-api-key');
     const fingerprint = xApiKey ? fingerprintApiKey(xApiKey) : undefined;
     const policy = fingerprint ? fingerprints.get(fingerprint) : undefined;
@@ -123,9 +140,10 @@ export const createApiKeyAuth = (fingerprints: Map<string, string>) =>
       });
     }
 
-    c.set('apiKey', { policy, fingerprint });
+    c.set('apiKey', { policy, fingerprint, access: compiledPolicy(policy) });
     return await next();
   });
+};
 
 /**
  * Builds the API key middleware for the project's policies. Throws at cold
@@ -150,5 +168,6 @@ export const apiKeyAuth = ({
 
   return createApiKeyAuth(
     parseApiKeys(apiKeys, [FULL_API_KEY_POLICY, ...Object.keys(policies)]),
+    policies,
   );
 };

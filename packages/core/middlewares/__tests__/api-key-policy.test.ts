@@ -478,6 +478,7 @@ describe('apiKeyAuth', () => {
     expect(await res.json()).toEqual({
       policy: 'reporting',
       fingerprint: fingerprintApiKey('b'),
+      access: { name: 'reporting', full: false },
     });
   });
 

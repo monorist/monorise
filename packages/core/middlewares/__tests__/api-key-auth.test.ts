@@ -139,6 +139,7 @@ describe('apiKeyAuth middleware', () => {
     expect(await res.json()).toEqual({
       policy: FULL_POLICY,
       fingerprint: fingerprintApiKey('secret2'),
+      access: { name: FULL_POLICY, full: true },
     });
   });
 
