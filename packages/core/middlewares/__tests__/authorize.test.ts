@@ -51,7 +51,28 @@ const entityConfig = {
       },
     },
   }),
-  course: named('course'),
+  course: createEntityConfig({
+    name: 'course',
+    displayName: 'Course',
+    baseSchema: z.object({ name: z.string() }).partial(),
+    searchableFields: ['name'],
+  }),
+  order: createEntityConfig({
+    name: 'order',
+    displayName: 'Order',
+    baseSchema: z
+      .object({
+        total: z.number(),
+        status: z.string(),
+        notes: z.string(),
+        email: z.string(),
+        customerName: z.string(),
+      })
+      .partial(),
+    searchableFields: ['customerName', 'email'],
+    uniqueFields: ['email'],
+    tags: [{ name: 'region', processor: () => [] }],
+  }),
   module: named('module'),
   cohort: named('cohort'),
   enrollment,
@@ -73,6 +94,7 @@ const policies: ApiKeyPolicies = {
         update: ['status', 'notes', 'quantity'],
       },
       invoice: { create: '*', update: ['notes'] },
+      shipment: { read: ['status'], tags: ['region'] },
       learner: {
         read: '*',
         mutuals: { course: { read: '*', create: ['role'], update: ['role'] } },
@@ -131,7 +153,13 @@ app.use(
   ),
 );
 const ok = (c: { json: (body: unknown) => Response }) => c.json({ ok: true });
-app.get('/entity/:entityType', guard.entity('read'), ok);
+app.get('/entity/:entityType', guard.entity('list'), ok);
+app.get(
+  '/entity/:entityType/unique/:uniqueField/:uniqueFieldValue',
+  guard.entity('unique'),
+  ok,
+);
+app.get('/tag/:entityType/:tagName', guard.entity('tag'), ok);
 app.post('/entity/:entityType', guard.entity('create'), ok);
 app.put('/entity/:entityType/:entityId', guard.entity('upsert'), ok);
 app.post('/entity/:entityType/:entityId/adjust', guard.entity('adjust'), ok);
@@ -375,16 +403,16 @@ describe('setupCommonRoutes', () => {
         'mutual:update',
       'DELETE /mutual/:byEntityType/:byEntityId/:entityType/:entityId':
         'mutual:delete',
-      'GET /entity/:entityType': 'entity:read',
+      'GET /entity/:entityType': 'entity:list',
       'POST /entity/:entityType': 'entity:create',
       'GET /entity/:entityType/unique/:uniqueField/:uniqueFieldValue':
-        'entity:read',
+        'entity:unique',
       'POST /entity/:entityType/:entityId/adjust': 'entity:adjust',
       'GET /entity/:entityType/:entityId': 'entity:read',
       'PUT /entity/:entityType/:entityId': 'entity:upsert',
       'PATCH /entity/:entityType/:entityId': 'entity:update',
       'DELETE /entity/:entityType/:entityId': 'entity:delete',
-      'GET /tag/:entityType/:tagName': 'entity:read',
+      'GET /tag/:entityType/:tagName': 'entity:tag',
       'POST /transaction': 'transaction',
       'POST /ws/ticket/:entityType/:entityId': 'full',
     });
@@ -960,5 +988,59 @@ describe('field-level write', () => {
         payload: { appliedAt: 'now' },
       }),
     ).toMatchObject({ fields: ['appliedAt'] });
+  });
+});
+
+describe('read paths that match on fields', () => {
+  it('allows search only when every searchable field is readable', async () => {
+    expect(
+      (await call('reader-key', 'GET', '/entity/course?query=maths')).status,
+    ).toBe(200);
+    expect(await call('writer-key', 'GET', '/entity/order?query=ann')).toEqual({
+      status: 403,
+      body: {
+        code: 'FORBIDDEN_FIELDS',
+        message:
+          "API key policy 'writer' does not allow search on 'order', which matches these fields it cannot read: 'customerName', 'email'",
+        fields: ['customerName', 'email'],
+      },
+    });
+    // Listing without a search term matches on no field.
+    expect((await call('writer-key', 'GET', '/entity/order')).status).toBe(200);
+  });
+
+  it('allows a unique lookup only by a readable field', async () => {
+    expect(
+      await call('writer-key', 'GET', '/entity/order/unique/email/a@b.co'),
+    ).toEqual({
+      status: 403,
+      body: {
+        code: 'FORBIDDEN_FIELDS',
+        message:
+          "API key policy 'writer' does not allow a lookup on 'order' by a field it cannot read: 'email'",
+        fields: ['email'],
+      },
+    });
+    expect(
+      (await call('writer-key', 'GET', '/entity/order/unique/status/open'))
+        .status,
+    ).toBe(200);
+  });
+
+  it("allows a tag when read is '*' or the tag is granted", async () => {
+    expect((await call('reader-key', 'GET', '/tag/course/region')).status).toBe(
+      200,
+    );
+    expect(
+      (await call('writer-key', 'GET', '/tag/shipment/region')).status,
+    ).toBe(200);
+    expect(await call('writer-key', 'GET', '/tag/order/region')).toEqual({
+      status: 403,
+      body: {
+        code: 'FORBIDDEN',
+        message:
+          "API key policy 'writer' does not allow reading tag 'region' of 'order'",
+      },
+    });
   });
 });

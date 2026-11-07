@@ -62,6 +62,18 @@ Otherwise the request is rejected with 403 `FORBIDDEN_FIELDS`, listing the offen
 - **System fields:** a create body that sets `entityId` or `createdAt` needs `$entityId` or `$createdAt` in the create list. So does an upsert, because its URL chooses the ID. A `'*'` list allows every field, system fields included.
 - **Legacy `$where`:** it may only name fields the key can read.
 
+Reads are masked. Every built-in response leaves out the fields the key can't read:
+- entities, lists and search results;
+- tags;
+- a relationship's target `data` and its `mutualData`;
+- transaction results;
+- the entity a write returns.
+
+Requests that match on a field are checked too, because they could reveal a hidden value even with the response masked:
+- **Search** (`?query=`) needs read on every searchable field.
+- **A unique lookup** needs read on the field it looks up by.
+- **A tag** needs `read: '*'` on the type or an explicit `tags` grant, because its group and sort value come from a processor that may read any field.
+
 Keys on `full`, which includes every key in the array form, pass every check, so existing projects see no change.
 
 Fixes unique-field lookups matching entity types by prefix. `GET /entity/user/unique/email/…` could return a `user-profile` entity with that email, and creating a `user` was rejected when a `user-profile` already used the value.
@@ -82,6 +94,7 @@ Inside a route, `c.get('apiKey')` returns the resolved key:
 - `policy`: the policy name.
 - `fingerprint`: the key's SHA-256 digest, safe to log.
 - `can(action, entityType, fields?)` and `has(permission)`: for finer checks.
+- `mask(entityType, entity)`: removes the fields the key can't read.
 - `access`: the compiled policy.
 
 Also removes a check meant to let `/core/public/*` through without a key. It compared the full request URL against a path-only pattern, so it never matched: every route already required a key, and still does.

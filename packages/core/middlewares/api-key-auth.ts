@@ -11,6 +11,7 @@ import {
 import { createFactory } from 'hono/factory';
 import httpStatus from 'http-status';
 import type { EntityAction } from './authorize';
+import { maskRecord } from './mask';
 
 const SHA256_PREFIX = 'sha256:';
 
@@ -32,6 +33,14 @@ export type ApiKeyPrincipal = {
   ): boolean;
   /** Whether the policy grants a custom route permission. */
   has(permission: ApiKeyRoutePermission): boolean;
+  /**
+   * An entity, tag or relationship record with the fields the key cannot read
+   * removed from `data` (and `mutualData`). Accepts an `Entity` or its JSON.
+   */
+  mask<T extends object>(
+    entityType: string,
+    entity: T,
+  ): Record<string, unknown>;
 };
 
 const createPrincipal = (
@@ -48,6 +57,14 @@ const createPrincipal = (
     return !fields || granted === '*' || fields.every((f) => granted.has(f));
   },
   has: (permission) => access.allowsRoute(permission),
+  mask: (entityType, entity) => {
+    const record = (
+      typeof (entity as { toJSON?: unknown }).toJSON === 'function'
+        ? (entity as { toJSON(): Record<string, unknown> }).toJSON()
+        : entity
+    ) as Record<string, unknown>;
+    return maskRecord({ ...record, entityType }, access);
+  },
 });
 
 declare module 'hono' {

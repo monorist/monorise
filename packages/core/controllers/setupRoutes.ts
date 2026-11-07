@@ -1,12 +1,16 @@
 import { Hono } from 'hono';
 import { createRouteGuards, requireFullPolicy } from '../middlewares/authorize';
 import { entityTypeCheck } from '../middlewares/entity-type-check';
+import { maskResponses } from '../middlewares/mask';
 import { mutualTypeCheck } from '../middlewares/mutual-type-check';
 import type { DependencyContainer } from '../services/DependencyContainer';
 
 export const setupCommonRoutes = (container: DependencyContainer): Hono => {
   const app = new Hono();
   const guard = createRouteGuards(container.config.EntityConfig);
+
+  // Strips fields the key cannot read from every response below.
+  app.use('*', maskResponses());
   /*
    * Mutual endpoint
    */
@@ -48,7 +52,7 @@ export const setupCommonRoutes = (container: DependencyContainer): Hono => {
   app.use('/entity/:entityType', entityTypeCheck(container));
   app.get(
     '/entity/:entityType',
-    guard.entity('read'),
+    guard.entity('list'),
     container.listEntitiesController.controller,
   );
   app.post(
@@ -58,7 +62,7 @@ export const setupCommonRoutes = (container: DependencyContainer): Hono => {
   );
   app.get(
     '/entity/:entityType/unique/:uniqueField/:uniqueFieldValue',
-    guard.entity('read'),
+    guard.entity('unique'),
     container.getEntityByUniqueFieldController.controller,
   );
   app.post(
@@ -92,7 +96,7 @@ export const setupCommonRoutes = (container: DependencyContainer): Hono => {
    */
   app.get(
     '/tag/:entityType/:tagName',
-    guard.entity('read'),
+    guard.entity('tag'),
     container.listTagsController.controller,
   );
 
