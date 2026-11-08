@@ -80,11 +80,7 @@ await backfillField({
 
 ### Search Reindex
 
-When searchableFields changes:
-
-```bash
-monorise migrate:search --entity member
-```
+Built in for entities that use `search`: the index is rebuilt on deploy when their search config changes.
 
 ### Design Principles
 - Git/blame remains the source of truth for schema history — entity configs ARE the schema

@@ -51,7 +51,8 @@ export default config;
 | `displayName` | `string` | Yes | Human-readable name |
 | `baseSchema` | `z.ZodObject` | Yes | All possible fields (`.partial()` for updates) |
 | `createSchema` | `z.ZodObject` | No | Minimum required fields for creation |
-| `searchableFields` | `string[]` | No | Fields indexed for text search |
+| `search` | `object` | No | Fields indexed by word, so `?query=` reads only matching entities (see [Search](#search)) |
+| `searchableFields` | `string[]` | No | Fields `?query=` matches by scanning every entity (see [Search](#search)). Can't be combined with `search` |
 | `uniqueFields` | `string[]` | No | Fields that must be unique per entity type |
 | `mutual` | `object` | No | Mutual relationship configuration (see [Mutuals](/concepts/mutuals)) |
 | `tags` | `array` | No | Tag access patterns (see [Tags](/concepts/tags)) |
@@ -149,9 +150,9 @@ Or using the React hook:
 const { entity } = useEntityByUniqueField(Entity.USER, 'email', 'alice@example.com');
 ```
 
-## Searchable fields
+## Search
 
-Fields listed in `searchableFields` are indexed for text search. You can search via the `query` parameter:
+Search entities with the `query` parameter:
 
 ```
 GET /core/entity/user?query=alice
@@ -165,6 +166,76 @@ const { entities, searchField } = useEntities(Entity.USER);
 // Bind to an input
 <input {...searchField} placeholder="Search users..." />
 ```
+
+There are two ways to choose the fields a query matches. `search` indexes them by word, so a query reads only the entities that contain its words. `searchableFields` reads every entity of the type on each query, which gets slow and costly as the type grows. An entity uses one or the other.
+
+### Indexed search (`search`)
+
+```ts
+const config = createEntityConfig({
+  name: 'user',
+  displayName: 'User',
+  baseSchema,
+  search: {
+    fields: [{ field: 'name' }, { field: 'email' }],
+  },
+});
+```
+
+Each field value is split into words on spaces and symbols, lowercased and with accents removed: `"José Doe"` becomes `jose`, `doe`, and `"jose@mail.com"` becomes `jose`, `mail`, `com`. Arrays are split element by element, and numbers are matched as text.
+
+| Query | Matches |
+|-------|---------|
+| `john doe` | Entities with a word starting with `john` and one starting with `doe`, in any order: "John Doe", "Doe John", "Johnny Doerr" |
+| `"john doe"` | Only the exact text "john doe" in one field |
+| `jane@mail.com` | Text joined by symbols must appear exactly, so `mail@jane.com` doesn't match |
+| `lumbing` | Nothing in "plumbing": words match from their start |
+
+A query needs a word of at least two letters, and matches are returned newest first. All matches are returned, so you can rank them in your app.
+
+#### Settings
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `fields` | — | Fields to index, most-searched first. `match` defaults to `'words'`, the only mode for now |
+| `maxWords` | `8` | Most words indexed per entity, filled from the first field on, after duplicates and ignored words are dropped. Words past it can't be found |
+| `ignoreWords` | `DEFAULT_IGNORE_WORDS` | Words never indexed and skipped in queries (also known as stop words): `the`, `and`, `of`, `in`, `to`, `for`, … |
+
+`maxWords` and `ignoreWords` can also be set for every entity in [`monorise.config.ts`](/getting-started#project-config-monorise-config-ts). An entity's setting replaces the global one, so extend a list by spreading it:
+
+```ts
+import { DEFAULT_IGNORE_WORDS } from 'monorise/base';
+
+search: {
+  fields: [{ field: 'companyName' }],
+  ignoreWords: [...DEFAULT_IGNORE_WORDS, 'sdn', 'bhd'],
+},
+```
+
+An ignored word can't be found on its own, so avoid words that are also names. Inside quotes it still counts as part of the phrase, and a last ignored word still matches as the start of a word while it's being typed (`and` finds "Anderson").
+
+#### Cost
+
+Each indexed word is a copy of the entity, kept in sync by the replication processor. Every update of an entity writes up to `maxWords` extra items, whichever field changed, and its storage grows the same way. A query reads the copies under its longest word, so a long word that most entities share (like "plumbing" in a directory of plumbers) reads more than a rare one.
+
+#### Turning it on and changing it
+
+On deploy, Monorise builds the index for existing entities whenever an entity's `search` config, or the global settings it uses, change. Until that finishes, queries on that type scan every entity, with the same results. New and updated entities are indexed as they're written.
+
+If you remove `search` from every entity and add it back later with the same settings, the reindex function was removed in between and can't tell. Rebuild by hand after deploying:
+
+```bash
+aws lambda invoke --function-name <stage>-<app>-<id>-search-reindex \
+  --payload '{"action":"start","force":true}' --cli-binary-format raw-in-base64-out /dev/null
+```
+
+### Scanned search (`searchableFields`)
+
+```ts
+searchableFields: ['name', 'email'],
+```
+
+Each query reads every entity of the type and matches the query, lowercased, anywhere in the listed fields. It needs no index and suits small types; switch to `search` as the type grows.
 
 ## TTL (time-to-live)
 
@@ -227,3 +298,4 @@ In DynamoDB, entities use these access patterns:
 | Entity metadata | `PK = <entityType>#<entityId>`, `SK = #METADATA#` |
 | Entity list | `PK = LIST#<entityType>`, `SK = <entityType>#<entityId>` |
 | Unique fields | `PK = UNIQUE#<field>#<value>`, `SK = <entityType>` |
+| Search index | `PK = SEARCH#<entityType>`, `SK = <word>#<entityId>` |

@@ -130,5 +130,6 @@ Raw `$where` conditions are deprecated and disabled by default. Enable `allowLeg
 | Mutual records | `MUTUAL#<id>` item + two directional lookups |
 | Tag records | `PK = TAG#<entityType>#<tagName>[#group]`, `SK = <sortValue?>#<entityType>#<entityId>` |
 | Unique fields | `PK = UNIQUE#<field>#<value>`, `SK = <entityType>` |
+| Search index | `PK = SEARCH#<entityType>`, `SK = <word>#<entityId>` |
 
 The replication indexes (`R1PK/R2PK`) support fast updates of denormalized items when entity data changes.
