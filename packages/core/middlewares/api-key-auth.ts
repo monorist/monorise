@@ -196,9 +196,9 @@ export const createApiKeyAuth = (
 };
 
 /**
- * Builds the API key middleware for the project's policies. Throws at cold
- * start when the policies don't match the entity configs; the CLI runs the
- * same validation at build time.
+ * Builds the API key middleware for the project's policies. The CLI validates
+ * the policies at build time; this validates them again at cold start, and
+ * if they don't match the entity configs, rejects every key under them.
  */
 export const apiKeyAuth = ({
   policies = {},
@@ -211,13 +211,22 @@ export const apiKeyAuth = ({
 }) => {
   const errors = validateApiKeyPolicies(policies, entityConfig);
   if (errors.length) {
-    throw new Error(
-      `[monorise] Invalid API key policies:\n  - ${errors.join('\n  - ')}`,
+    // Not a throw: the generated handle.ts builds this for the API, but every
+    // processor imports the same module, so a throw would stop them all from
+    // starting. Failing closed for these policies keeps the blast radius to
+    // the keys that depend on them; `full` keys keep working.
+    console.error(
+      `[monorise] Invalid API key policies; every key under them will be rejected:\n  - ${errors.join('\n  - ')}`,
     );
   }
 
   return createApiKeyAuth(
-    parseApiKeys(apiKeys, [FULL_API_KEY_POLICY, ...Object.keys(policies)]),
+    parseApiKeys(
+      apiKeys,
+      errors.length
+        ? [FULL_API_KEY_POLICY]
+        : [FULL_API_KEY_POLICY, ...Object.keys(policies)],
+    ),
     policies,
   );
 };

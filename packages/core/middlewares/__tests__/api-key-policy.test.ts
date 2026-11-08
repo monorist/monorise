@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import {
   type ApiKeyPolicies,
@@ -145,6 +145,36 @@ describe('compileApiKeyPolicy', () => {
     expect(compileApiKeyPolicy('empty', {}).entity('course').listed).toBe(
       false,
     );
+  });
+
+  it('treats entity types named like Object.prototype members as unlisted', () => {
+    const policy = compileApiKeyPolicy('client', {
+      entities: { [as('course')]: 'read' },
+    });
+    const wildcard = compileApiKeyPolicy('support', {
+      entities: { '*': 'read' },
+    });
+
+    for (const name of [
+      'constructor',
+      '__proto__',
+      'toString',
+      'hasOwnProperty',
+    ]) {
+      expect(policy.entity(name).listed).toBe(false);
+      expect(policy.mutual('course', name)).toBeNull();
+      expect(wildcard.entity(name)).toEqual(wildcard.entity('course'));
+    }
+  });
+
+  it('shares one compiled grant for every type the policy does not name', () => {
+    const policy = compileApiKeyPolicy('support', {
+      entities: { '*': 'read', [as('payment')]: 'none' },
+    });
+
+    // The same object, not a new entry per type string a caller sends.
+    expect(policy.entity('a')).toBe(policy.entity('b'));
+    expect(policy.entity('payment')).not.toBe(policy.entity('a'));
   });
 
   it('makes every write list readable, without system fields', () => {
@@ -317,6 +347,11 @@ describe('validateApiKeyPolicies', () => {
       'an unknown entity type',
       { p: { entities: { lerner: 'read' } } },
       "unknown entity type 'lerner'",
+    ],
+    [
+      'an entity type named like an Object.prototype member',
+      { p: { entities: { constructor: 'read' } } },
+      "unknown entity type 'constructor'",
     ],
     [
       'an invalid * level',
@@ -511,13 +546,28 @@ describe('apiKeyAuth', () => {
     });
   });
 
-  it('throws at cold start when the policies are invalid', () => {
-    expect(() =>
+  it('rejects keys under invalid policies at cold start, and keeps full keys working', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { Hono } = await import('hono');
+    const app = new Hono();
+    app.use(
       apiKeyAuth({
         policies: { reporting: { entities: { lerner: 'read' } } },
         entityConfig,
-        apiKeys: '[]',
+        apiKeys: '{"full": ["a"], "reporting": ["b"]}',
       }),
-    ).toThrow(/Invalid API key policies:\n {2}- policy 'reporting'/);
+    );
+    app.get('/', (c) => c.json({ policy: c.get('apiKey').policy }));
+    const status = async (key: string) =>
+      (await app.request('/', { headers: { 'x-api-key': key } })).status;
+
+    expect(await status('b')).toBe(401);
+    expect(await status('a')).toBe(200);
+    expect(error).toHaveBeenCalledWith(
+      expect.stringMatching(
+        /Invalid API key policies; every key under them will be rejected:\n {2}- policy 'reporting'/,
+      ),
+    );
+    error.mockRestore();
   });
 });
