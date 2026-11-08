@@ -13,6 +13,7 @@ const VALIDATE_API_KEY_POLICIES = Symbol.for('monorise.validateApiKeyPolicies');
 export function resolveApiKeysPath(
   projectRoot: string,
   apiKeys: string | undefined,
+  configDir: string,
 ): string | undefined {
   if (!apiKeys) return undefined;
 
@@ -24,6 +25,15 @@ export function resolveApiKeysPath(
   ) {
     throw new Error(
       `API key policies file not found: '${absolutePath}'. Please ensure 'apiKeys' in monorise.config.ts points to a valid file.`,
+    );
+  }
+
+  // Every file in configDir is loaded as an entity config, so a policy file
+  // there would be read as an entity named 'undefined'.
+  const fromConfigDir = path.relative(configDir, absolutePath);
+  if (!fromConfigDir.startsWith('..') && !path.isAbsolute(fromConfigDir)) {
+    throw new Error(
+      `API key policies file '${absolutePath}' is inside configDir '${configDir}', where every file is loaded as an entity config. Move it outside, e.g. './monorise/api-keys.ts'.`,
     );
   }
   return absolutePath;
