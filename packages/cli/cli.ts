@@ -319,12 +319,18 @@ async function generateFiles(rootPath?: string): Promise<string> {
 
   fs.mkdirSync(monoriseOutputDir, { recursive: true });
 
+  // Resolved first, so a misplaced policy file fails before it is loaded as
+  // an entity config.
+  const apiKeysPath = resolveApiKeysPath(
+    projectRoot,
+    monoriseConfig.apiKeys,
+    configDir,
+  );
   const configOutputPath = await generateConfigFile(
     configDir,
     monoriseOutputDir,
     projectRoot,
   );
-  const apiKeysPath = resolveApiKeysPath(projectRoot, monoriseConfig.apiKeys);
   if (apiKeysPath) {
     await validateApiKeyPoliciesFile(apiKeysPath, configOutputPath);
   }

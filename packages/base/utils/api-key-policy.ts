@@ -71,6 +71,9 @@ type CompiledEntity = {
   mutuals: ReadonlyMap<string, ApiKeyMutualGrant>;
 };
 
+const hasOwn = (object: object, key: string) =>
+  Object.prototype.hasOwnProperty.call(object, key);
+
 const toAccess = (list: ApiKeyFieldList | undefined) =>
   list === undefined ? null : list === '*' ? '*' : new Set<string>(list);
 
@@ -187,12 +190,19 @@ export const compileApiKeyPolicy = (
       ? { '*': policy }
       : (policy?.entities ?? {});
 
+  // Entity types come from request URLs and bodies. Looking them up as own
+  // keys stops 'constructor' or '__proto__' from finding Object.prototype, and
+  // caching by the grant used means a type the policy doesn't name shares the
+  // '*' entry instead of adding one per string a caller sends.
   const cache = new Map<string, CompiledEntity>();
   const compiled = (entityType: string) => {
-    let entry = cache.get(entityType);
+    const grantKey = hasOwn(entities, entityType) ? entityType : '*';
+    let entry = cache.get(grantKey);
     if (!entry) {
-      entry = compileEntityGrant(entities[entityType] ?? entities['*']);
-      cache.set(entityType, entry);
+      entry = compileEntityGrant(
+        hasOwn(entities, grantKey) ? entities[grantKey] : undefined,
+      );
+      cache.set(grantKey, entry);
     }
     return entry;
   };
@@ -259,6 +269,7 @@ export const validateApiKeyPolicies = (
   }
 
   const entityNames = Object.keys(entityConfigs);
+  const isEntityType = (name: string) => hasOwn(entityConfigs, name);
 
   const mutualFieldNames = (config: ApiKeyPolicyEntityConfig) =>
     new Set([
@@ -404,7 +415,7 @@ export const validateApiKeyPolicies = (
         const mutualWhere = `${where}.mutuals.${target}`;
         if (target === '*') {
           checkLevel(mutualWhere, mutualGrant);
-        } else if (!entityConfigs[target]) {
+        } else if (!isEntityType(target)) {
           errors.push(`${mutualWhere}: unknown entity type '${target}'`);
         } else {
           checkMutualGrant(mutualWhere, mutualGrant, entityType, target);
@@ -477,7 +488,7 @@ export const validateApiKeyPolicies = (
       const entityWhere = `${where}.entities.${entityType}`;
       if (entityType === '*') {
         checkLevel(entityWhere, grant);
-      } else if (!entityConfigs[entityType]) {
+      } else if (!isEntityType(entityType)) {
         errors.push(`${entityWhere}: unknown entity type '${entityType}'`);
       } else {
         checkEntityGrant(entityWhere, grant, entityType);
