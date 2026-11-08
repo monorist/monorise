@@ -199,13 +199,14 @@ describe('useEntities search', () => {
       ],
     });
 
-    expect(names()).toEqual(['John Smith']);
+    // The server decides what matches; the client only keeps its data fresh.
+    expect(names()).toEqual(['John Smith', 'Jane Roe']);
     const { dataMap } = h.store.getState().entity[USER];
     expect(dataMap.get('01A')?.data.name).toBe('John Smith');
     expect(dataMap.get('01B')?.data.name).toBe('Jane Roe');
   });
 
-  it('adds, updates and drops results as the client writes entities', async () => {
+  it('updates results in place and removes deleted ones, without adding', async () => {
     const h = makeHarness();
     const { type, names } = h.render(USER);
     await type('john');
@@ -216,20 +217,20 @@ describe('useEntities search', () => {
     const create = h.actions.createEntity(USER, { name: 'John B' } as never);
     await h.reply(h.last(), entity(USER, '01B', 'John B'));
     await act(() => create);
-    expect(names()).toEqual(['John C', 'John B', 'John A']);
+    expect(names()).toEqual(['John C', 'John A']);
 
     const edit = h.actions.editEntity(USER, '01C', { name: 'Jane C' } as never);
     await h.reply(h.last(), entity(USER, '01C', 'Jane C', T1));
     await act(() => edit);
-    expect(names()).toEqual(['John B', 'John A']);
+    expect(names()).toEqual(['Jane C', 'John A']);
 
     const remove = h.actions.deleteEntity(USER, '01A');
     await h.reply(h.last(), {});
     await act(() => remove);
-    expect(names()).toEqual(['John B']);
+    expect(names()).toEqual(['Jane C']);
   });
 
-  it('only updates results in place for a scanned type', async () => {
+  it('does the same for a scanned type', async () => {
     const h = makeHarness();
     const { type, names } = h.render(TEAM);
     await type('red');

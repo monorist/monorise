@@ -1,8 +1,4 @@
-import type {
-  Entity,
-  MonoriseEntityConfig,
-  SearchSettings,
-} from '@monorise/base';
+import type { Entity, MonoriseEntityConfig } from '@monorise/base';
 import type { AxiosResponse } from 'axios';
 import { initAppActions } from './actions/app.action';
 import { initAuthActions } from './actions/auth.action';
@@ -45,12 +41,6 @@ type Options<T extends Record<string, React.ComponentType<any>>> = {
   tagBaseUrl?: string;
   modals?: T;
   entityConfig: Record<Entity, MonoriseEntityConfig>;
-  /**
-   * The `search` settings of monorise.config.ts (`SearchDefaults` from
-   * `#/monorise`), so search results the client updates itself match the
-   * same way the server does.
-   */
-  searchDefaults?: SearchSettings;
   onApiSuccess?: <T>(
     response: AxiosResponse<T>,
     feedbackSuccess:
@@ -119,7 +109,7 @@ const initMonorise = () => {
     setMonoriseOptions({
       modals: opts.modals,
     });
-    configActions.setConfig(opts.entityConfig, opts.searchDefaults);
+    configActions.setConfig(opts.entityConfig);
     authService.setOptions({
       apiBaseUrl: opts.authBaseUrl,
     });

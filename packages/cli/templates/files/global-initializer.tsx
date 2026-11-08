@@ -2,12 +2,11 @@
 
 import type { Entity, MonoriseEntityConfig } from 'monorise/base';
 import Monorise from 'monorise/react';
-import { EntityConfig, SearchDefaults } from '#/monorise';
+import { EntityConfig } from '#/monorise';
 
 Monorise.config({
   modals: {},
   entityConfig: EntityConfig as Record<Entity, MonoriseEntityConfig>,
-  searchDefaults: SearchDefaults,
 });
 
 const GlobalInitializer = () => {

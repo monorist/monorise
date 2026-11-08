@@ -22,8 +22,8 @@ import {
 import {
   applySearchResults,
   canSearch,
-  reconcileSearchResults,
   removeFromSearchResults,
+  updateSearchResult,
 } from '../lib/search';
 import {
   convertToMap,
@@ -499,11 +499,6 @@ const initCoreActions = (
       monoriseStore.setState(
         produce((state) => {
           state.entity[entityType].dataMap.set(data.entityId, data);
-          reconcileSearchResults(
-            state,
-            entityType,
-            data as CreatedEntity<Entity>,
-          );
 
           // auto-populate tag store based on entity config
           const tagConfigs = state.config[entityType]?.tags;
@@ -611,7 +606,7 @@ const initCoreActions = (
       monoriseStore.setState(
         produce((state) => {
           state.entity[entityType].dataMap.set(data.entityId, data);
-          reconcileSearchResults(
+          updateSearchResult(
             state,
             entityType,
             data as CreatedEntity<Entity>,
@@ -799,7 +794,7 @@ const initCoreActions = (
             id,
             data as CreatedEntity<Entity>,
           );
-          reconcileSearchResults(
+          updateSearchResult(
             state,
             entityType,
             data as CreatedEntity<Entity>,
@@ -845,7 +840,7 @@ const initCoreActions = (
             id,
             data as CreatedEntity<Entity>,
           );
-          reconcileSearchResults(
+          updateSearchResult(
             state,
             entityType,
             data as CreatedEntity<Entity>,
@@ -1052,7 +1047,6 @@ const initCoreActions = (
               } as unknown as CreatedEntity<Entity>;
 
               state.entity[entityType].dataMap.set(entityId, createdEntity);
-              reconcileSearchResults(state, entityType, createdEntity);
 
               const op = operations[index] as TransactionCreateEntity;
               populateMutualsForCreatedEntity(
@@ -1099,7 +1093,7 @@ const initCoreActions = (
             state.entity[entityType].dataMap.set(entityId, updated);
             propagateEntityDataToMutuals(state, entityType, entityId, updated.data);
             reconcileTaggedEntityStore(state, entityType, entityId, updated);
-            reconcileSearchResults(state, entityType, updated);
+            updateSearchResult(state, entityType, updated);
           });
         }),
         undefined,
@@ -1478,7 +1472,7 @@ const initCoreActions = (
     monoriseStore.setState(
       produce((state) => {
         state.entity[entityType].dataMap.set(entityId, createdEntity);
-        reconcileSearchResults(
+        updateSearchResult(
           state,
           entityType,
           createdEntity as CreatedEntity<Entity>,

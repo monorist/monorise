@@ -1,17 +1,12 @@
-import {
-  type CreatedEntity,
-  type Entity,
-  type MonoriseEntityConfig,
-  type SearchSettings,
-  matchesSearch,
-  planSearch,
-  resolveSearchConfig,
+import type {
+  CreatedEntity,
+  Entity,
+  MonoriseEntityConfig,
 } from '@monorise/base';
 
 // The parts of the store (or an immer draft of it) search results live in.
 type SearchState = {
   config: Record<Entity, MonoriseEntityConfig>;
-  searchDefaults?: SearchSettings;
   entity: Record<
     Entity,
     | {
@@ -23,22 +18,10 @@ type SearchState = {
   >;
 };
 
-// Checks an entity against a query the way the server does, for types that
-// use `search`. Undefined for types on `searchableFields`: their scan isn't
-// mirrored on the client.
-const matcherFor = (
-  state: SearchState,
-  entityType: Entity,
-  query: string,
-): ((entity: CreatedEntity<Entity>) => boolean) | undefined => {
-  const search = state.config[entityType]?.search;
-  if (!search) return undefined;
-
-  const config = resolveSearchConfig(search, state.searchDefaults);
-  const plan = planSearch(query, config.ignoreWords);
-  return (entity) =>
-    matchesSearch(entity.data as Record<string, unknown>, plan, config);
-};
+// A run of two letters or digits, once accents are removed: the shortest
+// word the search index looks a query up by (see `planSearch` in base).
+const MARKS = /\p{M}/gu;
+const LOOKUP_WORD = /[\p{L}\p{N}]{2,}/u;
 
 /**
  * Whether searching for `query` can return anything. A type that uses
@@ -50,22 +33,19 @@ export const canSearch = (
   query: string,
 ): boolean => {
   if (!query.trim()) return false;
+  if (!state.config[entityType]?.search) return true;
 
-  const search = state.config[entityType]?.search;
-  if (!search) return true;
-
-  const config = resolveSearchConfig(search, state.searchDefaults);
-  return planSearch(query, config.ignoreWords).anchor !== undefined;
+  return LOOKUP_WORD.test(query.normalize('NFKD').replace(MARKS, ''));
 };
 
 const isNewer = (a: CreatedEntity<Entity>, b: CreatedEntity<Entity>) =>
   new Date(a.updatedAt).getTime() > new Date(b.updatedAt).getTime();
 
 /**
- * Stores a search response as the type's results. The index is updated from
- * the table's stream, so a result can be older than the entity the client
- * already holds: the newer copy is kept, in the cache and the results, and
- * dropped from the results if it no longer matches.
+ * Stores a search response as the type's results. The search index is
+ * updated from the table's stream, so a result can be older than the copy
+ * the client already holds: that newer copy is kept, in the cache and the
+ * results.
  */
 export const applySearchResults = (
   state: SearchState,
@@ -76,50 +56,30 @@ export const applySearchResults = (
   const slice = state.entity[entityType];
   if (!slice) return;
 
-  const matches = matcherFor(state, entityType, query);
-  const kept: CreatedEntity<Entity>[] = [];
-  for (const result of results) {
+  slice.searchResults = results.map((result) => {
     const cached = slice.dataMap.get(result.entityId);
-    if (cached && isNewer(cached, result)) {
-      if (!matches || matches(cached)) kept.push(cached);
-      continue;
-    }
-    slice.dataMap.set(result.entityId, result);
-    kept.push(result);
-  }
+    if (cached && isNewer(cached, result)) return cached;
 
-  slice.searchResults = kept;
+    slice.dataMap.set(result.entityId, result);
+    return result;
+  });
   slice.searchQuery = query;
 };
 
 /**
- * Keeps the type's search results in step with an entity the client just
- * wrote: added where it now matches, dropped where it no longer does. For
- * types on `searchableFields`, only a result already shown is updated.
+ * Shows an entity's new data where it's already a search result. Which
+ * entities match is left to the next search: only the server knows.
  */
-export const reconcileSearchResults = (
+export const updateSearchResult = (
   state: SearchState,
   entityType: Entity,
   entity: CreatedEntity<Entity>,
 ) => {
-  const slice = state.entity[entityType];
-  if (!slice?.searchResults || slice.searchQuery === undefined) return;
+  const results = state.entity[entityType]?.searchResults;
+  if (!results) return;
 
-  const results = slice.searchResults;
   const index = results.findIndex((e) => e.entityId === entity.entityId);
-  const matches = matcherFor(state, entityType, slice.searchQuery);
-
-  if (!matches) {
-    if (index >= 0) results[index] = entity;
-  } else if (!matches(entity)) {
-    if (index >= 0) results.splice(index, 1);
-  } else if (index >= 0) {
-    results[index] = entity;
-  } else {
-    // Newest ID first, the order the server returns.
-    const before = results.findIndex((e) => e.entityId < entity.entityId);
-    results.splice(before === -1 ? results.length : before, 0, entity);
-  }
+  if (index >= 0) results[index] = entity;
 };
 
 export const removeFromSearchResults = (

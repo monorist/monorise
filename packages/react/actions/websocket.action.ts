@@ -1,10 +1,7 @@
 import type { CreatedEntity, Entity } from '@monorise/base';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { produce } from 'immer';
-import {
-  reconcileSearchResults,
-  removeFromSearchResults,
-} from '../lib/search';
+import { removeFromSearchResults, updateSearchResult } from '../lib/search';
 import { parseMutualStateKey } from '../lib/utils';
 import type { MonoriseStore } from '../store/monorise.store';
 import type {
@@ -191,7 +188,7 @@ export const initWebSocketActions = (
                       payload.entityId,
                       payload.data!,
                     );
-                    reconcileSearchResults(
+                    updateSearchResult(
                       state,
                       entityType,
                       payload.data as CreatedEntity<Entity>,
@@ -711,7 +708,7 @@ export const initWebSocketActions = (
                   state.entity[key] = { dataMap: new Map(), isFirstFetched: false, lastKey: undefined };
                 }
                 state.entity[key].dataMap.set(payload.entityId, payload.data);
-                reconcileSearchResults(
+                updateSearchResult(
                   state,
                   key as unknown as Entity,
                   payload.data,
