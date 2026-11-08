@@ -1,3 +1,4 @@
+import fs from 'node:fs';
 import path from 'node:path';
 import { EVENT, SOURCE } from '../constants/event';
 import { createFunctionWidgets } from './dashboard';
@@ -34,6 +35,26 @@ export type MonoriseCoreArgs = {
   analytics?: AnalyticsArgs;
   webSocket?: WebSocketConfig;
 };
+
+// Written by the Monorise generator when an entity uses `search`.
+function loadSearchManifest(
+  configRoot?: string,
+): { entities: Record<string, string> } | undefined {
+  const manifestPath = path.join(
+    configRoot ?? '',
+    '.monorise',
+    'search-manifest.json',
+  );
+  if (!fs.existsSync(manifestPath)) return undefined;
+
+  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  if (manifest?.version !== 1 || typeof manifest.entities !== 'object') {
+    throw new Error(
+      `Search manifest at ${manifestPath} is invalid. Run the Monorise generator before deploying.`,
+    );
+  }
+  return manifest;
+}
 
 export class MonoriseCore {
   public readonly id: string;
@@ -202,6 +223,40 @@ export class MonoriseCore {
         ],
       },
     });
+
+    /**
+     * Search index: builds the index for entities that existed before their
+     * `search` config (or before it changed). The invocation's input holds the
+     * config hashes, so it reruns on deploy only when one changes.
+     */
+    const searchManifest = loadSearchManifest(args?.configRoot);
+    if (searchManifest && Object.keys(searchManifest.entities).length) {
+      const searchReindexName = `${$app.stage}-${$app.name}-${id}-search-reindex`;
+      const searchReindex = new sst.aws.Function(`${id}-search-reindex`, {
+        name: searchReindexName,
+        handler: `${dotMonorisePath}/handle.searchReindexHandler`,
+        runtime,
+        timeout: '15 minutes',
+        memory: '1024 MB',
+        environment,
+        link: [this.table.table],
+        logging,
+        // it hands the rest of a large type to a new invocation of itself
+        permissions: [
+          {
+            actions: ['lambda:InvokeFunction'],
+            resources: [`arn:aws:lambda:*:*:function:${searchReindexName}`],
+          },
+        ],
+      });
+      new aws.lambda.Invocation(`${id}-search-reindex-launch`, {
+        functionName: searchReindex.name,
+        input: JSON.stringify({
+          action: 'start',
+          entities: searchManifest.entities,
+        }),
+      });
+    }
 
     /**
      * Optional WebSocket Setup
