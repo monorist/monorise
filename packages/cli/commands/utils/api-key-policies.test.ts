@@ -54,7 +54,10 @@ function writePolicies(root: string, body: string) {
 }
 
 test('resolveApiKeysPath returns undefined when apiKeys is not set', () => {
-  assert.equal(resolveApiKeysPath('/project', undefined), undefined);
+  assert.equal(
+    resolveApiKeysPath('/project', undefined, '/project/monorise/configs'),
+    undefined,
+  );
 });
 
 test('resolveApiKeysPath resolves an extensionless path to an existing .ts file', () => {
@@ -62,7 +65,7 @@ test('resolveApiKeysPath resolves an extensionless path to an existing .ts file'
   try {
     fs.writeFileSync(path.join(root, 'api-keys.ts'), 'export default {};');
     assert.equal(
-      resolveApiKeysPath(root, './api-keys'),
+      resolveApiKeysPath(root, './api-keys', path.join(root, 'configs')),
       path.join(root, 'api-keys'),
     );
   } finally {
@@ -72,9 +75,25 @@ test('resolveApiKeysPath resolves an extensionless path to an existing .ts file'
 
 test('resolveApiKeysPath throws when the file does not exist', () => {
   assert.throws(
-    () => resolveApiKeysPath('/project', './missing'),
+    () => resolveApiKeysPath('/project', './missing', '/project/configs'),
     /API key policies file not found: '\/project\/missing'/,
   );
+});
+
+test('resolveApiKeysPath rejects a policy file inside configDir', () => {
+  const root = makeFixtureDir();
+  try {
+    const configDir = path.join(root, 'configs');
+    fs.mkdirSync(configDir);
+    fs.writeFileSync(path.join(configDir, 'api-keys.ts'), 'export default {};');
+
+    assert.throws(
+      () => resolveApiKeysPath(root, './configs/api-keys', configDir),
+      /is inside configDir .* where every file is loaded as an entity config/,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('apiKeyPoliciesHandleParts passes config unchanged when there are no policies', () => {
