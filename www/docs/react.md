@@ -11,11 +11,14 @@ Never point the React SDK directly at the monorise API Gateway. Always proxy thr
 ```ts
 import type { Entity, MonoriseEntityConfig } from 'monorise/base';
 import Monorise from 'monorise/react';
-import { EntityConfig } from '#/monorise';
+import { EntityConfig, SearchDefaults } from '#/monorise';
 
 Monorise.config({
   modals: {},
   entityConfig: EntityConfig as Record<Entity, MonoriseEntityConfig>,
+  // The `search` settings of monorise.config.ts, so search results updated on
+  // the client match the way the server does. Optional.
+  searchDefaults: SearchDefaults,
 });
 ```
 
@@ -146,6 +149,15 @@ The `searchField` helper can be bound directly to an input:
 ```tsx
 <input {...searchField} placeholder="Search users..." />
 ```
+
+While the field has a query, `entities` holds the search results instead of the list. A search is sent once typing pauses (`searchInterval`, default 700ms), and only the latest query's results are shown, whatever order responses arrive in.
+
+For entities that use [`search`](/concepts/entities#search):
+
+- A query needs a word of two or more letters. Until it has one, no request is sent and `entities` stays the list.
+- The index is updated a moment after each write. To make up for that, the results follow what the client writes: an entity created or edited (here or over a WebSocket) is added if it now matches the query and dropped if it no longer does, and a deleted one is removed. A result older than the copy the client already holds is replaced by that copy.
+
+For entities on `searchableFields`, results are only updated in place: an edited result shows its new data and a deleted one is removed, but nothing is added or dropped until the next search.
 
 ### `useEntity`
 

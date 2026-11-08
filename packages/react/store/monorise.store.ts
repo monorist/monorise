@@ -2,6 +2,7 @@ import type {
   CreatedEntity,
   Entity,
   MonoriseEntityConfig,
+  SearchSettings,
 } from '@monorise/base';
 import { enableMapSet } from 'immer';
 import type React from 'react';
@@ -49,6 +50,8 @@ const initMonoriseStore = () => {
           };
         };
         config: Record<Entity, MonoriseEntityConfig>;
+        // The `search` settings of monorise.config.ts, if passed to config().
+        searchDefaults?: SearchSettings;
         entity: Record<Entity, CommonStore<CreatedEntity<Entity>>>;
         mutual: Record<string, CommonStore<Mutual>>;
         tag: Record<string, CommonStore<CreatedEntity<Entity>>>;

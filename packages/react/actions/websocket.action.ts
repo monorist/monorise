@@ -1,6 +1,10 @@
 import type { CreatedEntity, Entity } from '@monorise/base';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { produce } from 'immer';
+import {
+  reconcileSearchResults,
+  removeFromSearchResults,
+} from '../lib/search';
 import { parseMutualStateKey } from '../lib/utils';
 import type { MonoriseStore } from '../store/monorise.store';
 import type {
@@ -187,6 +191,11 @@ export const initWebSocketActions = (
                       payload.entityId,
                       payload.data!,
                     );
+                    reconcileSearchResults(
+                      state,
+                      entityType,
+                      payload.data as CreatedEntity<Entity>,
+                    );
                   }),
                 );
               }
@@ -197,6 +206,7 @@ export const initWebSocketActions = (
                   if (state.entity[key]?.dataMap) {
                     state.entity[key].dataMap.delete(payload.entityId);
                   }
+                  removeFromSearchResults(state, entityType, payload.entityId);
                 }),
               );
             }
@@ -701,6 +711,11 @@ export const initWebSocketActions = (
                   state.entity[key] = { dataMap: new Map(), isFirstFetched: false, lastKey: undefined };
                 }
                 state.entity[key].dataMap.set(payload.entityId, payload.data);
+                reconcileSearchResults(
+                  state,
+                  key as unknown as Entity,
+                  payload.data,
+                );
               }),
             );
           }
@@ -709,6 +724,11 @@ export const initWebSocketActions = (
           monoriseStore.setState(
             produce((state) => {
               state.entity[payload.entityType]?.dataMap?.delete(payload.entityId);
+              removeFromSearchResults(
+                state,
+                payload.entityType as unknown as Entity,
+                payload.entityId,
+              );
             }),
           );
         } else if (msg.type === 'mutual.created' || msg.type === 'mutual.updated') {

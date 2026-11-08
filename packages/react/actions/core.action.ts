@@ -20,6 +20,12 @@ import {
   flipMutual,
 } from '../lib/entity';
 import {
+  applySearchResults,
+  canSearch,
+  reconcileSearchResults,
+  removeFromSearchResults,
+} from '../lib/search';
+import {
   convertToMap,
   getEntityRequestKey,
   getMutualRequestKey,
@@ -65,6 +71,9 @@ const initCoreActions = (
   coreService: CoreService,
 ) => {
   const { makeEntityService, makeMutualService } = coreService;
+  // The query each type was last searched for. A response for an older one
+  // arrives too late to show.
+  const latestSearchQueries = new Map<Entity, string>();
   const {
     checkIsLoading,
     getError,
@@ -202,28 +211,31 @@ const initCoreActions = (
     query: string,
     opts: CommonOptions = {},
   ) => {
-    const requestKey = getEntityRequestKey('search', entityType);
     const entityService = makeEntityService(entityType);
-    const error = getError(requestKey);
-    const onError = opts.onError ?? defaultOnError;
+    latestSearchQueries.set(entityType, query);
 
-    if (error) {
-      onError(error);
+    // Nothing the server could look up: skip the request.
+    if (!canSearch(monoriseStore.getState(), entityType, query)) {
+      monoriseStore.setState(
+        produce((state) => {
+          applySearchResults(state, entityType, query, []);
+        }),
+      );
       return;
     }
 
     try {
       const { data: result } = await entityService.searchEntities(query, opts);
+      if (latestSearchQueries.get(entityType) !== query) return;
 
       monoriseStore.setState(
         produce((state) => {
-          state.entity[entityType].searchResults = result.data;
-          for (const i in result.data) {
-            state.entity[entityType].dataMap.set(
-              result.data[i].entityId,
-              result.data[i],
-            );
-          }
+          applySearchResults(
+            state,
+            entityType,
+            query,
+            result.data as CreatedEntity<Entity>[],
+          );
         }),
       );
     } catch (err) {
@@ -487,6 +499,11 @@ const initCoreActions = (
       monoriseStore.setState(
         produce((state) => {
           state.entity[entityType].dataMap.set(data.entityId, data);
+          reconcileSearchResults(
+            state,
+            entityType,
+            data as CreatedEntity<Entity>,
+          );
 
           // auto-populate tag store based on entity config
           const tagConfigs = state.config[entityType]?.tags;
@@ -594,6 +611,11 @@ const initCoreActions = (
       monoriseStore.setState(
         produce((state) => {
           state.entity[entityType].dataMap.set(data.entityId, data);
+          reconcileSearchResults(
+            state,
+            entityType,
+            data as CreatedEntity<Entity>,
+          );
         }),
         undefined,
         `mr/entity/upsert/${entityType}/${id}`,
@@ -734,6 +756,7 @@ const initCoreActions = (
     entityId: string,
   ) => {
     state.entity[entityType]?.dataMap.delete(entityId);
+    removeFromSearchResults(state, entityType, entityId);
 
     for (const key of Object.keys(state.mutual)) {
       const { entity: mutualEntityType } = parseMutualStateKey(key);
@@ -776,6 +799,11 @@ const initCoreActions = (
             id,
             data as CreatedEntity<Entity>,
           );
+          reconcileSearchResults(
+            state,
+            entityType,
+            data as CreatedEntity<Entity>,
+          );
         }),
         undefined,
         `mr/entity/edit/${entityType}/${id}`,
@@ -815,6 +843,11 @@ const initCoreActions = (
             state,
             entityType,
             id,
+            data as CreatedEntity<Entity>,
+          );
+          reconcileSearchResults(
+            state,
+            entityType,
             data as CreatedEntity<Entity>,
           );
         }),
@@ -1019,6 +1052,7 @@ const initCoreActions = (
               } as unknown as CreatedEntity<Entity>;
 
               state.entity[entityType].dataMap.set(entityId, createdEntity);
+              reconcileSearchResults(state, entityType, createdEntity);
 
               const op = operations[index] as TransactionCreateEntity;
               populateMutualsForCreatedEntity(
@@ -1065,6 +1099,7 @@ const initCoreActions = (
             state.entity[entityType].dataMap.set(entityId, updated);
             propagateEntityDataToMutuals(state, entityType, entityId, updated.data);
             reconcileTaggedEntityStore(state, entityType, entityId, updated);
+            reconcileSearchResults(state, entityType, updated);
           });
         }),
         undefined,
@@ -1443,6 +1478,11 @@ const initCoreActions = (
     monoriseStore.setState(
       produce((state) => {
         state.entity[entityType].dataMap.set(entityId, createdEntity);
+        reconcileSearchResults(
+          state,
+          entityType,
+          createdEntity as CreatedEntity<Entity>,
+        );
       }),
       undefined,
       `mr/entity/local-update/${entityType}/${entityId}`,
@@ -2134,19 +2174,31 @@ const initCoreActions = (
       }
     }, [all, entityType, skRange, opts, isFirstFetched, opts?.forceFetch, limit]);
 
+    // Whether the query can find anything: a type that uses `search` needs a
+    // word of two or more letters. Until then the list is shown, unsearched.
+    const searchable = useMemo(
+      () => canSearch(monoriseStore.getState(), entityType, query),
+      [entityType, query],
+    );
+
     useEffect(() => {
       // Clearing the query cancels a pending search, so it's no longer searching.
-      if (!query?.length) {
+      if (!searchable) {
         setIsSearching(false);
         return;
       }
       setIsSearching(true);
+      // A search for an earlier query mustn't end the newer one's loading.
+      let superseded = false;
       const queryTimeout = setTimeout(async () => {
         await searchEntities(entityType, query);
-        setIsSearching(false);
+        if (!superseded) setIsSearching(false);
       }, opts.searchInterval ?? 700);
-      return () => clearTimeout(queryTimeout);
-    }, [entityType, query]);
+      return () => {
+        superseded = true;
+        clearTimeout(queryTimeout);
+      };
+    }, [entityType, query, searchable]);
 
     // Read from the store during render, so `entities` is always in step with
     // `isFirstFetched` and `entitiesMap`. Memoised on the store's map, so the
@@ -2158,7 +2210,7 @@ const initCoreActions = (
         Array.from(dataMap.values()).sort(byEntityId) as CreatedEntity<T>[],
       [dataMap],
     );
-    const entities = query
+    const entities = searchable
       ? (searchResults as CreatedEntity<T>[] | undefined)
       : listed;
 
@@ -2181,7 +2233,7 @@ const initCoreActions = (
       isFirstFetched,
       lastKey,
       refetch: async () => {
-        if (entityType && query) {
+        if (entityType && searchable) {
           await searchEntities(entityType, query);
           return;
         }

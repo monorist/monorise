@@ -2,13 +2,17 @@ import type {
   CreatedEntity,
   Entity,
   MonoriseEntityConfig,
+  SearchSettings,
 } from '@monorise/base';
 import { produce } from 'immer';
 import type { MonoriseStore } from '../store/monorise.store';
 import type { CommonStore } from '../types/monorise.type';
 
 const initConfigActions = (store: MonoriseStore) => {
-  const setConfig = (config: Record<Entity, MonoriseEntityConfig>) => {
+  const setConfig = (
+    config: Record<Entity, MonoriseEntityConfig>,
+    searchDefaults?: SearchSettings,
+  ) => {
     const entityMaps = Object.keys(config).reduce(
       (acc, entity) => {
         acc[entity as any] = {
@@ -24,6 +28,7 @@ const initConfigActions = (store: MonoriseStore) => {
     store.setState(
       produce((state) => {
         state.config = config;
+        state.searchDefaults = searchDefaults;
         state.entity = entityMaps;
       }),
     );

@@ -2,6 +2,7 @@
 "@monorise/base": minor
 "@monorise/cli": minor
 "@monorise/core": minor
+"@monorise/react": minor
 "@monorise/sst": minor
 "monorise": minor
 ---
@@ -23,4 +24,6 @@ Each field is split into words on spaces and symbols, and each word is stored as
 
 **Nothing changes for existing projects.** `searchableFields` keeps scanning every entity as before. It now also handles array and number fields, which used to make every search on the type fail.
 
-`@monorise/core` now uses search helpers from `@monorise/base` at runtime, so upgrade the two together.
+**React.** `useEntities` search results now follow the latest query only, even when an earlier search answers last; before, a search sent while another was in flight was handed the earlier query's results. A failed search no longer blocks later ones. For entities that use `search`, queries without a word of two or more letters show the list without a request, and results follow the client's own creates, edits and deletes. Pass `searchDefaults: SearchDefaults` (from `#/monorise`) to `Monorise.config` so client-side matching uses the `search` settings of `monorise.config.ts`.
+
+`@monorise/core` and `@monorise/react` now use search helpers from `@monorise/base` at runtime, so upgrade them together.
