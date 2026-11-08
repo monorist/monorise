@@ -73,7 +73,11 @@ Then map key values to policy names. Use the object form of `API_KEYS`:
 npx sst secret set API_KEYS '{"full":["admin-key"],"client":["client-key"],"agent-read":["agent-key"]}'
 ```
 
-`monorise dev` and `monorise build` check the policies against your entity configs. They fail the build on an unknown entity, field, tag or relationship target, or on a create grant that leaves out a required field. The API checks them again at cold start.
+`monorise dev` and `monorise build` check the policies against your entity configs. They fail the build on an unknown entity, field, tag or relationship target, or on a create grant that leaves out a required field. The API checks them again at cold start. If that check fails, it logs the problems and rejects every key under your policies; `full` keys keep working.
+
+::: warning
+Keep the policy file outside `configDir`. The CLI loads every file there as an entity config, so it rejects a policy file in that directory.
+:::
 
 ## What a policy grants
 
@@ -158,6 +162,8 @@ Creating a relationship whose mutual config uses `asEntity` also needs create on
 | 403 `FORBIDDEN_FIELDS` | A write sets, or a request matches on, fields outside the key's lists. `fields` names them |
 
 A transaction is checked operation by operation before anything runs. A forbidden operation rejects the whole transaction, and the response includes its `operationIndex`.
+
+One side channel stays open, by design: a named `$condition` on an update or adjustment can succeed or fail (200 or 409) depending on fields the key can't read. Conditions are defined in the entity config, not by the caller, so what they can reveal is limited to what you wrote into them.
 
 ## Custom routes
 
