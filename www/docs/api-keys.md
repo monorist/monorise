@@ -169,6 +169,24 @@ One side channel stays open, by design: a named `$condition` on an update or adj
 
 Custom routes declare the permission they need with `requires()`, and a policy grants it in `routes`. A custom route without `requires()` is callable only by `full` keys. See [Custom Routes](/custom-routes#api-key-permissions).
 
+## Tracing changes to a key
+
+Every event Monorise Core publishes while handling an API request records the key that made it, in the event detail:
+
+```json
+{ "entityType": "order", "entityId": "…", "apiKey": { "policy": "client", "fingerprint": "9f86d081…" } }
+```
+
+- **Custom routes are covered too.** Writes they make through `container` services publish their events with the calling key.
+- **Processor events carry no `apiKey`**, because that work is the system's own.
+- **Error logs** (`INTERNAL_SERVER_EXCEPTION`) include the policy name.
+
+The fingerprint is the key's SHA-256 digest. It tells you which key made a change without revealing it, and to match it against a key you hold:
+
+```bash
+printf '%s' "$KEY" | shasum -a 256
+```
+
 ## Rotating and hashing keys
 
 Each policy maps to an array, so old and new keys can overlap during [rotation](/deploying#key-rotation-without-downtime).

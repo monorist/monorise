@@ -26,6 +26,7 @@ const generalErrorHandler = (dependencies = getDependencies()) =>
         errorId,
         method: c.req.method,
         path: c.req.path,
+        apiKeyPolicy: c.get('apiKey')?.policy,
         errorName: error?.name,
         errorMessage: error?.message,
         errorCode: error?.code,

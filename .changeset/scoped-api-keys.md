@@ -78,6 +78,10 @@ app.use('/reports/*', requires('reports'));
   - `can(action, entityType, fields?)` and `has(permission)`;
   - `mask(entityType, entity)`.
 
+### Tracing changes
+
+Every event published while handling an API request records the calling key in its detail, as `apiKey: { policy, fingerprint }`. That includes writes custom routes make through `container` services. Events from processors carry no key. Error logs include the policy name.
+
 ### Also
 
 - **Unique-lookup fix.** Unique-field lookups matched entity types by prefix, so `GET /entity/user/unique/email/…` could return a `user-profile` entity, and creating a `user` was rejected when a `user-profile` already used the value. Both now match the type exactly.

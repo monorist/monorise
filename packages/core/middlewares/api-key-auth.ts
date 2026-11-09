@@ -10,6 +10,7 @@ import {
 } from '@monorise/base';
 import { createFactory } from 'hono/factory';
 import httpStatus from 'http-status';
+import { runWithApiKey } from '../helpers/request-context';
 import type { EntityAction } from './authorize';
 import { maskRecord } from './mask';
 
@@ -191,7 +192,8 @@ export const createApiKeyAuth = (
     }
 
     c.set('apiKey', { ...principalFor(policy), fingerprint });
-    return await next();
+    // Events published while handling the request record this key.
+    return await runWithApiKey({ policy, fingerprint }, () => next());
   });
 };
 
