@@ -10,6 +10,7 @@ import {
   routePermissionDeclarations,
   validateApiKeyPoliciesFile,
 } from './api-key-policies';
+import { apiKeyTypeDeclarations } from './api-key-types';
 import { detectCombinedPackage } from './detect-package';
 
 function kebabToCamel(str: string): string {
@@ -93,6 +94,8 @@ export enum Entity {}
   const allowedEntityEntries: string[] = [];
   const entityWithEmailAuthEntries: string[] = [];
   const analyticsConfigs: AnalyticsConfig[] = [];
+  const apiKeyTypeEntities: Parameters<typeof apiKeyTypeDeclarations>[0] =
+    [];
 
   // Track mutual pairs for MutualDataMapping codegen and duplicate detection
   // Each entry: { byEnumKey, entityEnumKey, variableName, fieldKey, mutualRef }
@@ -150,6 +153,7 @@ export enum Entity {}
     );
 
     allowedEntityEntries.push(`Entity.${enumKey}`);
+    apiKeyTypeEntities.push({ name: config.name, enumKey, config });
 
     if (config.authMethod?.email) {
       entityWithEmailAuthEntries.push(`Entity.${enumKey}`);
@@ -305,6 +309,7 @@ declare module '@monorise/base' {
   export interface EntitySchemaMap {
     ${schemaMapEntries.join('\n    ')}
   }
+${apiKeyTypeDeclarations(apiKeyTypeEntities)}
 }
 
 declare module 'monorise/base' {
@@ -317,6 +322,7 @@ declare module 'monorise/base' {
   export interface EntitySchemaMap {
     ${schemaMapEntries.join('\n    ')}
   }
+${apiKeyTypeDeclarations(apiKeyTypeEntities)}
 }
 ${generateMutualDataMappingDeclarations(mutualPairs)}
 `;

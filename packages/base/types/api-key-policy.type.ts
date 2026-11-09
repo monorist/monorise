@@ -24,17 +24,50 @@ export type ApiKeyFieldList<F extends string = string> = '*' | F[];
 type EntityField<T extends Entity> = Extract<keyof DraftEntity<T>, string>;
 
 /**
+ * @description Each entity type's tag names. The CLI augments this from the
+ * entity configs, so `tags` in a policy accepts only real tag names.
+ */
+// biome-ignore lint/suspicious/noEmptyInterface: augmented by the generated config
+export interface ApiKeyEntityTags {}
+
+/**
+ * @description The `mutualData` field names of each direction whose pair has
+ * a mutual config. The CLI augments this from the entity configs, so a
+ * relationship grant's field lists accept only real `mutualData` fields.
+ */
+// biome-ignore lint/suspicious/noEmptyInterface: augmented by the generated config
+export interface ApiKeyMutualDataFields {}
+
+// Without generated names, both fall back to any string, as the CLI's
+// validation does for a pair with no mutual config.
+type TagName<T extends Entity> = T extends keyof ApiKeyEntityTags
+  ? Extract<ApiKeyEntityTags[T], string>
+  : string;
+
+type MutualDataField<
+  A extends Entity,
+  B extends Entity,
+> = A extends keyof ApiKeyMutualDataFields
+  ? B extends keyof ApiKeyMutualDataFields[A]
+    ? Extract<ApiKeyMutualDataFields[A][B], string>
+    : string
+  : string;
+
+/**
  * @description Access to one direction of a relationship, e.g. learner→course
  * (`/mutual/learner/:id/course`). Field lists name `mutualData` fields.
  */
-export type ApiKeyMutualGrant =
+export type ApiKeyMutualGrant<
+  A extends Entity = Entity,
+  B extends Entity = Entity,
+> =
   | ApiKeyAccessLevel
   | {
-      read?: ApiKeyFieldList;
-      create?: ApiKeyFieldList;
-      update?: ApiKeyFieldList;
+      read?: ApiKeyFieldList<MutualDataField<A, B>>;
+      create?: ApiKeyFieldList<MutualDataField<A, B>>;
+      update?: ApiKeyFieldList<MutualDataField<A, B>>;
       /** Same as `create` and `update` with this list. */
-      write?: ApiKeyFieldList;
+      write?: ApiKeyFieldList<MutualDataField<A, B>>;
       delete?: boolean;
     };
 
@@ -56,7 +89,7 @@ export type ApiKeyEntityGrant<T extends Entity = Entity> =
       write?: ApiKeyFieldList<EntityField<T> | ApiKeySystemField>;
       delete?: boolean;
       /** Defaults to every tag when `read` is `'*'`, otherwise to none. */
-      tags?: ApiKeyFieldList;
+      tags?: ApiKeyFieldList<TagName<T>>;
       /**
        * Relationships from this entity, keyed by the target entity type. An
        * entry covers one direction only: `[Entity.COURSE]` under learner is
@@ -64,7 +97,7 @@ export type ApiKeyEntityGrant<T extends Entity = Entity> =
        * level for every direction without an entry; it defaults to `'none'`.
        */
       mutuals?: { '*'?: ApiKeyAccessLevel } & {
-        [O in Entity]?: ApiKeyMutualGrant;
+        [O in Entity]?: ApiKeyMutualGrant<T, O>;
       };
     };
 

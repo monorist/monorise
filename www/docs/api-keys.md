@@ -101,7 +101,7 @@ At the policy level, `'read'` and `'write'` apply to every entity. `entities['*'
 | `update` | Fields an update may set |
 | `write` | Shorthand for the same list in `create` and `update` |
 | `delete` | `true` to allow delete |
-| `tags` | Tags the key can query. Defaults to every tag when `read` is `'*'`, otherwise none |
+| `tags` | Tag names the key can query. Defaults to every tag when `read` is `'*'`, otherwise none |
 | `mutuals` | Relationships from this entity; see below |
 
 - **Any write implies read** on the same fields.
@@ -124,6 +124,8 @@ Relationships are granted per direction, under the first entity in the URL. `/mu
 ```
 
 A direction's field lists name `mutualData` fields.
+
+Field names, tag names and `mutualData` fields are all typed from the configs the CLI generates, so a misspelled name fails to compile. A pair with no mutual config has free-form `mutualData`, so any field name compiles there.
 
 When a direction has no entry, how the first entity in the URL is written decides it:
 

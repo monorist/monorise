@@ -45,6 +45,7 @@ export default defineApiKeyPolicies({
 - **Relationships are granted per direction**, keyed under the first entity in the URL. An entry for learner→course says nothing about course→learner.
 - **Pre-hashed keys.** An `API_KEYS` entry written as `sha256:<hex>` lets the secret hold a digest instead of the key.
 - **Fails closed.** A key under an undefined policy, or under more than one policy, is rejected with a 401 and logged.
+- **Typed names.** Entity field names, tag names and `mutualData` field names are typed from the configs the CLI generates.
 - **Validated at build and at start.** `monorise dev` and `monorise build` reject unknown entities, fields, tags and relationship targets, create grants that leave out a required field, and a policy file inside `configDir`. The API handler repeats the check at cold start. If it fails, the handler logs the problems and rejects every key under the project's policies, while `full` keys and the processors keep running.
 
 ### What a scoped key can do

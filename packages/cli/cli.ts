@@ -16,6 +16,7 @@ import {
   routePermissionDeclarations,
   validateApiKeyPoliciesFile,
 } from './commands/utils/api-key-policies';
+import { apiKeyTypeDeclarations } from './commands/utils/api-key-types';
 import { detectCombinedPackage } from './commands/utils/detect-package';
 import { ROOT_TSCONFIG_TEMPLATE } from './templates/root-tsconfig';
 
@@ -79,6 +80,8 @@ export default {};
   const allowedEntityEntries: string[] = [];
   const entityWithEmailAuthEntries: string[] = [];
   const analyticsConfigs: AnalyticsConfig[] = [];
+  const apiKeyTypeEntities: Parameters<typeof apiKeyTypeDeclarations>[0] =
+    [];
 
   const relativePathToConfigDir = path.relative(monoriseOutputDir, configDir);
   const importPathPrefix = relativePathToConfigDir
@@ -123,6 +126,7 @@ export default {};
     );
 
     allowedEntityEntries.push(`Entity.${enumKey}`);
+    apiKeyTypeEntities.push({ name: config.name, enumKey, config });
 
     if (config.authMethod?.email) {
       entityWithEmailAuthEntries.push(`Entity.${enumKey}`);
@@ -144,6 +148,7 @@ declare module '${moduleName}' {
   export interface EntitySchemaMap {
     ${schemaMapEntries.join('\n    ')}
   }
+${apiKeyTypeDeclarations(apiKeyTypeEntities)}
 }`;
 
   // Augment the correct module based on which package is installed
