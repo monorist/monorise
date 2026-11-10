@@ -5,4 +5,6 @@ export type CommonStore<T> = {
   isFirstFetched: boolean;
   lastKey: string;
   searchResults?: CreatedEntity<Entity>[];
+  // The query `searchResults` answer.
+  searchQuery?: string;
 };

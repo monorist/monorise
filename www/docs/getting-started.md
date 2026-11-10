@@ -192,6 +192,11 @@ export default {
 
   // (Optional) Hono app for custom API routes (mounted at /core/app/*)
   customRoutes: './services/core/routes.ts',
+
+  // (Optional) Defaults for entities that use `search`
+  search: {
+    maxWords: 8,
+  },
 };
 ```
 
@@ -199,6 +204,7 @@ export default {
 |-------|------|----------|-------------|
 | `configDir` | `string` | Yes | Path to directory containing entity config `.ts` files |
 | `customRoutes` | `string` | No | Path to a Hono app module for custom routes |
+| `search` | `{ maxWords?, ignoreWords? }` | No | Defaults for entities that use [`search`](/concepts/entities#search). An entity's own setting replaces these |
 
 ::: tip
 The CLI auto-detects whether your project uses the combined `monorise` package or scoped `@monorise/*` packages and generates the correct import paths in `.monorise/handle.ts` accordingly.

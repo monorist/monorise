@@ -18,6 +18,7 @@ import {
   ENTITY_REPLICATION_INDEX,
   MUTUAL_REPLICATION_INDEX,
 } from '../../constants/table';
+import type { SearchRepository } from '../../data/Search';
 import { handler as replicationHandlerFunction } from '../../processors/replication-processor';
 import type { DependencyContainer } from '../../services/DependencyContainer';
 
@@ -334,10 +335,16 @@ export class StreamHandler {
 export const createReplicationHandler = (
   TABLE_NAME: string,
   dynamodbClient: DynamoDB,
+  // Without one, no entity type is search-indexed.
+  searchRepository: Pick<SearchRepository, 'searchConfig' | 'writeRows'> = {
+    searchConfig: () => undefined,
+    writeRows: async () => {},
+  },
 ) =>
   replicationHandlerFunction({
     dynamodbClient,
     coreTable: TABLE_NAME,
+    searchRepository,
   } as unknown as DependencyContainer);
 
 export const replicateData = async (

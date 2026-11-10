@@ -7,6 +7,9 @@ import {
   MutualConfig,
   MutualConfigInput,
   NumericFields,
+  SearchConfig,
+  SearchMatch,
+  SearchSettings,
 } from './types/monorise.type';
 
 import type {
@@ -24,6 +27,21 @@ import {
   createMutualConfig,
   resolveEffectiveMutualSchema,
 } from './utils';
+import {
+  DEFAULT_IGNORE_WORDS,
+  DEFAULT_MAX_WORDS,
+  type ResolvedSearchConfig,
+  type SearchPlan,
+  type SearchTerm,
+  foldText,
+  indexedWords,
+  matchesSearch,
+  planSearch,
+  resolveSearchConfig,
+  searchConfigHash,
+  splitWords,
+  validateSearchSettings,
+} from './utils/search';
 
 export {
   Entity,
@@ -37,9 +55,25 @@ export {
   createEntityConfig,
   createMutualConfig,
   resolveEffectiveMutualSchema,
+  SearchConfig,
+  SearchMatch,
+  SearchSettings,
+  DEFAULT_IGNORE_WORDS,
+  DEFAULT_MAX_WORDS,
+  foldText,
+  indexedWords,
+  matchesSearch,
+  planSearch,
+  resolveSearchConfig,
+  searchConfigHash,
+  splitWords,
+  validateSearchSettings,
 };
 
 export type {
+  ResolvedSearchConfig,
+  SearchPlan,
+  SearchTerm,
   AdjustmentCondition,
   AdjustmentConditionFn,
   UpdateCondition,
