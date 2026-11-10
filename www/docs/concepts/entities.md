@@ -191,7 +191,7 @@ Each field value is split into words on spaces and symbols, lowercased and with 
 | `jane@mail.com` | Text joined by symbols must appear exactly, so `mail@jane.com` doesn't match |
 | `lumbing` | Nothing in "plumbing": words match from their start |
 
-A query needs a word of at least two letters, and matches are returned newest first. All matches are returned, so you can rank them in your app.
+A query needs a word of at least two letters, and matches are returned newest first. All matches are returned, so you can rank them in your app. The response's `filteredCount` is the number of matches; it has no `totalCount`, since counting every entity of the type would take the scan the index avoids.
 
 #### Settings
 
@@ -221,6 +221,8 @@ Each indexed word is a copy of the entity, kept in sync by the replication proce
 #### Turning it on and changing it
 
 On deploy, Monorise builds the index for existing entities whenever an entity's `search` config, or the global settings it uses, change. Until that finishes, queries on that type scan every entity, with the same results. New and updated entities are indexed as they're written.
+
+A part of the build that fails, for example when the table throttles, is retried twice with a growing wait. If it fails a third time, the build stops, the `<stage>-<app>-<id>-search-reindex-errors` alarm notifies the Monorise alarm topic, and the type keeps scanning. Once the cause is fixed, rebuild it with the command below.
 
 If you remove `search` from every entity and add it back later with the same settings, the reindex function was removed in between and can't tell. Rebuild by hand after deploying:
 

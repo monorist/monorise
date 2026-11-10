@@ -173,7 +173,7 @@ Under the hood, `MonoriseCore` creates:
 - **EventBridge bus** for publishing entity events
 - **3 QFunction processors** (mutual, tag, prejoin) — each with SQS queue, Lambda, DLQ, and CloudWatch alarm
 - **Replication processor** — DynamoDB stream subscriber that keeps denormalized data in sync, including the search index
-- **Search reindex function** (when an entity uses `search`) — builds the index for existing entities on deploy, whenever the search config changes
+- **Search reindex function** (when an entity uses `search`) — builds the index for existing entities on deploy, whenever the search config changes, with a CloudWatch alarm on its errors
 - **Analytics delivery** (when enabled) — a second DynamoDB Stream subscriber, Firehose delivery to S3, and daily Athena/Glue materialization
 - **CloudWatch dashboard** with metrics for all Lambda functions, DLQ depths, and a link to DynamoDB table monitoring (can be disabled via `cloudwatchDashboard`)
 - **SST DevCommand** — automatically runs `monorise dev` in watch mode during `sst dev`

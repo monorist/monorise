@@ -74,15 +74,15 @@ describe('SearchRepository.searchEntities', () => {
       ],
     });
 
-    const { items, filteredCount } = await repository.searchEntities(
-      USER,
-      'john do',
-    );
+    const { items, totalCount, filteredCount } =
+      await repository.searchEntities(USER, 'john do');
 
     expect(listEntities).toHaveBeenCalledOnce();
     expect(query).not.toHaveBeenCalled();
     expect(items.map((item) => item.entityId)).toEqual(['01B', '01A']);
     expect(filteredCount).toBe(2);
+    // not the scan's count of every entity, even while it scans
+    expect(totalCount).toBeUndefined();
   });
 
   it('scans when the index was built for a different config', async () => {
@@ -140,7 +140,6 @@ describe('SearchRepository.searchEntities', () => {
 
     expect(await repository.searchEntities(USER, 'j')).toEqual({
       items: [],
-      totalCount: 0,
       filteredCount: 0,
     });
     expect(getItem).not.toHaveBeenCalled();

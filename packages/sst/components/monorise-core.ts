@@ -249,13 +249,37 @@ export class MonoriseCore {
           },
         ],
       });
-      new aws.lambda.Invocation(`${id}-search-reindex-launch`, {
-        functionName: searchReindex.name,
-        input: JSON.stringify({
-          action: 'start',
-          entities: searchManifest.entities,
-        }),
+      // It retries a failing page itself, so Lambda's own retries would only
+      // repeat a reindex that has already given up.
+      const searchReindexRetries = new aws.lambda.FunctionEventInvokeConfig(
+        `${id}-search-reindex-retries`,
+        { functionName: searchReindex.name, maximumRetryAttempts: 0 },
+      );
+      // A reindex that gives up leaves search scanning with no other sign.
+      new aws.cloudwatch.MetricAlarm(`${id}-search-reindex-errors`, {
+        name: `${searchReindexName}-errors`,
+        namespace: 'AWS/Lambda',
+        metricName: 'Errors',
+        statistic: 'Sum',
+        period: 300,
+        evaluationPeriods: 1,
+        threshold: 1,
+        comparisonOperator: 'GreaterThanOrEqualToThreshold',
+        treatMissingData: 'notBreaching',
+        alarmActions: [this.alarmTopic.arn],
+        dimensions: { FunctionName: searchReindexName },
       });
+      new aws.lambda.Invocation(
+        `${id}-search-reindex-launch`,
+        {
+          functionName: searchReindex.name,
+          input: JSON.stringify({
+            action: 'start',
+            entities: searchManifest.entities,
+          }),
+        },
+        { dependsOn: [searchReindexRetries] },
+      );
     }
 
     /**

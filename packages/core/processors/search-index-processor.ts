@@ -61,11 +61,22 @@ export type SearchReindexEvent =
       entityType: EntityType;
       configHash: string;
       lastKey?: string;
+      // Times the page at `lastKey` has failed in a row.
+      failures?: number;
     };
 
 // Leave time to hand the rest over before the Lambda times out.
 const HANDOVER_MS = 2 * 60 * 1000;
 const PAGE_SIZE = 100;
+// Entities reindexed at once. Each makes up to `maxWords` writes, so this
+// bounds the burst the table sees.
+const CONCURRENCY = 25;
+// A page may fail this many times in a row, retried after a growing wait,
+// before the reindex gives up and fails.
+const MAX_FAILURES = 3;
+const RETRY_WAIT_MS = 5000;
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 let lambdaClient: LambdaClient | undefined;
 const invokeSelf = async (event: SearchReindexEvent) => {
@@ -85,9 +96,14 @@ const invokeSelf = async (event: SearchReindexEvent) => {
  * is marked ready. Runs as one invocation per entity type, each handing the
  * rest of its type to a new invocation when it runs low on time. Rows are
  * only listed here: each entity is read again before its rows are written.
+ *
+ * A page that fails is retried by a new invocation from the same page. Once
+ * it has failed MAX_FAILURES times in a row the invocation throws, so the
+ * function's error alarm fires; the type keeps scanning until a forced start
+ * or a config change rebuilds it.
  */
 export const handler =
-  (container: DependencyContainer, invoke = invokeSelf) =>
+  (container: DependencyContainer, invoke = invokeSelf, pause = wait) =>
   async (
     event: SearchReindexEvent,
     context?: Pick<Context, 'getRemainingTimeInMillis'>,
@@ -138,22 +154,61 @@ export const handler =
     }
 
     let lastKey = event.lastKey;
+    let failures = event.failures ?? 0;
     do {
-      const page = await entityRepository.listEntities({
-        entityType,
-        limit: PAGE_SIZE,
-        options: { lastKey },
-      });
-      await Promise.all(
-        page.items.map((entity) =>
-          searchRepository.reindexEntity(
-            entityType,
-            entity.entityId as string,
-            config,
-          ),
-        ),
-      );
-      lastKey = page.lastKey;
+      try {
+        const page = await entityRepository.listEntities({
+          entityType,
+          limit: PAGE_SIZE,
+          options: { lastKey },
+        });
+        for (let i = 0; i < page.items.length; i += CONCURRENCY) {
+          await Promise.all(
+            page.items
+              .slice(i, i + CONCURRENCY)
+              .map((entity) =>
+                searchRepository.reindexEntity(
+                  entityType,
+                  entity.entityId as string,
+                  config,
+                ),
+              ),
+          );
+        }
+        lastKey = page.lastKey;
+        failures = 0;
+      } catch (err) {
+        failures++;
+        if (failures >= MAX_FAILURES) {
+          console.error(
+            '[SEARCH_REINDEX] giving up: search scans until rebuilt',
+            {
+              entityType,
+              lastKey,
+              failures,
+              err,
+            },
+          );
+          throw err;
+        }
+
+        console.warn('[SEARCH_REINDEX] page failed, retrying', {
+          entityType,
+          lastKey,
+          failures,
+          err,
+        });
+        // Retried in a new invocation, so the retry gets a full timeout.
+        await pause(RETRY_WAIT_MS * 2 ** (failures - 1));
+        await invoke({
+          action: 'reindex',
+          entityType,
+          configHash,
+          lastKey,
+          failures,
+        });
+        return;
+      }
 
       if (
         lastKey &&

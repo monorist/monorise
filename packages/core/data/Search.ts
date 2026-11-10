@@ -318,19 +318,22 @@ export class SearchRepository {
    * Every entity matching `query`, newest first. Reads the rows of the
    * query's longest word, or scans every entity while the index is still
    * being built for the current config. Both give the same matches.
+   *
+   * There's no `totalCount`: counting every entity of the type would take
+   * the scan the index avoids. `filteredCount` is the number of matches.
    */
   async searchEntities<T extends EntityType>(
     entityType: T,
     query: string,
   ): Promise<{
     items: Entity<T>[];
-    totalCount: number;
+    totalCount?: undefined;
     filteredCount: number;
   }> {
     const config = this.searchConfig(entityType);
     const plan = config && planSearch(query, config.ignoreWords);
     if (!config || !plan?.anchor) {
-      return { items: [], totalCount: 0, filteredCount: 0 };
+      return { items: [], filteredCount: 0 };
     }
 
     const candidates = (await this.isIndexReady(entityType, config))
@@ -352,6 +355,6 @@ export class SearchRepository {
       (a.entityId as string) < (b.entityId as string) ? 1 : -1,
     );
 
-    return { items, totalCount: items.length, filteredCount: items.length };
+    return { items, filteredCount: items.length };
   }
 }

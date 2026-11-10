@@ -238,6 +238,7 @@ describe('search reindex handler', () => {
     const listEntities = vi.fn();
     for (const page of pages) listEntities.mockResolvedValueOnce(page);
     const invoke = vi.fn(async (_: SearchReindexEvent) => {});
+    const pause = vi.fn(async (_: number) => {});
     const run = handler(
       {
         config: { EntityConfig: entityConfig },
@@ -245,10 +246,12 @@ describe('search reindex handler', () => {
         entityRepository: { listEntities },
       } as unknown as DependencyContainer,
       invoke,
+      pause,
     );
     return {
       run,
       invoke,
+      pause,
       markIndexBuilding,
       markIndexReady,
       reindexEntity,
@@ -338,6 +341,105 @@ describe('search reindex handler', () => {
       lastKey: 'k1',
     });
     expect(markIndexReady).not.toHaveBeenCalled();
+  });
+
+  it('retries a failed page from the same page in a new invocation', async () => {
+    const { run, invoke, pause, listEntities, markIndexReady } = setUp();
+    listEntities.mockRejectedValueOnce(new Error('ThrottlingException'));
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await run({
+      action: 'reindex',
+      entityType: PRODUCT,
+      configHash: productHash,
+      lastKey: 'k1',
+    });
+
+    expect(pause).toHaveBeenCalledExactlyOnceWith(5000);
+    expect(invoke).toHaveBeenCalledExactlyOnceWith({
+      action: 'reindex',
+      entityType: PRODUCT,
+      configHash: productHash,
+      lastKey: 'k1',
+      failures: 1,
+    });
+    expect(markIndexReady).not.toHaveBeenCalled();
+  });
+
+  it('waits longer before each retry of the same page', async () => {
+    const { run, pause, reindexEntity } = setUp([{ items: [entity('01')] }]);
+    reindexEntity.mockRejectedValueOnce(new Error('ThrottlingException'));
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    await run({
+      action: 'reindex',
+      entityType: PRODUCT,
+      configHash: productHash,
+      failures: 1,
+    });
+
+    expect(pause).toHaveBeenCalledExactlyOnceWith(10000);
+  });
+
+  it('fails the invocation once a page has failed three times in a row', async () => {
+    const { run, invoke, markIndexReady, listEntities } = setUp();
+    const error = new Error('ThrottlingException');
+    listEntities.mockRejectedValueOnce(error);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await expect(
+      run({
+        action: 'reindex',
+        entityType: PRODUCT,
+        configHash: productHash,
+        lastKey: 'k1',
+        failures: 2,
+      }),
+    ).rejects.toBe(error);
+
+    expect(invoke).not.toHaveBeenCalled();
+    expect(markIndexReady).not.toHaveBeenCalled();
+  });
+
+  it('starts counting again after a page succeeds', async () => {
+    const { run, markIndexReady, invoke } = setUp([{ items: [entity('01')] }]);
+
+    await run({
+      action: 'reindex',
+      entityType: PRODUCT,
+      configHash: productHash,
+      failures: 2,
+    });
+
+    expect(invoke).not.toHaveBeenCalled();
+    expect(markIndexReady).toHaveBeenCalledExactlyOnceWith(
+      PRODUCT,
+      productHash,
+    );
+  });
+
+  it('reindexes a page at most 25 entities at a time', async () => {
+    const items = Array.from({ length: 30 }, (_, i) =>
+      entity(`${i}`.padStart(2, '0')),
+    );
+    const { run, reindexEntity } = setUp([{ items }]);
+    let running = 0;
+    let most = 0;
+    reindexEntity.mockImplementation(async () => {
+      running++;
+      most = Math.max(most, running);
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      running--;
+    });
+
+    await run({
+      action: 'reindex',
+      entityType: PRODUCT,
+      configHash: productHash,
+    });
+
+    expect(reindexEntity).toHaveBeenCalledTimes(30);
+    expect(most).toBe(25);
   });
 
   it('stops when the config changed since the reindex started', async () => {
