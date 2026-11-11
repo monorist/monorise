@@ -101,8 +101,9 @@ my-app/
 │   │   ├── page.tsx                  # Example page with useEntities
 │   │   ├── globals.css               # Shadcn theme variables
 │   │   └── api/
-│   │       ├── proxy-request.ts      # API proxy utility
-│   │       └── [...proxy]/route.ts   # Catch-all proxy to monorise backend
+│   │       └── core/
+│   │           ├── [...path]/route.ts    # Proxy to monorise: createProxyHandler
+│   │           └── ws/ticket/…/route.ts  # WebSocket tickets
 │   ├── components/
 │   │   ├── global-initializer.tsx    # Monorise store config
 │   │   ├── global-loader.tsx         # Interruptive loading overlay

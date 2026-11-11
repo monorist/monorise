@@ -150,6 +150,8 @@ support: { entities: { '*': 'read' }, routes: ['reports', 'checkout:discount'] }
 - **Order doesn't matter.** Core checks every `requires()` a request matches before any of your handlers run, so a `use()` registered after the route, or middleware before `requires()`, still protects it.
 - **Typed names:** the CLI types `requires()` with the names your policies grant, so a misspelled name fails to compile.
 
+The key says which kind of caller may call a route, not which user. Behind the [proxy](/proxy#custom-routes), a route takes the identity it needs from its body or path, and a route rule checks it against the session.
+
 Inside a route, `c.get('apiKey')` is the resolved key:
 
 | Member | Returns |

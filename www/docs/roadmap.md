@@ -4,34 +4,15 @@ This document captures potential improvements and enhancements for monorise, org
 
 ---
 
-## 1. Config-Based API Proxy (`monorise/next`)
+## 1. Config-Based API Proxy ✅ Done
 
-**Problem:** Every monorise project needs a `[...proxy]/route.ts` and `proxy-request.ts` in the Next.js app. These files are nearly identical across projects — they rewrite URLs, forward headers, and attach the `x-api-key` header. This is boilerplate that shouldn't exist.
+**Shipped** as `createProxyHandler` in `monorise/proxy`. See [Proxy](/proxy).
 
-**Proposal:** Create a `monorise/next` package that exports a proxy route handler factory:
+The `[...proxy]/route.ts` and `proxy-request.ts` boilerplate is gone: `monorise init` generates one route file. What shipped differs from the original proposal:
 
-```typescript
-// app/api/[...proxy]/route.ts
-import { createProxyHandler } from 'monorise/next';
-
-export const { GET, POST, PATCH, PUT, DELETE, OPTIONS } = createProxyHandler({
-  apiKey: process.env.API_KEY || 'secret1',
-  beforeRequest: async (req) => {
-    // Optional: auth validation, token extraction
-    // Return modified headers or throw to reject
-  },
-  afterResponse: async (req, res) => {
-    // Optional: analytics, logging
-  },
-});
-```
-
-**Benefits:**
-- Zero boilerplate proxy setup
-- `API_BASE_URL` auto-discovered from SST resource linking
-- Auth hooks are extensible without the framework knowing about JWT strategies
-- CORS handling built-in
-- Consistent header forwarding behavior
+- **Framework-agnostic, not `monorise/next`:** `handle(request)` takes a web-standard `Request`, so the same handler serves Next.js, React Router and Hono.
+- **Rules instead of `beforeRequest` hooks:** the proxy describes each request as operations and checks per-user rules, strict by default, alongside the caller's [scoped API key](/api-keys).
+- **Out of scope for now:** `afterResponse` hooks and CORS. Same-origin apps don't need CORS.
 
 ---
 
