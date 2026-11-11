@@ -41,6 +41,7 @@ export default defineApiKeyPolicies({
     entities: {
       [Entity.ORDER]: {
         read: '*',
+        list: true, // also list and search orders
         create: ['customerId', 'items', 'notes'],
         update: ['status', 'notes'], // customerId is fixed once created
       },
@@ -85,8 +86,8 @@ Keep the policy file outside `configDir`. The CLI loads every file there as an e
 
 | Written as | Grants |
 |---|---|
-| `'read'` | Every field and tag, and read on every relationship from this entity |
-| `'write'` | Read, create, update and delete on every field, and write on every relationship from this entity |
+| `'read'` | Every field and tag, listing, and read on every relationship from this entity |
+| `'write'` | Read, list, create, update and delete on every field, and write on every relationship from this entity |
 | `'none'`, or not listed | Nothing. Requests on the type answer 404, as if it didn't exist |
 | `{ ... }` | Only what the object lists |
 
@@ -96,7 +97,8 @@ At the policy level, `'read'` and `'write'` apply to every entity. `entities['*'
 
 | Key | Meaning |
 |---|---|
-| `read` | `'*'` or the fields the key can read |
+| `read` | `'*'` or the fields the key can read. Allows getting a record by ID or unique field |
+| `list` | `true` to also list the whole type: `GET /entity/:type`, search and tag queries |
 | `create` | Fields a create may set. Must include every field `createSchema` requires |
 | `update` | Fields an update may set |
 | `write` | Shorthand for the same list in `create` and `update` |
@@ -105,6 +107,7 @@ At the policy level, `'read'` and `'write'` apply to every entity. `entities['*'
 | `mutuals` | Relationships from this entity; see below |
 
 - **Any write implies read** on the same fields.
+- **Get and list are separate.** A get needs a reference you already hold, such as an ID from a link or an earlier response. A listing needs none, and pages through every record. So an object grant lists only with `list: true`, using the same `read` fields. Relationship listings are bounded by the ID in their URL, so a direction's `read` covers them.
 - **Field lists are allowlists**, so a field you add to an entity later stays hidden from scoped keys until you grant it.
 - **Choosing the ID or the timestamp:** a create body may set `entityId` or `createdAt` only if the create list names `$entityId` or `$createdAt`. So may an upsert, because its URL chooses the ID. A `'*'` list allows both.
 
@@ -151,9 +154,9 @@ Creating a relationship whose mutual config uses `asEntity` also needs create on
 - **Writes are checked field by field.** A body that sets a field outside the key's list is rejected with `FORBIDDEN_FIELDS`, and nothing is written.
 - **Responses are masked.** Fields the key can't read are left out of entities, lists, tags, relationships and transaction results.
 - **Requests that match on a field need read on it:**
-  - search (`?query=`) needs read on every searchable field;
+  - search (`?query=`) needs `list` and read on every searchable field;
   - a unique lookup needs read on the field it looks up by;
-  - a tag needs `read: '*'` on the type or an explicit `tags` grant.
+  - a tag needs `list`, plus `read: '*'` on the type or an explicit `tags` grant.
 - **WebSocket tickets** (`POST /ws/ticket`) are for `full` keys only, because a ticket's feed isn't scoped.
 
 | Response | When |

@@ -81,7 +81,7 @@ ${declarations}
 defineApiKeyPolicies({
   valid: {
     entities: {
-      [Entity.ORDER]: { read: ['total'], tags: ['region'] },
+      [Entity.ORDER]: { read: ['total'], list: true, tags: ['region'] },
       [Entity.LEARNER]: {
         read: '*',
         mutuals: { [Entity.COURSE]: { read: ['role'], create: ['role', 'appliedAt'] } },
@@ -106,6 +106,8 @@ defineApiKeyPolicies({ p: { entities: { [Entity.LEARNER]: { tags: ['region'] } }
 defineApiKeyPolicies({ p: { entities: { [Entity.LEARNER]: { mutuals: { [Entity.COURSE]: { read: ['rol'] } } } } } });
 // @ts-expect-error the opposite direction of a configured pair is typed too
 defineApiKeyPolicies({ p: { entities: { [Entity.COURSE]: { mutuals: { [Entity.LEARNER]: { update: ['rol'] } } } } } });
+// @ts-expect-error list is a boolean
+defineApiKeyPolicies({ p: { entities: { [Entity.ORDER]: { read: '*', list: 'yes' } } } });
 // @ts-expect-error a misspelled entity field
 defineApiKeyPolicies({ p: { entities: { [Entity.ORDER]: { read: ['totl'] } } } });
 `;

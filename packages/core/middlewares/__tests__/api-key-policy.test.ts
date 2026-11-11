@@ -97,6 +97,7 @@ describe('compileApiKeyPolicy', () => {
     expect(full.entity('anything')).toEqual({
       listed: true,
       read: '*',
+      list: true,
       create: '*',
       update: '*',
       delete: true,
@@ -191,11 +192,31 @@ describe('compileApiKeyPolicy', () => {
     expect(policy.entity('order')).toEqual({
       listed: true,
       read: fields('total', 'customerId', 'status'),
+      list: false,
       create: fields('customerId', '$entityId'),
       update: fields('status'),
       delete: false,
       tags: null,
     });
+  });
+
+  it('lists only for shorthands and object grants that say list: true', () => {
+    const policy = compileApiKeyPolicy('client', {
+      entities: {
+        '*': 'read',
+        [as('order')]: { read: '*' },
+        [as('product')]: { read: ['name'], list: true },
+        [as('payment')]: 'none',
+      },
+    });
+
+    expect(policy.entity('anything').list).toBe(true);
+    expect(policy.entity('order').list).toBe(false);
+    expect(policy.entity('product').list).toBe(true);
+    expect(policy.entity('payment').list).toBe(false);
+    expect(compileApiKeyPolicy('writer', 'write').entity('order').list).toBe(
+      true,
+    );
   });
 
   it('treats write as create plus update', () => {
@@ -382,6 +403,21 @@ describe('validateApiKeyPolicies', () => {
       'a system field outside create or write',
       { p: { entities: { course: { update: ['$createdAt'] } } } },
       "'$createdAt' can only be granted in 'create' or 'write'",
+    ],
+    [
+      'a non-boolean list',
+      { p: { entities: { course: { read: '*', list: 'yes' } } } },
+      'course.list must be a boolean',
+    ],
+    [
+      'list without fields to read',
+      { p: { entities: { course: { list: true } } } },
+      'course.list needs fields to read',
+    ],
+    [
+      'list with an empty read list',
+      { p: { entities: { course: { read: [], list: true } } } },
+      'course.list needs fields to read',
     ],
     [
       'a non-boolean delete',

@@ -20,6 +20,7 @@ const ACCESS_LEVELS: readonly ApiKeyAccessLevel[] = ['none', 'read', 'write'];
 const SYSTEM_FIELDS = ['$entityId', '$createdAt'];
 const ENTITY_GRANT_KEYS = [
   'read',
+  'list',
   'create',
   'update',
   'write',
@@ -37,7 +38,10 @@ export type ApiKeyFieldAccess = '*' | ReadonlySet<string>;
 export type ApiKeyEntityAccess = {
   /** Whether the policy mentions the type at all. An unlisted type answers 404. */
   listed: boolean;
+  /** Fields the key can read, by ID or unique field, and in every response. */
   read: ApiKeyFieldAccess | null;
+  /** Whether the key can list the whole type: listing, search and tag queries. */
+  list: boolean;
   create: ApiKeyFieldAccess | null;
   update: ApiKeyFieldAccess | null;
   delete: boolean;
@@ -100,6 +104,7 @@ const UNLISTED: CompiledEntity = {
   access: {
     listed: false,
     read: null,
+    list: false,
     create: null,
     update: null,
     delete: false,
@@ -120,6 +125,7 @@ const compileEntityGrant = (
       access: {
         listed: true,
         read: '*',
+        list: true,
         create: write ? '*' : null,
         update: write ? '*' : null,
         delete: write,
@@ -139,6 +145,7 @@ const compileEntityGrant = (
     access: {
       listed: true,
       read,
+      list: grant.list === true,
       create,
       update,
       delete: grant.delete === true,
@@ -404,6 +411,16 @@ export const validateApiKeyPolicies = (
     }
     if (grant.delete !== undefined && typeof grant.delete !== 'boolean') {
       errors.push(`${where}.delete must be a boolean`);
+    }
+    if (grant.list !== undefined && typeof grant.list !== 'boolean') {
+      errors.push(`${where}.list must be a boolean`);
+    } else if (grant.list === true) {
+      const { read } = compileEntityGrant(grant as ApiKeyEntityGrant).access;
+      if (read === null || (read !== '*' && read.size === 0)) {
+        errors.push(
+          `${where}.list needs fields to read; a listing would return no data`,
+        );
+      }
     }
     if (grant.tags !== undefined) {
       checkFieldList(

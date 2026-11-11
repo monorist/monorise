@@ -25,7 +25,8 @@ export type ApiKeyPrincipal = {
   access: CompiledApiKeyPolicy;
   /**
    * Whether the policy allows an action on an entity type, and on every
-   * listed field when `fields` is given.
+   * listed field when `fields` is given. `read` is get by ID; `list` is
+   * listing the whole type.
    */
   can(
     action: EntityAction,
@@ -53,7 +54,9 @@ const createPrincipal = (
   can: (action, entityType, fields) => {
     const entity = access.entity(entityType);
     if (action === 'delete') return entity.delete;
-    const granted = entity[action];
+    if (action === 'list' && !entity.list) return false;
+    // Listing returns the same fields a get does.
+    const granted = entity[action === 'list' ? 'read' : action];
     if (granted === null) return false;
     return !fields || granted === '*' || fields.every((f) => granted.has(f));
   },
