@@ -52,6 +52,9 @@ type Denial =
 const ROUTE_GUARD = Symbol.for('monorise.routeGuard');
 const ROUTE_PERMISSION = Symbol.for('monorise.routePermission');
 
+// Request-body keys the controllers take out before writing: not data fields.
+const NOT_DATA = new Set(['$condition', '$where']);
+
 // Tags a guard with what it requires, so a test can check that every route
 // declares a requirement and that each one is the intended requirement.
 const routeGuard = (
@@ -149,12 +152,17 @@ export const createRouteGuards = (entityConfig: EntityConfigs) => {
     );
   };
 
-  /** Checks one direction, byEntityType→entityType, as the URL orders it. */
+  /**
+   * Checks one direction, byEntityType→entityType, as the URL orders it.
+   * `requestedAsEntity` is an `asEntity` the request names, which wins over
+   * the config's.
+   */
   const checkDirection = (
     key: ApiKeyPrincipal,
     byEntityType: string,
     entityType: string,
     action: EntityAction,
+    requestedAsEntity?: string,
   ): Denial | null => {
     const access = key.access.mutual(byEntityType, entityType);
     if (!access) return { status: 404 };
@@ -169,7 +177,9 @@ export const createRouteGuards = (entityConfig: EntityConfigs) => {
     }
 
     const asEntity =
-      action === 'create' ? asEntityType(byEntityType, entityType) : undefined;
+      action === 'create'
+        ? requestedAsEntity || asEntityType(byEntityType, entityType)
+        : undefined;
     if (asEntity && !key.access.entity(asEntity).create) {
       return {
         status: 403,
@@ -203,12 +213,13 @@ export const createRouteGuards = (entityConfig: EntityConfigs) => {
     new Set(Object.keys(entityConfig[entityType]?.mutual?.mutualFields ?? {}));
 
   // The data fields a payload sets. Relationship fields are checked against
-  // their direction instead, and `$` keys ($condition, $where) are not data.
+  // their direction instead. The controllers take only $condition and $where
+  // out of the body, so any other `$` key is written as data and checked.
   const dataFields = (entityType: string, payload: unknown) => {
     if (typeof payload !== 'object' || payload === null) return [];
     const relationships = relationshipFieldNames(entityType);
     return Object.keys(payload).filter(
-      (field) => !field.startsWith('$') && !relationships.has(field),
+      (field) => !NOT_DATA.has(field) && !relationships.has(field),
     );
   };
 
@@ -441,12 +452,16 @@ export const createRouteGuards = (entityConfig: EntityConfigs) => {
               ? [byEntityType, ...chain.split(','), entityType]
               : [byEntityType, entityType];
 
+          // CreateMutualController passes ?asEntity= through to the service.
+          const requestedAsEntity =
+            action === 'create' ? c.req.query('asEntity') : undefined;
           for (let hop = 1; hop < path.length; hop++) {
             const denial = checkDirection(
               key,
               path[hop - 1],
               path[hop],
               action,
+              requestedAsEntity,
             );
             if (denial) return deny(c, denial);
           }
@@ -612,27 +627,38 @@ export const requires = (
 
 /**
  * Runs in front of the custom routes. A route that declares no permission
- * with `requires()` is callable only by `full` keys, so a custom route never
- * opens up to scoped keys by accident.
+ * with `requires()`, or whose `requires()` runs after its handler, is
+ * callable only by `full` keys, so a custom route never opens up to scoped
+ * keys by accident.
  */
 export const customRouteGate = () =>
   createMiddleware(async (c, next) => {
     const key = restrictedKey(c);
-    // `matchedRoutes` lists every handler the request will run, including
-    // the custom app's own, before any of them runs.
-    if (
-      key &&
-      !c.req.matchedRoutes.some(
+    if (key) {
+      // `matchedRoutes` lists every handler the request will run, including
+      // the custom app's own, in the order they run, before any of them runs.
+      // `use()` middleware is method ALL; the first method-specific handler
+      // may respond, so a requires() after it might never run.
+      const matched = c.req.matchedRoutes;
+      const permission = matched.findIndex(
         (route) =>
           (route.handler as unknown as Record<symbol, unknown>)[
             ROUTE_PERMISSION
           ] !== undefined,
-      )
-    ) {
-      return forbidden(
-        c,
-        "This route declares no permission with requires(), so only 'full' keys can call it",
       );
+      const handler = matched.findIndex((route) => route.method !== 'ALL');
+      if (permission === -1) {
+        return forbidden(
+          c,
+          "This route declares no permission with requires(), so only 'full' keys can call it",
+        );
+      }
+      if (handler !== -1 && permission > handler) {
+        return forbidden(
+          c,
+          "This route's requires() runs after its handler, so only 'full' keys can call it. Put requires() first in the route, or in a use() registered before it",
+        );
+      }
     }
     await next();
   });
