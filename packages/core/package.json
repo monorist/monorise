@@ -41,7 +41,7 @@
     "vitest": "^3.1.1"
   },
   "peerDependencies": {
-    "@monorise/base": "^4.4.0",
+    "@monorise/base": "^4.8.0-dev.0",
     "hono": "^4.7.10"
   }
 }
