@@ -7,6 +7,7 @@ import {
   apiKeyPoliciesHandleParts,
   apiKeysFile,
   resolveApiKeysPath,
+  routePermissionDeclarations,
   validateApiKeyPoliciesFile,
 } from './api-key-policies';
 
@@ -181,6 +182,37 @@ test('validateApiKeyPoliciesFile requires the result of defineApiKeyPolicies', a
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+});
+
+test('routePermissionDeclarations is empty when no policy grants a route', () => {
+  assert.equal(
+    routePermissionDeclarations({ reporting: 'read', client: {} }, [
+      '@monorise/base',
+    ]),
+    '',
+  );
+});
+
+test('routePermissionDeclarations declares every granted route once, for each module', () => {
+  const declarations = routePermissionDeclarations(
+    {
+      client: { routes: ['checkout', 'checkout:discount'] },
+      support: { routes: ['checkout:refund', 'checkout'] },
+      reporting: 'read',
+    },
+    ['@monorise/base', 'monorise/base'],
+  );
+
+  const block = (moduleName: string) => `
+declare module '${moduleName}' {
+  interface ApiKeyRoutePermissions {
+    "checkout": true;
+    "checkout:discount": true;
+    "checkout:refund": true;
+  }
+}
+`;
+  assert.equal(declarations, block('@monorise/base') + block('monorise/base'));
 });
 
 test('apiKeysFile finds the file an extensionless path points at', () => {

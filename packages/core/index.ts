@@ -116,6 +116,8 @@ export {
   wsBroadcast,
 };
 
+export { requires } from './middlewares/authorize';
 export type { ApiKeyPrincipal } from './middlewares/api-key-auth';
+export type { EntityAction } from './middlewares/authorize';
 
 export default CoreFactory;
