@@ -6,6 +6,7 @@ import {
 } from './analytics-manifest';
 import {
   apiKeyPoliciesHandleParts,
+  apiKeysFile,
   resolveApiKeysPath,
   routePermissionDeclarations,
   validateApiKeyPoliciesFile,
@@ -422,7 +423,11 @@ export const wsBroadcast = coreFactory.wsBroadcast;
   return handleOutputPath;
 }
 
-async function generateFiles(rootPath?: string): Promise<string> {
+// What `monorise dev` watches: the entity configs, and the policy file,
+// which lives outside them.
+type GeneratedFrom = { configDir: string; apiKeysFile?: string };
+
+async function generateFiles(rootPath?: string): Promise<GeneratedFrom> {
   const baseDir = rootPath ? path.resolve(rootPath) : process.cwd();
   const configFilePathTS = path.join(baseDir, 'monorise.config.ts');
   const configFilePathJS = path.join(baseDir, 'monorise.config.js');
@@ -475,7 +480,10 @@ async function generateFiles(rootPath?: string): Promise<string> {
     apiKeysPath,
   );
 
-  return configDir;
+  return {
+    configDir,
+    apiKeysFile: apiKeysPath && apiKeysFile(apiKeysPath),
+  };
 }
 
 export default generateFiles;

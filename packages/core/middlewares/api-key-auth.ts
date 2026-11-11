@@ -77,10 +77,19 @@ declare module 'hono' {
 export const fingerprintApiKey = (key: string): string =>
   createHash('sha256').update(key).digest('hex');
 
-const toFingerprint = (entry: string): string =>
-  entry.startsWith(SHA256_PREFIX)
-    ? entry.slice(SHA256_PREFIX.length).toLowerCase()
-    : fingerprintApiKey(entry);
+const SHA256_DIGEST = /^[0-9a-f]{64}$/i;
+
+const toFingerprint = (entry: string): string => {
+  if (!entry.startsWith(SHA256_PREFIX)) return fingerprintApiKey(entry);
+  const digest = entry.slice(SHA256_PREFIX.length);
+  // A typo'd or truncated digest would otherwise never match any key.
+  if (!SHA256_DIGEST.test(digest)) {
+    throw new Error(
+      `[monorise] API_KEYS: '${SHA256_PREFIX}' entries must be followed by a 64-character hex SHA-256 digest`,
+    );
+  }
+  return digest.toLowerCase();
+};
 
 const assertKeyList = (value: unknown, where: string): string[] => {
   if (
