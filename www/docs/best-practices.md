@@ -8,7 +8,7 @@ Instead, use the **edge-auth proxy pattern** — your frontend server sits betwe
 
 ![Best Security Practice](/best-security-practice.png)
 
-The frontend server is a **thin proxy layer** — its only job is to authenticate the user and attach the `x-api-key` header before forwarding to monorise. All business logic should live in monorise [custom routes](/custom-routes), not in the proxy layer.
+The frontend server is a **thin proxy layer** — its only job is to authenticate the user, check that they may touch the records they ask for, and attach the `x-api-key` header before forwarding to monorise. All business logic should live in monorise [custom routes](/custom-routes), not in the proxy layer.
 
 ### Edge-auth proxy pattern with Next.js + SST
 
@@ -31,80 +31,24 @@ new sst.aws.Nextjs('web', {
 
 Reading the key from `MONORISE_API_KEY` keeps the proxy code identical in every app. A second app passes its own secret under the same name; see [several apps, one API](/api-keys#several-apps-one-api).
 
-**1. Proxy utility** — rewrites client requests to the monorise API Gateway, validates auth, and attaches `x-api-key`:
+**The proxy route** — one file that reads the session, checks the user's rules, and forwards with the key:
 
 ```ts
-// app/api/proxy-request.ts
-import { type NextRequest, NextResponse } from 'next/server';
-import { validateToken } from './validate-token';
+// app/api/core/[...path]/route.ts
+import config from '#/monorise';
+import { createProxyHandler } from 'monorise/proxy';
+import { readSession } from '#/lib/session';
+import { customerRules } from '#/lib/proxy-rules';
 
-function rewriteUrl(requestUrl: string, replacePath?: string) {
-  const path = replacePath
-    ?? requestUrl.replace(/^https?:\/\/[^\/]+\/api\//, '');
-  return `${process.env.API_BASE_URL}/${path}`;
-}
-
-export const proxyRequest = async ({
-  req,
-  path,
-  skipAuthentication,
-}: {
-  req: NextRequest;
-  path?: string;
-  skipAuthentication?: boolean;
-}) => {
-  // 1. Validate auth (thin layer — only concern of the proxy)
-  let accountId = '';
-  if (!skipAuthentication) {
-    const token = validateToken(req);
-    if (token instanceof NextResponse) return token; // 401
-    accountId = token.properties.accountId;
-  }
-
-  // 2. Parse body
-  let body: string | undefined;
-  try { body = JSON.stringify(await req.json()); } catch {}
-
-  // 3. Forward to monorise with x-api-key
-  return fetch(rewriteUrl(req.url, path), {
-    method: req.method,
-    body,
-    headers: {
-      'content-type': 'application/json',
-      'account-id': accountId,
-      'x-api-key': process.env.MONORISE_API_KEY ?? '',
-    },
-    cache: 'no-store',
-  });
-};
-```
-
-**2. Catch-all API route** — forwards all `/api/*` requests through the proxy:
-
-```ts
-// app/api/[...proxy]/route.ts
-import type { NextRequest } from 'next/server';
-import { proxyRequest } from '../proxy-request';
-
-export const GET = (req: NextRequest) => proxyRequest({ req });
-export const POST = (req: NextRequest) => proxyRequest({ req });
-export const PATCH = (req: NextRequest) => proxyRequest({ req });
-export const PUT = (req: NextRequest) => proxyRequest({ req });
-export const DELETE = (req: NextRequest) => proxyRequest({ req });
-```
-
-**3. Configure monorise/react** to point at your proxy:
-
-```ts
-Monorise.config({
-  entityConfig: EntityConfig,
-  entityBaseUrl: '/api/core/entity',
-  mutualBaseUrl: '/api/core/mutual',
-  tagBaseUrl: '/api/core/tag',
+export const { GET, POST, PUT, PATCH, DELETE } = createProxyHandler({
+  config,
+  authenticate: (request) => readSession(request), // your auth: 401 without a session
+  apiKey: process.env.MONORISE_API_KEY,
+  rules: customerRules, // e.g. a customer only reads their own orders
 });
 ```
 
-Now all client-side hooks (`useEntities`, `useMutuals`, etc.) route through your Next.js server, which validates auth and attaches the API key server-side.
+`monorise/react` already calls `/api/core/entity`, `/api/core/mutual`, `/api/core/tag` and `/api/core/transaction`, so every client-side hook (`useEntities`, `useMutuals`, etc.) now goes through your server, which checks the user and attaches the API key server-side. See [Proxy](/proxy) for rules, several kinds of caller, and other frameworks.
 
 ### Why this matters
 
@@ -116,9 +60,9 @@ Now all client-side hooks (`useEntities`, `useMutuals`, etc.) route through your
 ### Additional benefits
 
 - **Auth at the edge** — validate JWTs, session tokens, or OAuth before forwarding to monorise
-- **Inject context** — enrich requests with server-side data (e.g., `account-id` from session)
+- **Per-user rules** — the proxy checks whose records each user touches, while the key limits what the app can reach at all
 - **Rate limiting** — protect against abuse at the proxy layer
-- **Bring your own auth** — the proxy pattern works with any auth provider (OpenAuth, AuthJs, Clerk, etc.) — just swap the `validateToken` implementation
+- **Bring your own auth** — the proxy pattern works with any auth provider (OpenAuth, AuthJs, Clerk, etc.) — just swap the `authenticate` function
 - **Easy backend testing** — since auth lives in the proxy and the API Gateway only checks `x-api-key`, you can test the backend directly using HTTP clients like Postman, VS Code REST Client, or kulala (Neovim) without dealing with auth flows. Just create different environments with the right base URL and API key:
 
   ```http
