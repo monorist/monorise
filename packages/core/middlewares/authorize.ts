@@ -107,12 +107,17 @@ export const createRouteGuards = (entityConfig: EntityConfigs) => {
     );
   };
 
-  /** Checks one direction, byEntityType→entityType, as the URL orders it. */
+  /**
+   * Checks one direction, byEntityType→entityType, as the URL orders it.
+   * `requestedAsEntity` is an `asEntity` the request names, which wins over
+   * the config's.
+   */
   const checkDirection = (
     key: ApiKeyPrincipal,
     byEntityType: string,
     entityType: string,
     action: EntityAction,
+    requestedAsEntity?: string,
   ): Denial | null => {
     const access = key.access.mutual(byEntityType, entityType);
     if (!access) return { status: 404 };
@@ -127,7 +132,9 @@ export const createRouteGuards = (entityConfig: EntityConfigs) => {
     }
 
     const asEntity =
-      action === 'create' ? asEntityType(byEntityType, entityType) : undefined;
+      action === 'create'
+        ? requestedAsEntity || asEntityType(byEntityType, entityType)
+        : undefined;
     if (asEntity && !key.access.entity(asEntity).create) {
       return {
         status: 403,
@@ -222,12 +229,16 @@ export const createRouteGuards = (entityConfig: EntityConfigs) => {
               ? [byEntityType, ...chain.split(','), entityType]
               : [byEntityType, entityType];
 
+          // CreateMutualController passes ?asEntity= through to the service.
+          const requestedAsEntity =
+            action === 'create' ? c.req.query('asEntity') : undefined;
           for (let hop = 1; hop < path.length; hop++) {
             const denial = checkDirection(
               key,
               path[hop - 1],
               path[hop],
               action,
+              requestedAsEntity,
             );
             if (denial) return deny(c, denial);
           }

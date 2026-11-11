@@ -656,6 +656,23 @@ describe('relationship directions', () => {
     });
   });
 
+  it('requires create on an asEntity type the request names', async () => {
+    expect(
+      await call(
+        'enroller-key',
+        'POST',
+        '/mutual/learner/1/cohort/2?asEntity=payment',
+      ),
+    ).toEqual({
+      status: 403,
+      body: {
+        code: 'FORBIDDEN',
+        message:
+          "API key policy 'enroller' does not allow create on 'payment', which learner→cohort creates",
+      },
+    });
+  });
+
   it('checks mutual operations and relationship fields in a transaction', async () => {
     const run = (operations: unknown[]) =>
       call('client-key', 'POST', '/transaction', { operations });
