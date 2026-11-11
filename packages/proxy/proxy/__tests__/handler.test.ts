@@ -337,6 +337,42 @@ describe('createProxyHandler: callers', () => {
 });
 
 describe('createProxyHandler: refusals', () => {
+  it('needs rules of their own for an adjust and an asEntity create', async () => {
+    const handler = createProxyHandler({
+      config: {
+        EntityConfig: {
+          learner: {
+            mutual: {
+              mutualFields: {
+                groupIds: {
+                  entityType: 'group',
+                  mutual: { asEntity: { name: 'membership' } },
+                },
+              },
+            },
+          },
+        },
+      },
+      apiBaseUrl: 'https://core.example.com',
+      apiKey: 'k',
+      rules: {
+        order: { update: allow },
+        learner: { mutuals: { group: { create: allow } } },
+      },
+    });
+    const message = async (method: string, path: string, body: unknown) =>
+      (await read(await handler.handle(request(method, path, { body })))).body
+        .message;
+
+    expect(
+      await message('POST', '/api/core/entity/order/o1/adjust', { total: -5 }),
+    ).toBe("No proxy rule for adjust on 'order'");
+    expect(
+      await message('POST', '/api/core/mutual/learner/l1/group/g1', {}),
+    ).toBe("No proxy rule for create on 'membership'");
+    expect(coreFetch).not.toHaveBeenCalled();
+  });
+
   it('runs rules with the session, and refuses without forwarding', async () => {
     expect(
       (

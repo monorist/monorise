@@ -9,6 +9,11 @@ const entityConfig: ProxyEntityConfig = {
       mutualFields: {
         courseIds: { entityType: 'course' },
         cohortIds: { entityType: 'cohort' },
+        // Creating learner→group also creates a membership entity.
+        groupIds: {
+          entityType: 'group',
+          mutual: { asEntity: { name: 'membership' } },
+        },
       },
     },
   },
@@ -107,7 +112,7 @@ describe('parseOperations: entities', () => {
     [
       'PATCH',
       '/entity/order/o1',
-      { status: 'paid' },
+      { status: 'paid', $condition: 'unpaid', $where: { total: { $gt: 0 } } },
       [
         {
           kind: 'entity',
@@ -121,14 +126,14 @@ describe('parseOperations: entities', () => {
     [
       'POST',
       '/entity/order/o1/adjust',
-      { quantity: 1 },
+      { quantity: -1, $condition: 'inStock' },
       [
         {
           kind: 'entity',
-          action: 'update',
+          action: 'adjust',
           entityType: 'order',
           entityId: 'o1',
-          payload: { quantity: 1 },
+          adjustments: { quantity: -1 },
         },
       ],
     ],
@@ -282,6 +287,94 @@ describe('parseOperations: relationships', () => {
   });
 });
 
+describe('parseOperations: asEntity', () => {
+  const membership = (
+    asEntityOf: object,
+    extra: object = {},
+  ): Record<string, unknown> => ({
+    kind: 'entity',
+    action: 'create',
+    entityType: 'membership',
+    asEntityOf,
+    ...extra,
+  });
+
+  it("describes the entity a relationship's config materializes, with its mutualData", () => {
+    expect(
+      operations('POST', '/mutual/learner/l1/group/g1', { role: 'lead' }),
+    ).toEqual([
+      {
+        kind: 'relationship',
+        action: 'create',
+        byEntityType: 'learner',
+        byEntityId: 'l1',
+        entityType: 'group',
+        entityId: 'g1',
+        payload: { role: 'lead' },
+      },
+      membership(
+        {
+          byEntityType: 'learner',
+          byEntityId: 'l1',
+          entityType: 'group',
+          entityId: 'g1',
+        },
+        { payload: { role: 'lead' } },
+      ),
+    ]);
+  });
+
+  it('finds the config on either side of the relationship', () => {
+    expect(operations('POST', '/mutual/group/g1/learner/l1')[1]).toEqual(
+      membership({
+        byEntityType: 'group',
+        byEntityId: 'g1',
+        entityType: 'learner',
+        entityId: 'l1',
+      }),
+    );
+  });
+
+  it('describes an asEntity the request names, which wins over the config', () => {
+    expect(
+      operations('POST', '/mutual/learner/l1/course/c1?asEntity=payment')[1],
+    ).toMatchObject({
+      kind: 'entity',
+      action: 'create',
+      entityType: 'payment',
+    });
+    expect(
+      operations('POST', '/mutual/learner/l1/group/g1?asEntity=payment')[1],
+    ).toMatchObject({ entityType: 'payment' });
+  });
+
+  it('describes it for relationship fields and transactions too, but not for other actions', () => {
+    expect(
+      operations('POST', '/entity/learner', { groupIds: ['g1'] }).map(
+        (operation) =>
+          `${operation.kind}:${'action' in operation ? operation.action : ''}`,
+      ),
+    ).toEqual(['entity:create', 'relationship:create', 'entity:create']);
+    expect(
+      operations('POST', '/transaction', {
+        operations: [
+          {
+            operation: 'createMutual',
+            byEntityType: 'learner',
+            byEntityId: 'l1',
+            entityType: 'group',
+            entityId: 'g1',
+          },
+        ],
+      })[1],
+    ).toMatchObject({ entityType: 'membership', operationIndex: 0 });
+    expect(operations('DELETE', '/mutual/learner/l1/group/g1')).toHaveLength(1);
+    expect(
+      operations('GET', '/mutual/learner/l1/group/g1?asEntity=payment'),
+    ).toHaveLength(1);
+  });
+});
+
 describe('parseOperations: transactions', () => {
   it('describes every operation, with its index', () => {
     expect(
@@ -349,10 +442,10 @@ describe('parseOperations: transactions', () => {
       },
       {
         kind: 'entity',
-        action: 'update',
+        action: 'adjust',
         entityType: 'order',
         entityId: 'o1',
-        payload: { quantity: 1 },
+        adjustments: { quantity: 1 },
         operationIndex: 2,
       },
       {

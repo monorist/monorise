@@ -54,6 +54,11 @@ const rules: ProxyRules<Session> = {
       return op.payload?.status !== 'paid' && session?.userId !== undefined;
     },
     '*': (op) => op.entityType === Entity.ORDER,
+    // An adjust carries amounts for the numeric fields, and no payload.
+    adjust: (op) => {
+      const action: 'adjust' = op.action;
+      return (op.adjustments?.total ?? 0) >= 0;
+    },
   },
   [Entity.LEARNER]: {
     create: isMine,
@@ -135,6 +140,18 @@ const r7: ProxyRules<Session> = { [Entity.ORDER]: () => 'yes' };
 const r8: ProxyRules<Session> = { [Entity.COURSE]: { update: notPaid } };
 // @ts-expect-error a route is keyed by a method and a path under /app
 const r9: RouteRules<Session> = { '/app/invite': allow };
+// @ts-expect-error an adjust has no payload
+const r10: ProxyRules<Session> = { [Entity.ORDER]: { adjust: (op) => op.payload?.total === 1 } };
+// @ts-expect-error only numeric fields can be adjusted
+const r11: ProxyRules<Session> = { [Entity.ORDER]: { adjust: (op) => op.adjustments?.status === 1 } };
+// @ts-expect-error an update has no adjustments
+const r12: ProxyRules<Session> = { [Entity.ORDER]: { update: (op) => op.adjustments?.total === 1 } };
+// A shared rule fits under adjust too, and a materialized entity's create
+// rule can see the relationship it comes from.
+const r13: ProxyRules<Session> = {
+  [Entity.ORDER]: { adjust: isMine },
+  [Entity.COURSE]: { create: (op) => op.asEntityOf?.byEntityType === Entity.LEARNER },
+};
 // @ts-expect-error caller and callers don't mix with apiKey
 createProxyHandler({ config, caller: () => 'a', callers: {}, apiKey: 'k' });
 // @ts-expect-error config is required
