@@ -14,7 +14,7 @@ export type CoreClient = {
   fetch(path: string, init?: RequestInit): Promise<Response>;
 };
 
-export type RuleContext<Session> = {
+export type RuleContext<Session = unknown> = {
   /** What `authenticate` returned; `undefined` for an anonymous visitor. */
   session: Session | undefined;
   request: Request;
