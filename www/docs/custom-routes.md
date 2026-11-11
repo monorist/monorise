@@ -147,6 +147,7 @@ support: { entities: { '*': 'read' }, routes: ['reports', 'checkout:discount'] }
 ```
 
 - **A route without `requires()` is callable only by `full` keys**, so a new route never opens up to scoped keys by accident.
+- **`requires()` has to run before the route's handler.** Put it first in the route, as above, or in a `use()` registered before the route. When a `use()` comes after the route, or other middleware sits before it in the route, the route stays callable only by `full` keys.
 - **Typed names:** the CLI types `requires()` with the names your policies grant, so a misspelled name fails to compile.
 
 Inside a route, `c.get('apiKey')` is the resolved key:
