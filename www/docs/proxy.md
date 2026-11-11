@@ -92,10 +92,13 @@ const isMe: ProxyRule<Session> = (op, { session }) =>
   (op.kind === 'relationship' ? op.byEntityId : op.kind === 'entity' ? op.entityId : undefined) ===
   session?.userId;
 
-// Is this order related to the user?
-const isMyOrder: ProxyRule<Session> = async (op, { session, core }) =>
-  op.kind === 'entity' &&
-  (await core.get(`/mutual/user/${session?.userId}/order/${op.entityId}`)).ok;
+// Is this order related to the user? IDs come from the request: encode them.
+const isMyOrder: ProxyRule<Session> = async (op, { session, core }) => {
+  if (!session || op.kind !== 'entity' || !op.entityId) return false;
+  const userId = encodeURIComponent(session.userId);
+  const orderId = encodeURIComponent(op.entityId);
+  return (await core.get(`/mutual/user/${userId}/order/${orderId}`)).ok;
+};
 
 export const customerRules: ProxyRules<Session> = {
   [Entity.PRODUCT]: { get: allow, list: allow },
@@ -125,7 +128,7 @@ Rules are written against operations, not URLs, so a different request shape can
 | Request | Operations |
 |---|---|
 | `GET /entity/:type/:id`, `GET /entity/:type/unique/:field/:value` | `get` on the entity |
-| `GET /entity/:type` (with `?query=`), `GET /tag/:type/:tag` | `list` on the entity |
+| `GET /entity/:type`, `GET /tag/:type/:tag` | `list` on the entity, with its `query`, `start` and `end`, and a tag listing's `tag` and `group` |
 | `POST /entity/:type` | `create` |
 | `PATCH /entity/:type/:id`, `POST /entity/:type/:id/adjust` | `update` |
 | `PUT /entity/:type/:id` | `create` and `update` |
@@ -190,6 +193,8 @@ To show users only their own records, list them through a relationship from some
   },
 },
 ```
+
+Tag listings work the same way when the tag is grouped by owner: the operation carries `tag` and `group`, so a rule can check that the group is the user's.
 
 ## Custom routes
 
@@ -309,7 +314,7 @@ An allowed result also has the `caller`, `session` and `operations`; a refused o
 |---|---|---|---|
 | 401 | `authenticate`'s response, or `{ code: 'UNAUTHORIZED' }` | Proxy | No caller matches the request |
 | 404 | `{ code: 'NOT_FOUND' }` | Proxy | A path Core doesn't serve, or outside `basePath` |
-| 400 | `{ code: 'BAD_REQUEST' }` | Proxy | A body that isn't JSON, or a malformed transaction |
+| 400 | `{ code: 'BAD_REQUEST' }` | Proxy | A body that isn't JSON, a malformed transaction, or a path with an empty segment or an encoded `/` |
 | 403 | `{ code: 'FORBIDDEN', message: "No proxy rule for delete on 'order'" }` | Proxy | No rule matches an operation |
 | 403 | `{ code: 'FORBIDDEN', message: "Proxy rule refused delete on 'order'" }` | Proxy | A rule didn't return `true` |
 | 500 | `{ code: 'PROXY_MISCONFIGURED' }` | Proxy | The caller has no key, or Core has no URL |
