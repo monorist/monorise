@@ -41,9 +41,19 @@ describe('parseOperations: entities', () => {
     ],
     [
       'GET',
-      '/entity/order?query=%20ann%20',
+      '/entity/order?query=%20ann%20&start=2026-01&end=2026-02',
       undefined,
-      [{ kind: 'entity', action: 'list', entityType: 'order', query: 'ann' }],
+      [
+        {
+          kind: 'entity',
+          action: 'list',
+          entityType: 'order',
+          // Untrimmed: Core searches on any non-empty query.
+          query: ' ann ',
+          start: '2026-01',
+          end: '2026-02',
+        },
+      ],
     ],
     [
       'GET',
@@ -66,9 +76,19 @@ describe('parseOperations: entities', () => {
     ],
     [
       'GET',
-      '/tag/order/region?group=eu',
+      '/tag/order/region?group=eu&start=a&end=m&limit=5',
       undefined,
-      [{ kind: 'entity', action: 'list', entityType: 'order', tag: 'region' }],
+      [
+        {
+          kind: 'entity',
+          action: 'list',
+          entityType: 'order',
+          tag: 'region',
+          group: 'eu',
+          start: 'a',
+          end: 'm',
+        },
+      ],
     ],
     [
       'POST',
@@ -424,11 +444,13 @@ describe('parseOperations: custom routes and unknown paths', () => {
     expect(result).toMatchObject({ ok: false, status: 404 });
   });
 
-  it('answers 400 to a path that does not decode', () => {
-    expect(parse('GET', '/entity/%E0%A4%A')).toMatchObject({
-      ok: false,
-      status: 400,
-    });
+  it.each([
+    ['does not decode', '/entity/%E0%A4%A'],
+    ['decodes a segment to contain /', '/app/projects/a%2Fb'],
+    ['has an empty segment', '/entity//order'],
+    ['ends with a slash', '/entity/order/'],
+  ])('answers 400 to a path that %s', (_, path) => {
+    expect(parse('GET', path)).toMatchObject({ ok: false, status: 400 });
   });
 });
 
