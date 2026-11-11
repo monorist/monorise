@@ -144,7 +144,7 @@ export const createRouteGuards = (entityConfig: EntityConfigs) => {
     action: EntityAction,
   ): Denial | null => {
     const access = key.access.entity(entityType);
-    if (!access.listed) return { status: 404 };
+    if (!access.visible) return { status: 404 };
     if (allowsEntityAction(access, action)) return null;
     return {
       status: 403,
