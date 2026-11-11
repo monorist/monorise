@@ -105,19 +105,35 @@ const asRule = (value: unknown): AnyRule | undefined =>
 const ruleFor = (value: unknown, action: string) =>
   asRule(value) ?? asRule(own(value, action));
 
+type RouteMatch = { rule: AnyRule; params: Record<string, string> };
+
+// The first position where two ranks differ decides; a tie keeps the earlier.
+const outranks = (rank: number[], than: number[]) => {
+  const index = rank.findIndex((value, at) => value !== than[at]);
+  return index !== -1 && rank[index] > than[index];
+};
+
+/**
+ * The most specific route rule wins, whatever order the table lists them in:
+ * more literal segments first, then a pattern without a trailing `*`, then
+ * fewer `:param`s. Declaration order only breaks ties.
+ */
 const matchRoute = (
   routes: RouteRules<unknown> | undefined,
   operation: RouteOperation,
-): { rule: AnyRule; params: Record<string, string> } | undefined => {
+): RouteMatch | undefined => {
   if (!routes) return undefined;
 
   const exact = asRule(own(routes, `${operation.method} ${operation.path}`));
   if (exact) return { rule: exact, params: {} };
 
   const segments = operation.path.split('/').filter(Boolean);
+  let best: { match: RouteMatch; rank: number[] } | undefined;
   for (const [key, rule] of Object.entries(routes)) {
     const [method, pattern] = key.split(' ');
-    if (method !== operation.method || !pattern) continue;
+    if (method !== operation.method || !pattern || typeof rule !== 'function') {
+      continue;
+    }
     const parts = pattern.split('/').filter(Boolean);
     const params: Record<string, string> = {};
     const rest = parts.at(-1) === '*';
@@ -134,9 +150,16 @@ const matchRoute = (
       }
       return part === segments[index];
     });
-    if (matches && typeof rule === 'function') return { rule, params };
+    if (!matches) continue;
+
+    const paramCount = fixed.filter((part) => part.startsWith(':')).length;
+    // Compared in order; a higher number is more specific.
+    const rank = [fixed.length - paramCount, rest ? 0 : 1, -paramCount];
+    if (!best || outranks(rank, best.rank)) {
+      best = { match: { rule, params }, rank };
+    }
   }
-  return undefined;
+  return best?.match;
 };
 
 /**
