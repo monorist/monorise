@@ -73,7 +73,7 @@ Then map key values to policy names. Use the object form of `API_KEYS`:
 npx sst secret set API_KEYS '{"full":["admin-key"],"client":["client-key"],"agent-read":["agent-key"]}'
 ```
 
-`monorise dev` and `monorise build` check the policies against your entity configs. They fail the build on an unknown entity, field, tag or relationship target, or on a create grant that leaves out a required field. The API checks them again at cold start. If that check fails, it logs the problems and rejects every key under your policies; `full` keys keep working.
+`monorise dev` and `monorise build` check the policies against your entity configs, and `monorise dev` checks them again each time you save the policy file. They fail the build on an unknown entity, field, tag or relationship target, or on a create grant that leaves out a required field. The API checks them again at cold start. If that check fails, it logs the problems and rejects every key under your policies; `full` keys keep working.
 
 ::: warning
 Keep the policy file outside `configDir`. The CLI loads every file there as an entity config, so it rejects a policy file in that directory.
@@ -144,7 +144,7 @@ The same direction grant applies on every path that writes a relationship:
 - transaction mutual operations;
 - relationship fields such as `courseIds` in an entity payload. On create they need create on the direction. On update they need create and delete, because the new list replaces the old one.
 
-Creating a relationship whose mutual config uses `asEntity` also needs create on that entity type.
+Creating a relationship whose mutual config uses `asEntity` also needs create on that entity type. So does a request that names a type with `?asEntity=`.
 
 ## What a scoped key sees
 
@@ -199,7 +199,9 @@ To keep the keys themselves out of the secret, store their SHA-256 digests inste
 npx sst secret set API_KEYS '{"client":["sha256:9f86d08188…"]}'
 ```
 
-A key listed under a policy that isn't defined, or under more than one policy, is rejected with a 401 and logged as an error.
+The digest is the 64-character hex SHA-256 of the key, e.g. from `printf '%s' "$KEY" | shasum -a 256`. Clients still send the key itself. Hashing is per key, so plain keys and digests can sit in the same list.
+
+A key listed under a policy that isn't defined, under more than one policy, or as a `sha256:` entry that isn't a 64-character hex digest, is rejected with a 401 and logged as an error. The other keys keep working.
 
 ## Several apps, one API
 
