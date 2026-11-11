@@ -174,7 +174,7 @@ A rule is `(operation, context) => boolean | Response`, or a promise of one.
 - **`true` forwards** the operation. `false`, or anything else, refuses it with 403, so a rule that forgets to return fails closed. A `Response` is sent back as is.
 - **`allow` and `deny`** are rules that always return `true` or `false`.
 
-Rules see the payload before Core validates it, so every payload field is optional.
+Rules see the payload before Core validates it, so every payload field is optional. `$condition` and `$where` aren't part of it, since Core doesn't write them as data.
 
 ### Rules only veto
 
@@ -223,7 +223,7 @@ callers: {
 },
 ```
 
-A `:param` segment matches one path segment and is passed as `params`, and a trailing `*` matches the rest of the path. Without a match in `routes`, or a top-level `'*'` rule, a custom route is refused.
+A `:param` segment matches one path segment and is passed as `params`, and a trailing `*` matches the rest of the path. When several patterns match, the most specific wins, whatever order the table lists them in: more literal segments first, then a pattern without a trailing `*`, then fewer `:param`s. So `'GET /app/admin/:id'` beats `'GET /app/*'` even when it's written second. Without a match in `routes`, or a top-level `'*'` rule, a custom route is refused.
 
 ## Keys for each kind of caller
 

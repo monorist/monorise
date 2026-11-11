@@ -123,7 +123,7 @@ The entity feed deserves a deeper explanation since it's the primary way to add 
 
 This follows the same pattern as `customUrl` in `useEntities` and `useMutuals`:
 
-**Default (internal apps)** — `POST /api/core/ws/ticket/:entityType/:entityId`, the route `monorise init` generates, with no user-level auth (API key only). The [proxy](/proxy#websocket-tickets) doesn't forward ticket requests, so this route sits next to it:
+**Default (internal apps)** — `POST /api/core/ws/ticket/:entityType/:entityId`, the route `monorise init` generates, with no user-level auth (API key only). It answers 404 for an entity type your project doesn't have. The [proxy](/proxy#websocket-tickets) doesn't forward ticket requests, so this route sits next to it:
 
 ::: warning
 The default route issues tickets for any entity without user authentication. Use this only for local development and internal tooling. For client-facing apps, always use a custom `ticketEndpoint` with your own auth.
