@@ -67,6 +67,21 @@ describe('findRule: entity operations', () => {
     expect(picked(rules, entity('delete', 'invoice'))).toBeUndefined();
   });
 
+  it('never applies an update rule to an adjust', () => {
+    expect(
+      picked({ order: { update: named('update') } }, entity('adjust')),
+    ).toBeUndefined();
+    expect(
+      picked(
+        { order: { update: named('update'), '*': named('order-any') } },
+        entity('adjust'),
+      ),
+    ).toBe('order-any');
+    expect(
+      picked({ order: { adjust: named('adjust') } }, entity('adjust')),
+    ).toBe('adjust');
+  });
+
   it('uses a single rule on an entity for every action', () => {
     expect(picked({ order: named('order') }, entity('delete'))).toBe('order');
   });
