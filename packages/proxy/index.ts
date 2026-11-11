@@ -79,3 +79,32 @@ export const generateWebSocketTicket = async (
 
   return response.json() as Promise<TicketResponse>;
 };
+
+export {
+  type CheckResult,
+  type ProxyCaller,
+  type ProxyHandler,
+  type ProxyHandlerOptions,
+  createProxyHandler,
+} from './proxy/handler';
+export type {
+  EntityAction,
+  EntityOperation,
+  ProxyEntityConfig,
+  ProxyOperation,
+  RelationshipAction,
+  RelationshipOperation,
+  RouteOperation,
+} from './proxy/operations';
+export {
+  type CoreClient,
+  type EntityRules,
+  type ProxyRule,
+  type ProxyRules,
+  type RelationshipRules,
+  type RouteRules,
+  type RuleContext,
+  type RuleResult,
+  allow,
+  deny,
+} from './proxy/rules';

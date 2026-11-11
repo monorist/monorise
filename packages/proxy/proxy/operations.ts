@@ -5,6 +5,8 @@
  * `deleteEntity` and a `DELETE /entity/...` are the same operation.
  */
 
+import type { ApiKeyMutualDataFields, EntitySchemaMap } from '@monorise/base';
+
 /**
  * `adjust` adds an amount to numeric fields (`POST /entity/:type/:id/adjust`).
  * API key policies count it as an update; rules keep it apart, so a rule
@@ -21,15 +23,56 @@ export type EntityAction =
 /** Relationships have a single `read`: their listings are bounded by `byEntityId`. */
 export type RelationshipAction = 'read' | 'create' | 'update' | 'delete';
 
-export type EntityOperation = {
+/**
+ * An entity's fields, from the generated `EntitySchemaMap`. Rules see the
+ * payload before Core validates it, so every field may be missing.
+ */
+export type EntityPayload<T extends string = string> = string extends T
+  ? Record<string, unknown>
+  : T extends keyof EntitySchemaMap
+    ? Partial<EntitySchemaMap[T]>
+    : Record<string, unknown>;
+
+/** An entity's numeric fields: what an `adjust` adds amounts to. */
+export type EntityAdjustments<T extends string = string> = string extends T
+  ? Record<string, number>
+  : T extends keyof EntitySchemaMap
+    ? {
+        [K in keyof EntitySchemaMap[T] as NonNullable<
+          EntitySchemaMap[T][K]
+        > extends number
+          ? K
+          : never]?: number;
+      }
+    : Record<string, number>;
+
+type MutualDataField<
+  By extends string,
+  To extends string,
+> = By extends keyof ApiKeyMutualDataFields
+  ? To extends keyof ApiKeyMutualDataFields[By]
+    ? Extract<ApiKeyMutualDataFields[By][To], string>
+    : string
+  : string;
+
+/** A relationship's `mutualData`, with the field names the generated config declares. */
+export type MutualDataPayload<
+  By extends string = string,
+  To extends string = string,
+> = { [K in MutualDataField<By, To>]?: unknown };
+
+export type EntityOperation<
+  T extends string = string,
+  A extends EntityAction = EntityAction,
+> = {
   kind: 'entity';
-  action: EntityAction;
-  entityType: string;
+  action: A;
+  entityType: T;
   entityId?: string;
   /** The fields a `create` or `update` sets. */
-  payload?: Record<string, unknown>;
+  payload?: A extends 'adjust' ? never : EntityPayload<T>;
   /** The amount an `adjust` adds to each numeric field. */
-  adjustments?: Record<string, number>;
+  adjustments?: 'adjust' extends A ? EntityAdjustments<T> : never;
   /**
    * The relationship this entity materializes, when creating the relationship
    * also creates it (`asEntity`).
@@ -53,20 +96,23 @@ export type EntityOperation = {
   operationIndex?: number;
 };
 
-export type RelationshipOperation = {
+export type RelationshipOperation<
+  By extends string = string,
+  To extends string = string,
+  A extends RelationshipAction = RelationshipAction,
+> = {
   kind: 'relationship';
-  action: RelationshipAction;
-  byEntityType: string;
+  action: A;
+  byEntityType: By;
   /**
    * Absent for a relationship field on an entity created without an ID, and
    * for every hop of a chain query after the first.
    */
   byEntityId?: string;
-  entityType: string;
+  entityType: To;
   /** Absent when listing, and for the relationships an update's new list removes. */
   entityId?: string;
-  /** `mutualData`. */
-  payload?: Record<string, unknown>;
+  payload?: MutualDataPayload<By, To>;
   operationIndex?: number;
 };
 
