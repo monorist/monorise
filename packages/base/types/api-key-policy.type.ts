@@ -3,8 +3,8 @@ import type { DraftEntity, Entity } from './monorise.type';
 /**
  * @description An access level used as shorthand.
  * - On a policy, it applies to every entity and every relationship.
- * - On an entity, it grants every field, every tag and, by default, every
- *   relationship from that entity at that level.
+ * - On an entity, it grants every field, every tag, listing and, by default,
+ *   every relationship from that entity at that level.
  * - On a relationship, it grants every `mutualData` field at that level.
  *
  * `'write'` means read, create, update and delete.
@@ -81,7 +81,14 @@ export type ApiKeyMutualGrant<
 export type ApiKeyEntityGrant<T extends Entity = Entity> =
   | ApiKeyAccessLevel
   | {
+      /** Fields the key can read: get by ID or unique field, and every response's masking. */
       read?: ApiKeyFieldList<EntityField<T>>;
+      /**
+       * Also list the whole type: `GET /entity/:type`, search and tag
+       * queries. Get only needs a reference to a record; listing needs none,
+       * so an object grant lists only when it says so.
+       */
+      list?: boolean;
       /** Must include every field `createSchema` requires. */
       create?: ApiKeyFieldList<EntityField<T> | ApiKeySystemField>;
       update?: ApiKeyFieldList<EntityField<T>>;

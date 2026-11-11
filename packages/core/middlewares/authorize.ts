@@ -9,7 +9,15 @@ import { createMiddleware } from 'hono/factory';
 import httpStatus from 'http-status';
 import type { ApiKeyPrincipal } from './api-key-auth';
 
-export type EntityAction = 'read' | 'create' | 'update' | 'delete';
+/**
+ * `read` is get, by ID or unique field. `list` is listing the whole type,
+ * which also needs `read`.
+ */
+export type EntityAction = 'read' | 'list' | 'create' | 'update' | 'delete';
+
+// Directions have a single `read`: their listings are bounded by the
+// :byEntityId in the URL.
+type RelationshipAction = Exclude<EntityAction, 'list'>;
 
 /** The kinds of entity route, each with its own requirement and body. */
 export type EntityRoute =
@@ -25,9 +33,9 @@ export type EntityRoute =
 
 const ENTITY_ROUTE_ACTIONS: Record<EntityRoute, EntityAction[]> = {
   read: ['read'],
-  list: ['read'],
+  list: ['read', 'list'],
   unique: ['read'],
-  tag: ['read'],
+  tag: ['read', 'list'],
   create: ['create'],
   update: ['update'],
   // Upsert creates or updates depending on whether the entity exists, and
@@ -102,7 +110,10 @@ const deny = (
 export const allowsEntityAction = (
   access: ApiKeyEntityAccess,
   action: EntityAction,
-) => (action === 'delete' ? access.delete : access[action] !== null);
+) =>
+  action === 'delete' || action === 'list'
+    ? access[action]
+    : access[action] !== null;
 
 // The key to check, or undefined when the request is unrestricted: a `full`
 // key, or no key at all because setupCommonRoutes is mounted in an app that
@@ -133,7 +144,7 @@ export const createRouteGuards = (entityConfig: EntityConfigs) => {
     action: EntityAction,
   ): Denial | null => {
     const access = key.access.entity(entityType);
-    if (!access.listed) return { status: 404 };
+    if (!access.visible) return { status: 404 };
     if (allowsEntityAction(access, action)) return null;
     return {
       status: 403,
@@ -161,7 +172,7 @@ export const createRouteGuards = (entityConfig: EntityConfigs) => {
     key: ApiKeyPrincipal,
     byEntityType: string,
     entityType: string,
-    action: EntityAction,
+    action: RelationshipAction,
     requestedAsEntity?: string,
   ): Denial | null => {
     const access = key.access.mutual(byEntityType, entityType);
@@ -258,7 +269,7 @@ export const createRouteGuards = (entityConfig: EntityConfigs) => {
     const relationshipFields = entityConfig[entityType]?.mutual?.mutualFields;
     if (!relationshipFields) return null;
 
-    const actions: EntityAction[] =
+    const actions: RelationshipAction[] =
       write === 'create' ? ['create'] : ['create', 'delete'];
     for (const field of Object.keys(payload)) {
       const target = relationshipFields[field]?.entityType as
@@ -438,7 +449,7 @@ export const createRouteGuards = (entityConfig: EntityConfigs) => {
    * `/mutual/:byEntityType/:byEntityId/:entityType`. A chain query reads
    * every direction along the chain.
    */
-  const mutual = (action: EntityAction) =>
+  const mutual = (action: RelationshipAction) =>
     routeGuard(
       `mutual:${action}`,
       createMiddleware(async (c, next) => {
