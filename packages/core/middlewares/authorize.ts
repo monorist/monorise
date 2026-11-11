@@ -377,27 +377,38 @@ export const requires = (
 
 /**
  * Runs in front of the custom routes. A route that declares no permission
- * with `requires()` is callable only by `full` keys, so a custom route never
- * opens up to scoped keys by accident.
+ * with `requires()`, or whose `requires()` runs after its handler, is
+ * callable only by `full` keys, so a custom route never opens up to scoped
+ * keys by accident.
  */
 export const customRouteGate = () =>
   createMiddleware(async (c, next) => {
     const key = restrictedKey(c);
-    // `matchedRoutes` lists every handler the request will run, including
-    // the custom app's own, before any of them runs.
-    if (
-      key &&
-      !c.req.matchedRoutes.some(
+    if (key) {
+      // `matchedRoutes` lists every handler the request will run, including
+      // the custom app's own, in the order they run, before any of them runs.
+      // `use()` middleware is method ALL; the first method-specific handler
+      // may respond, so a requires() after it might never run.
+      const matched = c.req.matchedRoutes;
+      const permission = matched.findIndex(
         (route) =>
           (route.handler as unknown as Record<symbol, unknown>)[
             ROUTE_PERMISSION
           ] !== undefined,
-      )
-    ) {
-      return forbidden(
-        c,
-        "This route declares no permission with requires(), so only 'full' keys can call it",
       );
+      const handler = matched.findIndex((route) => route.method !== 'ALL');
+      if (permission === -1) {
+        return forbidden(
+          c,
+          "This route declares no permission with requires(), so only 'full' keys can call it",
+        );
+      }
+      if (handler !== -1 && permission > handler) {
+        return forbidden(
+          c,
+          "This route's requires() runs after its handler, so only 'full' keys can call it. Put requires() first in the route, or in a use() registered before it",
+        );
+      }
     }
     await next();
   });
