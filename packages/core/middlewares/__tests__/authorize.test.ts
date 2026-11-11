@@ -435,10 +435,16 @@ describe('custom route permissions', () => {
   routes.use('/reports/*', requires('reports'));
   routes.get('/reports/sales', ok);
   routes.get('/health', ok);
-  // A use() registered after the route it should protect never runs first.
+  // Each of these would respond before its requires() runs, so the gate
+  // checks the permission itself first.
   routes.get('/late/secret', ok);
   routes.use('/late/*', requires('reports'));
-  // Middleware before requires() might respond first, so it fails closed.
+  routes.all('/late-all/secret', ok);
+  routes.use('/late-all/*', requires('reports'));
+  routes.use('/cached/*', (c) => c.text('cached'));
+  routes.use('/cached/*', requires('reports'));
+  routes.get('/cached/report', ok);
+  // Middleware before requires() is fine.
   routes.get('/after-middleware', (_, next) => next(), requires('reports'), ok);
 
   const customApp = new Hono().basePath('/core');
@@ -502,18 +508,22 @@ describe('custom route permissions', () => {
     expect(await status('full-key', 'GET', '/core/app/health')).toBe(200);
   });
 
-  it('keeps a route to full keys when its requires() runs after the handler', async () => {
+  it('checks every requires() a route matches before any of its handlers run', async () => {
     for (const path of [
       '/core/app/late/secret',
+      '/core/app/late-all/secret',
+      '/core/app/cached/report',
       '/core/app/after-middleware',
     ]) {
       const res = await customApp.request(path, {
-        headers: { 'x-api-key': 'support-key' },
+        headers: { 'x-api-key': 'client-key' },
       });
 
       expect(res.status).toBe(403);
-      expect((await res.json()).message).toContain('runs after its handler');
-      expect(await status('full-key', 'GET', path)).toBe(200);
+      expect((await res.json()).message).toBe(
+        "API key policy 'client' does not grant 'reports'",
+      );
+      expect(await status('support-key', 'GET', path)).toBe(200);
     }
   });
 
