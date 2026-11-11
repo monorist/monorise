@@ -156,6 +156,26 @@ describe('findRule: custom routes', () => {
     expect(picked({}, route('DELETE', '/app/other'), routes)).toBe('any-route');
   });
 
+  it('picks the most specific pattern, whatever order they are declared in', () => {
+    const broadFirst = {
+      'GET /app/*': named('broad'),
+      'GET /app/:section/:id': named('two-params'),
+      'GET /app/admin/*': named('admin-rest'),
+      'GET /app/admin/:id': named('admin'),
+    };
+
+    expect(picked({}, route('GET', '/app/admin/1'), broadFirst)).toBe('admin');
+    expect(picked({}, route('GET', '/app/admin/1/logs'), broadFirst)).toBe(
+      'admin-rest',
+    );
+    expect(picked({}, route('GET', '/app/users/5'), broadFirst)).toBe(
+      'two-params',
+    );
+    expect(picked({}, route('GET', '/app/users/5/x'), broadFirst)).toBe(
+      'broad',
+    );
+  });
+
   it('passes the captured params to the rule', () => {
     const found = findRule(
       {},

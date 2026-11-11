@@ -95,7 +95,7 @@ describe('compileApiKeyPolicy', () => {
 
     expect(full.full).toBe(true);
     expect(full.entity('anything')).toEqual({
-      listed: true,
+      visible: true,
       read: '*',
       list: true,
       create: '*',
@@ -122,7 +122,7 @@ describe('compileApiKeyPolicy', () => {
 
     expect(policy.full).toBe(false);
     expect(policy.entity('course')).toMatchObject({
-      listed: true,
+      visible: true,
       read: '*',
       create: null,
       update: null,
@@ -141,9 +141,9 @@ describe('compileApiKeyPolicy', () => {
       entities: { '*': 'read', [as('payment')]: 'none' },
     });
 
-    expect(policy.entity('course').listed).toBe(true);
-    expect(policy.entity('payment').listed).toBe(false);
-    expect(compileApiKeyPolicy('empty', {}).entity('course').listed).toBe(
+    expect(policy.entity('course').visible).toBe(true);
+    expect(policy.entity('payment').visible).toBe(false);
+    expect(compileApiKeyPolicy('empty', {}).entity('course').visible).toBe(
       false,
     );
   });
@@ -162,7 +162,7 @@ describe('compileApiKeyPolicy', () => {
       'toString',
       'hasOwnProperty',
     ]) {
-      expect(policy.entity(name).listed).toBe(false);
+      expect(policy.entity(name).visible).toBe(false);
       expect(policy.mutual('course', name)).toBeNull();
       expect(wildcard.entity(name)).toEqual(wildcard.entity('course'));
     }
@@ -190,7 +190,7 @@ describe('compileApiKeyPolicy', () => {
     });
 
     expect(policy.entity('order')).toEqual({
-      listed: true,
+      visible: true,
       read: fields('total', 'customerId', 'status'),
       list: false,
       create: fields('customerId', '$entityId'),
@@ -418,6 +418,11 @@ describe('validateApiKeyPolicies', () => {
       'list with an empty read list',
       { p: { entities: { course: { read: [], list: true } } } },
       'course.list needs fields to read',
+    ],
+    [
+      'list with a malformed field list, reported instead of thrown',
+      { p: { entities: { course: { read: 5, write: 5, list: true } } } },
+      "course.read must be '*' or an array of field names",
     ],
     [
       'a non-boolean delete',

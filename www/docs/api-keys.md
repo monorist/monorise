@@ -107,7 +107,7 @@ At the policy level, `'read'` and `'write'` apply to every entity. `entities['*'
 | `mutuals` | Relationships from this entity; see below |
 
 - **Any write implies read** on the same fields.
-- **Get and list are separate.** A get needs a reference you already hold, such as an ID from a link or an earlier response. A listing needs none, and pages through every record. So an object grant lists only with `list: true`, using the same `read` fields. Relationship listings are bounded by the ID in their URL, so a direction's `read` covers them.
+- **Get and list are separate.** A get needs a reference you already hold, such as an ID from a link or an earlier response. A listing needs none, and pages through every record. So an object grant lists only with `list: true`, using the same `read` fields. Relationship listings are bounded by the ID in their URL, so a direction's `read` covers them. That bound holds only while the parent IDs are hard to get: a key that can list projects and read project→talent-profile can list every project, then every profile on each, without `list` on talent profiles.
 - **Field lists are allowlists**, so a field you add to an entity later stays hidden from scoped keys until you grant it.
 - **Choosing the ID or the timestamp:** a create body may set `entityId` or `createdAt` only if the create list names `$entityId` or `$createdAt`. So may an upsert, because its URL chooses the ID. A `'*'` list allows both.
 
