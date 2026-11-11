@@ -5,6 +5,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
   apiKeyPoliciesHandleParts,
+  apiKeysFile,
   resolveApiKeysPath,
   routePermissionDeclarations,
   validateApiKeyPoliciesFile,
@@ -212,4 +213,41 @@ declare module '${moduleName}' {
 }
 `;
   assert.equal(declarations, block('@monorise/base') + block('monorise/base'));
+});
+
+test('apiKeysFile finds the file an extensionless path points at', () => {
+  const root = makeFixtureDir();
+  try {
+    const policiesPath = writePolicies(root, 'export default {};');
+
+    assert.equal(apiKeysFile(path.join(root, 'api-keys')), policiesPath);
+    assert.equal(apiKeysFile(policiesPath), policiesPath);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test('validateApiKeyPoliciesFile sees edits made since the last validation', async () => {
+  const root = makeFixtureDir();
+  const policies = (field: string) => `
+      import { defineApiKeyPolicies } from '${BASE_POLICY_UTILS}';
+      export default defineApiKeyPolicies({
+        editor: { entities: { course: { read: ['${field}'] } } },
+      });
+      `;
+  try {
+    const configPath = writeGeneratedConfig(root);
+    const policiesPath = writePolicies(root, policies('title'));
+    await validateApiKeyPoliciesFile(policiesPath, configPath);
+
+    // What `monorise dev` does after the policy file changes.
+    writePolicies(root, policies('titel'));
+
+    await assert.rejects(
+      () => validateApiKeyPoliciesFile(path.join(root, 'api-keys'), configPath),
+      /unknown field 'titel'/,
+    );
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
