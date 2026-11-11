@@ -130,14 +130,17 @@ Rules are written against operations, not URLs, so a different request shape can
 | `GET /entity/:type/:id`, `GET /entity/:type/unique/:field/:value` | `get` on the entity |
 | `GET /entity/:type`, `GET /tag/:type/:tag` | `list` on the entity, with its `query`, `start` and `end`, and a tag listing's `tag` and `group` |
 | `POST /entity/:type` | `create` |
-| `PATCH /entity/:type/:id`, `POST /entity/:type/:id/adjust` | `update` |
+| `PATCH /entity/:type/:id` | `update` |
+| `POST /entity/:type/:id/adjust` | `adjust`, with `adjustments` |
 | `PUT /entity/:type/:id` | `create` and `update` |
 | `DELETE /entity/:type/:id` | `delete` |
-| `/mutual/:by/:byId/:type[/:id]` | relationship `read`, `create`, `update` or `delete` |
+| `/mutual/:by/:byId/:type[/:id]` | relationship `read`, `create`, `update` or `delete`; a `create` that materializes an entity is also that entity's `create` |
 | `POST /transaction` | each entry as above, each with its `operationIndex` |
 | `/app/...` | a [custom route](#custom-routes) |
 
 - **Relationship fields count as relationships.** Creating a user with `productIds: ['p1']` is a user `create` plus a user→product relationship `create`. Updating them is also a relationship `delete`, since the new list replaces the old one.
+- **An adjust isn't an update.** API keys count it as one, but a rule written for the values an update sets would approve `adjust { credits: -500 }`. So rules see `adjust`, with the amount added to each numeric field: `adjust: (op) => (op.adjustments?.credits ?? 0) >= 0`. A table without an `adjust` rule, or a `'*'`, refuses adjusts.
+- **An `asEntity` create counts too.** When creating a relationship also creates an entity, through `asEntity` in its mutual config or `?asEntity=`, that entity's `create` rule runs as well. Its `payload` is the relationship's `mutualData`, and `asEntityOf` names the relationship. Updates and deletes reach that entity by replication, so only the create is checked.
 - **A chain query reads every hop.** `GET /mutual/user/u1/video?chainEntityQuery=course,module` reads user→course, course→module and module→video. Only the first hop has a `byEntityId`.
 - **One refusal refuses the whole request.** In a transaction, the 403 names the `operationIndex`, as Core does.
 
@@ -164,7 +167,7 @@ In development, a refused operation with no rule also logs the rule to add:
 
 A rule is `(operation, context) => boolean | Response`, or a promise of one.
 
-- **`operation`** is one operation from the table above. Under an entity and action it is narrowed: `rules[Entity.ORDER].update` gets an `EntityOperation<Entity.ORDER, 'update'>`, whose `payload` has the order's fields.
+- **`operation`** is one operation from the table above. Under an entity and action it is narrowed: `rules[Entity.ORDER].update` gets an `EntityOperation<Entity.ORDER, 'update'>`, whose `payload` has the order's fields, and `rules[Entity.ORDER].adjust` gets `adjustments` for its numeric fields.
 - **`context.session`** is what `authenticate` returned, or `undefined`.
 - **`context.core`** calls Core with the caller's key, for checks such as "is this order the user's?": `core.get(path)` and `core.fetch(path, init)`.
 - **`context.request`** is the original request, still readable.
