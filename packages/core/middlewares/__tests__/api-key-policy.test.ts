@@ -95,8 +95,9 @@ describe('compileApiKeyPolicy', () => {
 
     expect(full.full).toBe(true);
     expect(full.entity('anything')).toEqual({
-      listed: true,
+      visible: true,
       read: '*',
+      list: true,
       create: '*',
       update: '*',
       delete: true,
@@ -121,7 +122,7 @@ describe('compileApiKeyPolicy', () => {
 
     expect(policy.full).toBe(false);
     expect(policy.entity('course')).toMatchObject({
-      listed: true,
+      visible: true,
       read: '*',
       create: null,
       update: null,
@@ -140,9 +141,9 @@ describe('compileApiKeyPolicy', () => {
       entities: { '*': 'read', [as('payment')]: 'none' },
     });
 
-    expect(policy.entity('course').listed).toBe(true);
-    expect(policy.entity('payment').listed).toBe(false);
-    expect(compileApiKeyPolicy('empty', {}).entity('course').listed).toBe(
+    expect(policy.entity('course').visible).toBe(true);
+    expect(policy.entity('payment').visible).toBe(false);
+    expect(compileApiKeyPolicy('empty', {}).entity('course').visible).toBe(
       false,
     );
   });
@@ -161,7 +162,7 @@ describe('compileApiKeyPolicy', () => {
       'toString',
       'hasOwnProperty',
     ]) {
-      expect(policy.entity(name).listed).toBe(false);
+      expect(policy.entity(name).visible).toBe(false);
       expect(policy.mutual('course', name)).toBeNull();
       expect(wildcard.entity(name)).toEqual(wildcard.entity('course'));
     }
@@ -189,13 +190,33 @@ describe('compileApiKeyPolicy', () => {
     });
 
     expect(policy.entity('order')).toEqual({
-      listed: true,
+      visible: true,
       read: fields('total', 'customerId', 'status'),
+      list: false,
       create: fields('customerId', '$entityId'),
       update: fields('status'),
       delete: false,
       tags: null,
     });
+  });
+
+  it('lists only for shorthands and object grants that say list: true', () => {
+    const policy = compileApiKeyPolicy('client', {
+      entities: {
+        '*': 'read',
+        [as('order')]: { read: '*' },
+        [as('product')]: { read: ['name'], list: true },
+        [as('payment')]: 'none',
+      },
+    });
+
+    expect(policy.entity('anything').list).toBe(true);
+    expect(policy.entity('order').list).toBe(false);
+    expect(policy.entity('product').list).toBe(true);
+    expect(policy.entity('payment').list).toBe(false);
+    expect(compileApiKeyPolicy('writer', 'write').entity('order').list).toBe(
+      true,
+    );
   });
 
   it('treats write as create plus update', () => {
@@ -278,6 +299,24 @@ describe('compileApiKeyPolicy', () => {
   });
 });
 
+describe('allowsRoute', () => {
+  it('grants the routes a policy lists, every route to full, and none to shorthands', () => {
+    const client = compileApiKeyPolicy('client', {
+      routes: ['checkout', 'checkout:discount'],
+    });
+
+    expect(client.allowsRoute('checkout')).toBe(true);
+    expect(client.allowsRoute('checkout:refund')).toBe(false);
+    expect(compileApiKeyPolicy('full').allowsRoute('anything')).toBe(true);
+    expect(compileApiKeyPolicy('reader', 'read').allowsRoute('checkout')).toBe(
+      false,
+    );
+    expect(compileApiKeyPolicy('writer', 'write').allowsRoute('checkout')).toBe(
+      false,
+    );
+  });
+});
+
 describe('validateApiKeyPolicies', () => {
   const validate = (policies: unknown) =>
     validateApiKeyPolicies(policies, entityConfig);
@@ -287,6 +326,7 @@ describe('validateApiKeyPolicies', () => {
       validate({
         'agent-read': 'read',
         writer: 'write',
+        support: { routes: ['reports', 'checkout:refund'] },
         client: {
           entities: {
             learner: {
@@ -314,6 +354,16 @@ describe('validateApiKeyPolicies', () => {
       "must be 'read', 'write' or an object",
     ],
     ['an unknown policy key', { p: { entity: {} } }, "unknown key 'entity'"],
+    [
+      'routes that are not an array of names',
+      { p: { routes: 'checkout' } },
+      "p'.routes must be an array of permission names",
+    ],
+    [
+      'an empty route name',
+      { p: { routes: [''] } },
+      "p'.routes must be an array of permission names",
+    ],
     [
       'an unknown entity type',
       { p: { entities: { lerner: 'read' } } },
@@ -353,6 +403,26 @@ describe('validateApiKeyPolicies', () => {
       'a system field outside create or write',
       { p: { entities: { course: { update: ['$createdAt'] } } } },
       "'$createdAt' can only be granted in 'create' or 'write'",
+    ],
+    [
+      'a non-boolean list',
+      { p: { entities: { course: { read: '*', list: 'yes' } } } },
+      'course.list must be a boolean',
+    ],
+    [
+      'list without fields to read',
+      { p: { entities: { course: { list: true } } } },
+      'course.list needs fields to read',
+    ],
+    [
+      'list with an empty read list',
+      { p: { entities: { course: { read: [], list: true } } } },
+      'course.list needs fields to read',
+    ],
+    [
+      'list with a malformed field list, reported instead of thrown',
+      { p: { entities: { course: { read: 5, write: 5, list: true } } } },
+      "course.read must be '*' or an array of field names",
     ],
     [
       'a non-boolean delete',

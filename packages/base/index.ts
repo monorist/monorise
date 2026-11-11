@@ -22,10 +22,14 @@ import type {
 import type {
   ApiKeyAccessLevel,
   ApiKeyEntityGrant,
+  ApiKeyEntityTags,
   ApiKeyFieldList,
+  ApiKeyMutualDataFields,
   ApiKeyMutualGrant,
   ApiKeyPolicies,
   ApiKeyPolicy,
+  ApiKeyRoutePermission,
+  ApiKeyRoutePermissions,
   ApiKeySystemField,
 } from './types/api-key-policy.type';
 
@@ -78,13 +82,17 @@ export type {
   ApiKeyAccessLevel,
   ApiKeyEntityAccess,
   ApiKeyEntityGrant,
+  ApiKeyEntityTags,
   ApiKeyFieldAccess,
   ApiKeyFieldList,
   ApiKeyMutualAccess,
+  ApiKeyMutualDataFields,
   ApiKeyMutualGrant,
   ApiKeyPolicies,
   ApiKeyPolicy,
   ApiKeyPolicyEntityConfig,
+  ApiKeyRoutePermission,
+  ApiKeyRoutePermissions,
   ApiKeySystemField,
   CompiledApiKeyPolicy,
 };

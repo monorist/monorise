@@ -14,26 +14,28 @@ The frontend server is a **thin proxy layer** — its only job is to authenticat
 
 SST provides seamless Next.js deployment via `sst.aws.Nextjs`. This means your Next.js app already has a server — use its API routes as the proxy layer. No extra infrastructure needed.
 
-Monorise Core creates the `API_KEYS` allow-list. Create a separate `X_API_KEY` secret in your application and link it to the Next.js server so only your backend proxy can read the selected key:
+Monorise Core creates the `API_KEYS` allow-list. Create a separate `X_API_KEY` secret in your application and pass it to the Next.js server, so only your backend proxy holds the selected key:
 
 ```ts
 const { api } = new monorise.module.Core('core');
 const xApiKey = new sst.Secret('X_API_KEY', 'secret1');
 
 new sst.aws.Nextjs('web', {
-  link: [api, xApiKey],
+  link: [api],
   environment: {
     API_BASE_URL: api.url,
+    MONORISE_API_KEY: xApiKey.value,
   },
 });
 ```
+
+Reading the key from `MONORISE_API_KEY` keeps the proxy code identical in every app. A second app passes its own secret under the same name; see [several apps, one API](/api-keys#several-apps-one-api).
 
 **1. Proxy utility** — rewrites client requests to the monorise API Gateway, validates auth, and attaches `x-api-key`:
 
 ```ts
 // app/api/proxy-request.ts
 import { type NextRequest, NextResponse } from 'next/server';
-import { Resource } from 'sst';
 import { validateToken } from './validate-token';
 
 function rewriteUrl(requestUrl: string, replacePath?: string) {
@@ -70,7 +72,7 @@ export const proxyRequest = async ({
     headers: {
       'content-type': 'application/json',
       'account-id': accountId,
-      'x-api-key': Resource.X_API_KEY.value,
+      'x-api-key': process.env.MONORISE_API_KEY ?? '',
     },
     cache: 'no-store',
   });
@@ -149,6 +151,10 @@ npx sst secret set X_API_KEY 'prod-key-abc' --stage production
 ::: tip
 `API_KEYS` is an array so old and new keys can overlap during rotation. `X_API_KEY` is the single key sent by the proxy and must match one value in that array.
 :::
+
+## Give each app the narrowest key it needs
+
+The proxy key can do anything by default. When several apps, services or agents call the same API, give each its own key on a [policy](/api-keys) that grants only what it uses: an admin app on `full`, a customer-facing app scoped to its entities and fields, and a reporting job on `'read'`. A bug or a missed auth check in one app's proxy then can't reach data that app never needed.
 
 ## Keep entity configs focused
 
