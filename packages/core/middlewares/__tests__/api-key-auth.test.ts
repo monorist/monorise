@@ -59,11 +59,24 @@ describe('parseApiKeys', () => {
     ['truncated', 'sha256:abc123'],
     ['not hex', `sha256:${'z'.repeat(64)}`],
     ['empty', 'sha256:'],
-  ])('rejects a sha256: entry whose digest is %s', (_, entry) => {
-    expect(() => parseApiKeys(JSON.stringify({ full: [entry] }))).toThrow(
-      '64-character hex SHA-256 digest',
-    );
-  });
+  ])(
+    'drops a sha256: entry whose digest is %s, with an error log',
+    (_, entry) => {
+      const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const keys = parseApiKeys(JSON.stringify({ full: [entry, 'a'] }));
+      const legacy = parseApiKeys(JSON.stringify([entry, 'b']));
+
+      expect([...keys.keys()]).toEqual([fingerprintApiKey('a')]);
+      expect([...legacy.keys()]).toEqual([fingerprintApiKey('b')]);
+      expect(error).toHaveBeenCalledWith(
+        "[monorise] API_KEYS: a 'sha256:' entry in policy 'full' isn't a 64-character hex SHA-256 digest and will be rejected",
+      );
+      expect(error).toHaveBeenCalledWith(
+        "[monorise] API_KEYS: a 'sha256:' entry in the array form isn't a 64-character hex SHA-256 digest and will be rejected",
+      );
+    },
+  );
 
   it('drops keys under a policy that is not defined, with an error log', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
