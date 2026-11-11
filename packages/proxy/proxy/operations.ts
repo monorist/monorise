@@ -46,12 +46,17 @@ export type EntityOperation<
   entityType: T;
   entityId?: string;
   payload?: EntityPayload<T>;
-  /** The search term of a `list`. */
+  /** The search term of a `list`, as Core receives it. */
   query?: string;
   /** The field and value of a get by unique field. */
   unique?: { field: string; value: string };
   /** The tag a `list` queries. */
   tag?: string;
+  /** The tag group a tag listing reads, often what a rule scopes by. */
+  group?: string;
+  /** The range a `list` reads: Core's `start` and `end` query parameters. */
+  start?: string;
+  end?: string;
   /** Position in a transaction's `operations`. */
   operationIndex?: number;
 };
@@ -314,8 +319,11 @@ export const parseOperations = ({
   body: unknown;
   entityConfig?: ProxyEntityConfig;
 }): ParseResult => {
-  const decoded = path.split('/').filter(Boolean).map(decode);
-  if (decoded.some((segment) => segment === undefined)) {
+  // Core's router matches the raw path. A segment that decodes to contain
+  // `/`, or an empty one, would be described as a different route than the
+  // one Core runs, so neither is accepted.
+  const decoded = (path === '/' ? [] : path.split('/').slice(1)).map(decode);
+  if (decoded.some((segment) => !segment || segment.includes('/'))) {
     return invalid('Malformed path');
   }
   const [root, ...rest] = decoded as string[];
@@ -326,16 +334,23 @@ export const parseOperations = ({
     ok: true,
     operations: [operation],
   });
+  // Present query parameters only, so operations stay comparable.
+  const params = (...names: ('query' | 'group' | 'start' | 'end')[]) =>
+    Object.fromEntries(
+      names.flatMap((name) => {
+        const value = searchParams.get(name);
+        return value ? [[name, value]] : [];
+      }),
+    );
 
   if (root === 'entity') {
     const [entityType, second, third, fourth] = rest;
     if (rest.length === 1 && verb === 'GET') {
-      const query = searchParams.get('query')?.trim();
       return one({
         kind: 'entity',
         action: 'list',
         entityType,
-        ...(query ? { query } : {}),
+        ...params('query', 'start', 'end'),
       });
     }
     if (rest.length === 1 && verb === 'POST') {
@@ -460,6 +475,7 @@ export const parseOperations = ({
       action: 'list',
       entityType: rest[0],
       tag: rest[1],
+      ...params('group', 'start', 'end'),
     });
   }
 
