@@ -4,6 +4,14 @@ import {
   writeAnalyticsManifest,
   type AnalyticsConfig,
 } from './analytics-manifest';
+import {
+  apiKeyPoliciesHandleParts,
+  apiKeysFile,
+  resolveApiKeysPath,
+  routePermissionDeclarations,
+  validateApiKeyPoliciesFile,
+} from './api-key-policies';
+import { apiKeyTypeDeclarations } from './api-key-types';
 import { detectCombinedPackage } from './detect-package';
 
 function kebabToCamel(str: string): string {
@@ -87,6 +95,8 @@ export enum Entity {}
   const allowedEntityEntries: string[] = [];
   const entityWithEmailAuthEntries: string[] = [];
   const analyticsConfigs: AnalyticsConfig[] = [];
+  const apiKeyTypeEntities: Parameters<typeof apiKeyTypeDeclarations>[0] =
+    [];
 
   // Track mutual pairs for MutualDataMapping codegen and duplicate detection
   // Each entry: { byEnumKey, entityEnumKey, variableName, fieldKey, mutualRef }
@@ -144,6 +154,7 @@ export enum Entity {}
     );
 
     allowedEntityEntries.push(`Entity.${enumKey}`);
+    apiKeyTypeEntities.push({ name: config.name, enumKey, config });
 
     if (config.authMethod?.email) {
       entityWithEmailAuthEntries.push(`Entity.${enumKey}`);
@@ -299,6 +310,7 @@ declare module '@monorise/base' {
   export interface EntitySchemaMap {
     ${schemaMapEntries.join('\n    ')}
   }
+${apiKeyTypeDeclarations(apiKeyTypeEntities)}
 }
 
 declare module 'monorise/base' {
@@ -311,6 +323,7 @@ declare module 'monorise/base' {
   export interface EntitySchemaMap {
     ${schemaMapEntries.join('\n    ')}
   }
+${apiKeyTypeDeclarations(apiKeyTypeEntities)}
 }
 ${generateMutualDataMappingDeclarations(mutualPairs)}
 `;
@@ -325,6 +338,7 @@ async function generateHandleFile(
   monoriseConfig: { customRoutes?: string; configDir: string },
   projectRoot: string,
   monoriseOutputDir: string,
+  apiKeysPath?: string,
 ): Promise<string> {
   const handleOutputPath = path.join(monoriseOutputDir, 'handle.ts');
   const customRoutesPath = monoriseConfig.customRoutes;
@@ -377,14 +391,19 @@ async function generateHandleFile(
 
   const usesCombinedPackage = detectCombinedPackage(projectRoot);
   const coreImportPath = usesCombinedPackage ? 'monorise/core' : '@monorise/core';
+  const apiKeyPolicies = apiKeyPoliciesHandleParts(
+    monoriseOutputDir,
+    apiKeysPath,
+  );
 
   const combinedContent = `
 import CoreFactory, { analyticsMaterializationProcessor, analyticsModelProcessor, analyticsQueryHandler as createAnalyticsQueryHandler, analyticsViewProcessor } from '${coreImportPath}';
 import config from './config';
 import analyticsManifest from './analytics-manifest.json';
 import routes from '${relativePathToRoutes}';
+${apiKeyPolicies.importLine}
 
-const coreFactory = new CoreFactory(config);
+const coreFactory = new CoreFactory(${apiKeyPolicies.coreFactoryArg});
 
 export const replicationHandler = coreFactory.replicationProcessor;
 export const analyticsHandler = coreFactory.analyticsProcessor;
@@ -410,7 +429,11 @@ export const wsBroadcast = coreFactory.wsBroadcast;
   return handleOutputPath;
 }
 
-async function generateFiles(rootPath?: string): Promise<string> {
+// What `monorise dev` watches: the entity configs, and the policy file,
+// which lives outside them.
+type GeneratedFrom = { configDir: string; apiKeysFile?: string };
+
+async function generateFiles(rootPath?: string): Promise<GeneratedFrom> {
   const baseDir = rootPath ? path.resolve(rootPath) : process.cwd();
   const configFilePathTS = path.join(baseDir, 'monorise.config.ts');
   const configFilePathJS = path.join(baseDir, 'monorise.config.js');
@@ -435,10 +458,38 @@ async function generateFiles(rootPath?: string): Promise<string> {
 
   fs.mkdirSync(monoriseOutputDir, { recursive: true });
 
-  await generateConfigFile(configDir, monoriseOutputDir);
-  await generateHandleFile(monoriseConfig, projectRoot, monoriseOutputDir);
+  // Resolved first, so a misplaced policy file fails before it is loaded as
+  // an entity config.
+  const apiKeysPath = resolveApiKeysPath(
+    projectRoot,
+    monoriseConfig.apiKeys,
+    configDir,
+  );
+  const configOutputPath = await generateConfigFile(
+    configDir,
+    monoriseOutputDir,
+  );
+  if (apiKeysPath) {
+    const policies = await validateApiKeyPoliciesFile(
+      apiKeysPath,
+      configOutputPath,
+    );
+    fs.appendFileSync(
+      configOutputPath,
+      routePermissionDeclarations(policies, ['@monorise/base', 'monorise/base']),
+    );
+  }
+  await generateHandleFile(
+    monoriseConfig,
+    projectRoot,
+    monoriseOutputDir,
+    apiKeysPath,
+  );
 
-  return configDir;
+  return {
+    configDir,
+    apiKeysFile: apiKeysPath && apiKeysFile(apiKeysPath),
+  };
 }
 
 export default generateFiles;

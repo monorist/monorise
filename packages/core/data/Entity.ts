@@ -350,7 +350,10 @@ export class EntityRepository extends Repository {
   ): Promise<Entity<T>> {
     const resp = await this.dynamodbClient.query({
       TableName: this.TABLE_NAME,
-      KeyConditionExpression: '#PK = :PK and begins_with(#SK, :SK)',
+      // Exact match: a unique item's SK is the bare entity type, so a prefix
+      // match would also return another type whose name starts with this one
+      // (e.g. 'user' matching 'user-profile').
+      KeyConditionExpression: '#PK = :PK and #SK = :SK',
       ExpressionAttributeNames: {
         '#PK': 'PK',
         '#SK': 'SK',
@@ -371,7 +374,8 @@ export class EntityRepository extends Repository {
   ): Promise<void> {
     const resp = await this.dynamodbClient.query({
       TableName: this.TABLE_NAME,
-      KeyConditionExpression: '#PK = :PK and begins_with(#SK, :SK)',
+      // Exact match, as in getEntityByUniqueField.
+      KeyConditionExpression: '#PK = :PK and #SK = :SK',
       ExpressionAttributeNames: {
         '#PK': 'PK',
         '#SK': 'SK',
