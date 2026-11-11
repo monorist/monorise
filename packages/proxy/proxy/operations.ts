@@ -49,6 +49,8 @@ export type RouteOperation = {
   /** The path under `/core`, e.g. `/app/invite-casting`. */
   path: string;
   body?: unknown;
+  /** Segments the matching route rule's `:param`s captured. */
+  params?: Record<string, string>;
 };
 
 export type ProxyOperation =
