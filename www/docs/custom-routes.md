@@ -109,6 +109,57 @@ The monorise CLI auto-detects whether your export is a Hono app or a function, a
 | `container.eventUtils` | Publish events to EventBridge |
 | `container.config` | Entity configs, allowed types, schemas |
 
+## API key permissions
+
+With [scoped API keys](/api-keys), a custom route is a capability: you grant a key the operation, not the CRUD the route does inside. `container` services stay trusted. So a key with no direct access to `payment` can still call `/checkout`, which creates the payment under your business rules.
+
+Declare the permission a route needs with `requires()`, per route or on a group:
+
+```ts
+import { Hono } from 'hono';
+import { type DependencyContainer, requires } from 'monorise/core';
+
+export default (container: DependencyContainer) => {
+  const app = new Hono();
+
+  app.post('/checkout', requires('checkout'), async (c) => {
+    const key = c.get('apiKey');
+    const order = await placeOrder(container, await c.req.json(), {
+      allowDiscount: key.has('checkout:discount'),
+    });
+    return c.json(key.mask('order', order));
+  });
+
+  app.use('/reports/*', requires('reports'));
+  app.get('/reports/sales', salesReport);
+
+  app.get('/health', (c) => c.json({ ok: true })); // no requires(): full keys only
+
+  return app;
+};
+```
+
+A policy grants permissions by name in `routes`, and `full` keys hold every permission:
+
+```ts
+client: { entities: { ... }, routes: ['checkout'] },
+support: { entities: { '*': 'read' }, routes: ['reports', 'checkout:discount'] },
+```
+
+- **A route without `requires()` is callable only by `full` keys**, so a new route never opens up to scoped keys by accident.
+- **Order doesn't matter.** Core checks every `requires()` a request matches before any of your handlers run, so a `use()` registered after the route, or middleware before `requires()`, still protects it.
+- **Typed names:** the CLI types `requires()` with the names your policies grant, so a misspelled name fails to compile.
+
+Inside a route, `c.get('apiKey')` is the resolved key:
+
+| Member | Returns |
+|---|---|
+| `policy` | The policy name, e.g. `'client'` |
+| `fingerprint` | The key's SHA-256 digest, safe to log |
+| `can(action, entityType, fields?)` | Whether the key may `read` (get), `list`, `create`, `update` or `delete` that type, and those fields |
+| `has(permission)` | Whether the policy grants a route permission |
+| `mask(entityType, entity)` | The entity with the fields the key can't read removed |
+
 ## Calling from the frontend
 
 Custom routes are served under `/core/app/*`. Use the `axios` instance exported from `monorise/react` — it's pre-configured with loading/error state management and response interceptors.

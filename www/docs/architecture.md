@@ -57,7 +57,7 @@ Failed messages can be redriven from the DLQ once the issue is resolved.
 
 ## API reference
 
-The default Hono API exposes the following routes under `/core`. All entity routes are validated by `entityTypeCheck` middleware, and mutual routes by `mutualTypeCheck` middleware.
+The default Hono API exposes the following routes under `/core`. All entity routes are validated by `entityTypeCheck` middleware, and mutual routes by `mutualTypeCheck` middleware. Every route also checks the request's API key against its policy; see [API Keys](/api-keys).
 
 ### Entity endpoints
 
@@ -67,7 +67,7 @@ The default Hono API exposes the following routes under `/core`. All entity rout
 | `POST` | `/entity/:entityType` | Create entity |
 | `GET` | `/entity/:entityType/unique/:field/:value` | Get entity by unique field |
 | `GET` | `/entity/:entityType/:entityId` | Get entity by ID |
-| `PUT` | `/entity/:entityType/:entityId` | Upsert entity (full replacement) |
+| `PUT` | `/entity/:entityType/:entityId` | Upsert entity: sets the given fields, creating the entity if it doesn't exist |
 | `PATCH` | `/entity/:entityType/:entityId` | Update entity (partial); supports optional named `$condition` |
 | `DELETE` | `/entity/:entityType/:entityId` | Delete entity |
 | `POST` | `/entity/:entityType/:entityId/adjust` | Atomic numeric adjustment (body: `{ field: delta }`) |
