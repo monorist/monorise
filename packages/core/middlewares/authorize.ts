@@ -9,11 +9,22 @@ import { createMiddleware } from 'hono/factory';
 import httpStatus from 'http-status';
 import type { ApiKeyPrincipal } from './api-key-auth';
 
-export type EntityAction = 'read' | 'create' | 'update' | 'delete';
+/**
+ * `read` is get, by ID or unique field. `list` is listing the whole type,
+ * which also needs `read`.
+ */
+export type EntityAction = 'read' | 'list' | 'create' | 'update' | 'delete';
+
+// Directions have a single `read`: their listings are bounded by the
+// :byEntityId in the URL.
+type RelationshipAction = Exclude<EntityAction, 'list'>;
 
 /** The kinds of entity route, each with its own requirement and body. */
 export type EntityRoute =
   | 'read'
+  | 'list'
+  | 'unique'
+  | 'tag'
   | 'create'
   | 'update'
   | 'upsert'
@@ -22,6 +33,9 @@ export type EntityRoute =
 
 const ENTITY_ROUTE_ACTIONS: Record<EntityRoute, EntityAction[]> = {
   read: ['read'],
+  list: ['read', 'list'],
+  unique: ['read'],
+  tag: ['read', 'list'],
   create: ['create'],
   update: ['update'],
   // Upsert creates or updates depending on whether the entity exists, and
@@ -31,7 +45,10 @@ const ENTITY_ROUTE_ACTIONS: Record<EntityRoute, EntityAction[]> = {
   delete: ['delete'],
 };
 
-type EntityConfigs = Record<string, ApiKeyPolicyEntityConfig>;
+type EntityConfigs = Record<
+  string,
+  ApiKeyPolicyEntityConfig & { searchableFields?: readonly PropertyKey[] }
+>;
 
 // Why a request is refused: 404 for a type the key's policy doesn't list,
 // 403 for anything else it doesn't grant. `fields` lists the fields a
@@ -93,7 +110,10 @@ const deny = (
 export const allowsEntityAction = (
   access: ApiKeyEntityAccess,
   action: EntityAction,
-) => (action === 'delete' ? access.delete : access[action] !== null);
+) =>
+  action === 'delete' || action === 'list'
+    ? access[action]
+    : access[action] !== null;
 
 // The key to check, or undefined when the request is unrestricted: a `full`
 // key, or no key at all because setupCommonRoutes is mounted in an app that
@@ -124,7 +144,7 @@ export const createRouteGuards = (entityConfig: EntityConfigs) => {
     action: EntityAction,
   ): Denial | null => {
     const access = key.access.entity(entityType);
-    if (!access.listed) return { status: 404 };
+    if (!access.visible) return { status: 404 };
     if (allowsEntityAction(access, action)) return null;
     return {
       status: 403,
@@ -152,7 +172,7 @@ export const createRouteGuards = (entityConfig: EntityConfigs) => {
     key: ApiKeyPrincipal,
     byEntityType: string,
     entityType: string,
-    action: EntityAction,
+    action: RelationshipAction,
     requestedAsEntity?: string,
   ): Denial | null => {
     const access = key.access.mutual(byEntityType, entityType);
@@ -249,7 +269,7 @@ export const createRouteGuards = (entityConfig: EntityConfigs) => {
     const relationshipFields = entityConfig[entityType]?.mutual?.mutualFields;
     if (!relationshipFields) return null;
 
-    const actions: EntityAction[] =
+    const actions: RelationshipAction[] =
       write === 'create' ? ['create'] : ['create', 'delete'];
     for (const field of Object.keys(payload)) {
       const target = relationshipFields[field]?.entityType as
@@ -318,10 +338,52 @@ export const createRouteGuards = (entityConfig: EntityConfigs) => {
       `adjust on these fields of '${entityType}'`,
     );
 
+  // Reading the response masks hidden fields, but a request can still
+  // reveal one by matching on it. These close those paths.
+
+  // Search matches its term against every searchable field, so a result
+  // reveals a match on a field the key cannot read.
+  const checkSearch = (key: ApiKeyPrincipal, entityType: string) =>
+    checkFields(
+      key,
+      key.access.entity(entityType).read,
+      (entityConfig[entityType]?.searchableFields ?? []).map(String),
+      `search on '${entityType}', which matches these fields it cannot read`,
+    );
+
+  // A 200 vs 404 answers whether some entity has that value.
+  const checkUniqueLookup = (
+    key: ApiKeyPrincipal,
+    entityType: string,
+    field: string,
+  ) =>
+    checkFields(
+      key,
+      key.access.entity(entityType).read,
+      [field],
+      `a lookup on '${entityType}' by a field it cannot read`,
+    );
+
+  // A tag's group and sortValue come from a processor that may read any
+  // field, and its filters match on them, so a tag needs its own grant.
+  const checkTag = (
+    key: ApiKeyPrincipal,
+    entityType: string,
+    tagName: string,
+  ): Denial | null => {
+    const { tags } = key.access.entity(entityType);
+    if (tags === '*' || tags?.has(tagName)) return null;
+    return {
+      status: 403,
+      message: `API key policy '${key.policy}' does not allow reading tag '${tagName}' of '${entityType}'`,
+    };
+  };
+
   /**
    * Requires the route's actions on `:entityType`, then checks what the body
    * writes: data fields against the create or update list, relationship
-   * fields against their direction.
+   * fields against their direction. Read routes that match on fields are
+   * checked against the read grant.
    */
   const entity = (route: EntityRoute) =>
     routeGuard(
@@ -336,7 +398,17 @@ export const createRouteGuards = (entityConfig: EntityConfigs) => {
           }
 
           let denial: Denial | null = null;
-          if (route === 'create') {
+          if (route === 'list' && c.req.query('query')) {
+            denial = checkSearch(key, entityType);
+          } else if (route === 'unique') {
+            denial = checkUniqueLookup(
+              key,
+              entityType,
+              c.req.param('uniqueField') ?? '',
+            );
+          } else if (route === 'tag') {
+            denial = checkTag(key, entityType, c.req.param('tagName') ?? '');
+          } else if (route === 'create') {
             denial = checkCreate(key, entityType, await jsonBody(c), false);
           } else if (route === 'update') {
             denial = checkUpdate(key, entityType, await jsonBody(c));
@@ -377,7 +449,7 @@ export const createRouteGuards = (entityConfig: EntityConfigs) => {
    * `/mutual/:byEntityType/:byEntityId/:entityType`. A chain query reads
    * every direction along the chain.
    */
-  const mutual = (action: EntityAction) =>
+  const mutual = (action: RelationshipAction) =>
     routeGuard(
       `mutual:${action}`,
       createMiddleware(async (c, next) => {

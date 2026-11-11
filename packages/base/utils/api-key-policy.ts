@@ -20,6 +20,7 @@ const ACCESS_LEVELS: readonly ApiKeyAccessLevel[] = ['none', 'read', 'write'];
 const SYSTEM_FIELDS = ['$entityId', '$createdAt'];
 const ENTITY_GRANT_KEYS = [
   'read',
+  'list',
   'create',
   'update',
   'write',
@@ -35,9 +36,16 @@ export type ApiKeyFieldAccess = '*' | ReadonlySet<string>;
 
 /** What a policy allows on one entity type. `null` means not granted. */
 export type ApiKeyEntityAccess = {
-  /** Whether the policy mentions the type at all. An unlisted type answers 404. */
-  listed: boolean;
+  /**
+   * Whether the key can see the type at all: the policy grants it anything
+   * but `'none'`, by name or through its `'*'` entry. A type the key can't
+   * see answers 404, as if it didn't exist.
+   */
+  visible: boolean;
+  /** Fields the key can read, by ID or unique field, and in every response. */
   read: ApiKeyFieldAccess | null;
+  /** Whether the key can list the whole type: listing, search and tag queries. */
+  list: boolean;
   create: ApiKeyFieldAccess | null;
   update: ApiKeyFieldAccess | null;
   delete: boolean;
@@ -60,7 +68,7 @@ export type CompiledApiKeyPolicy = {
   /**
    * Access to the direction `byEntityType`→`entityType`, as in
    * `/mutual/:byEntityType/:byEntityId/:entityType`. `null` when either end
-   * type isn't listed.
+   * type isn't visible.
    */
   mutual(byEntityType: string, entityType: string): ApiKeyMutualAccess | null;
   /** Whether the policy grants a custom route permission. `full` grants every one. */
@@ -96,10 +104,11 @@ const withoutSystemFields = (access: ApiKeyFieldAccess | null) =>
     ? access
     : new Set([...access].filter((field) => !SYSTEM_FIELDS.includes(field)));
 
-const UNLISTED: CompiledEntity = {
+const HIDDEN: CompiledEntity = {
   access: {
-    listed: false,
+    visible: false,
     read: null,
+    list: false,
     create: null,
     update: null,
     delete: false,
@@ -112,14 +121,15 @@ const UNLISTED: CompiledEntity = {
 const compileEntityGrant = (
   grant: ApiKeyEntityGrant | undefined,
 ): CompiledEntity => {
-  if (grant === undefined || grant === 'none') return UNLISTED;
+  if (grant === undefined || grant === 'none') return HIDDEN;
 
   if (grant === 'read' || grant === 'write') {
     const write = grant === 'write';
     return {
       access: {
-        listed: true,
+        visible: true,
         read: '*',
+        list: true,
         create: write ? '*' : null,
         update: write ? '*' : null,
         delete: write,
@@ -137,8 +147,9 @@ const compileEntityGrant = (
 
   return {
     access: {
-      listed: true,
+      visible: true,
       read,
+      list: grant.list === true,
       create,
       update,
       delete: grant.delete === true,
@@ -219,7 +230,7 @@ export const compileApiKeyPolicy = (
     entity: (entityType) => compiled(entityType).access,
     mutual: (byEntityType, entityType) => {
       const from = compiled(byEntityType);
-      if (!from.access.listed || !compiled(entityType).access.listed) {
+      if (!from.access.visible || !compiled(entityType).access.visible) {
         return null;
       }
       return compileMutualGrant(
@@ -384,6 +395,7 @@ export const validateApiKeyPolicies = (
 
     const fields = ownFields(config);
     const mutualFields = mutualFieldNames(config);
+    const fieldListErrors = errors.length;
     for (const key of ['read', 'create', 'update', 'write']) {
       if (grant[key] === undefined) continue;
       const allowsSystemFields = key === 'create' || key === 'write';
@@ -404,6 +416,17 @@ export const validateApiKeyPolicies = (
     }
     if (grant.delete !== undefined && typeof grant.delete !== 'boolean') {
       errors.push(`${where}.delete must be a boolean`);
+    }
+    if (grant.list !== undefined && typeof grant.list !== 'boolean') {
+      errors.push(`${where}.list must be a boolean`);
+    } else if (grant.list === true && errors.length === fieldListErrors) {
+      // Compiling needs valid field lists; a malformed one is reported above.
+      const { read } = compileEntityGrant(grant as ApiKeyEntityGrant).access;
+      if (read === null || (read !== '*' && read.size === 0)) {
+        errors.push(
+          `${where}.list needs fields to read; a listing would return no data`,
+        );
+      }
     }
     if (grant.tags !== undefined) {
       checkFieldList(

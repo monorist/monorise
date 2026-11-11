@@ -192,6 +192,9 @@ export default {
 
   // (Optional) Hono app for custom API routes (mounted at /core/app/*)
   customRoutes: './services/core/routes.ts',
+
+  // (Optional) API key policies (see API Keys)
+  apiKeys: './monorise/api-keys.ts',
 };
 ```
 
@@ -199,6 +202,7 @@ export default {
 |-------|------|----------|-------------|
 | `configDir` | `string` | Yes | Path to directory containing entity config `.ts` files |
 | `customRoutes` | `string` | No | Path to a Hono app module for custom routes |
+| `apiKeys` | `string` | No | Path to a module that default-exports `defineApiKeyPolicies(...)`. See [API Keys](/api-keys) |
 
 ::: tip
 The CLI auto-detects whether your project uses the combined `monorise` package or scoped `@monorise/*` packages and generates the correct import paths in `.monorise/handle.ts` accordingly.

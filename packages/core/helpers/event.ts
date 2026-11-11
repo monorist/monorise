@@ -4,6 +4,7 @@ import {
 } from '@aws-sdk/client-eventbridge';
 import { CORE_EVENT_BUS } from '../configs/service.config';
 import { EVENT, type EventDetail } from '../types/event';
+import { currentApiKey } from './request-context';
 
 const eventBridge = new EventBridgeClient();
 
@@ -35,11 +36,15 @@ export async function publishEvent<T extends Record<string, any>>({
   payload,
   event,
 }: PublishEventProps<T>) {
+  // An event published while handling an API request records the key that
+  // made it, so every change traces back to its caller. Processors publish
+  // outside a request, and their events carry no key.
+  const apiKey = currentApiKey();
   const params = {
     Entries: [
       {
         ...event,
-        Detail: JSON.stringify(payload),
+        Detail: JSON.stringify(apiKey ? { ...payload, apiKey } : payload),
         EventBusName: CORE_EVENT_BUS,
       },
     ],
