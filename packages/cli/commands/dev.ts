@@ -3,10 +3,13 @@ import chokidar from 'chokidar';
 import generateFiles from './utils/generate';
 
 async function runDevCommand() {
-  const configDir = await generateFiles();
+  const { configDir, apiKeysFile } = await generateFiles();
 
-  console.log(`Watching for changes in ${configDir}...`);
-  const watcher = chokidar.watch(configDir, {
+  console.log(
+    `Watching for changes in ${apiKeysFile ? `${configDir} and ${apiKeysFile}` : configDir}...`,
+  );
+  const watched = apiKeysFile ? [configDir, apiKeysFile] : configDir;
+  const watcher = chokidar.watch(watched, {
     ignored: (watchedPath: string) => {
       const fileName = path.basename(watchedPath);
       return (
