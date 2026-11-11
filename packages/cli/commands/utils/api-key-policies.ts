@@ -1,5 +1,9 @@
 import fs from 'node:fs';
+import { createRequire } from 'node:module';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
+
+const require = createRequire(import.meta.url);
 
 // Set by `defineApiKeyPolicies` in @monorise/base. Reading the validator off
 // the policies object runs the same version of it the project's policies were
@@ -39,6 +43,23 @@ export function resolveApiKeysPath(
   return absolutePath;
 }
 
+/** The file `apiKeys` points at, with its extension: the one to watch. */
+export function apiKeysFile(apiKeysPath: string): string {
+  return (
+    ['', '.ts', '.js']
+      .map((extension) => `${apiKeysPath}${extension}`)
+      .find((file) => fs.existsSync(file) && fs.statSync(file).isFile()) ??
+    apiKeysPath
+  );
+}
+
+// Imports a file as it is on disk now. `monorise dev` validates the policies
+// again after each edit, and both module caches would return the first version.
+const importFresh = (file: string) => {
+  delete require.cache[file];
+  return import(`${pathToFileURL(file).href}?t=${Date.now()}`);
+};
+
 /**
  * Validates the project's policies against its entity configs. Runs after
  * config.ts is generated, because a policy file usually imports the generated
@@ -48,8 +69,8 @@ export async function validateApiKeyPoliciesFile(
   apiKeysPath: string,
   configOutputPath: string,
 ): Promise<void> {
-  const { default: generatedConfig } = await import(configOutputPath);
-  const { default: policies } = await import(apiKeysPath);
+  const { default: generatedConfig } = await importFresh(configOutputPath);
+  const { default: policies } = await importFresh(apiKeysFile(apiKeysPath));
 
   const validate = policies?.[VALIDATE_API_KEY_POLICIES];
   if (typeof validate !== 'function') {
