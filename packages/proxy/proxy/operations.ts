@@ -5,7 +5,18 @@
  * `deleteEntity` and a `DELETE /entity/...` are the same operation.
  */
 
-export type EntityAction = 'get' | 'list' | 'create' | 'update' | 'delete';
+/**
+ * `adjust` adds an amount to numeric fields (`POST /entity/:type/:id/adjust`).
+ * API key policies count it as an update; rules keep it apart, so a rule
+ * written for the values an update sets never approves an adjust.
+ */
+export type EntityAction =
+  | 'get'
+  | 'list'
+  | 'create'
+  | 'update'
+  | 'adjust'
+  | 'delete';
 
 /** Relationships have a single `read`: their listings are bounded by `byEntityId`. */
 export type RelationshipAction = 'read' | 'create' | 'update' | 'delete';
@@ -15,7 +26,18 @@ export type EntityOperation = {
   action: EntityAction;
   entityType: string;
   entityId?: string;
+  /** The fields a `create` or `update` sets. */
   payload?: Record<string, unknown>;
+  /** The amount an `adjust` adds to each numeric field. */
+  adjustments?: Record<string, number>;
+  /**
+   * The relationship this entity materializes, when creating the relationship
+   * also creates it (`asEntity`).
+   */
+  asEntityOf?: Pick<
+    RelationshipOperation,
+    'byEntityType' | 'byEntityId' | 'entityType' | 'entityId'
+  >;
   /** The search term of a `list`, as Core receives it. */
   query?: string;
   /** The field and value of a get by unique field. */
@@ -67,11 +89,19 @@ export type ParseResult =
 
 /**
  * The parts of the generated config the parser reads: which payload fields of
- * each entity are relationships, and to which entity type.
+ * each entity are relationships, to which entity type, and which
+ * relationships materialize an entity (`asEntity`).
  */
 export type ProxyEntityConfig = Record<
   string,
-  { mutual?: { mutualFields?: Record<string, { entityType: string }> } }
+  {
+    mutual?: {
+      mutualFields?: Record<
+        string,
+        { entityType: string; mutual?: { asEntity?: { name: string } } }
+      >;
+    };
+  }
 >;
 
 const hasOwn = (object: object, key: string) =>
@@ -92,6 +122,59 @@ const invalid = (message: string): ParseResult => ({
   message,
 });
 
+// The entity type a relationship materializes (`asEntity`). Its mutual
+// config can sit on either side, as in Core.
+const asEntityType = (
+  entityConfig: ProxyEntityConfig | undefined,
+  byEntityType: string,
+  entityType: string,
+) => {
+  const declared = (from: string, to: string) => {
+    const fields =
+      entityConfig && hasOwn(entityConfig, from)
+        ? entityConfig[from].mutual?.mutualFields
+        : undefined;
+    return Object.values(fields ?? {}).find(
+      (field) => field.entityType === to && field.mutual,
+    )?.mutual?.asEntity?.name;
+  };
+  return (
+    declared(byEntityType, entityType) ?? declared(entityType, byEntityType)
+  );
+};
+
+/**
+ * A relationship create, followed by a create of the entity it materializes
+ * when it has an `asEntity`: the relationship's `mutualData` becomes that
+ * entity's data. `requestedAsEntity` is one the request names, which wins
+ * over the config's. Updates and deletes reach that entity by replication,
+ * so only the create is described.
+ */
+const relationshipCreate = (
+  entityConfig: ProxyEntityConfig | undefined,
+  relationship: RelationshipOperation,
+  requestedAsEntity?: string,
+): ProxyOperation[] => {
+  const { byEntityType, byEntityId, entityType, entityId, payload } =
+    relationship;
+  const asEntity =
+    requestedAsEntity || asEntityType(entityConfig, byEntityType, entityType);
+  if (!asEntity) return [relationship];
+  return [
+    relationship,
+    {
+      kind: 'entity',
+      action: 'create',
+      entityType: asEntity,
+      ...(payload === undefined ? {} : { payload }),
+      asEntityOf: { byEntityType, byEntityId, entityType, entityId },
+      ...(relationship.operationIndex === undefined
+        ? {}
+        : { operationIndex: relationship.operationIndex }),
+    },
+  ];
+};
+
 /**
  * A relationship field in an entity payload writes the relationship from that
  * entity to each listed ID. On create it only adds relationships. On update
@@ -105,7 +188,7 @@ const relationshipFieldOperations = (
   payload: Record<string, unknown> | undefined,
   write: 'create' | 'update',
   operationIndex: number | undefined,
-): RelationshipOperation[] => {
+): ProxyOperation[] => {
   const config =
     entityConfig && hasOwn(entityConfig, entityType)
       ? entityConfig[entityType]
@@ -113,7 +196,7 @@ const relationshipFieldOperations = (
   const fields = config?.mutual?.mutualFields;
   if (!payload || !fields) return [];
 
-  const operations: RelationshipOperation[] = [];
+  const operations: ProxyOperation[] = [];
   for (const [field, value] of Object.entries(payload)) {
     if (!hasOwn(fields, field)) continue;
     const base = {
@@ -127,7 +210,13 @@ const relationshipFieldOperations = (
       ? value.filter((id): id is string => typeof id === 'string')
       : [];
     for (const id of ids) {
-      operations.push({ ...base, action: 'create', entityId: id });
+      operations.push(
+        ...relationshipCreate(entityConfig, {
+          ...base,
+          action: 'create',
+          entityId: id,
+        }),
+      );
     }
     if (write === 'update') operations.push({ ...base, action: 'delete' });
   }
@@ -202,11 +291,11 @@ const transactionOperations = (
       case 'adjustEntity':
         operations.push({
           kind: 'entity',
-          action: 'update',
+          action: 'adjust',
           entityType,
           ...(entityId === undefined ? {} : { entityId }),
           ...(isRecord(entry.adjustments)
-            ? { payload: entry.adjustments }
+            ? { adjustments: entry.adjustments as Record<string, number> }
             : {}),
           operationIndex,
         });
@@ -231,7 +320,7 @@ const transactionOperations = (
             `Operation ${operationIndex} needs byEntityType and byEntityId`,
           );
         }
-        operations.push({
+        const relationship: RelationshipOperation = {
           kind: 'relationship',
           action:
             entry.operation === 'createMutual'
@@ -245,7 +334,13 @@ const transactionOperations = (
           ...(entityId === undefined ? {} : { entityId }),
           ...(payload === undefined ? {} : { payload }),
           operationIndex,
-        });
+        };
+        // A transaction's createMutual uses only the config's asEntity.
+        operations.push(
+          ...(relationship.action === 'create'
+            ? relationshipCreate(entityConfig, relationship)
+            : [relationship]),
+        );
         break;
       }
       default:
@@ -341,23 +436,30 @@ export const parseOperations = ({
       });
     }
     if (rest.length === 3 && third === 'adjust' && verb === 'POST') {
+      // As AdjustEntityController reads the body.
+      const { $condition: _, ...adjustments } = payload ?? {};
       return one({
         kind: 'entity',
-        action: 'update',
+        action: 'adjust',
         entityType,
         entityId: second,
-        ...(payload === undefined ? {} : { payload }),
+        ...(payload === undefined
+          ? {}
+          : { adjustments: adjustments as Record<string, number> }),
       });
     }
     if (rest.length === 2) {
-      const write = (actions: ('create' | 'update')[]): ParseResult => ({
+      const write = (
+        actions: ('create' | 'update')[],
+        data = payload,
+      ): ParseResult => ({
         ok: true,
         operations: entityWrite(
           entityConfig,
           actions,
           entityType,
           second,
-          payload,
+          data,
         ),
       });
       if (verb === 'GET') {
@@ -369,7 +471,12 @@ export const parseOperations = ({
         });
       }
       if (verb === 'PUT') return write(['create', 'update']);
-      if (verb === 'PATCH') return write(['update']);
+      if (verb === 'PATCH') {
+        // As UpdateEntityController reads the body: these aren't data.
+        if (payload === undefined) return write(['update']);
+        const { $condition: _, $where: __, ...data } = payload;
+        return write(['update'], data);
+      }
       if (verb === 'DELETE') {
         return one({
           kind: 'entity',
@@ -418,7 +525,7 @@ export const parseOperations = ({
                 ? 'delete'
                 : undefined;
       if (action) {
-        return one({
+        const relationship: RelationshipOperation = {
           kind: 'relationship',
           action,
           byEntityType,
@@ -428,7 +535,19 @@ export const parseOperations = ({
           ...(payload === undefined || action === 'read' || action === 'delete'
             ? {}
             : { payload }),
-        });
+        };
+        return {
+          ok: true,
+          operations:
+            action === 'create'
+              ? // CreateMutualController passes ?asEntity= to the service.
+                relationshipCreate(
+                  entityConfig,
+                  relationship,
+                  searchParams.get('asEntity') ?? undefined,
+                )
+              : [relationship],
+        };
       }
     }
     return unknown;
