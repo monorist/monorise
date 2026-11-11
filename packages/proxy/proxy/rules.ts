@@ -1,3 +1,4 @@
+import type { Entity } from '@monorise/base';
 import type {
   EntityAction,
   EntityOperation,
@@ -28,7 +29,12 @@ export type RuleContext<Session = unknown> = {
  */
 export type RuleResult = boolean | Response;
 
-export type ProxyRule<Operation = ProxyOperation, Session = unknown> = (
+/**
+ * Decides whether this user may perform one operation. Write shared rules
+ * as `ProxyRule<Session>`; under an entity or action, the operation is
+ * narrowed to that entity type and action.
+ */
+export type ProxyRule<Session = unknown, Operation = ProxyOperation> = (
   operation: Operation,
   context: RuleContext<Session>,
 ) => RuleResult | Promise<RuleResult>;
@@ -42,52 +48,104 @@ export const deny = (): RuleResult => false;
 // biome-ignore lint/suspicious/noExplicitAny: a rule written for any operation or session
 type AnyRule = ProxyRule<any, any>;
 
-export type RelationshipRules<Session = unknown> =
-  | ProxyRule<RelationshipOperation, Session>
-  | Partial<
-      Record<
-        RelationshipAction | '*',
-        ProxyRule<RelationshipOperation, Session>
-      >
-    >;
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+
+// The entity types rules can name: the generated `Entity`, or any string
+// until `monorise dev` generates it.
+type EntityName = keyof typeof Entity extends never ? string : Entity;
+
+// `'*'` stands for every action.
+type ActionOf<Key, All> = Key extends All ? Key : All;
+
+/** Rules for one direction of a relationship, e.g. learner→course. */
+export type RelationshipRules<
+  Session = unknown,
+  By extends string = string,
+  To extends string = string,
+> =
+  | ProxyRule<Session, RelationshipOperation<By, To>>
+  | {
+      [A in RelationshipAction | '*']?: ProxyRule<
+        Session,
+        RelationshipOperation<By, To, ActionOf<A, RelationshipAction>>
+      >;
+    };
+
+type MutualsRules<Session, By extends string> = {
+  /** Every relationship from this entity that has no entry. */
+  '*'?:
+    | ProxyRule<Session, RelationshipOperation<By, EntityName>>
+    | {
+        [A in RelationshipAction]?: ProxyRule<
+          Session,
+          RelationshipOperation<By, EntityName, A>
+        >;
+      };
+} & { [To in EntityName]?: RelationshipRules<Session, By, To> };
 
 /**
  * Rules for one entity type. A single rule covers every action on the entity
  * and its relationships. An object names actions, with `'*'` for the rest of
  * the entity's actions, and `mutuals` for relationships from it.
  */
-export type EntityRules<Session = unknown> =
-  | ProxyRule<EntityOperation | RelationshipOperation, Session>
-  | (Partial<
-      Record<EntityAction | '*', ProxyRule<EntityOperation, Session>>
-    > & {
-      mutuals?: Record<string, RelationshipRules<Session>>;
+export type EntityRules<Session = unknown, T extends string = string> =
+  | ProxyRule<
+      Session,
+      EntityOperation<T> | RelationshipOperation<T, EntityName>
+    >
+  | ({
+      [A in EntityAction | '*']?: ProxyRule<
+        Session,
+        EntityOperation<T, ActionOf<A, EntityAction>>
+      >;
+    } & { mutuals?: MutualsRules<Session, T> });
+
+type TableRules<Session> =
+  | ProxyRule<Session>
+  | {
+      [A in EntityAction | RelationshipAction]?: ProxyRule<
+        Session,
+        | (A extends EntityAction ? EntityOperation<string, A> : never)
+        | (A extends RelationshipAction
+            ? RelationshipOperation<string, string, A>
+            : never)
+      >;
+    };
+
+// Before `Entity` is generated, every entry takes rules on any operation.
+type UntypedRules<Session> =
+  | ProxyRule<Session>
+  | ({
+      [A in EntityAction | RelationshipAction | '*']?: ProxyRule<Session>;
+    } & {
+      mutuals?: Record<
+        string,
+        | ProxyRule<Session>
+        | { [A in RelationshipAction | '*']?: ProxyRule<Session> }
+      >;
     });
 
 /**
  * Rules keyed by entity type. `'*'` applies to anything the table doesn't
  * name: a single rule for every operation, or rules per action.
  */
-export type ProxyRules<Session = unknown> = {
-  '*'?:
-    | AnyRule
-    | Partial<
-        Record<
-          EntityAction | RelationshipAction,
-          ProxyRule<EntityOperation | RelationshipOperation, Session>
-        >
-      >;
-} & Record<string, EntityRules<Session> | AnyRule | object | undefined>;
+export type ProxyRules<Session = unknown> = string extends EntityName
+  ? Record<string, UntypedRules<Session>>
+  : { '*'?: TableRules<Session> } & {
+      [T in EntityName]?: EntityRules<Session, T>;
+    };
 
 /**
  * Rules for custom routes, keyed by `'METHOD /app/path'`. A `:param` segment
  * matches any one segment and a trailing `*` matches the rest; `'*'` applies
  * to every route the table doesn't name.
  */
-export type RouteRules<Session = unknown> = Record<
-  string,
-  ProxyRule<RouteOperation, Session>
->;
+export type RouteRules<Session = unknown> = {
+  [K in `${HttpMethod} /app/${string}` | '*']?: ProxyRule<
+    Session,
+    RouteOperation
+  >;
+};
 
 const hasOwn = (object: object, key: string) =>
   Object.prototype.hasOwnProperty.call(object, key);
@@ -106,7 +164,7 @@ const ruleFor = (value: unknown, action: string) =>
   asRule(value) ?? asRule(own(value, action));
 
 const matchRoute = (
-  routes: RouteRules<unknown> | undefined,
+  routes: object | undefined,
   operation: RouteOperation,
 ): { rule: AnyRule; params: Record<string, string> } | undefined => {
   if (!routes) return undefined;
@@ -150,8 +208,8 @@ const matchRoute = (
  * `undefined` means no rule: the operation is refused.
  */
 export const findRule = (
-  rules: ProxyRules<never> | undefined,
-  routes: RouteRules<never> | undefined,
+  rules: object | undefined,
+  routes: object | undefined,
   operation: ProxyOperation,
 ): { rule: AnyRule; operation: ProxyOperation } | undefined => {
   const tableFallback = own(rules, '*');
@@ -180,10 +238,7 @@ export const findRule = (
     );
   }
 
-  const route = matchRoute(
-    routes as RouteRules<unknown> | undefined,
-    operation,
-  );
+  const route = matchRoute(routes, operation);
   if (route) return found(route.rule, { ...operation, params: route.params });
   return found(asRule(own(routes, '*')) ?? asRule(tableFallback));
 };
@@ -235,11 +290,7 @@ export const checkOperations = async <Session>({
   logMissingRules?: boolean;
 }): Promise<Response | undefined> => {
   for (const operation of operations) {
-    const found = findRule(
-      rules as ProxyRules<never> | undefined,
-      routes as RouteRules<never> | undefined,
-      operation,
-    );
+    const found = findRule(rules, routes, operation);
     if (!found) {
       if (logMissingRules) {
         console.warn(

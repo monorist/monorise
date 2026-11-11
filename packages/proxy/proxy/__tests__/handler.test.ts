@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createProxyHandler } from '../handler';
 import type { ProxyOperation } from '../operations';
-import { type ProxyRule, type RuleContext, allow, deny } from '../rules';
+import { type ProxyRule, allow, deny } from '../rules';
 
 type Session = { type: 'hirer' | 'talent'; hirerId?: string; userId: string };
 
@@ -21,10 +21,8 @@ const sessions: Record<string, Session> = {
 const readSession = (request: Request) =>
   sessions[request.headers.get('cookie') ?? ''];
 
-const isMyOrganization: ProxyRule<ProxyOperation, Session> = (
-  operation,
-  { session },
-) => operation.kind === 'entity' && operation.entityId === session?.hirerId;
+const isMyOrganization: ProxyRule<Session> = (operation, { session }) =>
+  operation.kind === 'entity' && operation.entityId === session?.hirerId;
 
 const proxy = createProxyHandler<Session>({
   config,
@@ -504,7 +502,7 @@ describe('createProxyHandler: refusals', () => {
 
 describe('createProxyHandler: rule context', () => {
   it("gives rules a Core client with the caller's key", async () => {
-    const inMyOrganization: ProxyRule<ProxyOperation, Session> = async (
+    const inMyOrganization: ProxyRule<Session> = async (
       operation,
       { session, core },
     ) =>
@@ -548,7 +546,7 @@ describe('createProxyHandler: rule context', () => {
       authenticate: async (req) => ({ body: await req.clone().json() }),
       apiKey: 'k',
       rules: {
-        order: async (_: ProxyOperation, { request: original }: RuleContext) =>
+        order: async (_, { request: original }) =>
           (await original.json()).total === 5,
       },
     });

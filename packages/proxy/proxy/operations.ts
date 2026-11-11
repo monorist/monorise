@@ -5,17 +5,47 @@
  * `deleteEntity` and a `DELETE /entity/...` are the same operation.
  */
 
+import type { ApiKeyMutualDataFields, EntitySchemaMap } from '@monorise/base';
+
 export type EntityAction = 'get' | 'list' | 'create' | 'update' | 'delete';
 
 /** Relationships have a single `read`: their listings are bounded by `byEntityId`. */
 export type RelationshipAction = 'read' | 'create' | 'update' | 'delete';
 
-export type EntityOperation = {
+/**
+ * An entity's fields, from the generated `EntitySchemaMap`. Rules see the
+ * payload before Core validates it, so every field may be missing.
+ */
+export type EntityPayload<T extends string = string> = string extends T
+  ? Record<string, unknown>
+  : T extends keyof EntitySchemaMap
+    ? Partial<EntitySchemaMap[T]>
+    : Record<string, unknown>;
+
+type MutualDataField<
+  By extends string,
+  To extends string,
+> = By extends keyof ApiKeyMutualDataFields
+  ? To extends keyof ApiKeyMutualDataFields[By]
+    ? Extract<ApiKeyMutualDataFields[By][To], string>
+    : string
+  : string;
+
+/** A relationship's `mutualData`, with the field names the generated config declares. */
+export type MutualDataPayload<
+  By extends string = string,
+  To extends string = string,
+> = { [K in MutualDataField<By, To>]?: unknown };
+
+export type EntityOperation<
+  T extends string = string,
+  A extends EntityAction = EntityAction,
+> = {
   kind: 'entity';
-  action: EntityAction;
-  entityType: string;
+  action: A;
+  entityType: T;
   entityId?: string;
-  payload?: Record<string, unknown>;
+  payload?: EntityPayload<T>;
   /** The search term of a `list`. */
   query?: string;
   /** The field and value of a get by unique field. */
@@ -26,20 +56,23 @@ export type EntityOperation = {
   operationIndex?: number;
 };
 
-export type RelationshipOperation = {
+export type RelationshipOperation<
+  By extends string = string,
+  To extends string = string,
+  A extends RelationshipAction = RelationshipAction,
+> = {
   kind: 'relationship';
-  action: RelationshipAction;
-  byEntityType: string;
+  action: A;
+  byEntityType: By;
   /**
    * Absent for a relationship field on an entity created without an ID, and
    * for every hop of a chain query after the first.
    */
   byEntityId?: string;
-  entityType: string;
+  entityType: To;
   /** Absent when listing, and for the relationships an update's new list removes. */
   entityId?: string;
-  /** `mutualData`. */
-  payload?: Record<string, unknown>;
+  payload?: MutualDataPayload<By, To>;
   operationIndex?: number;
 };
 
