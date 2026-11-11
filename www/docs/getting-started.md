@@ -34,8 +34,9 @@ my-app/
 │   │   ├── page.tsx                  # Example page with useEntities + createEntity
 │   │   ├── globals.css               # Shadcn theme variables (oklch)
 │   │   └── api/
-│   │       ├── proxy-request.ts      # Rewrites /api/* to monorise backend
-│   │       └── [...proxy]/route.ts   # Catch-all route (GET/POST/PUT/PATCH/DELETE)
+│   │       └── core/
+│   │           ├── [...path]/route.ts    # Proxy to monorise: createProxyHandler
+│   │           └── ws/ticket/…/route.ts  # WebSocket tickets for useEntityFeed
 │   ├── components/
 │   │   ├── global-initializer.tsx    # Monorise store configuration
 │   │   ├── global-loader.tsx         # Full-screen interruptive loading overlay
@@ -64,7 +65,7 @@ my-app/
 | **Shadcn UI** | Pre-installed button, card, input, label components with theme variables |
 | **Global Loader** | `useInterruptiveLoadStore` → full-screen loading overlay via portal |
 | **Global Initializer** | Calls `Monorise.config()` with your entity config on app mount |
-| **API Proxy** | Next.js catch-all route at `/api/*` that proxies requests to monorise backend |
+| **API Proxy** | One route at `/api/core/*` that forwards to monorise with [`createProxyHandler`](/proxy); add sign-in and rules as you go |
 | **Mutual relationship** | `User` <-> `Team` via `createMutualConfig`, showing a shared, validated mutual schema |
 | **Path Aliases** | `#/monorise` (or `#/monorise/*`) for generated types, `#/*` for app-local imports |
 

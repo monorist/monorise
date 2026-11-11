@@ -96,7 +96,7 @@ const { isConnected, error } = useEntityFeed({
 When User A has a mutual with Channel X, and a new message is created in Channel X, User A receives the update automatically. No manual per-channel subscription needed.
 
 The feed hook:
-- Fetches a ticket via your proxy (or the default catch-all route)
+- Fetches a ticket via your ticket route (or the default one `monorise init` generates)
 - Connects to WebSocket with the ticket
 - Routes all broadcast events into the entity and mutual stores
 - Refreshes the ticket before expiry
@@ -123,7 +123,7 @@ The entity feed deserves a deeper explanation since it's the primary way to add 
 
 This follows the same pattern as `customUrl` in `useEntities` and `useMutuals`:
 
-**Default (internal apps)** — goes through the catch-all proxy, no user-level auth (API key only):
+**Default (internal apps)** — `POST /api/core/ws/ticket/:entityType/:entityId`, the route `monorise init` generates, with no user-level auth (API key only). The [proxy](/proxy#websocket-tickets) doesn't forward ticket requests, so this route sits next to it:
 
 ::: warning
 The default route issues tickets for any entity without user authentication. Use this only for local development and internal tooling. For client-facing apps, always use a custom `ticketEndpoint` with your own auth.

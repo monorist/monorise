@@ -669,18 +669,27 @@ async function runInitCommand(rootPath?: string) {
       );
     }
 
-    // Create API proxy routes
+    // Create the API proxy route, and the WebSocket ticket route the proxy
+    // leaves to its own route
     console.log('🔀 Creating API proxy routes...');
-    const apiDir = path.join(appDir, 'api');
-    const catchAllDir = path.join(apiDir, '[...proxy]');
-    fs.mkdirSync(catchAllDir, { recursive: true });
+    const coreApiDir = path.join(appDir, 'api', 'core');
+    const proxyDir = path.join(coreApiDir, '[...path]');
+    const ticketDir = path.join(
+      coreApiDir,
+      'ws',
+      'ticket',
+      '[entityType]',
+      '[entityId]',
+    );
+    fs.mkdirSync(proxyDir, { recursive: true });
+    fs.mkdirSync(ticketDir, { recursive: true });
     fs.writeFileSync(
-      path.join(apiDir, 'proxy-request.ts'),
-      readTemplate('proxy-request.ts'),
+      path.join(proxyDir, 'route.ts'),
+      readTemplate('proxy-route.ts'),
     );
     fs.writeFileSync(
-      path.join(catchAllDir, 'route.ts'),
-      readTemplate('proxy-route.ts'),
+      path.join(ticketDir, 'route.ts'),
+      readTemplate('ws-ticket-route.ts'),
     );
   }
 

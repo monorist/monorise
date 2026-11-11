@@ -149,6 +149,8 @@ support: { entities: { '*': 'read' }, routes: ['reports', 'checkout:discount'] }
 - **A route without `requires()` is callable only by `full` keys**, so a new route never opens up to scoped keys by accident.
 - **Typed names:** the CLI types `requires()` with the names your policies grant, so a misspelled name fails to compile.
 
+The key says which kind of caller may call a route, not which user. Behind the [proxy](/proxy#custom-routes), a route takes the identity it needs from its body or path, and a route rule checks it against the session.
+
 Inside a route, `c.get('apiKey')` is the resolved key:
 
 | Member | Returns |
