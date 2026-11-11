@@ -28,14 +28,17 @@ export const fingerprintApiKey = (key: string): string =>
 
 const SHA256_DIGEST = /^[0-9a-f]{64}$/i;
 
-const toFingerprint = (entry: string): string => {
+// A typo'd or truncated digest would never match any key, so it's reported.
+// Like other per-key problems it's dropped with an error log, not thrown: a
+// throw here would stop every function that loads the API from starting.
+const toFingerprint = (entry: string, where: string): string | undefined => {
   if (!entry.startsWith(SHA256_PREFIX)) return fingerprintApiKey(entry);
   const digest = entry.slice(SHA256_PREFIX.length);
-  // A typo'd or truncated digest would otherwise never match any key.
   if (!SHA256_DIGEST.test(digest)) {
-    throw new Error(
-      `[monorise] API_KEYS: '${SHA256_PREFIX}' entries must be followed by a 64-character hex SHA-256 digest`,
+    console.error(
+      `[monorise] API_KEYS: a '${SHA256_PREFIX}' entry in ${where} isn't a 64-character hex SHA-256 digest and will be rejected`,
     );
+    return undefined;
   }
   return digest.toLowerCase();
 };
@@ -61,8 +64,9 @@ const assertKeyList = (value: unknown, where: string): string[] => {
  *   `{"full": ["key-1"], "reporting": ["key-2", "sha256:<hex>"]}`
  *
  * A `sha256:` entry is a pre-hashed key, so the secret need not hold the key
- * itself. Keys under a policy name that isn't defined, or listed under two
- * policies, are dropped with an error log: they fail closed with a 401.
+ * itself. Keys under a policy name that isn't defined, listed under two
+ * policies, or with a malformed digest, are dropped with an error log: they
+ * fail closed with a 401.
  */
 export const parseApiKeys = (
   raw: string | undefined,
@@ -75,7 +79,8 @@ export const parseApiKeys = (
 
   if (Array.isArray(parsed)) {
     for (const key of assertKeyList(parsed, 'the array form')) {
-      fingerprints.set(toFingerprint(key), FULL_POLICY);
+      const fingerprint = toFingerprint(key, 'the array form');
+      if (fingerprint) fingerprints.set(fingerprint, FULL_POLICY);
     }
     return fingerprints;
   }
@@ -95,7 +100,8 @@ export const parseApiKeys = (
       );
     }
     for (const key of keyList) {
-      const fingerprint = toFingerprint(key);
+      const fingerprint = toFingerprint(key, `policy '${policy}'`);
+      if (!fingerprint) continue;
       const policies = policiesByFingerprint.get(fingerprint) ?? new Set();
       policies.add(policy);
       policiesByFingerprint.set(fingerprint, policies);
