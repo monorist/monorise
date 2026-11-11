@@ -12,6 +12,7 @@ import {
 import { fileURLToPath } from 'node:url';
 import {
   apiKeyPoliciesHandleParts,
+  apiKeysFile,
   resolveApiKeysPath,
   routePermissionDeclarations,
   validateApiKeyPoliciesFile,
@@ -295,7 +296,11 @@ export const wsBroadcast = coreFactory.wsBroadcast;
   return handleOutputPath;
 }
 
-async function generateFiles(rootPath?: string): Promise<string> {
+// What `monorise dev` watches: the entity configs, and the policy file,
+// which lives outside them.
+type GeneratedFrom = { configDir: string; apiKeysFile?: string };
+
+async function generateFiles(rootPath?: string): Promise<GeneratedFrom> {
   const baseDir = rootPath ? path.resolve(rootPath) : process.cwd();
   const configFilePathTS = path.join(baseDir, 'monorise.config.ts');
   const configFilePathJS = path.join(baseDir, 'monorise.config.js');
@@ -351,7 +356,10 @@ async function generateFiles(rootPath?: string): Promise<string> {
     apiKeysPath,
   );
 
-  return configDir;
+  return {
+    configDir,
+    apiKeysFile: apiKeysPath && apiKeysFile(apiKeysPath),
+  };
 }
 
 const MONORISE_LOGO = `
@@ -745,10 +753,16 @@ async function runInitCommand(rootPath?: string) {
   console.log('');
 }
 
-async function runDevCommand(configDir: string, rootPath?: string) {
+async function runDevCommand(
+  { configDir, apiKeysFile }: GeneratedFrom,
+  rootPath?: string,
+) {
   console.log(MONORISE_LOGO);
-  console.log(`Watching for changes in ${configDir}...`);
-  const watcher = chokidar.watch(configDir, {
+  console.log(
+    `Watching for changes in ${apiKeysFile ? `${configDir} and ${apiKeysFile}` : configDir}...`,
+  );
+  const watched = apiKeysFile ? [configDir, apiKeysFile] : configDir;
+  const watcher = chokidar.watch(watched, {
     ignored: (watchedPath: string) => {
       const fileName = path.basename(watchedPath);
       return (
@@ -822,8 +836,7 @@ async function main() {
 
   try {
     if (command === 'dev') {
-      const configDir = await generateFiles(rootPath);
-      await runDevCommand(configDir, rootPath);
+      await runDevCommand(await generateFiles(rootPath), rootPath);
     } else if (command === 'build') {
       await runBuildCommand(rootPath);
     } else if (command === 'init') {
