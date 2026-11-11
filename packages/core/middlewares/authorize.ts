@@ -627,36 +627,38 @@ export const requires = (
 
 /**
  * Runs in front of the custom routes. A route that declares no permission
- * with `requires()`, or whose `requires()` runs after its handler, is
- * callable only by `full` keys, so a custom route never opens up to scoped
- * keys by accident.
+ * with `requires()` is callable only by `full` keys, so a custom route never
+ * opens up to scoped keys by accident.
+ *
+ * The gate checks every `requires()` the request matches itself, before any
+ * custom handler runs. A handler that responds first, an `.all()` route, or
+ * a `requires()` registered after the route can't skip the check.
  */
 export const customRouteGate = () =>
   createMiddleware(async (c, next) => {
     const key = restrictedKey(c);
     if (key) {
       // `matchedRoutes` lists every handler the request will run, including
-      // the custom app's own, in the order they run, before any of them runs.
-      // `use()` middleware is method ALL; the first method-specific handler
-      // may respond, so a requires() after it might never run.
-      const matched = c.req.matchedRoutes;
-      const permission = matched.findIndex(
-        (route) =>
-          (route.handler as unknown as Record<symbol, unknown>)[
-            ROUTE_PERMISSION
-          ] !== undefined,
-      );
-      const handler = matched.findIndex((route) => route.method !== 'ALL');
-      if (permission === -1) {
+      // the custom app's own, before any of them runs.
+      const permissions = c.req.matchedRoutes.flatMap((route) => {
+        const permission = (
+          route.handler as unknown as Record<symbol, unknown>
+        )[ROUTE_PERMISSION];
+        return typeof permission === 'string'
+          ? [permission as ApiKeyRoutePermission]
+          : [];
+      });
+      if (!permissions.length) {
         return forbidden(
           c,
           "This route declares no permission with requires(), so only 'full' keys can call it",
         );
       }
-      if (handler !== -1 && permission > handler) {
+      const missing = permissions.find((permission) => !key.has(permission));
+      if (missing !== undefined) {
         return forbidden(
           c,
-          "This route's requires() runs after its handler, so only 'full' keys can call it. Put requires() first in the route, or in a use() registered before it",
+          `API key policy '${key.policy}' does not grant '${missing}'`,
         );
       }
     }
