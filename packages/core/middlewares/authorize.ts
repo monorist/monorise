@@ -43,6 +43,9 @@ type Denial =
 const ROUTE_GUARD = Symbol.for('monorise.routeGuard');
 const ROUTE_PERMISSION = Symbol.for('monorise.routePermission');
 
+// Request-body keys the controllers take out before writing: not data fields.
+const NOT_DATA = new Set(['$condition', '$where']);
+
 // Tags a guard with what it requires, so a test can check that every route
 // declares a requirement and that each one is the intended requirement.
 const routeGuard = (
@@ -194,12 +197,13 @@ export const createRouteGuards = (entityConfig: EntityConfigs) => {
     new Set(Object.keys(entityConfig[entityType]?.mutual?.mutualFields ?? {}));
 
   // The data fields a payload sets. Relationship fields are checked against
-  // their direction instead, and `$` keys ($condition, $where) are not data.
+  // their direction instead. The controllers take only $condition and $where
+  // out of the body, so any other `$` key is written as data and checked.
   const dataFields = (entityType: string, payload: unknown) => {
     if (typeof payload !== 'object' || payload === null) return [];
     const relationships = relationshipFieldNames(entityType);
     return Object.keys(payload).filter(
-      (field) => !field.startsWith('$') && !relationships.has(field),
+      (field) => !NOT_DATA.has(field) && !relationships.has(field),
     );
   };
 

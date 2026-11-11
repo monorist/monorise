@@ -860,6 +860,17 @@ describe('field-level write', () => {
     ).toEqual(['total']);
   });
 
+  it('checks $ keys other than $condition and $where as data', async () => {
+    expect(
+      (await write('POST', '/entity/order/1/adjust', { $credit: 100 })).body
+        .fields,
+    ).toEqual(['$credit']);
+    expect(
+      (await write('PATCH', '/entity/order/1', { $status: 'paid' })).body
+        .fields,
+    ).toEqual(['$status']);
+  });
+
   it('checks mutualData against the direction create and update lists', async () => {
     expect(
       (await write('POST', '/mutual/learner/1/course/9', { role: 'student' }))
