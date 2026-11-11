@@ -15,7 +15,7 @@ import { createEntityConfig } from 'monorise/base';
 import { useEntities, useMutuals } from 'monorise/react';
 import CoreFactory from 'monorise/core';
 const { monorise } = await import('monorise/sst');
-import { generateWebSocketTicket } from 'monorise/proxy';
+import { createProxyHandler } from 'monorise/proxy';
 ```
 
 ## Individual packages
@@ -27,7 +27,7 @@ import { generateWebSocketTicket } from 'monorise/proxy';
 | `@monorise/cli` | Generates `.monorise/config.ts` + `.monorise/handle.ts` | `npm i @monorise/cli` |
 | `@monorise/react` | Client SDK — hooks, stores, axios helpers | `npm i @monorise/react` |
 | `@monorise/sst` | SST v4 module — API, bus, table, queues, processors | `npm i @monorise/sst` |
-| `@monorise/proxy` | Server-side helpers for proxy routes (ticket generation) | `npm i @monorise/proxy` |
+| `@monorise/proxy` | Server-side proxy route: `createProxyHandler`, rules, ticket generation | `npm i @monorise/proxy` |
 
 ## `monorise/base`
 
@@ -58,10 +58,10 @@ The frontend SDK for React applications. Provides:
 
 ## `monorise/proxy`
 
-Server-side helpers for proxy routes. Currently provides:
-- **`generateWebSocketTicket()`** — issues a WebSocket ticket for entity feed subscriptions. Call this from your proxy route after validating auth.
-
-See [WebSocket > Entity Feed](/websocket#entity-feed) for usage.
+Your app's server route in front of Monorise Core. Provides:
+- **`createProxyHandler()`** — reads the session, picks the caller's API key, checks per-user rules and forwards to Core. Works with Next.js, React Router, Hono and any web-standard `Request`. See [Proxy](/proxy).
+- **`allow`, `deny` and the rule types** — `ProxyRules`, `RouteRules` and `ProxyRule`, typed from your generated config.
+- **`generateWebSocketTicket()`** — issues a WebSocket ticket for entity feed subscriptions. Call this from a ticket route after checking the user. See [WebSocket > Entity Feed](/websocket#entity-feed).
 
 ## `monorise/sst`
 
