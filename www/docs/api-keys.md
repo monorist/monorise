@@ -210,6 +210,8 @@ A key listed under a policy that isn't defined, under more than one policy, or a
 
 Policies are roles, and keys are credentials. Give each app its own key value, even when two apps share a policy, so you can rotate or revoke one app on its own.
 
+One app can also have several kinds of caller, such as signed-in customers and anonymous visitors. The [proxy](/proxy#keys-for-each-kind-of-caller) gives each kind its own key and policy.
+
 Every app sends the same `x-api-key` header. One SST secret has a single value per stage, so each app needs its own secret. Pass it under the same environment variable, so the proxy code is identical in every app:
 
 ```ts
@@ -229,5 +231,5 @@ new sst.aws.Nextjs('client', {
 ```
 
 ::: tip
-A key identifies the calling server, not the end user. Monorise does no user authentication. Rules like "a user only sees their own orders" belong in your proxy or in custom routes.
+A key identifies the calling server, not the end user. Monorise does no user authentication. Rules like "a user only sees their own orders" belong in your [proxy's rules](/proxy#rules) or in custom routes.
 :::
