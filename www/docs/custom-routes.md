@@ -156,7 +156,7 @@ Inside a route, `c.get('apiKey')` is the resolved key:
 |---|---|
 | `policy` | The policy name, e.g. `'client'` |
 | `fingerprint` | The key's SHA-256 digest, safe to log |
-| `can(action, entityType, fields?)` | Whether the key may `read`, `create`, `update` or `delete` that type, and those fields |
+| `can(action, entityType, fields?)` | Whether the key may `read` (get), `list`, `create`, `update` or `delete` that type, and those fields |
 | `has(permission)` | Whether the policy grants a route permission |
 | `mask(entityType, entity)` | The entity with the fields the key can't read removed |
 

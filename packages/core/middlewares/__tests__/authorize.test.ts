@@ -90,11 +90,12 @@ const policies: ApiKeyPolicies = {
     entities: {
       order: {
         read: ['total', 'status', 'notes'],
+        list: true,
         create: ['customerId', 'items', 'notes'],
         update: ['status', 'notes', 'quantity'],
       },
       invoice: { create: '*', update: ['notes'] },
-      shipment: { read: ['status'], tags: ['region'] },
+      shipment: { read: ['status'], list: true, tags: ['region'] },
       learner: {
         read: '*',
         mutuals: { course: { read: '*', create: ['role'], update: ['role'] } },
@@ -154,6 +155,7 @@ app.use(
 );
 const ok = (c: { json: (body: unknown) => Response }) => c.json({ ok: true });
 app.get('/entity/:entityType', guard.entity('list'), ok);
+app.get('/entity/:entityType/:entityId', guard.entity('read'), ok);
 app.get(
   '/entity/:entityType/unique/:uniqueField/:uniqueFieldValue',
   guard.entity('unique'),
@@ -237,8 +239,8 @@ describe('entity guard', () => {
     );
   });
 
-  it('allows read when a write list grants it', async () => {
-    expect((await call('editor-key', 'GET', '/entity/learner')).status).toBe(
+  it('allows get when a write list grants read', async () => {
+    expect((await call('editor-key', 'GET', '/entity/learner/1')).status).toBe(
       200,
     );
   });
@@ -550,6 +552,7 @@ describe('custom route permissions', () => {
       return c.json({
         readOrder: key.can('read', 'order'),
         readTotal: key.can('read', 'order', ['total']),
+        listOrders: key.can('list', 'order'),
         readStatus: key.can('read', 'order', ['status']),
         readCost: key.can('read', 'order', ['total', 'cost']),
         updateStatus: key.can('update', 'order', ['status']),
@@ -568,6 +571,7 @@ describe('custom route permissions', () => {
     expect(await res.json()).toEqual({
       readOrder: true,
       readTotal: true,
+      listOrders: false,
       readStatus: true,
       readCost: false,
       updateStatus: true,
@@ -1100,5 +1104,43 @@ describe('read paths that match on fields', () => {
           "API key policy 'writer' does not allow reading tag 'region' of 'order'",
       },
     });
+  });
+});
+
+describe('listing', () => {
+  it('allows get by ID but not listing for an object grant without list', async () => {
+    expect((await call('writer-key', 'GET', '/entity/invoice/1')).status).toBe(
+      200,
+    );
+    expect(await call('writer-key', 'GET', '/entity/invoice')).toEqual({
+      status: 403,
+      body: {
+        code: 'FORBIDDEN',
+        message: "API key policy 'writer' does not allow list on 'invoice'",
+      },
+    });
+  });
+
+  it('allows listing for a shorthand grant and for list: true', async () => {
+    expect((await call('reader-key', 'GET', '/entity/course')).status).toBe(
+      200,
+    );
+    expect((await call('writer-key', 'GET', '/entity/order')).status).toBe(200);
+  });
+
+  it('needs list to search or to query a tag', async () => {
+    expect(
+      (await call('writer-key', 'GET', '/entity/invoice?query=x')).body.message,
+    ).toBe("API key policy 'writer' does not allow list on 'invoice'");
+    expect(
+      (await call('writer-key', 'GET', '/tag/invoice/region')).body.message,
+    ).toBe("API key policy 'writer' does not allow list on 'invoice'");
+  });
+
+  it('keeps unique lookups a get, needing only read on the field', async () => {
+    expect(
+      (await call('writer-key', 'GET', '/entity/invoice/unique/number/INV-1'))
+        .status,
+    ).toBe(200);
   });
 });

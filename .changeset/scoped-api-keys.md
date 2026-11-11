@@ -25,7 +25,7 @@ export default defineApiKeyPolicies({
   'agent-read': 'read',
   client: {
     entities: {
-      [Entity.ORDER]: { read: '*', create: ['customerId', 'items'], update: ['status'] },
+      [Entity.ORDER]: { read: '*', list: true, create: ['customerId', 'items'], update: ['status'] },
       [Entity.LEARNER]: {
         read: '*',
         mutuals: { [Entity.COURSE]: { read: '*', create: ['role'], delete: true } },
@@ -41,10 +41,12 @@ export default defineApiKeyPolicies({
 { "full": ["proxy-key"], "client": ["client-key"], "agent-read": ["agent-key"] }
 ```
 
-- **Shorthands are broad, objects are exact.** `'read'` and `'write'` grant every field, tag and relationship at that level. An object grants only what it lists. Any write implies read on the same fields.
+- **Shorthands are broad, objects are exact.** `'read'` and `'write'` grant every field, tag and relationship at that level, listing included. An object grants only what it lists. Any write implies read on the same fields.
+- **Get and list are separate.** `read` allows getting a record by ID or unique field. Listing the whole type, searching and querying tags also need `list: true`. A get needs a reference the caller already holds; a listing pages through every record.
 - **Relationships are granted per direction**, keyed under the first entity in the URL. An entry for learner→course says nothing about course→learner.
 - **Pre-hashed keys.** An `API_KEYS` entry written as `sha256:<hex>` lets the secret hold a digest instead of the key.
 - **Fails closed.** A key under an undefined policy, or under more than one policy, is rejected with a 401 and logged.
+- **Typed names.** Entity field names, tag names and `mutualData` field names are typed from the configs the CLI generates.
 - **Validated at build and at start.** `monorise dev` and `monorise build` reject unknown entities, fields, tags and relationship targets, create grants that leave out a required field, and a policy file inside `configDir`. The API handler repeats the check at cold start. If it fails, the handler logs the problems and rejects every key under the project's policies, while `full` keys and the processors keep running.
 
 ### What a scoped key can do
@@ -56,9 +58,9 @@ export default defineApiKeyPolicies({
 - **Relationship fields** in entity payloads check their direction: create needs create; update needs create and delete. Creating an `asEntity` relationship also needs create on that entity type.
 - **Masked reads:** responses leave out the fields the key can't read. That covers entities, lists, tags, relationship `data` and `mutualData`, transaction results, and the entity a write returns.
 - **Field-matching requests:**
-  - search needs read on every searchable field;
+  - search needs `list` and read on every searchable field;
   - a unique lookup needs read on its field;
-  - a tag needs `read: '*'` or an explicit `tags` grant.
+  - a tag needs `list`, plus `read: '*'` or an explicit `tags` grant.
 - **Transactions** are checked operation by operation before anything runs. One forbidden operation rejects the whole transaction, with its `operationIndex`.
 - **WebSocket:** `POST /ws/ticket` accepts only `full` keys, because ticket feeds aren't scoped yet.
 
@@ -77,6 +79,10 @@ app.use('/reports/*', requires('reports'));
   - `policy` and `fingerprint` (the key's SHA-256 digest, safe to log);
   - `can(action, entityType, fields?)` and `has(permission)`;
   - `mask(entityType, entity)`.
+
+### Tracing changes
+
+Every event published while handling an API request records the calling key in its detail, as `apiKey: { policy, fingerprint }`. That includes writes custom routes make through `container` services. Events from processors carry no key. Error logs include the policy name.
 
 ### Also
 
