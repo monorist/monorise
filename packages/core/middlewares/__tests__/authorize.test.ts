@@ -1,25 +1,133 @@
 import type { ApiKeyPolicies } from '@monorise/base';
 import { Hono } from 'hono';
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
+import {
+  type Entity as EntityType,
+  createEntityConfig,
+  createMutualConfig,
+} from '../../../base';
 import { setupCommonRoutes } from '../../controllers/setupRoutes';
 import { DependencyContainer } from '../../services/DependencyContainer';
 import { createApiKeyAuth, parseApiKeys } from '../api-key-auth';
 import {
+  createRouteGuards,
   customRouteGate,
-  requireEntity,
   requireFullPolicy,
-  requireMutualTypes,
-  requireTransactionOperations,
   requires,
   routeGuardRequirement,
 } from '../authorize';
+
+const as = (name: string) => name as unknown as EntityType;
+const named = (name: string) =>
+  createEntityConfig({
+    name,
+    displayName: name,
+    baseSchema: z.object({ name: z.string() }).partial(),
+  });
+
+const enrollment = named('enrollment');
+const entityConfig = {
+  learner: createEntityConfig({
+    name: 'learner',
+    displayName: 'Learner',
+    baseSchema: z.object({ name: z.string() }).partial(),
+    mutual: {
+      mutualSchema: z
+        .object({
+          courseIds: z.string().array(),
+          cohortIds: z.string().array(),
+        })
+        .partial(),
+      mutualFields: {
+        courseIds: { entityType: as('course') },
+        cohortIds: {
+          entityType: as('cohort'),
+          mutual: createMutualConfig({
+            entities: [as('learner'), as('cohort')],
+            asEntity: enrollment,
+          }),
+        },
+      },
+    },
+  }),
+  course: createEntityConfig({
+    name: 'course',
+    displayName: 'Course',
+    baseSchema: z.object({ name: z.string() }).partial(),
+    searchableFields: ['name'],
+  }),
+  order: createEntityConfig({
+    name: 'order',
+    displayName: 'Order',
+    baseSchema: z
+      .object({
+        total: z.number(),
+        status: z.string(),
+        notes: z.string(),
+        email: z.string(),
+        customerName: z.string(),
+      })
+      .partial(),
+    searchableFields: ['customerName', 'email'],
+    uniqueFields: ['email'],
+    tags: [{ name: 'region', processor: () => [] }],
+  }),
+  module: named('module'),
+  cohort: named('cohort'),
+  enrollment,
+};
 
 const policies: ApiKeyPolicies = {
   reader: { entities: { course: 'read', learner: { read: ['name'] } } },
   editor: {
     entities: {
-      course: { read: '*', create: ['title'], update: ['title'] },
+      course: { read: '*', create: ['title', '$entityId'], update: ['title'] },
       learner: { update: ['name'] },
+    },
+  },
+  writer: {
+    entities: {
+      order: {
+        read: ['total', 'status', 'notes'],
+        list: true,
+        create: ['customerId', 'items', 'notes'],
+        update: ['status', 'notes', 'quantity'],
+      },
+      invoice: { create: '*', update: ['notes'] },
+      shipment: { read: ['status'], list: true, tags: ['region'] },
+      learner: {
+        read: '*',
+        mutuals: { course: { read: '*', create: ['role'], update: ['role'] } },
+      },
+      course: 'read',
+    },
+  },
+  client: {
+    entities: {
+      learner: {
+        read: '*',
+        create: ['name'],
+        update: ['name'],
+        mutuals: { course: { read: '*', create: ['role'], delete: true } },
+      },
+      course: { read: '*', mutuals: { module: 'read' } },
+      module: 'read',
+      cohort: 'read',
+    },
+  },
+  enroller: {
+    entities: {
+      learner: { read: '*', mutuals: { cohort: 'write' } },
+      cohort: 'read',
+      enrollment: 'write',
+    },
+  },
+  'enroller-without-enrollment': {
+    entities: {
+      learner: { read: '*', mutuals: { cohort: 'write' } },
+      cohort: 'read',
+      enrollment: 'read',
     },
   },
 };
@@ -28,7 +136,13 @@ const API_KEYS = JSON.stringify({
   full: ['full-key'],
   reader: ['reader-key'],
   editor: ['editor-key'],
+  client: ['client-key'],
+  writer: ['writer-key'],
+  enroller: ['enroller-key'],
+  'enroller-without-enrollment': ['enroller-without-enrollment-key'],
 });
+
+const guard = createRouteGuards(entityConfig);
 
 // The guards under test on the same paths setupCommonRoutes uses, in front of
 // a stub handler, so nothing reaches DynamoDB.
@@ -40,17 +154,31 @@ app.use(
   ),
 );
 const ok = (c: { json: (body: unknown) => Response }) => c.json({ ok: true });
-app.get('/entity/:entityType', requireEntity('read'), ok);
-app.post('/entity/:entityType', requireEntity('create'), ok);
-app.put('/entity/:entityType/:entityId', requireEntity('create', 'update'), ok);
-app.delete('/entity/:entityType/:entityId', requireEntity('delete'), ok);
+app.get('/entity/:entityType', guard.entity('list'), ok);
+app.get('/entity/:entityType/:entityId', guard.entity('read'), ok);
 app.get(
-  '/mutual/:byEntityType/:byEntityId/:entityType',
-  requireMutualTypes(),
+  '/entity/:entityType/unique/:uniqueField/:uniqueFieldValue',
+  guard.entity('unique'),
   ok,
 );
+app.get('/tag/:entityType/:tagName', guard.entity('tag'), ok);
+app.post('/entity/:entityType', guard.entity('create'), ok);
+app.put('/entity/:entityType/:entityId', guard.entity('upsert'), ok);
+app.post('/entity/:entityType/:entityId/adjust', guard.entity('adjust'), ok);
+app.patch('/entity/:entityType/:entityId', guard.entity('update'), ok);
+app.delete('/entity/:entityType/:entityId', guard.entity('delete'), ok);
+app.get(
+  '/mutual/:byEntityType/:byEntityId/:entityType',
+  guard.mutual('read'),
+  ok,
+);
+const mutualPath = '/mutual/:byEntityType/:byEntityId/:entityType/:entityId';
+app.get(mutualPath, guard.mutual('read'), ok);
+app.post(mutualPath, guard.mutual('create'), ok);
+app.patch(mutualPath, guard.mutual('update'), ok);
+app.delete(mutualPath, guard.mutual('delete'), ok);
 app.post('/ws/ticket/:entityType/:entityId', requireFullPolicy(), ok);
-app.post('/transaction', requireTransactionOperations(), async (c) => {
+app.post('/transaction', guard.transaction(), async (c) => {
   // Like the real controller: it reads the body the guard already parsed,
   // and answers 400 to a body that isn't JSON.
   try {
@@ -78,7 +206,7 @@ const call = async (
   return { status: res.status, body: await res.json() };
 };
 
-describe('requireEntity', () => {
+describe('entity guard', () => {
   it('lets the full policy through without checking', async () => {
     expect(
       (await call('full-key', 'DELETE', '/entity/anything/1')).status,
@@ -111,8 +239,8 @@ describe('requireEntity', () => {
     );
   });
 
-  it('allows read when a write list grants it', async () => {
-    expect((await call('editor-key', 'GET', '/entity/learner')).status).toBe(
+  it('allows get when a write list grants read', async () => {
+    expect((await call('editor-key', 'GET', '/entity/learner/1')).status).toBe(
       200,
     );
   });
@@ -128,13 +256,13 @@ describe('requireEntity', () => {
 
   it('lets a request through when no API key was resolved', async () => {
     const bare = new Hono();
-    bare.get('/entity/:entityType', requireEntity('delete'), ok);
+    bare.get('/entity/:entityType', guard.entity('delete'), ok);
 
     expect((await bare.request('/entity/course')).status).toBe(200);
   });
 });
 
-describe('requireMutualTypes', () => {
+describe('mutual guard: listed types', () => {
   it('answers 404 when either type is unlisted', async () => {
     expect(
       (await call('reader-key', 'GET', '/mutual/course/1/payment')).status,
@@ -144,7 +272,7 @@ describe('requireMutualTypes', () => {
     ).toBe(404);
   });
 
-  it('allows the route when both types are listed', async () => {
+  it("allows the route when the first type's default grants the direction", async () => {
     expect(
       (await call('reader-key', 'GET', '/mutual/course/1/learner')).status,
     ).toBe(200);
@@ -170,7 +298,7 @@ describe('requireFullPolicy', () => {
   });
 });
 
-describe('requireTransactionOperations', () => {
+describe('transaction guard', () => {
   it('allows a transaction whose every operation is granted', async () => {
     const res = await call('editor-key', 'POST', '/transaction', {
       operations: [
@@ -268,25 +396,25 @@ describe('setupCommonRoutes', () => {
         ]),
       ),
     ).toEqual({
-      'GET /mutual/:byEntityType/:byEntityId/:entityType': 'mutual:types',
+      'GET /mutual/:byEntityType/:byEntityId/:entityType': 'mutual:read',
       'POST /mutual/:byEntityType/:byEntityId/:entityType/:entityId':
-        'mutual:types',
+        'mutual:create',
       'GET /mutual/:byEntityType/:byEntityId/:entityType/:entityId':
-        'mutual:types',
+        'mutual:read',
       'PATCH /mutual/:byEntityType/:byEntityId/:entityType/:entityId':
-        'mutual:types',
+        'mutual:update',
       'DELETE /mutual/:byEntityType/:byEntityId/:entityType/:entityId':
-        'mutual:types',
-      'GET /entity/:entityType': 'entity:read',
+        'mutual:delete',
+      'GET /entity/:entityType': 'entity:list',
       'POST /entity/:entityType': 'entity:create',
       'GET /entity/:entityType/unique/:uniqueField/:uniqueFieldValue':
-        'entity:read',
-      'POST /entity/:entityType/:entityId/adjust': 'entity:update',
+        'entity:unique',
+      'POST /entity/:entityType/:entityId/adjust': 'entity:adjust',
       'GET /entity/:entityType/:entityId': 'entity:read',
-      'PUT /entity/:entityType/:entityId': 'entity:create+update',
+      'PUT /entity/:entityType/:entityId': 'entity:upsert',
       'PATCH /entity/:entityType/:entityId': 'entity:update',
       'DELETE /entity/:entityType/:entityId': 'entity:delete',
-      'GET /tag/:entityType/:tagName': 'entity:read',
+      'GET /tag/:entityType/:tagName': 'entity:tag',
       'POST /transaction': 'transaction',
       'POST /ws/ticket/:entityType/:entityId': 'full',
     });
@@ -424,6 +552,7 @@ describe('custom route permissions', () => {
       return c.json({
         readOrder: key.can('read', 'order'),
         readTotal: key.can('read', 'order', ['total']),
+        listOrders: key.can('list', 'order'),
         readStatus: key.can('read', 'order', ['status']),
         readCost: key.can('read', 'order', ['total', 'cost']),
         updateStatus: key.can('update', 'order', ['status']),
@@ -442,6 +571,7 @@ describe('custom route permissions', () => {
     expect(await res.json()).toEqual({
       readOrder: true,
       readTotal: true,
+      listOrders: false,
       readStatus: true,
       readCost: false,
       updateStatus: true,
@@ -451,5 +581,566 @@ describe('custom route permissions', () => {
       checkout: true,
       reports: false,
     });
+  });
+});
+
+describe('relationship directions', () => {
+  it('reads and writes the direction the URL names, as its entry grants', async () => {
+    expect(
+      (await call('client-key', 'GET', '/mutual/learner/1/course')).status,
+    ).toBe(200);
+    expect(
+      (await call('client-key', 'POST', '/mutual/learner/1/course/9')).status,
+    ).toBe(200);
+    expect(
+      (await call('client-key', 'DELETE', '/mutual/learner/1/course/9')).status,
+    ).toBe(200);
+    expect(
+      await call('client-key', 'PATCH', '/mutual/learner/1/course/9'),
+    ).toEqual({
+      status: 403,
+      body: {
+        code: 'FORBIDDEN',
+        message:
+          "API key policy 'client' does not allow update on learner→course",
+      },
+    });
+  });
+
+  it('never applies an entry to the opposite direction', async () => {
+    // course is an object with no learner entry and no '*', so course→learner is closed,
+    // even though POST would form the same relationship as learner→course.
+    expect(await call('client-key', 'GET', '/mutual/course/9/learner')).toEqual(
+      {
+        status: 403,
+        body: {
+          code: 'FORBIDDEN',
+          message:
+            "API key policy 'client' does not allow read on course→learner",
+        },
+      },
+    );
+    expect(
+      (await call('client-key', 'POST', '/mutual/course/9/learner/1')).status,
+    ).toBe(403);
+  });
+
+  it('checks every hop of a chain query', async () => {
+    expect(
+      (
+        await call(
+          'client-key',
+          'GET',
+          '/mutual/learner/1/module?chainEntityQuery=course',
+        )
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await call(
+          'client-key',
+          'GET',
+          '/mutual/learner/1/course?chainEntityQuery=cohort',
+        )
+      ).body,
+    ).toEqual({
+      code: 'FORBIDDEN',
+      message: "API key policy 'client' does not allow read on learner→cohort",
+    });
+    expect(
+      (
+        await call(
+          'client-key',
+          'GET',
+          '/mutual/learner/1/course?chainEntityQuery=payment',
+        )
+      ).status,
+    ).toBe(404);
+  });
+
+  it('checks relationship fields in a create body as create on their direction', async () => {
+    expect(
+      (
+        await call('client-key', 'POST', '/entity/learner', {
+          name: 'a',
+          courseIds: ['9'],
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (
+        await call('client-key', 'POST', '/entity/learner', {
+          name: 'a',
+          cohortIds: ['2'],
+        })
+      ).body,
+    ).toEqual({
+      code: 'FORBIDDEN',
+      message:
+        "API key policy 'client' does not allow create on learner→cohort",
+    });
+  });
+
+  it('checks relationship fields in an update body as create and delete, since the list replaces the old one', async () => {
+    expect(
+      (
+        await call('client-key', 'PATCH', '/entity/learner/1', {
+          courseIds: ['9'],
+        })
+      ).status,
+    ).toBe(200);
+
+    const withoutDelete: ApiKeyPolicies = {
+      p: {
+        entities: {
+          learner: { update: ['name'], mutuals: { course: { create: '*' } } },
+          course: 'read',
+        },
+      },
+    };
+    const strict = new Hono();
+    strict.use(
+      createApiKeyAuth(parseApiKeys('{"p": ["k"]}', ['p']), withoutDelete),
+    );
+    strict.patch('/entity/:entityType/:entityId', guard.entity('update'), ok);
+
+    const res = await strict.request('/entity/learner/1', {
+      method: 'PATCH',
+      headers: { 'x-api-key': 'k', 'content-type': 'application/json' },
+      body: JSON.stringify({ courseIds: ['9'] }),
+    });
+    expect(await res.json()).toEqual({
+      code: 'FORBIDDEN',
+      message: "API key policy 'p' does not allow delete on learner→course",
+    });
+  });
+
+  it('requires create on the asEntity type a relationship creates', async () => {
+    expect(
+      (await call('enroller-key', 'POST', '/mutual/learner/1/cohort/2')).status,
+    ).toBe(200);
+    expect(
+      await call(
+        'enroller-without-enrollment-key',
+        'POST',
+        '/mutual/learner/1/cohort/2',
+      ),
+    ).toEqual({
+      status: 403,
+      body: {
+        code: 'FORBIDDEN',
+        message:
+          "API key policy 'enroller-without-enrollment' does not allow create on 'enrollment', which learner→cohort creates",
+      },
+    });
+  });
+
+  it('requires create on an asEntity type the request names', async () => {
+    expect(
+      await call(
+        'enroller-key',
+        'POST',
+        '/mutual/learner/1/cohort/2?asEntity=payment',
+      ),
+    ).toEqual({
+      status: 403,
+      body: {
+        code: 'FORBIDDEN',
+        message:
+          "API key policy 'enroller' does not allow create on 'payment', which learner→cohort creates",
+      },
+    });
+  });
+
+  it('checks mutual operations and relationship fields in a transaction', async () => {
+    const run = (operations: unknown[]) =>
+      call('client-key', 'POST', '/transaction', { operations });
+
+    expect(
+      (
+        await run([
+          {
+            operation: 'createMutual',
+            byEntityType: 'learner',
+            byEntityId: '1',
+            entityType: 'course',
+            entityId: '9',
+          },
+          {
+            operation: 'deleteMutual',
+            byEntityType: 'learner',
+            byEntityId: '1',
+            entityType: 'course',
+            entityId: '8',
+          },
+        ])
+      ).status,
+    ).toBe(200);
+    expect(
+      await run([
+        {
+          operation: 'createMutual',
+          byEntityType: 'learner',
+          byEntityId: '1',
+          entityType: 'course',
+          entityId: '9',
+        },
+        {
+          operation: 'createMutual',
+          byEntityType: 'course',
+          byEntityId: '9',
+          entityType: 'learner',
+          entityId: '1',
+        },
+      ]),
+    ).toEqual({
+      status: 403,
+      body: {
+        code: 'FORBIDDEN',
+        message:
+          "API key policy 'client' does not allow create on course→learner",
+        operationIndex: 1,
+      },
+    });
+    expect(
+      (
+        await run([
+          {
+            operation: 'updateEntity',
+            entityType: 'learner',
+            entityId: '1',
+            payload: { cohortIds: ['2'] },
+          },
+        ])
+      ).body,
+    ).toEqual({
+      code: 'FORBIDDEN',
+      message:
+        "API key policy 'client' does not allow create on learner→cohort",
+      operationIndex: 0,
+    });
+  });
+});
+
+describe('field-level write', () => {
+  const write = (method: string, path: string, body: unknown) =>
+    call('writer-key', method, path, body);
+
+  it('allows a create that sets only fields in the create list', async () => {
+    expect(
+      (await write('POST', '/entity/order', { customerId: 'c', items: [] }))
+        .status,
+    ).toBe(200);
+  });
+
+  it('rejects a create that sets a field outside the list, naming it', async () => {
+    expect(
+      await write('POST', '/entity/order', {
+        customerId: 'c',
+        items: [],
+        cost: 5,
+      }),
+    ).toEqual({
+      status: 403,
+      body: {
+        code: 'FORBIDDEN_FIELDS',
+        message:
+          "API key policy 'writer' does not allow create on these fields of 'order': 'cost'",
+        fields: ['cost'],
+      },
+    });
+  });
+
+  it('treats entityId and createdAt in a create body as $entityId and $createdAt', async () => {
+    const res = await write('POST', '/entity/order', {
+      customerId: 'c',
+      entityId: 'chosen',
+      createdAt: '2020-01-01T00:00:00Z',
+    });
+
+    expect(res.body.fields).toEqual(['$entityId', '$createdAt']);
+    expect(
+      (
+        await write('POST', '/entity/invoice', {
+          entityId: 'chosen',
+          createdAt: '2020-01-01T00:00:00Z',
+        })
+      ).status,
+    ).toBe(200);
+  });
+
+  it('checks an update against the update list, ignoring $condition', async () => {
+    expect(
+      (
+        await write('PATCH', '/entity/order/1', {
+          status: 'paid',
+          $condition: 'unpaid',
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (await write('PATCH', '/entity/order/1', { total: 5 })).body.fields,
+    ).toEqual(['total']);
+  });
+
+  it('requires read on every field a legacy $where names', async () => {
+    expect(
+      (
+        await write('PATCH', '/entity/order/1', {
+          notes: 'x',
+          $where: { status: 'open' },
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      await write('PATCH', '/entity/order/1', {
+        notes: 'x',
+        $where: { cost: { $gt: 1 } },
+      }),
+    ).toEqual({
+      status: 403,
+      body: {
+        code: 'FORBIDDEN_FIELDS',
+        message:
+          "API key policy 'writer' does not allow $where on these fields of 'order', which it cannot read: 'cost'",
+        fields: ['cost'],
+      },
+    });
+  });
+
+  it('checks an upsert against both lists, and needs $entityId since the URL chooses the ID', async () => {
+    expect(
+      (await write('PUT', '/entity/order/1', { notes: 'x' })).body.fields,
+    ).toEqual(['$entityId']);
+    expect(
+      (await write('PUT', '/entity/invoice/1', { notes: 'x' })).status,
+    ).toBe(200);
+    expect(
+      (await write('PUT', '/entity/invoice/1', { total: 5 })).body,
+    ).toEqual({
+      code: 'FORBIDDEN_FIELDS',
+      message:
+        "API key policy 'writer' does not allow update on these fields of 'invoice': 'total'",
+      fields: ['total'],
+    });
+  });
+
+  it('checks adjusted fields against the update list', async () => {
+    expect(
+      (
+        await write('POST', '/entity/order/1/adjust', {
+          quantity: 1,
+          $condition: 'inStock',
+        })
+      ).status,
+    ).toBe(200);
+    expect(
+      (await write('POST', '/entity/order/1/adjust', { total: 5 })).body.fields,
+    ).toEqual(['total']);
+  });
+
+  it('checks $ keys other than $condition and $where as data', async () => {
+    expect(
+      (await write('POST', '/entity/order/1/adjust', { $credit: 100 })).body
+        .fields,
+    ).toEqual(['$credit']);
+    expect(
+      (await write('PATCH', '/entity/order/1', { $status: 'paid' })).body
+        .fields,
+    ).toEqual(['$status']);
+  });
+
+  it('checks mutualData against the direction create and update lists', async () => {
+    expect(
+      (await write('POST', '/mutual/learner/1/course/9', { role: 'student' }))
+        .status,
+    ).toBe(200);
+    expect(
+      await write('POST', '/mutual/learner/1/course/9', {
+        role: 'student',
+        appliedAt: 'now',
+      }),
+    ).toEqual({
+      status: 403,
+      body: {
+        code: 'FORBIDDEN_FIELDS',
+        message:
+          "API key policy 'writer' does not allow create on these mutualData fields of learner→course: 'appliedAt'",
+        fields: ['appliedAt'],
+      },
+    });
+    expect(
+      (await write('PATCH', '/mutual/learner/1/course/9', { role: 'auditor' }))
+        .status,
+    ).toBe(200);
+  });
+
+  it('checks the same fields in transaction operations, with the operation index', async () => {
+    const run = (operations: unknown[]) =>
+      write('POST', '/transaction', { operations });
+
+    expect(
+      (
+        await run([
+          {
+            operation: 'createEntity',
+            entityType: 'order',
+            payload: { customerId: 'c' },
+          },
+          {
+            operation: 'updateEntity',
+            entityType: 'order',
+            entityId: '1',
+            payload: { status: 'paid' },
+          },
+          {
+            operation: 'adjustEntity',
+            entityType: 'order',
+            entityId: '1',
+            adjustments: { quantity: 1 },
+          },
+          {
+            operation: 'updateMutual',
+            byEntityType: 'learner',
+            byEntityId: '1',
+            entityType: 'course',
+            entityId: '9',
+            payload: { role: 'auditor' },
+          },
+        ])
+      ).status,
+    ).toBe(200);
+
+    const denied = async (operation: unknown) => (await run([operation])).body;
+    expect(
+      await denied({
+        operation: 'createEntity',
+        entityType: 'order',
+        entityId: 'x',
+        payload: {},
+      }),
+    ).toMatchObject({
+      code: 'FORBIDDEN_FIELDS',
+      fields: ['$entityId'],
+      operationIndex: 0,
+    });
+    expect(
+      await denied({
+        operation: 'updateEntity',
+        entityType: 'order',
+        entityId: '1',
+        payload: { total: 1 },
+      }),
+    ).toMatchObject({ fields: ['total'] });
+    expect(
+      await denied({
+        operation: 'adjustEntity',
+        entityType: 'order',
+        entityId: '1',
+        adjustments: { total: 1 },
+      }),
+    ).toMatchObject({ fields: ['total'] });
+    expect(
+      await denied({
+        operation: 'createMutual',
+        byEntityType: 'learner',
+        byEntityId: '1',
+        entityType: 'course',
+        entityId: '9',
+        payload: { appliedAt: 'now' },
+      }),
+    ).toMatchObject({ fields: ['appliedAt'] });
+  });
+});
+
+describe('read paths that match on fields', () => {
+  it('allows search only when every searchable field is readable', async () => {
+    expect(
+      (await call('reader-key', 'GET', '/entity/course?query=maths')).status,
+    ).toBe(200);
+    expect(await call('writer-key', 'GET', '/entity/order?query=ann')).toEqual({
+      status: 403,
+      body: {
+        code: 'FORBIDDEN_FIELDS',
+        message:
+          "API key policy 'writer' does not allow search on 'order', which matches these fields it cannot read: 'customerName', 'email'",
+        fields: ['customerName', 'email'],
+      },
+    });
+    // Listing without a search term matches on no field.
+    expect((await call('writer-key', 'GET', '/entity/order')).status).toBe(200);
+  });
+
+  it('allows a unique lookup only by a readable field', async () => {
+    expect(
+      await call('writer-key', 'GET', '/entity/order/unique/email/a@b.co'),
+    ).toEqual({
+      status: 403,
+      body: {
+        code: 'FORBIDDEN_FIELDS',
+        message:
+          "API key policy 'writer' does not allow a lookup on 'order' by a field it cannot read: 'email'",
+        fields: ['email'],
+      },
+    });
+    expect(
+      (await call('writer-key', 'GET', '/entity/order/unique/status/open'))
+        .status,
+    ).toBe(200);
+  });
+
+  it("allows a tag when read is '*' or the tag is granted", async () => {
+    expect((await call('reader-key', 'GET', '/tag/course/region')).status).toBe(
+      200,
+    );
+    expect(
+      (await call('writer-key', 'GET', '/tag/shipment/region')).status,
+    ).toBe(200);
+    expect(await call('writer-key', 'GET', '/tag/order/region')).toEqual({
+      status: 403,
+      body: {
+        code: 'FORBIDDEN',
+        message:
+          "API key policy 'writer' does not allow reading tag 'region' of 'order'",
+      },
+    });
+  });
+});
+
+describe('listing', () => {
+  it('allows get by ID but not listing for an object grant without list', async () => {
+    expect((await call('writer-key', 'GET', '/entity/invoice/1')).status).toBe(
+      200,
+    );
+    expect(await call('writer-key', 'GET', '/entity/invoice')).toEqual({
+      status: 403,
+      body: {
+        code: 'FORBIDDEN',
+        message: "API key policy 'writer' does not allow list on 'invoice'",
+      },
+    });
+  });
+
+  it('allows listing for a shorthand grant and for list: true', async () => {
+    expect((await call('reader-key', 'GET', '/entity/course')).status).toBe(
+      200,
+    );
+    expect((await call('writer-key', 'GET', '/entity/order')).status).toBe(200);
+  });
+
+  it('needs list to search or to query a tag', async () => {
+    expect(
+      (await call('writer-key', 'GET', '/entity/invoice?query=x')).body.message,
+    ).toBe("API key policy 'writer' does not allow list on 'invoice'");
+    expect(
+      (await call('writer-key', 'GET', '/tag/invoice/region')).body.message,
+    ).toBe("API key policy 'writer' does not allow list on 'invoice'");
+  });
+
+  it('keeps unique lookups a get, needing only read on the field', async () => {
+    expect(
+      (await call('writer-key', 'GET', '/entity/invoice/unique/number/INV-1'))
+        .status,
+    ).toBe(200);
   });
 });

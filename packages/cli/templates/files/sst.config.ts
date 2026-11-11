@@ -18,13 +18,16 @@ export default $config({
     // Must match one entry in Core's API_KEYS secret (defaults to
     // ["secret1", "secret2"]). Override both before deploying:
     // npx sst secret set X_API_KEY '...' && npx sst secret set API_KEYS '["..."]'
+    // Another app passes its own secret under MONORISE_API_KEY, so the proxy
+    // code stays the same.
     const xApiKey = new sst.Secret('X_API_KEY', 'secret1');
 
     new sst.aws.Nextjs('web', {
       path: 'apps/web',
-      link: [api, xApiKey],
+      link: [api],
       environment: {
         API_BASE_URL: api.url,
+        MONORISE_API_KEY: xApiKey.value,
       },
     });
   },

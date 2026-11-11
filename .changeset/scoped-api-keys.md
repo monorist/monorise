@@ -5,17 +5,13 @@
 "monorise": minor
 ---
 
-API keys now resolve to a policy, and projects can declare their own policies.
+Scoped API keys: every API key now resolves to a policy that decides which entity types, fields, relationships and custom routes it can read or write. See the new [API Keys](https://monorise.dev/api-keys) guide.
 
-`API_KEYS` still accepts an array of keys, and every key in it gets the built-in `full` policy: the same access as before. It now also accepts an object that maps policy names to keys. Several keys per policy can overlap during rotation:
+**Nothing changes for existing projects.** `API_KEYS` still accepts an array of keys, and every key in it gets the built-in `full` policy, the same access as before. `full` passes every check below and pays nothing extra.
 
-```json
-{ "full": ["proxy-key"], "reporting": ["reporting-key"] }
-```
+### Declaring policies
 
-An entry written as `sha256:<hex>` is a pre-hashed key, so the secret doesn't have to hold the key itself. A key under a policy name that isn't defined, or listed under more than one policy, is rejected with a 401 and logged as an error.
-
-Policies are declared with `defineApiKeyPolicies` from `@monorise/base`, in a file that the new `apiKeys` option in `monorise.config.ts` points to:
+Point the new `apiKeys` option in `monorise.config.ts` at a file that default-exports `defineApiKeyPolicies` from `@monorise/base`. Then map policy names to keys with the object form of `API_KEYS`:
 
 ```ts
 // monorise.config.ts
@@ -26,45 +22,70 @@ export default {
 
 // monorise/api-keys.ts
 export default defineApiKeyPolicies({
-  reporting: 'read',
+  'agent-read': 'read',
   client: {
     entities: {
-      [Entity.ORDER]: { read: '*', create: ['customerId', 'items'], update: ['status'] },
+      [Entity.ORDER]: { read: '*', list: true, create: ['customerId', 'items'], update: ['status'] },
+      [Entity.LEARNER]: {
+        read: '*',
+        mutuals: { [Entity.COURSE]: { read: '*', create: ['role'], delete: true } },
+      },
       [Entity.PRODUCT]: 'read',
     },
+    routes: ['checkout'],
   },
 });
 ```
 
-`monorise dev` and `monorise build` validate the policies against the entity configs and fail on an unknown entity, field, tag or relationship target, on a create grant that leaves out a required field, and on redefining `full`. The API handler runs the same validation at cold start. The policies are imported only by the generated `handle.ts`, so a policy file can import the generated `Entity` enum.
+```json
+{ "full": ["proxy-key"], "client": ["client-key"], "agent-read": ["agent-key"] }
+```
 
-Every built-in route checks the key's policy before it runs:
+- **Shorthands are broad, objects are exact.** `'read'` and `'write'` grant every field, tag and relationship at that level, listing included. An object grants only what it lists. Any write implies read on the same fields.
+- **Get and list are separate.** `read` allows getting a record by ID or unique field. Listing the whole type, searching and querying tags also need `list: true`. A get needs a reference the caller already holds; a listing pages through every record.
+- **Relationships are granted per direction**, keyed under the first entity in the URL. An entry for learner→course says nothing about course→learner.
+- **Pre-hashed keys.** An `API_KEYS` entry written as `sha256:<hex>` lets the secret hold a digest instead of the key.
+- **Fails closed.** A key under an undefined policy, or under more than one policy, is rejected with a 401 and logged.
+- **Typed names.** Entity field names, tag names and `mutualData` field names are typed from the configs the CLI generates.
+- **Validated at build and at start.** `monorise dev` and `monorise build` reject unknown entities, fields, tags and relationship targets, create grants that leave out a required field, and a policy file inside `configDir`. The API handler repeats the check at cold start. If it fails, the handler logs the problems and rejects every key under the project's policies, while `full` keys and the processors keep running.
 
-- A route on an entity type the policy doesn't list answers 404 `NOT_FOUND`, the same as for a type that doesn't exist. A listed type without the action answers 403 `FORBIDDEN`.
-- `PUT /entity/:type/:id` (upsert) needs both create and update, since it can do either.
-- `POST /transaction` checks every operation before any runs. If the key can't perform one, the whole transaction is rejected with that operation's `operationIndex`.
-- `POST /ws/ticket` accepts only `full` keys, because a ticket's feed isn't scoped yet.
+### What a scoped key can do
 
-Keys on `full`, which includes every key in the array form, pass every check, so existing projects see no change.
+- **Entity types:** a type the policy doesn't list answers 404, the same as a type that doesn't exist. A listed type without the action answers 403 `FORBIDDEN`. Upsert needs both create and update.
+- **Field-level writes:** create, update and upsert bodies, adjustments and `mutualData` may only set fields in the matching list. Otherwise the request is rejected with 403 `FORBIDDEN_FIELDS` and the `fields` it named, and nothing is written.
+  - Setting `entityId` or `createdAt` needs `$entityId` or `$createdAt` in the create list, as does an upsert.
+  - A legacy `$where` may only name readable fields.
+- **Relationship fields** in entity payloads check their direction: create needs create; update needs create and delete. Creating an `asEntity` relationship also needs create on that entity type.
+- **Masked reads:** responses leave out the fields the key can't read. That covers entities, lists, tags, relationship `data` and `mutualData`, transaction results, and the entity a write returns.
+- **Field-matching requests:**
+  - search needs `list` and read on every searchable field;
+  - a unique lookup needs read on its field;
+  - a tag needs `list`, plus `read: '*'` or an explicit `tags` grant.
+- **Transactions** are checked operation by operation before anything runs. One forbidden operation rejects the whole transaction, with its `operationIndex`.
+- **WebSocket:** `POST /ws/ticket` accepts only `full` keys, because ticket feeds aren't scoped yet.
 
-Fixes unique-field lookups matching entity types by prefix. `GET /entity/user/unique/email/…` could return a `user-profile` entity with that email, and creating a `user` was rejected when a `user-profile` already used the value.
+### Custom routes
 
-Custom routes declare the permission they require with `requires()` from `@monorise/core`, and a policy grants it by name in `routes`:
+Custom routes declare the permission they need with `requires()` from `@monorise/core`, per route or on a group. A policy grants permissions by name in `routes`:
 
 ```ts
 app.post('/checkout', requires('checkout'), handler);
 app.use('/reports/*', requires('reports'));
-
-// monorise/api-keys.ts
-client: { entities: { ... }, routes: ['checkout'] },
 ```
 
-A custom route without `requires()` is callable only by `full` keys. Existing custom routes keep working for existing keys, which are all `full`, and stay closed to scoped ones. `full` holds every permission. The CLI types `requires()` with the names the policies grant, so a misspelled name fails to compile.
+- **No `requires()`, `full` only.** Existing custom routes keep working for existing keys and stay closed to scoped ones.
+- **Typed names.** The CLI types `requires()` with the names the policies grant.
+- **The resolved key.** Inside a route, `c.get('apiKey')` returns:
+  - `policy` and `fingerprint` (the key's SHA-256 digest, safe to log);
+  - `can(action, entityType, fields?)` and `has(permission)`;
+  - `mask(entityType, entity)`.
 
-Inside a route, `c.get('apiKey')` returns the resolved key:
-- `policy`: the policy name.
-- `fingerprint`: the key's SHA-256 digest, safe to log.
-- `can(action, entityType, fields?)` and `has(permission)`: for finer checks.
-- `access`: the compiled policy.
+### Tracing changes
 
-Also removes a check meant to let `/core/public/*` through without a key. It compared the full request URL against a path-only pattern, so it never matched: every route already required a key, and still does.
+Every event published while handling an API request records the calling key in its detail, as `apiKey: { policy, fingerprint }`. That includes writes custom routes make through `container` services. Events from processors carry no key. Error logs include the policy name.
+
+### Also
+
+- **Unique-lookup fix.** Unique-field lookups matched entity types by prefix, so `GET /entity/user/unique/email/…` could return a `user-profile` entity, and creating a `user` was rejected when a `user-profile` already used the value. Both now match the type exactly.
+- **Dead check removed.** A check meant to let `/core/public/*` through without a key never matched: every route already required a key, and still does.
+- **`monorise init` template.** The Next.js proxy now reads its key from `MONORISE_API_KEY`, set from the `X_API_KEY` secret in `sst.config.ts`, so each additional app can pass its own key without editing the proxy.

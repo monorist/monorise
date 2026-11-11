@@ -1,16 +1,16 @@
 import { Hono } from 'hono';
-import {
-  requireEntity,
-  requireFullPolicy,
-  requireMutualTypes,
-  requireTransactionOperations,
-} from '../middlewares/authorize';
+import { createRouteGuards, requireFullPolicy } from '../middlewares/authorize';
 import { entityTypeCheck } from '../middlewares/entity-type-check';
+import { maskResponses } from '../middlewares/mask';
 import { mutualTypeCheck } from '../middlewares/mutual-type-check';
 import type { DependencyContainer } from '../services/DependencyContainer';
 
 export const setupCommonRoutes = (container: DependencyContainer): Hono => {
   const app = new Hono();
+  const guard = createRouteGuards(container.config.EntityConfig);
+
+  // Strips fields the key cannot read from every response below.
+  app.use('*', maskResponses());
   /*
    * Mutual endpoint
    */
@@ -21,27 +21,27 @@ export const setupCommonRoutes = (container: DependencyContainer): Hono => {
   );
   app.get(
     '/mutual/:byEntityType/:byEntityId/:entityType',
-    requireMutualTypes(),
+    guard.mutual('read'),
     container.listEntitiesByEntityController.controller,
   );
   app.post(
     '/mutual/:byEntityType/:byEntityId/:entityType/:entityId',
-    requireMutualTypes(),
+    guard.mutual('create'),
     container.createMutualController.controller,
   );
   app.get(
     '/mutual/:byEntityType/:byEntityId/:entityType/:entityId',
-    requireMutualTypes(),
+    guard.mutual('read'),
     container.getMutualController.controller,
   );
   app.patch(
     '/mutual/:byEntityType/:byEntityId/:entityType/:entityId',
-    requireMutualTypes(),
+    guard.mutual('update'),
     container.updateMutualController.controller,
   );
   app.delete(
     '/mutual/:byEntityType/:byEntityId/:entityType/:entityId',
-    requireMutualTypes(),
+    guard.mutual('delete'),
     container.deleteMutualController.controller,
   );
 
@@ -52,44 +52,42 @@ export const setupCommonRoutes = (container: DependencyContainer): Hono => {
   app.use('/entity/:entityType', entityTypeCheck(container));
   app.get(
     '/entity/:entityType',
-    requireEntity('read'),
+    guard.entity('list'),
     container.listEntitiesController.controller,
   );
   app.post(
     '/entity/:entityType',
-    requireEntity('create'),
+    guard.entity('create'),
     container.createEntityController.controller,
   );
   app.get(
     '/entity/:entityType/unique/:uniqueField/:uniqueFieldValue',
-    requireEntity('read'),
+    guard.entity('unique'),
     container.getEntityByUniqueFieldController.controller,
   );
   app.post(
     '/entity/:entityType/:entityId/adjust',
-    requireEntity('update'),
+    guard.entity('adjust'),
     container.adjustEntityController.controller,
   );
   app.get(
     '/entity/:entityType/:entityId',
-    requireEntity('read'),
+    guard.entity('read'),
     container.getEntityController.controller,
   );
-  // Upsert creates or updates depending on whether the entity exists, and
-  // checking which before the write would race, so it needs both.
   app.put(
     '/entity/:entityType/:entityId',
-    requireEntity('create', 'update'),
+    guard.entity('upsert'),
     container.upsertEntityController.controller,
   );
   app.patch(
     '/entity/:entityType/:entityId',
-    requireEntity('update'),
+    guard.entity('update'),
     container.updateEntityController.controller,
   );
   app.delete(
     '/entity/:entityType/:entityId',
-    requireEntity('delete'),
+    guard.entity('delete'),
     container.deleteEntityController.controller,
   );
 
@@ -98,7 +96,7 @@ export const setupCommonRoutes = (container: DependencyContainer): Hono => {
    */
   app.get(
     '/tag/:entityType/:tagName',
-    requireEntity('read'),
+    guard.entity('tag'),
     container.listTagsController.controller,
   );
 
@@ -107,7 +105,7 @@ export const setupCommonRoutes = (container: DependencyContainer): Hono => {
    */
   app.post(
     '/transaction',
-    requireTransactionOperations(),
+    guard.transaction(),
     container.executeTransactionController.controller,
   );
 
