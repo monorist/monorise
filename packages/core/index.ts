@@ -1,4 +1,8 @@
-import type { Entity as EntityType, createEntityConfig } from '@monorise/base';
+import type {
+  ApiKeyPolicies,
+  Entity as EntityType,
+  createEntityConfig,
+} from '@monorise/base';
 import { setupCommonRoutes } from './controllers/setupRoutes';
 import { Entity, EntityRepository } from './data/Entity';
 import { Mutual, MutualRepository } from './data/Mutual';
@@ -55,6 +59,7 @@ class CoreFactory {
       EntityConfig: Record<EntityType, ReturnType<typeof createEntityConfig>>;
       AllowedEntityTypes: EntityType[];
       EmailAuthEnabledEntities: EntityType[];
+      ApiKeyPolicies?: ApiKeyPolicies;
     },
   ) {
     const dependencyContainer = new DependencyContainer(this.config);
@@ -111,6 +116,8 @@ export {
   wsBroadcast,
 };
 
+export { requires } from './middlewares/authorize';
 export type { ApiKeyPrincipal } from './middlewares/api-key-auth';
+export type { EntityAction } from './middlewares/authorize';
 
 export default CoreFactory;

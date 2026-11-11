@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import httpStatus from 'http-status';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { FULL_API_KEY_POLICY as FULL_POLICY } from '../../../base';
 import {
-  FULL_POLICY,
   createApiKeyAuth,
   fingerprintApiKey,
   parseApiKeys,
@@ -162,6 +162,7 @@ describe('apiKeyAuth middleware', () => {
     expect(await res.json()).toEqual({
       policy: FULL_POLICY,
       fingerprint: fingerprintApiKey('secret2'),
+      access: { name: FULL_POLICY, full: true },
     });
   });
 

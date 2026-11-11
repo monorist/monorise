@@ -1,12 +1,18 @@
 import { createHash } from 'node:crypto';
+import {
+  type ApiKeyPolicies,
+  type ApiKeyPolicyEntityConfig,
+  type ApiKeyRoutePermission,
+  type CompiledApiKeyPolicy,
+  FULL_API_KEY_POLICY,
+  compileApiKeyPolicy,
+  validateApiKeyPolicies,
+} from '@monorise/base';
 import { createFactory } from 'hono/factory';
 import httpStatus from 'http-status';
-
-/**
- * Built-in policy: read, write and delete on every entity, relationship and
- * custom route. Every key in the legacy array form of `API_KEYS` maps to it.
- */
-export const FULL_POLICY = 'full';
+import { runWithApiKey } from '../helpers/request-context';
+import type { EntityAction } from './authorize';
+import { maskRecord } from './mask';
 
 const SHA256_PREFIX = 'sha256:';
 
@@ -15,7 +21,55 @@ export type ApiKeyPrincipal = {
   policy: string;
   /** SHA-256 hex digest of the key. Safe to log or store; the key itself is not. */
   fingerprint: string;
+  /** What the policy grants, per entity type and relationship direction. */
+  access: CompiledApiKeyPolicy;
+  /**
+   * Whether the policy allows an action on an entity type, and on every
+   * listed field when `fields` is given. `read` is get by ID; `list` is
+   * listing the whole type.
+   */
+  can(
+    action: EntityAction,
+    entityType: string,
+    fields?: readonly string[],
+  ): boolean;
+  /** Whether the policy grants a custom route permission. */
+  has(permission: ApiKeyRoutePermission): boolean;
+  /**
+   * An entity, tag or relationship record with the fields the key cannot read
+   * removed from `data` (and `mutualData`). Accepts an `Entity` or its JSON.
+   */
+  mask<T extends object>(
+    entityType: string,
+    entity: T,
+  ): Record<string, unknown>;
 };
+
+const createPrincipal = (
+  policy: string,
+  access: CompiledApiKeyPolicy,
+): Omit<ApiKeyPrincipal, 'fingerprint'> => ({
+  policy,
+  access,
+  can: (action, entityType, fields) => {
+    const entity = access.entity(entityType);
+    if (action === 'delete') return entity.delete;
+    if (action === 'list' && !entity.list) return false;
+    // Listing returns the same fields a get does.
+    const granted = entity[action === 'list' ? 'read' : action];
+    if (granted === null) return false;
+    return !fields || granted === '*' || fields.every((f) => granted.has(f));
+  },
+  has: (permission) => access.allowsRoute(permission),
+  mask: (entityType, entity) => {
+    const record = (
+      typeof (entity as { toJSON?: unknown }).toJSON === 'function'
+        ? (entity as { toJSON(): Record<string, unknown> }).toJSON()
+        : entity
+    ) as Record<string, unknown>;
+    return maskRecord({ ...record, entityType }, access);
+  },
+});
 
 declare module 'hono' {
   interface ContextVariableMap {
@@ -70,7 +124,7 @@ const assertKeyList = (value: unknown, where: string): string[] => {
  */
 export const parseApiKeys = (
   raw: string | undefined,
-  definedPolicies: readonly string[] = [FULL_POLICY],
+  definedPolicies: readonly string[] = [FULL_API_KEY_POLICY],
 ): Map<string, string> => {
   const fingerprints = new Map<string, string>();
   if (!raw) return fingerprints;
@@ -80,7 +134,7 @@ export const parseApiKeys = (
   if (Array.isArray(parsed)) {
     for (const key of assertKeyList(parsed, 'the array form')) {
       const fingerprint = toFingerprint(key, 'the array form');
-      if (fingerprint) fingerprints.set(fingerprint, FULL_POLICY);
+      if (fingerprint) fingerprints.set(fingerprint, FULL_API_KEY_POLICY);
     }
     return fingerprints;
   }
@@ -124,8 +178,25 @@ export const parseApiKeys = (
 
 const factory = createFactory();
 
-export const createApiKeyAuth = (fingerprints: Map<string, string>) =>
-  factory.createMiddleware(async (c, next) => {
+export const createApiKeyAuth = (
+  fingerprints: Map<string, string>,
+  policies: ApiKeyPolicies = {},
+) => {
+  // One principal per policy, shared by every request with a key under it.
+  const principals = new Map<string, Omit<ApiKeyPrincipal, 'fingerprint'>>();
+  const principalFor = (name: string) => {
+    let principal = principals.get(name);
+    if (!principal) {
+      principal = createPrincipal(
+        name,
+        compileApiKeyPolicy(name, policies[name]),
+      );
+      principals.set(name, principal);
+    }
+    return principal;
+  };
+
+  return factory.createMiddleware(async (c, next) => {
     const xApiKey = c.req.header('x-api-key');
     const fingerprint = xApiKey ? fingerprintApiKey(xApiKey) : undefined;
     const policy = fingerprint ? fingerprints.get(fingerprint) : undefined;
@@ -138,10 +209,44 @@ export const createApiKeyAuth = (fingerprints: Map<string, string>) =>
       });
     }
 
-    c.set('apiKey', { policy, fingerprint });
-    return await next();
+    c.set('apiKey', { ...principalFor(policy), fingerprint });
+    // Events published while handling the request record this key.
+    return await runWithApiKey({ policy, fingerprint }, () => next());
   });
+};
 
-const apiKeyAuth = createApiKeyAuth(parseApiKeys(process.env.API_KEYS));
+/**
+ * Builds the API key middleware for the project's policies. The CLI validates
+ * the policies at build time; this validates them again at cold start, and
+ * if they don't match the entity configs, rejects every key under them.
+ */
+export const apiKeyAuth = ({
+  policies = {},
+  entityConfig,
+  apiKeys = process.env.API_KEYS,
+}: {
+  policies?: ApiKeyPolicies;
+  entityConfig: Record<string, ApiKeyPolicyEntityConfig>;
+  apiKeys?: string;
+}) => {
+  const errors = validateApiKeyPolicies(policies, entityConfig);
+  if (errors.length) {
+    // Not a throw: the generated handle.ts builds this for the API, but every
+    // processor imports the same module, so a throw would stop them all from
+    // starting. Failing closed for these policies keeps the blast radius to
+    // the keys that depend on them; `full` keys keep working.
+    console.error(
+      `[monorise] Invalid API key policies; every key under them will be rejected:\n  - ${errors.join('\n  - ')}`,
+    );
+  }
 
-export default apiKeyAuth;
+  return createApiKeyAuth(
+    parseApiKeys(
+      apiKeys,
+      errors.length
+        ? [FULL_API_KEY_POLICY]
+        : [FULL_API_KEY_POLICY, ...Object.keys(policies)],
+    ),
+    policies,
+  );
+};

@@ -39,6 +39,12 @@ npx sst secret set ANALYTICS_API_KEYS '["your-analytics-key-here"]' --stage prod
 
 `API_KEYS` is the rotatable allow-list used by Monorise Core to verify requests. `X_API_KEY` is one selected key held by your backend proxy and attached to requests as the `x-api-key` header. It must match one entry in `API_KEYS`.
 
+Every key in the array gets full access. To give keys narrower access, such as read-only or limited to some entities and fields, use the object form, which maps [API key policies](/api-keys) to keys:
+
+```bash
+npx sst secret set API_KEYS '{"full":["proxy-key"],"reporting":["reporting-key"]}' --stage production
+```
+
 When `analytics.queryApi` is enabled, `ANALYTICS_API_KEYS` is its separate rotatable allow-list. Its development defaults are public and exist only for local setup; set strong, unique values before deploying to every shared stage.
 
 ::: danger
@@ -49,7 +55,7 @@ The default API keys (`secret1`, `secret2`) are public knowledge. Anyone who kno
 
 `API_KEYS` is an array, which means you can rotate keys without downtime:
 
-1. **Add the new key** alongside the old one:
+1. **Add the new key** alongside the old one. With policies, add it under the same policy, e.g. `{"full":["old-key","new-key"]}`:
    ```bash
    npx sst secret set API_KEYS '["old-key", "new-key"]' --stage production
    ```
