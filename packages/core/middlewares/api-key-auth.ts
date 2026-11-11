@@ -10,7 +10,9 @@ import {
 } from '@monorise/base';
 import { createFactory } from 'hono/factory';
 import httpStatus from 'http-status';
+import { runWithApiKey } from '../helpers/request-context';
 import type { EntityAction } from './authorize';
+import { maskRecord } from './mask';
 
 const SHA256_PREFIX = 'sha256:';
 
@@ -23,7 +25,8 @@ export type ApiKeyPrincipal = {
   access: CompiledApiKeyPolicy;
   /**
    * Whether the policy allows an action on an entity type, and on every
-   * listed field when `fields` is given.
+   * listed field when `fields` is given. `read` is get by ID; `list` is
+   * listing the whole type.
    */
   can(
     action: EntityAction,
@@ -32,6 +35,14 @@ export type ApiKeyPrincipal = {
   ): boolean;
   /** Whether the policy grants a custom route permission. */
   has(permission: ApiKeyRoutePermission): boolean;
+  /**
+   * An entity, tag or relationship record with the fields the key cannot read
+   * removed from `data` (and `mutualData`). Accepts an `Entity` or its JSON.
+   */
+  mask<T extends object>(
+    entityType: string,
+    entity: T,
+  ): Record<string, unknown>;
 };
 
 const createPrincipal = (
@@ -43,11 +54,21 @@ const createPrincipal = (
   can: (action, entityType, fields) => {
     const entity = access.entity(entityType);
     if (action === 'delete') return entity.delete;
-    const granted = entity[action];
+    if (action === 'list' && !entity.list) return false;
+    // Listing returns the same fields a get does.
+    const granted = entity[action === 'list' ? 'read' : action];
     if (granted === null) return false;
     return !fields || granted === '*' || fields.every((f) => granted.has(f));
   },
   has: (permission) => access.allowsRoute(permission),
+  mask: (entityType, entity) => {
+    const record = (
+      typeof (entity as { toJSON?: unknown }).toJSON === 'function'
+        ? (entity as { toJSON(): Record<string, unknown> }).toJSON()
+        : entity
+    ) as Record<string, unknown>;
+    return maskRecord({ ...record, entityType }, access);
+  },
 });
 
 declare module 'hono' {
@@ -189,7 +210,8 @@ export const createApiKeyAuth = (
     }
 
     c.set('apiKey', { ...principalFor(policy), fingerprint });
-    return await next();
+    // Events published while handling the request record this key.
+    return await runWithApiKey({ policy, fingerprint }, () => next());
   });
 };
 

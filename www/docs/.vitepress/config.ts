@@ -49,6 +49,7 @@ export default defineConfig({
         items: [
           { text: 'Overview & API', link: '/architecture' },
           { text: 'Custom Routes', link: '/custom-routes' },
+          { text: 'API Keys', link: '/api-keys' },
           { text: 'Analytics', link: '/concepts/analytics' },
         ],
       },
