@@ -11,5 +11,8 @@
     "@monorise/sst": "4.5.0",
     "@monorise/www": "0.0.1"
   },
-  "changesets": []
+  "changesets": [
+    "proxy-handler",
+    "scoped-api-keys"
+  ]
 }
