@@ -71,6 +71,11 @@ export type EntityOperation<
   entityId?: string;
   /** The fields a `create` or `update` sets. */
   payload?: A extends 'adjust' ? never : EntityPayload<T>;
+  /**
+   * The named condition an `update` or `adjust` must meet: the body's
+   * `$condition`, or a transaction entry's `condition`.
+   */
+  condition?: string;
   /** The amount an `adjust` adds to each numeric field. */
   adjustments?: 'adjust' extends A ? EntityAdjustments<T> : never;
   /**
@@ -278,6 +283,7 @@ const entityWrite = (
   entityId: string | undefined,
   payload: Record<string, unknown> | undefined,
   operationIndex?: number,
+  condition?: string,
 ): ProxyOperation[] => {
   const index = operationIndex === undefined ? {} : { operationIndex };
   return [
@@ -288,6 +294,7 @@ const entityWrite = (
         entityType,
         ...(entityId === undefined ? {} : { entityId }),
         ...(payload === undefined ? {} : { payload }),
+        ...(condition === undefined ? {} : { condition }),
         ...index,
       }),
     ),
@@ -321,6 +328,8 @@ const transactionOperations = (
     const entityId =
       typeof entry.entityId === 'string' ? entry.entityId : undefined;
     const payload = isRecord(entry.payload) ? entry.payload : undefined;
+    const condition =
+      typeof entry.condition === 'string' ? entry.condition : undefined;
 
     switch (entry.operation) {
       case 'createEntity':
@@ -333,6 +342,7 @@ const transactionOperations = (
             entityId,
             payload,
             operationIndex,
+            condition,
           ),
         );
         break;
@@ -345,6 +355,7 @@ const transactionOperations = (
           ...(isRecord(entry.adjustments)
             ? { adjustments: entry.adjustments as Record<string, number> }
             : {}),
+          ...(condition === undefined ? {} : { condition }),
           operationIndex,
         });
         break;
@@ -485,7 +496,7 @@ export const parseOperations = ({
     }
     if (rest.length === 3 && third === 'adjust' && verb === 'POST') {
       // As AdjustEntityController reads the body.
-      const { $condition: _, ...adjustments } = payload ?? {};
+      const { $condition: condition, ...adjustments } = payload ?? {};
       return one({
         kind: 'entity',
         action: 'adjust',
@@ -494,12 +505,14 @@ export const parseOperations = ({
         ...(payload === undefined
           ? {}
           : { adjustments: adjustments as Record<string, number> }),
+        ...(typeof condition === 'string' ? { condition } : {}),
       });
     }
     if (rest.length === 2) {
       const write = (
         actions: ('create' | 'update')[],
         data = payload,
+        condition?: string,
       ): ParseResult => ({
         ok: true,
         operations: entityWrite(
@@ -508,6 +521,8 @@ export const parseOperations = ({
           entityType,
           second,
           data,
+          undefined,
+          condition,
         ),
       });
       if (verb === 'GET') {
@@ -522,8 +537,12 @@ export const parseOperations = ({
       if (verb === 'PATCH') {
         // As UpdateEntityController reads the body: these aren't data.
         if (payload === undefined) return write(['update']);
-        const { $condition: _, $where: __, ...data } = payload;
-        return write(['update'], data);
+        const { $condition: condition, $where: _, ...data } = payload;
+        return write(
+          ['update'],
+          data,
+          typeof condition === 'string' ? condition : undefined,
+        );
       }
       if (verb === 'DELETE') {
         return one({

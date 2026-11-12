@@ -120,6 +120,7 @@ describe('parseOperations: entities', () => {
           entityType: 'order',
           entityId: 'o1',
           payload: { status: 'paid' },
+          condition: 'unpaid',
         },
       ],
     ],
@@ -134,6 +135,7 @@ describe('parseOperations: entities', () => {
           entityType: 'order',
           entityId: 'o1',
           adjustments: { quantity: -1 },
+          condition: 'inStock',
         },
       ],
     ],
@@ -284,6 +286,39 @@ describe('parseOperations: relationships', () => {
         entityType: 'video',
       },
     ]);
+  });
+});
+
+describe('parseOperations: conditions', () => {
+  it("carries a transaction entry's condition on its update or adjust", () => {
+    expect(
+      operations('POST', '/transaction', {
+        operations: [
+          {
+            operation: 'updateEntity',
+            entityType: 'order',
+            entityId: 'o1',
+            payload: { status: 'paid' },
+            condition: 'unpaid',
+          },
+          {
+            operation: 'adjustEntity',
+            entityType: 'order',
+            entityId: 'o1',
+            adjustments: { quantity: -1 },
+            condition: 'inStock',
+          },
+          {
+            operation: 'adjustEntity',
+            entityType: 'order',
+            entityId: 'o1',
+            adjustments: { quantity: 1 },
+          },
+        ],
+      }).map((operation) =>
+        operation.kind === 'entity' ? operation.condition : undefined,
+      ),
+    ).toEqual(['unpaid', 'inStock', undefined]);
   });
 });
 

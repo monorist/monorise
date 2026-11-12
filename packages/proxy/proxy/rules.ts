@@ -295,6 +295,21 @@ const forbidden = (message: string, operation: ProxyOperation) =>
     { status: 403, headers: { 'content-type': 'application/json' } },
   );
 
+/** A callback of the app's threw: refused, since nothing was checked. */
+export const proxyError = (message: string, operation?: ProxyOperation) =>
+  new Response(
+    JSON.stringify({
+      code: 'PROXY_ERROR',
+      message,
+      ...(operation &&
+      'operationIndex' in operation &&
+      operation.operationIndex !== undefined
+        ? { operationIndex: operation.operationIndex }
+        : {}),
+    }),
+    { status: 500, headers: { 'content-type': 'application/json' } },
+  );
+
 /**
  * Runs the rule for every operation, in order, and stops at the first
  * refusal. `undefined` means every operation may go ahead.
@@ -326,7 +341,14 @@ export const checkOperations = async <Session>({
       );
     }
 
-    const result = await found.rule(found.operation, context);
+    let result: RuleResult;
+    try {
+      result = await found.rule(found.operation, context);
+    } catch (error) {
+      const what = `The rule for ${describeOperation(operation)}`;
+      console.error(`[monorise/proxy] ${what} threw`, error);
+      return proxyError(`${what} threw`, operation);
+    }
     if (result instanceof Response) return result;
     if (result !== true) {
       return forbidden(
