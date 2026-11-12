@@ -47,13 +47,13 @@ new MonoriseCore(id: string, args?: MonoriseCoreArgs)
 | `slackWebhook` | `string` | — | Slack webhook URL for DLQ alerts |
 | `configRoot` | `string` | — | Custom root path for monorise config |
 | `cloudwatchLogRetention` | `sst.aws.FunctionArgs['logging']['retention']` | `'1 month'` | CloudWatch log retention period for Monorise-owned Lambda functions |
-| `cloudwatchDashboard` | `{ enabled?: boolean }` | `{ enabled: true }` | Built-in CloudWatch dashboard. Disable to skip creating it |
+| `cloudwatchDashboard` | `{ enabled?: boolean }` | Disabled | Built-in CloudWatch dashboard. Enable to create it |
 | `analytics` | `AnalyticsArgs` | Disabled | Opt-in Athena analytics for canonical entity and named mutual data — see [Analytics](#analytics) |
 | `webSocket` | `{ enabled: true, handler?: { memory?, timeout? } }` | Disabled | Enable WebSocket support for real-time updates. See [WebSocket](/websocket) |
 
 `cloudwatchLogRetention` is passed to SST's Lambda logging configuration for the API handler, replication processor, and built-in event processors. It accepts SST's supported retention values, for example `'1 day'`, `'1 week'`, `'1 month'`, `'1 year'`, or `'forever'`.
 
-`cloudwatchDashboard` controls whether the built-in CloudWatch dashboard is created. It defaults to enabled for backward compatibility, but short-lived stages (test, personal dev) rarely need a dashboard and each one adds cost, so a common pattern is to enable it only for production:
+`cloudwatchDashboard` controls whether the built-in CloudWatch dashboard is created. It is disabled by default because each dashboard adds cost, and short-lived stages (test, personal dev) rarely need one. A common pattern is to enable it only for production:
 
 ```ts
 const { bus, api, table, alarmTopic } = new monorise.module.Core('core', {
@@ -61,7 +61,7 @@ const { bus, api, table, alarmTopic } = new monorise.module.Core('core', {
 });
 ```
 
-Disabling it on a stage where the dashboard already exists will destroy the dashboard on the next deploy.
+Disabling it, or leaving it unset, on a stage where the dashboard already exists will destroy the dashboard on the next deploy.
 
 ### Analytics
 
@@ -174,7 +174,7 @@ Under the hood, `MonoriseCore` creates:
 - **3 QFunction processors** (mutual, tag, prejoin) — each with SQS queue, Lambda, DLQ, and CloudWatch alarm
 - **Replication processor** — DynamoDB stream subscriber that keeps denormalized data in sync
 - **Analytics delivery** (when enabled) — a second DynamoDB Stream subscriber, Firehose delivery to S3, and daily Athena/Glue materialization
-- **CloudWatch dashboard** with metrics for all Lambda functions, DLQ depths, and a link to DynamoDB table monitoring (can be disabled via `cloudwatchDashboard`)
+- **CloudWatch dashboard** with metrics for all Lambda functions, DLQ depths, and a link to DynamoDB table monitoring (when enabled via `cloudwatchDashboard`)
 - **SST DevCommand** — automatically runs `monorise dev` in watch mode during `sst dev`
 
 ### DynamoDB table structure
