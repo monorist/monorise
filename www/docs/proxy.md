@@ -140,6 +140,7 @@ Rules are written against operations, not URLs, so a different request shape can
 
 - **Relationship fields count as relationships.** Creating a user with `productIds: ['p1']` is a user `create` plus a user→product relationship `create`. Updating them is also a relationship `delete`, since the new list replaces the old one.
 - **An adjust isn't an update.** API keys count it as one, but a rule written for the values an update sets would approve `adjust { credits: -500 }`. So rules see `adjust`, with the amount added to each numeric field: `adjust: (op) => (op.adjustments?.credits ?? 0) >= 0`. A table without an `adjust` rule, or a `'*'`, refuses adjusts.
+- **Conditional writes carry their condition.** An `update` or `adjust` that names a condition (`$condition`, or a transaction entry's `condition`) has it as `condition`, so a rule can require one: `adjust: (op) => op.condition === 'inStock'`.
 - **An `asEntity` create counts too.** When creating a relationship also creates an entity, through `asEntity` in its mutual config or `?asEntity=`, that entity's `create` rule runs as well. Its `payload` is the relationship's `mutualData`, and `asEntityOf` names the relationship. Updates and deletes reach that entity by replication, so only the create is checked.
 - **A chain query reads every hop.** `GET /mutual/user/u1/video?chainEntityQuery=course,module` reads user→course, course→module and module→video. Only the first hop has a `byEntityId`.
 - **One refusal refuses the whole request.** In a transaction, the 403 names the `operationIndex`, as Core does.
@@ -172,6 +173,7 @@ A rule is `(operation, context) => boolean | Response`, or a promise of one.
 - **`context.core`** calls Core with the caller's key, for checks such as "is this order the user's?": `core.get(path)` and `core.fetch(path, init)`.
 - **`context.request`** is the original request, still readable.
 - **`true` forwards** the operation. `false`, or anything else, refuses it with 403, so a rule that forgets to return fails closed. A `Response` is sent back as is.
+- **A rule that throws refuses the request with 500,** and the error is logged. So do `authenticate` and `caller`.
 - **`allow` and `deny`** are rules that always return `true` or `false`.
 
 Rules see the payload before Core validates it, so every payload field is optional. `$condition` and `$where` aren't part of it, since Core doesn't write them as data.
@@ -321,10 +323,13 @@ An allowed result also has the `caller`, `session` and `operations`; a refused o
 | 403 | `{ code: 'FORBIDDEN', message: "No proxy rule for delete on 'order'" }` | Proxy | No rule matches an operation |
 | 403 | `{ code: 'FORBIDDEN', message: "Proxy rule refused delete on 'order'" }` | Proxy | A rule didn't return `true` |
 | 500 | `{ code: 'PROXY_MISCONFIGURED' }` | Proxy | The caller has no key, or Core has no URL |
+| 500 | `{ code: 'PROXY_ERROR', message: "The rule for get on 'order' threw" }` | Proxy | `authenticate`, `caller` or a rule threw; the error is logged |
 | 502 | `{ code: 'BAD_GATEWAY' }` | Proxy | Core is unreachable |
 | Anything else | Core's response, unchanged | Core | Including Core's own 403s, such as `FORBIDDEN_FIELDS` |
 
 The proxy forwards only `content-type`, `accept`, `accept-language` and `x-request-id`, and sets `x-api-key` itself. Cookies, `authorization`, and any key the browser sends never reach Core.
+
+Every response carries `cache-control: private, no-store` unless Core set its own. A response depends on who asked, so a CDN in front of the app must never serve it to the next user of the same URL.
 
 ## Moving from `proxy-request.ts`
 
