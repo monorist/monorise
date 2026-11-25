@@ -19,6 +19,7 @@ import {
   type ProjectionExpressionValues,
 } from './ProjectionExpression';
 import { Repository } from './abstract/Repository.base';
+import { debugLog } from '../helpers/debug';
 
 export class Mutual<
   B extends Entity,
@@ -272,7 +273,7 @@ export class MutualRepository extends Repository {
       ProjectionExpression?: string;
     },
   ): Promise<Mutual<B, T, M>> {
-    console.log('[MONORISE_DEBUG] getMutual start:', {
+    debugLog('[MONORISE_DEBUG] getMutual start:', {
       byEntityType,
       byEntityId,
       entityType,
@@ -289,7 +290,7 @@ export class MutualRepository extends Repository {
       {},
     );
 
-    console.log('[MONORISE_DEBUG] getMutual querying:', {
+    debugLog('[MONORISE_DEBUG] getMutual querying:', {
       byFullEntityId: mutual.byFullEntityId,
       fullEntityId: mutual.fullEntityId,
       tableName: this.TABLE_NAME,
@@ -311,7 +312,7 @@ export class MutualRepository extends Repository {
       },
       Limit: 1,
     });
-    console.log('[MONORISE_DEBUG] getMutual query result:', {
+    debugLog('[MONORISE_DEBUG] getMutual query result:', {
       hasItems: !!resp.Items?.length,
       itemCount: resp.Items?.length ?? 0,
       hasLastEvaluatedKey: !!resp.LastEvaluatedKey,
@@ -329,12 +330,12 @@ export class MutualRepository extends Repository {
       mutualMetadata = Mutual.fromItem(respMetadataMutual.Item);
     }
 
-    console.log('[MONORISE_DEBUG] getMutual fromItem:', {
+    debugLog('[MONORISE_DEBUG] getMutual fromItem:', {
       hasMutualMetadata: !!mutualMetadata,
       hasFirstItem: !!resp.Items?.[0],
     });
     const result = mutualMetadata || Mutual.fromItem<B, T, M>(resp.Items?.[0]);
-    console.log('[MONORISE_DEBUG] getMutual complete:', {
+    debugLog('[MONORISE_DEBUG] getMutual complete:', {
       mutualId: result.mutualId,
       byEntityType: result.byEntityType,
       entityType: result.entityType,
@@ -348,7 +349,7 @@ export class MutualRepository extends Repository {
     entityType: T,
     entityId: string,
   ): Promise<void> {
-    console.log('[MONORISE_DEBUG] checkMutualExist:', {
+    debugLog('[MONORISE_DEBUG] checkMutualExist:', {
       byEntityType,
       byEntityId,
       entityType,
@@ -368,7 +369,7 @@ export class MutualRepository extends Repository {
       Key: mutual.subKeys(),
       ProjectionExpression: 'PK, SK, expiresAt',
     });
-    console.log('[MONORISE_DEBUG] checkMutualExist result:', {
+    debugLog('[MONORISE_DEBUG] checkMutualExist result:', {
       hasItem: !!resp.Item,
       hasExpiresAt: !!resp.Item?.expiresAt,
     });
@@ -395,7 +396,7 @@ export class MutualRepository extends Repository {
       ExpressionAttributeValues?: Record<string, AttributeValue>;
     },
   ): TransactWriteItem[] {
-    console.log('[MONORISE_DEBUG] createMutualTransactItems:', {
+    debugLog('[MONORISE_DEBUG] createMutualTransactItems:', {
       mutualId: mutual.mutualId,
       byEntityType: mutual.byEntityType,
       byEntityId: mutual.byEntityId,
@@ -531,7 +532,7 @@ export class MutualRepository extends Repository {
       maxObjectUpdateLevel?: number;
     },
   ): Promise<{ mutual: Mutual<B, T, M>; TransactItems: TransactWriteItem[] }> {
-    console.log('[MONORISE_DEBUG] updateMutual fetching mutual...');
+    debugLog('[MONORISE_DEBUG] updateMutual fetching mutual...');
     const mutual = await this.getMutual<B, T, M>(
       byEntityType,
       byEntityId,
@@ -539,7 +540,7 @@ export class MutualRepository extends Repository {
       entityId,
       { ProjectionExpression: PROJECTION_EXPRESSION.NO_DATA },
     );
-    console.log('[MONORISE_DEBUG] updateMutual mutual found:', {
+    debugLog('[MONORISE_DEBUG] updateMutual mutual found:', {
       mutualId: mutual.mutualId,
       mainPk: mutual.mainPk,
       byFullEntityId: mutual.byFullEntityId,
@@ -554,7 +555,7 @@ export class MutualRepository extends Repository {
       },
       { maxLevel: opts?.maxObjectUpdateLevel },
     );
-    console.log('[MONORISE_DEBUG] updateMutual update expression:', {
+    debugLog('[MONORISE_DEBUG] updateMutual update expression:', {
       UpdateExpression: toUpdateExpressions.UpdateExpression,
       ExpressionAttributeNames: toUpdateExpressions.ExpressionAttributeNames,
       hasExpressionAttributeValues:
@@ -603,7 +604,7 @@ export class MutualRepository extends Repository {
         },
       },
     ];
-    console.log('[MONORISE_DEBUG] updateMutual transact items prepared:', {
+    debugLog('[MONORISE_DEBUG] updateMutual transact items prepared:', {
       itemCount: TransactItems.length,
       tableName: this.TABLE_NAME,
     });
@@ -633,7 +634,7 @@ export class MutualRepository extends Repository {
       maxObjectUpdateLevel?: number;
     },
   ): Promise<Mutual<B, T, M> | undefined> {
-    console.log('[MONORISE_DEBUG] updateMutual repository start:', {
+    debugLog('[MONORISE_DEBUG] updateMutual repository start:', {
       byEntityType,
       byEntityId,
       entityType,
@@ -655,27 +656,27 @@ export class MutualRepository extends Repository {
       );
       errorContext.TransactItems = TransactItems;
 
-      console.log('[MONORISE_DEBUG] updateMutual executing transaction...');
+      debugLog('[MONORISE_DEBUG] updateMutual executing transaction...');
       await this.ddbUtils.executeTransactWrite({ TransactItems });
-      console.log('[MONORISE_DEBUG] updateMutual transaction succeeded');
+      debugLog('[MONORISE_DEBUG] updateMutual transaction succeeded');
 
       if (!returnUpdatedValue) {
-        console.log('[MONORISE_DEBUG] updateMutual returning (no value)');
+        debugLog('[MONORISE_DEBUG] updateMutual returning (no value)');
         return;
       }
 
-      console.log('[MONORISE_DEBUG] updateMutual fetching updated mutual...');
+      debugLog('[MONORISE_DEBUG] updateMutual fetching updated mutual...');
       const updatedMutual = await this.getMutual<B, T, M>(
         byEntityType,
         byEntityId,
         entityType,
         entityId,
       );
-      console.log('[MONORISE_DEBUG] updateMutual repository complete');
+      debugLog('[MONORISE_DEBUG] updateMutual repository complete');
 
       return updatedMutual;
     } catch (err) {
-      console.error('[MONORISE_DEBUG] updateMutual repository error:', {
+      debugLog('[MONORISE_DEBUG] updateMutual repository error:', {
         errorName: (err as any)?.constructor?.name,
         errorMessage: (err as any)?.message,
         errorCode: (err as any)?.code,
