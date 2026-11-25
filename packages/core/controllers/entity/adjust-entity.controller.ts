@@ -8,7 +8,6 @@ export class AdjustEntityController {
   constructor(private entityService: EntityService) {}
 
   controller = createMiddleware(async (c) => {
-    const accountId = c.req.header('account-id') || '';
     const { entityType, entityId } = c.req.param() as {
       entityType: Entity;
       entityId: string;
@@ -44,7 +43,6 @@ export class AdjustEntityController {
         entityType,
         entityId,
         adjustments,
-        accountId,
         condition,
       });
 

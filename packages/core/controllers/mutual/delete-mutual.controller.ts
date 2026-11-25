@@ -8,7 +8,6 @@ export class DeleteMutualController {
   constructor(private mutualService: MutualService) {}
 
   controller = createMiddleware(async (c) => {
-    const accountId = c.req.header('account-id');
     const { byEntityType, byEntityId, entityType, entityId } =
       c.req.param() as {
         byEntityType: Entity;
@@ -23,7 +22,6 @@ export class DeleteMutualController {
         byEntityId,
         entityType,
         entityId,
-        accountId,
       });
 
       return c.json(mutual);

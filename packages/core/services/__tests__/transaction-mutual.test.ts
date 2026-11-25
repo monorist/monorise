@@ -81,19 +81,14 @@ describe('TransactionService — mutual operations', () => {
     const { service, calls, transactWriteItems, afterCreateEntityHook } =
       buildService({ mutualService });
 
-    const { results } = await service.executeTransaction(
-      [createMutualOp],
-      'acc-1',
-    );
+    const { results } = await service.executeTransaction([createMutualOp]);
 
     expect(transactWriteItems).toHaveBeenCalledWith({
       TransactItems: [{ Put: { TableName: 't', Item: {} } }],
     });
-    expect(afterCreateEntityHook).toHaveBeenCalledWith(
-      projection,
-      { name: 'Ada' },
-      'acc-1',
-    );
+    expect(afterCreateEntityHook).toHaveBeenCalledWith(projection, {
+      name: 'Ada',
+    });
     expect(calls).toEqual(['commit', 'afterCreateEntityHook', 'publish']);
     expect(results[0]).toMatchObject({
       operation: 'createMutual',
@@ -142,10 +137,9 @@ describe('TransactionService — mutual operations', () => {
     };
     const { service, calls, publishEvent } = buildService({ mutualService });
 
-    const { results } = await service.executeTransaction(
-      [{ ...createMutualOp, operation: 'updateMutual' }],
-      'acc-1',
-    );
+    const { results } = await service.executeTransaction([
+      { ...createMutualOp, operation: 'updateMutual' },
+    ]);
 
     // Committed, so the call succeeds; the client then leaves its cache alone
     // rather than guessing at the merged mutualData.
@@ -164,7 +158,6 @@ describe('TransactionService — mutual operations', () => {
       }),
       payload: expect.objectContaining({
         parsedMutualPayload: { name: 'Ada' },
-        updatedByAccountId: 'acc-1',
       }),
     });
   });

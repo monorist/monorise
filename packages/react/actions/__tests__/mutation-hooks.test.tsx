@@ -13,7 +13,6 @@ import { initAxiosInterceptor, injectAxiosInterceptor } from '../../lib/api';
 import initCoreService from '../../services/core.service';
 import { initMonoriseStore } from '../../store/monorise.store';
 import { initAppActions } from '../app.action';
-import type { AuthActions } from '../auth.action';
 import { initConfigActions } from '../config.action';
 import { initCoreActions } from '../core.action';
 
@@ -36,11 +35,7 @@ const makeHarness = (adapter: Adapter) => {
   const appActions = initAppActions(store);
   const axios = initAxiosInterceptor(store, appActions);
   axios.defaults.adapter = vi.fn(adapter);
-  injectAxiosInterceptor(
-    appActions,
-    { setIsUnauthorized: vi.fn() } as unknown as AuthActions,
-    axios,
-  );
+  injectAxiosInterceptor(appActions, axios);
   initConfigActions(store).setConfig({
     user: { name: 'user', displayName: 'User' },
   } as never);

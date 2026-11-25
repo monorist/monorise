@@ -9,7 +9,6 @@ export class CreateMutualController {
   constructor(private mutualService: MutualService) {}
 
   controller = createMiddleware(async (c) => {
-    const accountId = c.req.header('account-id');
     const { byEntityType, byEntityId, entityType, entityId } =
       c.req.param() as {
         byEntityType: EntityType;
@@ -28,7 +27,6 @@ export class CreateMutualController {
         entityType,
         entityId,
         mutualPayload: body,
-        accountId,
         options: {
           asEntity: asEntity as unknown as EntityType,
         },

@@ -9,7 +9,6 @@ export class UpdateEntityController {
   constructor(private entityService: EntityService) {}
 
   controller = createMiddleware(async (c) => {
-    const accountId = c.req.header('account-id');
     const { entityType, entityId } = c.req.param() as {
       entityType: Entity;
       entityId: string;
@@ -29,7 +28,6 @@ export class UpdateEntityController {
     }
 
     const errorContext: any = {
-      accountId,
       'req.params': c.req.param(),
       'req.body': body,
     };
@@ -39,7 +37,6 @@ export class UpdateEntityController {
         entityType,
         entityId,
         entityPayload,
-        accountId,
         condition,
         where,
       });

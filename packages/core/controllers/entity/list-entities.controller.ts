@@ -17,15 +17,8 @@ export class ListEntitiesController {
   controller = createMiddleware(async (c) => {
     const errorContext: { [key: string]: any } = {};
     try {
-      const accountId = c.req.header('account-id') || '';
-      if (Array.isArray(accountId)) {
-        throw new Error('multiple account-id detected');
-      }
-
       const params = c.req.param();
       const queries = c.req.query();
-
-      errorContext.accountId = accountId;
       errorContext.params = params;
       errorContext.query = queries;
 

@@ -66,7 +66,6 @@ export default (container: DependencyContainer) => {
     const user = await container.entityService.createEntity({
       entityType: 'user',
       entityPayload: body,
-      accountId: body.email,
     });
 
     // Use event utils to publish a custom event
@@ -180,6 +179,6 @@ const { data: user } = await axios.post('/core/app/register', {
 ```
 
 ::: tip
-The `axios` instance from `monorise/react` automatically tracks loading and error state via `useLoadStore` / `useErrorStore`, and detects 401 responses for auth handling.
+The `axios` instance from `monorise/react` automatically tracks loading and error state via `useLoadStore` / `useErrorStore`. A 401 lands in the error store like any other error; signing users in and out is your app's job.
 :::
 

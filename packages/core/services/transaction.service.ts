@@ -75,7 +75,6 @@ export class TransactionService {
 
   executeTransaction = async (
     operations: TransactionOperation[],
-    accountId?: string,
   ): Promise<TransactionResult> => {
     if (!operations || operations.length === 0) {
       throw new StandardError(
@@ -92,7 +91,7 @@ export class TransactionService {
     // Operations are independent (each scoped to its own entity/condition read),
     // so build them concurrently rather than one round-trip at a time.
     const processed = await Promise.all(
-      operations.map((op) => this.processOperation(op, accountId)),
+      operations.map((op) => this.processOperation(op)),
     );
     const afterCommits: (() => Promise<unknown>)[] = [];
     for (const { items, events, afterCommit, resultEntry } of processed) {
@@ -251,14 +250,13 @@ export class TransactionService {
 
   private async processOperation(
     op: TransactionOperation,
-    accountId?: string,
   ): Promise<ProcessedOperation> {
     switch (op.operation) {
       case 'createEntity': {
         const { items, entity } = await this.buildCreateItems(op);
         return {
           items,
-          events: this.collectCreateEvents(entity, op.payload, accountId),
+          events: this.collectCreateEvents(entity, op.payload),
           resultEntry: {
             operation: 'createEntity',
             entityType: op.entityType,
@@ -273,7 +271,7 @@ export class TransactionService {
         const { item, updatedAt } = await this.buildUpdateItem(op);
         return {
           items: [item],
-          events: this.collectUpdateEvents(op, updatedAt, accountId),
+          events: this.collectUpdateEvents(op, updatedAt),
           resultEntry: {
             operation: 'updateEntity',
             entityType: op.entityType,
@@ -292,7 +290,6 @@ export class TransactionService {
               payload: {
                 entityType: op.entityType,
                 entityId: op.entityId,
-                updatedByAccountId: accountId,
                 publishedAt: updatedAt,
               },
             },
@@ -315,7 +312,6 @@ export class TransactionService {
               payload: {
                 entityType: op.entityType,
                 entityId: op.entityId,
-                deletedByAccountId: accountId,
               },
             },
           ],
@@ -327,11 +323,11 @@ export class TransactionService {
         };
       }
       case 'createMutual':
-        return this.processCreateMutual(op, accountId);
+        return this.processCreateMutual(op);
       case 'updateMutual':
-        return this.processUpdateMutual(op, accountId);
+        return this.processUpdateMutual(op);
       case 'deleteMutual':
-        return this.processDeleteMutual(op, accountId);
+        return this.processDeleteMutual(op);
       default:
         throw new StandardError(
           StandardErrorCode.TRANSACTION_INVALID_OPERATION,
@@ -346,7 +342,6 @@ export class TransactionService {
   // projection is written in the same transaction.
   private async processCreateMutual(
     op: TransactionCreateMutual,
-    accountId?: string,
   ): Promise<ProcessedOperation> {
     this.assertMutualOperation(op);
     const mutualPayload = op.payload ?? {};
@@ -370,7 +365,6 @@ export class TransactionService {
             entityType: op.entityType,
             entityId: op.entityId,
             parsedMutualPayload,
-            accountId,
             publishedAt: mutual.createdAt ?? new Date().toISOString(),
           },
         },
@@ -380,7 +374,6 @@ export class TransactionService {
             this.entityServiceLifeCycle.afterCreateEntityHook(
               entity,
               mutualPayload,
-              accountId,
             )
         : undefined,
       resultEntry: {
@@ -404,7 +397,6 @@ export class TransactionService {
   // (Phase 4), as a standalone PATCH /mutual/... returns them.
   private async processUpdateMutual(
     op: TransactionUpdateMutual,
-    accountId?: string,
   ): Promise<ProcessedOperation> {
     this.assertMutualOperation(op);
     if (!op.payload || typeof op.payload !== 'object') {
@@ -433,7 +425,6 @@ export class TransactionService {
             entityType: op.entityType,
             entityId: op.entityId,
             parsedMutualPayload,
-            updatedByAccountId: accountId,
           },
         },
       ],
@@ -451,7 +442,6 @@ export class TransactionService {
   // Same soft delete as MutualService.deleteMutual, and the same event.
   private async processDeleteMutual(
     op: TransactionDeleteMutual,
-    accountId?: string,
   ): Promise<ProcessedOperation> {
     this.assertMutualOperation(op);
     const { mutual, TransactItems } = await this.requireMutualService(
@@ -473,7 +463,6 @@ export class TransactionService {
             byEntityId: op.byEntityId,
             entityType: op.entityType,
             entityId: op.entityId,
-            deletedByAccountId: accountId,
           },
         },
       ],
@@ -796,7 +785,6 @@ export class TransactionService {
   private collectCreateEvents(
     entity: Entity<EntityType>,
     payload: Record<string, unknown>,
-    accountId?: string,
   ): PendingEvent[] {
     const events: PendingEvent[] = [];
     const publishedAt = entity.updatedAt || new Date().toISOString();
@@ -848,7 +836,6 @@ export class TransactionService {
         entityType: entity.entityType,
         entityId: entity.entityId,
         data: entity.data,
-        createdByAccountId: accountId,
         publishedAt,
       },
     });
@@ -859,7 +846,6 @@ export class TransactionService {
   private collectUpdateEvents(
     op: TransactionUpdateEntity,
     updatedAt: string,
-    accountId?: string,
   ): PendingEvent[] {
     const events: PendingEvent[] = [];
 
@@ -913,7 +899,6 @@ export class TransactionService {
       payload: {
         entityType: op.entityType,
         entityId: op.entityId,
-        updatedByAccountId: accountId,
         publishedAt: updatedAt,
       },
     });

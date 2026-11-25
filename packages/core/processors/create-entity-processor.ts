@@ -8,7 +8,6 @@ type EventDetailBody = {
   entityType: Entity;
   entityId?: string;
   entityPayload: Record<string, any>;
-  accountId?: string;
   options: {
     createAndUpdateDatetime?: string;
     mutualId?: string;
@@ -24,8 +23,7 @@ export const handler =
       const errorContext: Record<string, unknown> = {};
       const body = parseSQSBusEvent<EventDetailBody>(record.body);
       const { detail } = body;
-      const { entityType, entityId, entityPayload, accountId, options } =
-        detail;
+      const { entityType, entityId, entityPayload, options } = detail;
       errorContext.body = body;
 
       try {
@@ -37,7 +35,6 @@ export const handler =
           entityType,
           entityId,
           entityPayload,
-          accountId,
           options,
         });
       } catch (err) {

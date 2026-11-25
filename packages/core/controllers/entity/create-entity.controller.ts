@@ -9,7 +9,6 @@ export class CreateEntityController {
   constructor(private entityService: EntityService) {}
 
   controller = createMiddleware(async (c) => {
-    const accountId = c.req.header('account-id');
     const { entityType } = c.req.param() as {
       entityType: Entity;
     };
@@ -21,7 +20,6 @@ export class CreateEntityController {
         entityType,
         entityPayload: body,
         entityId: body.entityId,
-        accountId,
         options: {
           createAndUpdateDatetime: body.createdAt,
         },
