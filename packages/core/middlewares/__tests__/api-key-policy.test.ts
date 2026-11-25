@@ -117,6 +117,17 @@ describe('compileApiKeyPolicy', () => {
     );
   });
 
+  it('grants everything to default until the project defines it', () => {
+    expect(compileApiKeyPolicy('default').full).toBe(true);
+    expect(compileApiKeyPolicy('default', 'read')).toMatchObject({
+      name: 'default',
+      full: false,
+    });
+    expect(compileApiKeyPolicy('default', 'read').entity('course').delete).toBe(
+      false,
+    );
+  });
+
   it("applies a policy-level 'read' to every entity and relationship", () => {
     const policy = compileApiKeyPolicy('agent-read', 'read');
 
@@ -585,6 +596,57 @@ describe('apiKeyAuth', () => {
       fingerprint: fingerprintApiKey('b'),
       access: { name: 'reporting', full: false },
     });
+  });
+
+  it('gives default keys full access until the project defines default', async () => {
+    const { Hono } = await import('hono');
+    const principal = async (policies: Record<string, never> | object) => {
+      const app = new Hono();
+      app.use(
+        apiKeyAuth({
+          policies: policies as never,
+          entityConfig,
+          apiKeys: '{"default": ["k"]}',
+        }),
+      );
+      app.get('/', (c) => c.json(c.get('apiKey')));
+      return (await app.request('/', { headers: { 'x-api-key': 'k' } })).json();
+    };
+
+    expect(await principal({})).toMatchObject({
+      policy: 'default',
+      access: { name: 'default', full: true },
+    });
+    // The same key, narrowed by defining the policy.
+    expect(await principal({ default: 'read' })).toMatchObject({
+      policy: 'default',
+      access: { name: 'default', full: false },
+    });
+  });
+
+  it('keeps default keys working when other policies are invalid, unless default is one of them', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const { Hono } = await import('hono');
+    const status = async (policies: object) => {
+      const app = new Hono();
+      app.use(
+        apiKeyAuth({
+          policies: policies as never,
+          entityConfig,
+          apiKeys: '{"default": ["k"]}',
+        }),
+      );
+      app.get('/', (c) => c.text('ok'));
+      return (await app.request('/', { headers: { 'x-api-key': 'k' } })).status;
+    };
+
+    expect(await status({ reporting: { entities: { lerner: 'read' } } })).toBe(
+      200,
+    );
+    expect(await status({ default: { entities: { lerner: 'read' } } })).toBe(
+      401,
+    );
+    error.mockRestore();
   });
 
   it('rejects keys under invalid policies at cold start, and keeps full keys working', async () => {

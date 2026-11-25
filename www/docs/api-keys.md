@@ -2,17 +2,26 @@
 
 Every request to Monorise Core carries an API key in the `x-api-key` header, and every key resolves to a **policy**. A policy decides which entity types, fields, relationships and custom routes the key can read or write.
 
-Out of the box, every key gets the built-in `full` policy: everything, as before. Scoping is opt-in, one key at a time.
+Out of the box, keys can do everything: an array of keys gets the built-in `full` policy, and a new project's keys sit under the built-in `default` policy until you narrow it. Scoping is opt-in, one key at a time.
 
 ## Day 0: one key that does everything
 
-`API_KEYS` is an array of keys, and each one gets `full`:
+New projects put their keys under the built-in `default` policy:
 
 ```bash
-npx sst secret set API_KEYS '["secret1", "secret2"]'
+npx sst secret set API_KEYS '{"default": ["secret1", "secret2"]}'
 ```
 
-That's the default for local development, and nothing else needs configuring. Upgrading Monorise never changes what an array key can do.
+Until you define a policy named `default`, its keys can do everything `full` can, so nothing else needs configuring for local development. When it's time to narrow them, define `default` in your policy file. The keys get exactly what it grants, and the key values stay the same:
+
+```ts
+// monorise/api-keys.ts
+export default defineApiKeyPolicies({
+  default: { entities: { [Entity.ORDER]: 'read', [Entity.USER]: { read: ['displayName'] } } },
+});
+```
+
+The array form still works too: `'["secret1", "secret2"]'` gives every key `full`, which can't be narrowed. Upgrading Monorise never changes what an array key can do.
 
 ## Declaring policies
 

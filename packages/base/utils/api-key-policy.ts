@@ -16,6 +16,14 @@ import type { Entity } from '../types/monorise.type';
  */
 export const FULL_API_KEY_POLICY = 'full';
 
+/**
+ * @description Built-in policy for keys whose scope will be narrowed later.
+ * Until the project defines a policy named `default`, keys under it can do
+ * everything `full` can. Once it does, they get exactly what that policy
+ * grants, and the keys themselves never change. New projects' keys start here.
+ */
+export const DEFAULT_API_KEY_POLICY = 'default';
+
 const ACCESS_LEVELS: readonly ApiKeyAccessLevel[] = ['none', 'read', 'write'];
 const SYSTEM_FIELDS = ['$entityId', '$createdAt'];
 const ENTITY_GRANT_KEYS = [
@@ -62,7 +70,7 @@ export type ApiKeyMutualAccess = {
 
 export type CompiledApiKeyPolicy = {
   name: string;
-  /** True only for the built-in `full` policy. */
+  /** True for the built-in `full` policy, and for `default` until the project defines it. */
   full: boolean;
   entity(entityType: string): ApiKeyEntityAccess;
   /**
@@ -191,12 +199,15 @@ const compileMutualGrant = (grant: ApiKeyMutualGrant): ApiKeyMutualAccess => {
  * grants are cached, so compile once per policy and reuse the result.
  *
  * `name === 'full'` compiles the built-in policy and ignores `policy`.
+ * `name === 'default'` without a policy compiles as `full` too.
  */
 export const compileApiKeyPolicy = (
   name: string,
   policy?: ApiKeyPolicy,
 ): CompiledApiKeyPolicy => {
-  const full = name === FULL_API_KEY_POLICY;
+  const full =
+    name === FULL_API_KEY_POLICY ||
+    (name === DEFAULT_API_KEY_POLICY && policy === undefined);
   const entities: Record<string, ApiKeyEntityGrant | undefined> = full
     ? { '*': 'write' }
     : policy === 'read' || policy === 'write'

@@ -4,6 +4,7 @@ import {
   type ApiKeyPolicyEntityConfig,
   type ApiKeyRoutePermission,
   type CompiledApiKeyPolicy,
+  DEFAULT_API_KEY_POLICY,
   FULL_API_KEY_POLICY,
   compileApiKeyPolicy,
   validateApiKeyPolicies,
@@ -109,6 +110,12 @@ const assertKeyList = (value: unknown, where: string): string[] => {
   return value;
 };
 
+// Policy names keys may use without the project defining them.
+const BUILT_IN_POLICIES: readonly string[] = [
+  FULL_API_KEY_POLICY,
+  DEFAULT_API_KEY_POLICY,
+];
+
 /**
  * Parses `API_KEYS` into a map from key fingerprint to policy name.
  *
@@ -124,7 +131,7 @@ const assertKeyList = (value: unknown, where: string): string[] => {
  */
 export const parseApiKeys = (
   raw: string | undefined,
-  definedPolicies: readonly string[] = [FULL_API_KEY_POLICY],
+  definedPolicies: readonly string[] = BUILT_IN_POLICIES,
 ): Map<string, string> => {
   const fingerprints = new Map<string, string>();
   if (!raw) return fingerprints;
@@ -240,12 +247,20 @@ export const apiKeyAuth = ({
     );
   }
 
+  // `default` stays usable unless the project defines it: until then its
+  // keys get `full`, so invalid policies elsewhere don't lock them out.
+  const projectDefinesDefault = Object.prototype.hasOwnProperty.call(
+    policies,
+    DEFAULT_API_KEY_POLICY,
+  );
   return createApiKeyAuth(
     parseApiKeys(
       apiKeys,
       errors.length
-        ? [FULL_API_KEY_POLICY]
-        : [FULL_API_KEY_POLICY, ...Object.keys(policies)],
+        ? projectDefinesDefault
+          ? [FULL_API_KEY_POLICY]
+          : BUILT_IN_POLICIES
+        : [...BUILT_IN_POLICIES, ...Object.keys(policies)],
     ),
     policies,
   );

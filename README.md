@@ -116,6 +116,7 @@ my-app/
 │   └── team.ts                      # Starter entity — has a User mutual
 ├── monorise/mutuals/
 │   └── team-membership.ts           # createMutualConfig, shared by both sides
+├── monorise/api-keys.ts             # API key policies: narrow the default key here
 ├── sst.config.ts                    # SST + Monorise configured
 └── .monorise/                       # Generated types (config.ts + index.ts)
 ```

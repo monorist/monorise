@@ -86,7 +86,12 @@ export class MonoriseCore {
       pointInTimeRecoveryEnabled: analyticsEnabled,
     });
 
-    const secretApiKeys = new sst.Secret('API_KEYS', '["secret1", "secret2"]');
+    // Keys under `default` can do everything until the project defines a
+    // `default` policy, which then narrows them without changing the keys.
+    const secretApiKeys = new sst.Secret(
+      'API_KEYS',
+      '{"default": ["secret1", "secret2"]}',
+    );
 
     const appHandlerName = `${$app.stage}-${$app.name}-${id}-app-handler`;
     const appHandlerEnvironment: Record<string, any> = {
