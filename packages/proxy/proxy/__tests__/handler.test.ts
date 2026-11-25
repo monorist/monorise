@@ -274,22 +274,27 @@ describe('createProxyHandler: callers', () => {
     ).toBe(401);
   });
 
-  it('sends a Response from authenticate back as is', async () => {
-    const expired = new Response(null, {
-      status: 401,
-      headers: { 'set-cookie': 'session=; Max-Age=0' },
-    });
+  it('sends a Response from authenticate back, with its headers', async () => {
+    const expired = () =>
+      new Response(null, {
+        status: 401,
+        headers: { 'set-cookie': 'session=; Max-Age=0' },
+      });
     const handler = createProxyHandler({
       config,
       apiBaseUrl: 'https://core.example.com',
-      authenticate: () => expired,
+      authenticate: expired,
       apiKey: 'admin-key',
       rules: { '*': allow },
     });
 
-    expect(await handler.handle(request('GET', '/api/core/entity/order'))).toBe(
-      expired,
+    const response = await handler.handle(
+      request('GET', '/api/core/entity/order'),
     );
+
+    expect(response.status).toBe(401);
+    expect(response.headers.get('set-cookie')).toBe('session=; Max-Age=0');
+    expect(coreFetch).not.toHaveBeenCalled();
   });
 
   it('answers 401 to an anonymous visitor when one kind of caller authenticates', async () => {
@@ -533,6 +538,87 @@ describe('createProxyHandler: refusals', () => {
       (await noUrl.handle(request('GET', '/api/core/entity/order'))).status,
     ).toBe(500);
     vi.unstubAllEnvs();
+  });
+});
+
+describe('createProxyHandler: caching', () => {
+  it('keeps every response out of shared caches unless Core says otherwise', async () => {
+    const cacheControl = async (path: string, cookie?: string) =>
+      (await proxy.handle(request('GET', path, { cookie }))).headers.get(
+        'cache-control',
+      );
+
+    expect(
+      await cacheControl('/api/core/entity/order/o1', 'hirer-cookie'),
+    ).toBe('private, no-store');
+    expect(
+      await cacheControl('/api/core/entity/order/o1', 'talent-cookie'),
+    ).toBe('private, no-store');
+    expect(await cacheControl('/api/core/nope', 'hirer-cookie')).toBe(
+      'private, no-store',
+    );
+
+    coreFetch.mockResolvedValue(
+      Response.json({}, { headers: { 'cache-control': 'max-age=60' } }),
+    );
+    expect(
+      await cacheControl('/api/core/entity/order/o1', 'hirer-cookie'),
+    ).toBe('max-age=60');
+  });
+});
+
+describe('createProxyHandler: callbacks that throw', () => {
+  it('answers 500 without forwarding, naming what threw', async () => {
+    const error = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const failing = (options: object) =>
+      createProxyHandler({
+        config,
+        apiBaseUrl: 'https://core.example.com',
+        ...options,
+      } as never);
+
+    const responses = await Promise.all([
+      failing({
+        authenticate: () => {
+          throw new Error('session store down');
+        },
+        apiKey: 'k',
+        rules: { '*': allow },
+      }).handle(request('GET', '/api/core/entity/order')),
+      failing({
+        caller: () => {
+          throw new Error('bad session');
+        },
+        callers: {},
+      }).handle(request('GET', '/api/core/entity/order')),
+      failing({
+        apiKey: 'k',
+        rules: {
+          order: () => {
+            throw new Error('lookup failed');
+          },
+        },
+      }).handle(request('GET', '/api/core/entity/order/o1')),
+    ]);
+
+    expect(
+      await Promise.all(responses.map((response) => read(response))),
+    ).toEqual([
+      {
+        status: 500,
+        body: { code: 'PROXY_ERROR', message: 'authenticate threw' },
+      },
+      { status: 500, body: { code: 'PROXY_ERROR', message: 'caller threw' } },
+      {
+        status: 500,
+        body: {
+          code: 'PROXY_ERROR',
+          message: "The rule for get on 'order' threw",
+        },
+      },
+    ]);
+    expect(coreFetch).not.toHaveBeenCalled();
+    expect(error).toHaveBeenCalledTimes(3);
   });
 });
 

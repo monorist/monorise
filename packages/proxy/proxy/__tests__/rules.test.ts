@@ -332,6 +332,27 @@ describe('checkOperations', () => {
     expect(later).not.toHaveBeenCalled();
   });
 
+  it('refuses with 500 when a rule throws, with its transaction index', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const response = await check(
+      [entity('get', 'order', { operationIndex: 3 })],
+      {
+        order: async () => {
+          throw new Error('lookup failed');
+        },
+      },
+    );
+
+    expect(await body(response)).toEqual({
+      status: 500,
+      body: {
+        code: 'PROXY_ERROR',
+        message: "The rule for get on 'order' threw",
+        operationIndex: 3,
+      },
+    });
+  });
+
   it('logs the rule to add when asked to', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
