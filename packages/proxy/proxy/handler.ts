@@ -9,6 +9,7 @@ import {
   type RouteRules,
   type RuleContext,
   checkOperations,
+  proxyError,
 } from './rules';
 
 /** One kind of caller: the key it calls Core with, and the rules for its users. */
@@ -106,6 +107,27 @@ const json = (status: number, body: Record<string, unknown>) =>
     headers: { 'content-type': 'application/json' },
   });
 
+// Responses depend on who is asking, so no shared cache, such as a CDN in
+// front of the app, may keep one for the next user of the same URL.
+const NO_STORE = 'private, no-store';
+
+const withNoStore = (response: Response) => {
+  if (response.headers.has('cache-control')) return response;
+  const headers = new Headers(response.headers);
+  headers.set('cache-control', NO_STORE);
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+};
+
+// A callback of the app's threw before anything was checked or forwarded.
+const callbackThrew = (what: string, error: unknown) => {
+  console.error(`[monorise/proxy] ${what} threw`, error);
+  return proxyError(`${what} threw`);
+};
+
 const unauthorized = () =>
   json(401, { code: 'UNAUTHORIZED', message: 'Unauthorized' });
 
@@ -192,9 +214,14 @@ export const createProxyHandler = <Session = unknown>(
         : await request.clone().arrayBuffer();
 
     // 1. Authenticate
-    const authenticated = options.authenticate
-      ? await options.authenticate(request)
-      : undefined;
+    let authenticated: Session | null | undefined | Response;
+    try {
+      authenticated = options.authenticate
+        ? await options.authenticate(request)
+        : undefined;
+    } catch (error) {
+      return callbackThrew('authenticate', error);
+    }
     if (authenticated instanceof Response) return authenticated;
     const session = authenticated ?? undefined;
 
@@ -202,7 +229,11 @@ export const createProxyHandler = <Session = unknown>(
     let caller: string | undefined;
     let entry: ProxyCaller<Session> | undefined;
     if (multiple) {
-      caller = await options.caller?.({ session, request });
+      try {
+        caller = await options.caller?.({ session, request });
+      } catch (error) {
+        return callbackThrew('caller', error);
+      }
       const callers = options.callers ?? {};
       entry =
         caller !== undefined && hasOwn(callers, caller)
@@ -296,13 +327,16 @@ export const createProxyHandler = <Session = unknown>(
   ): Promise<CheckResult<Session>> => {
     const prepared = await prepare(request);
     if (prepared instanceof Response) {
-      return { allowed: false, response: prepared };
+      return { allowed: false, response: withNoStore(prepared) };
     }
     const { caller, session, operations } = prepared;
     return { allowed: true, caller, session, operations };
   };
 
-  const handle = async (request: Request): Promise<Response> => {
+  const handle = async (request: Request): Promise<Response> =>
+    withNoStore(await forward(request));
+
+  const forward = async (request: Request): Promise<Response> => {
     const prepared = await prepare(request);
     if (prepared instanceof Response) return prepared;
 
