@@ -180,19 +180,35 @@ test('rejects multiple named mutuals for one entity pair', () => {
   );
 });
 
-test('permits additive fields and rejects breaking schema changes', () => {
+test('permits additive fields and rejects a changed column type', () => {
   const previous = createAnalyticsManifest([
     entity('item', { title: z.string() }),
   ]);
   const additive = createAnalyticsManifest([
     entity('item', { title: z.string(), count: z.number() }),
   ]);
-  validateSchemaEvolution(previous, additive);
+  assert.deepEqual(validateSchemaEvolution(previous, additive), []);
   const changed = createAnalyticsManifest([
     entity('item', { title: z.number() }),
   ]);
   assert.throws(
     () => validateSchemaEvolution(previous, changed),
-    /explicit analytics migration/,
+    /can't change type in place: add a field with a new name instead/,
   );
+});
+
+test('warns, rather than fails, when a field or dataset is removed', () => {
+  const previous = createAnalyticsManifest([
+    entity('item', { title: z.string(), count: z.number() }),
+    entity('note', { body: z.string() }),
+  ]);
+  const next = createAnalyticsManifest([
+    entity('item', { title: z.string() }),
+  ]);
+
+  const warnings = validateSchemaEvolution(previous, next);
+
+  assert.equal(warnings.length, 2);
+  assert.match(warnings[0], /item\.count was removed or renamed/);
+  assert.match(warnings[1], /dataset note was removed/);
 });

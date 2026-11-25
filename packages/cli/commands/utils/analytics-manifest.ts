@@ -195,19 +195,26 @@ function fingerprint(datasets: AnalyticsDataset[]): string {
   return createHash('sha256').update(JSON.stringify(datasets)).digest('hex');
 }
 
+/**
+ * Compares a manifest with the one this machine generated last. Removing a
+ * dataset or field leaves the data already written in place, so it returns a
+ * warning. A column can't change type in place, so that throws.
+ */
 export function validateSchemaEvolution(
   previous: AnalyticsManifest,
   next: AnalyticsManifest,
-): void {
+): string[] {
+  const warnings: string[] = [];
   const nextDatasets = new Map(
     next.datasets.map((dataset) => [dataset.identifier, dataset]),
   );
   for (const previousDataset of previous.datasets) {
     const nextDataset = nextDatasets.get(previousDataset.identifier);
     if (!nextDataset) {
-      throw new Error(
-        `Analytics dataset ${previousDataset.name} was removed. Supply an explicit analytics migration.`,
+      warnings.push(
+        `Analytics dataset ${previousDataset.name} was removed. If analytics is deployed, the next deploy drops its raw table; its S3 data and curated tables are kept.`,
       );
+      continue;
     }
     const nextColumns = new Map(
       nextDataset.columns.map((column) => [column.name, column]),
@@ -215,17 +222,19 @@ export function validateSchemaEvolution(
     for (const previousColumn of previousDataset.columns) {
       const nextColumn = nextColumns.get(previousColumn.name);
       if (!nextColumn) {
-        throw new Error(
-          `Analytics field ${previousDataset.name}.${previousColumn.sourceName} was removed or renamed. Supply an explicit analytics migration.`,
+        warnings.push(
+          `Analytics field ${previousDataset.name}.${previousColumn.sourceName} was removed or renamed. Its column keeps the history it has, new records leave it empty, and a renamed field starts a new column.`,
         );
+        continue;
       }
       if (nextColumn.type !== previousColumn.type) {
         throw new Error(
-          `Analytics field ${previousDataset.name}.${previousColumn.sourceName} changed from ${previousColumn.type} to ${nextColumn.type}. Supply an explicit analytics migration.`,
+          `Analytics field ${previousDataset.name}.${previousColumn.sourceName} changed from ${previousColumn.type} to ${nextColumn.type}. Analytics columns can't change type in place: add a field with a new name instead. If this project has never deployed analytics, delete .monorise/analytics-manifest.json and run the generator again.`,
         );
       }
     }
   }
+  return warnings;
 }
 
 export function writeAnalyticsManifest(
@@ -239,11 +248,14 @@ export function writeAnalyticsManifest(
       `Skipping unnamed mutual analytics datasets: ${manifest.unnamedMutuals.join(', ')}.`,
     );
   }
+  // The previous manifest is this machine's last build: .monorise/ is
+  // gitignored, so a fresh clone or a CI build has nothing to compare.
   if (fs.existsSync(analyticsManifestPath)) {
-    validateSchemaEvolution(
+    const warnings = validateSchemaEvolution(
       JSON.parse(fs.readFileSync(analyticsManifestPath, 'utf8')) as AnalyticsManifest,
       manifest,
     );
+    for (const warning of warnings) console.warn(warning);
   }
   fs.writeFileSync(analyticsManifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
 }

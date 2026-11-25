@@ -207,8 +207,15 @@ Analytics does not reconstruct mutations from before the export. Point-in-time r
 
 Disabling analytics stops capture. Re-enabling it runs another point-in-time `SNAPSHOT` reconciliation, restoring current state while leaving the disabled interval absent from change history.
 
-## Schema migrations
+## Schema changes
 
-Analytics schema changes are validated against the generated manifest. Adding a supported field is additive and adds an Athena column on the next deployment. Renaming a field or changing it to an incompatible type requires an explicit analytics migration.
+The generator compares each new analytics manifest with the one from your last local build:
+
+- **Adding a field** is additive: the next deployment adds an Athena column.
+- **Removing or renaming a field** prints a warning. The old column keeps the history it has, new records leave it empty, and a renamed field starts a new column.
+- **Removing an entity or named mutual** prints a warning. If analytics is deployed, the next deploy drops its raw table; its S3 data and curated tables are kept.
+- **Changing a field to an incompatible type** fails the build, because analytics columns can't change type in place. Add a field with a new name instead.
+
+The previous manifest lives in `.monorise/`, which is gitignored, so a fresh clone or a CI build has nothing to compare against.
 
 Run the Monorise generator after changing entity or named mutual schemas. Unnamed mutuals are skipped because they have no stable analytics dataset name; the generator prints a warning listing them. If analytics is enabled and its manifest is missing, stale, invalid, or has table-name collisions, deployment fails with instructions to regenerate the output.
