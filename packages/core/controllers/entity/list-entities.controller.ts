@@ -2,6 +2,7 @@ import type { Entity } from '@monorise/base';
 import { createMiddleware } from 'hono/factory';
 import { z } from 'zod';
 import type { EntityRepository } from '../../data/Entity';
+import type { SearchRepository } from '../../data/Search';
 
 const querySchema = z.object({
   limit: z.string().optional(),
@@ -12,7 +13,10 @@ const querySchema = z.object({
 });
 
 export class ListEntitiesController {
-  constructor(private entityRepository: EntityRepository) {}
+  constructor(
+    private entityRepository: EntityRepository,
+    private searchRepository: SearchRepository,
+  ) {}
 
   controller = createMiddleware(async (c) => {
     const errorContext: { [key: string]: any } = {};
@@ -35,10 +39,10 @@ export class ListEntitiesController {
 
       const { lastKey, query, limit, start, end } = querySchema.parse(queries);
       if (query) {
-        const results = await this.entityRepository.queryEntities(
-          entityType,
-          query,
-        );
+        // `search` looks matches up by word; `searchableFields` scans.
+        const results = this.searchRepository.searchConfig(entityType)
+          ? await this.searchRepository.searchEntities(entityType, query)
+          : await this.entityRepository.queryEntities(entityType, query);
 
         return c.json({
           data: results.items.map((item) => item.toJSON()),

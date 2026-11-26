@@ -1,5 +1,9 @@
 import { DynamoDB } from '@aws-sdk/client-dynamodb';
-import type { Entity, createEntityConfig } from '@monorise/base';
+import type {
+  Entity,
+  SearchSettings,
+  createEntityConfig,
+} from '@monorise/base';
 import { CORE_TABLE } from '../configs/service.config';
 import { getDependencies } from '../helpers/dependencies';
 import type { publishEvent as publishEventType } from '../helpers/event';
@@ -8,6 +12,7 @@ import { DbUtils } from '../data/DbUtils';
 import { EntityRepository } from '../data/Entity';
 import { EventUtils } from '../data/EventUtils';
 import { MutualRepository } from '../data/Mutual';
+import { SearchRepository } from '../data/Search';
 import { TagRepository } from '../data/Tag';
 import { WebSocketRepository } from '../data/WebSocket';
 
@@ -43,6 +48,8 @@ export class DependencyContainer {
       EntityConfig: Record<Entity, ReturnType<typeof createEntityConfig>>;
       AllowedEntityTypes: Entity[];
       EmailAuthEnabledEntities: Entity[];
+      // The `search` settings of monorise.config.ts.
+      SearchDefaults?: SearchSettings;
       tableName?: string;
     },
   ) {
@@ -104,6 +111,17 @@ export class DependencyContainer {
       this.coreTable,
       this.dynamodbClient,
       this.config.EmailAuthEnabledEntities,
+    );
+  }
+
+  get searchRepository(): SearchRepository {
+    return this.createCachedInstance(
+      SearchRepository,
+      this.config.EntityConfig,
+      this.coreTable,
+      this.dynamodbClient,
+      this.entityRepository,
+      this.config.SearchDefaults,
     );
   }
 
@@ -182,6 +200,7 @@ export class DependencyContainer {
     return this.createCachedInstance(
       ListEntitiesController,
       this.entityRepository,
+      this.searchRepository,
     );
   }
 

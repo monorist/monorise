@@ -147,6 +147,15 @@ The `searchField` helper can be bound directly to an input:
 <input {...searchField} placeholder="Search users..." />
 ```
 
+While the field has a query, `entities` holds the search results instead of the list. A search is sent once typing pauses (`searchInterval`, default 700ms), and only the latest query's results are shown, whatever order responses arrive in.
+
+Which entities match is always the server's answer. Between searches, results follow what the client writes only for entities already in them: an edited result shows its new data (also over a WebSocket), and a deleted one is removed. A new entity, or one that now matches, shows up on the next search.
+
+For entities that use [`search`](/concepts/entities#search):
+
+- A query needs a word of two or more letters. Until it has one, no request is sent and `entities` stays the list.
+- The index is updated a moment after each write, so a search right after an edit can return an older copy than the client holds. The newer copy is kept, in the results and the cache.
+
 ### `useEntity`
 
 Fetch a single entity by ID.
