@@ -76,6 +76,12 @@ const entityConfig = {
   module: named('module'),
   cohort: named('cohort'),
   enrollment,
+  ticket: createEntityConfig({
+    name: 'ticket',
+    displayName: 'Ticket',
+    baseSchema: z.object({ subject: z.string(), body: z.string() }).partial(),
+    search: { fields: [{ field: 'subject' }] },
+  }),
 };
 
 const policies: ApiKeyPolicies = {
@@ -101,6 +107,7 @@ const policies: ApiKeyPolicies = {
         mutuals: { course: { read: '*', create: ['role'], update: ['role'] } },
       },
       course: 'read',
+      ticket: { read: ['body'], list: true },
     },
   },
   client: {
@@ -1069,6 +1076,20 @@ describe('read paths that match on fields', () => {
     });
     // Listing without a search term matches on no field.
     expect((await call('writer-key', 'GET', '/entity/order')).status).toBe(200);
+  });
+
+  it('checks the indexed search fields of an entity that uses search', async () => {
+    expect(
+      await call('writer-key', 'GET', '/entity/ticket?query=refund'),
+    ).toEqual({
+      status: 403,
+      body: {
+        code: 'FORBIDDEN_FIELDS',
+        message:
+          "API key policy 'writer' does not allow search on 'ticket', which matches these fields it cannot read: 'subject'",
+        fields: ['subject'],
+      },
+    });
   });
 
   it('allows a unique lookup only by a readable field', async () => {

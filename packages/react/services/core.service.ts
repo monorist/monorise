@@ -117,7 +117,11 @@ const initCoreService = (
     return axios.get<{ data: CreatedEntity<T>[] }>(
       opts.customUrl || `${entityApiBaseUrl}/${entityType}`,
       {
-        requestKey: getEntityRequestKey('search', entityType),
+        // Keyed by query, so a search sent while another is in flight isn't
+        // handed the earlier query's request. The type's search key still
+        // reports loading and errors.
+        requestKey: `${getEntityRequestKey('search', entityType)}?query=${query}`,
+        stateKeys: [getEntityRequestKey('search', entityType)],
         params: { query },
         isInterruptive: opts.isInterruptive,
         feedback: opts.feedback,

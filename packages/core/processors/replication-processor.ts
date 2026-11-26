@@ -10,6 +10,7 @@ import {
 } from '../configs/service.config';
 import { StandardError, StandardErrorCode } from '../errors/standard-error';
 import type { DependencyContainer } from '../services/DependencyContainer';
+import { syncSearchIndex } from './search-index-processor';
 
 export const handler =
   (container: DependencyContainer) =>
@@ -23,6 +24,10 @@ export const handler =
       errorContext.record = record;
 
       try {
+        // Before replicating, so new search rows are written with the new
+        // data and replication skips them as already current.
+        await syncSearchIndex(container, record);
+
         if (record.eventName === 'MODIFY') {
           const modifiedItem = record.dynamodb?.NewImage;
           if (!modifiedItem) {

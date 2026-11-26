@@ -19,6 +19,10 @@ import {
 } from './commands/utils/api-key-policies';
 import { apiKeyTypeDeclarations } from './commands/utils/api-key-types';
 import { detectCombinedPackage } from './commands/utils/detect-package';
+import {
+  searchDefaultsDeclaration,
+  writeSearchManifest,
+} from './commands/utils/search-manifest';
 import { ROOT_TSCONFIG_TEMPLATE } from './templates/root-tsconfig';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -53,6 +57,8 @@ async function generateConfigFile(
   configDir: string,
   monoriseOutputDir: string,
   projectRoot: string,
+  // the `search` settings of monorise.config.ts
+  searchDefaults?: unknown,
 ): Promise<string> {
   const configOutputPath = path.join(monoriseOutputDir, 'config.ts');
   const initialConfigContent = `
@@ -83,6 +89,7 @@ export default {};
   const analyticsConfigs: AnalyticsConfig[] = [];
   const apiKeyTypeEntities: Parameters<typeof apiKeyTypeDeclarations>[0] =
     [];
+  const searchConfigs: { name: string; search?: unknown }[] = [];
 
   const relativePathToConfigDir = path.relative(monoriseOutputDir, configDir);
   const importPathPrefix = relativePathToConfigDir
@@ -105,6 +112,7 @@ export default {};
     }
     names.add(config.name);
     analyticsConfigs.push(config as AnalyticsConfig);
+    searchConfigs.push(config);
 
     const fileName = file.replace(/\.ts$/, '');
     const variableName = kebabToCamel(fileName);
@@ -185,11 +193,14 @@ const AllowedEntityTypes = [
 
 const EmailAuthEnabledEntities: Entity[] = [${entityWithEmailAuthEntries.join(', ')}];
 
+${searchDefaultsDeclaration(searchDefaults)}
+
 export {
   EntityConfig,
   FormSchema,
   AllowedEntityTypes,
   EmailAuthEnabledEntities,
+  SearchDefaults,
 };
 
 const config = {
@@ -197,6 +208,7 @@ const config = {
   FormSchema,
   AllowedEntityTypes,
   EmailAuthEnabledEntities,
+  SearchDefaults,
 };
 
 export default config;
@@ -205,6 +217,12 @@ ${moduleAugmentations}
 
   fs.writeFileSync(configOutputPath, configOutputContent);
   writeAnalyticsManifest(monoriseOutputDir, analyticsConfigs);
+  await writeSearchManifest(
+    monoriseOutputDir,
+    projectRoot,
+    searchConfigs,
+    searchDefaults,
+  );
   console.log('Successfully generated config.ts!');
 
   // Also generate index.ts re-exporting everything from config.ts, so consumers
@@ -278,6 +296,7 @@ import analyticsManifest from './analytics-manifest.json';
 ${routesImportLine ? `${routesImportLine}\n` : ''}${apiKeyPolicies.importLine ? `${apiKeyPolicies.importLine}\n` : ''}const coreFactory = new CoreFactory(${apiKeyPolicies.coreFactoryArg});
 
 export const replicationHandler = coreFactory.replicationProcessor;
+export const searchReindexHandler = coreFactory.searchReindexProcessor;
 export const analyticsHandler = coreFactory.analyticsProcessor;
 export const analyticsBackfillHandler = coreFactory.analyticsBackfillProcessor;
 export const analyticsMaterializationHandler = analyticsMaterializationProcessor(analyticsManifest);
@@ -341,6 +360,7 @@ async function generateFiles(rootPath?: string): Promise<GeneratedFrom> {
     configDir,
     monoriseOutputDir,
     projectRoot,
+    monoriseConfig.search,
   );
   if (apiKeysPath) {
     const policies = await validateApiKeyPoliciesFile(
