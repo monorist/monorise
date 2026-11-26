@@ -1,12 +1,14 @@
 import type {
   ApiKeyPolicies,
   Entity as EntityType,
+  SearchSettings,
   createEntityConfig,
 } from '@monorise/base';
 import { setupCommonRoutes } from './controllers/setupRoutes';
 import { Entity, EntityRepository } from './data/Entity';
 import { Mutual, MutualRepository } from './data/Mutual';
 import { PROJECTION_EXPRESSION } from './data/ProjectionExpression';
+import { SearchRepository } from './data/Search';
 import { TagRepository } from './data/Tag';
 import { WebSocketRepository } from './data/WebSocket';
 import { StandardError, StandardErrorCode } from './errors/standard-error';
@@ -24,6 +26,7 @@ import { handler as analyticsViewProcessor } from './processors/analytics-view-p
 import { handler as mutualProcessor } from './processors/mutual-processor';
 import { handler as prejoinProcessor } from './processors/prejoin-processor';
 import { handler as replicationProcessor } from './processors/replication-processor';
+import { handler as searchReindexProcessor } from './processors/search-index-processor';
 import { handler as tagProcessor } from './processors/tag-processor';
 import {
   broadcast as wsBroadcast,
@@ -42,6 +45,7 @@ class CoreFactory {
   public setupCommonRoutes: ReturnType<typeof setupCommonRoutes>;
   public mutualProcessor: ReturnType<typeof mutualProcessor>;
   public replicationProcessor: ReturnType<typeof replicationProcessor>;
+  public searchReindexProcessor: ReturnType<typeof searchReindexProcessor>;
   public createEntityProcessor: ReturnType<typeof createEntityProcessor>;
   public analyticsProcessor: ReturnType<typeof analyticsProcessor>;
   public analyticsBackfillProcessor: ReturnType<typeof analyticsBackfillProcessor>;
@@ -60,6 +64,7 @@ class CoreFactory {
       AllowedEntityTypes: EntityType[];
       EmailAuthEnabledEntities: EntityType[];
       ApiKeyPolicies?: ApiKeyPolicies;
+      SearchDefaults?: SearchSettings;
     },
   ) {
     const dependencyContainer = new DependencyContainer(this.config);
@@ -68,6 +73,7 @@ class CoreFactory {
     this.setupCommonRoutes = setupCommonRoutes(dependencyContainer);
     this.mutualProcessor = mutualProcessor(dependencyContainer);
     this.replicationProcessor = replicationProcessor(dependencyContainer);
+    this.searchReindexProcessor = searchReindexProcessor(dependencyContainer);
     this.createEntityProcessor = createEntityProcessor(dependencyContainer);
     this.analyticsProcessor = analyticsProcessor(this.config.EntityConfig);
     this.analyticsBackfillProcessor = analyticsBackfillProcessor(this.config.EntityConfig);
@@ -89,6 +95,7 @@ export {
   Mutual,
   MutualService,
   MutualRepository,
+  SearchRepository,
   TagRepository,
   WebSocketRepository,
   PROJECTION_EXPRESSION,
@@ -102,6 +109,7 @@ export {
   mutualProcessor,
   prejoinProcessor,
   replicationProcessor,
+  searchReindexProcessor,
   tagProcessor,
   appHandler,
   analyticsQueryHandler,

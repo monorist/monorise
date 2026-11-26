@@ -47,7 +47,10 @@ const ENTITY_ROUTE_ACTIONS: Record<EntityRoute, EntityAction[]> = {
 
 type EntityConfigs = Record<
   string,
-  ApiKeyPolicyEntityConfig & { searchableFields?: readonly PropertyKey[] }
+  ApiKeyPolicyEntityConfig & {
+    searchableFields?: readonly PropertyKey[];
+    search?: { fields: readonly { field: PropertyKey }[] };
+  }
 >;
 
 // Why a request is refused: 404 for a type the key's policy doesn't list,
@@ -343,13 +346,20 @@ export const createRouteGuards = (entityConfig: EntityConfigs) => {
 
   // Search matches its term against every searchable field, so a result
   // reveals a match on a field the key cannot read.
-  const checkSearch = (key: ApiKeyPrincipal, entityType: string) =>
-    checkFields(
+  // A search matches on the indexed `search` fields when the entity has them,
+  // as list-entities does, and on `searchableFields` otherwise.
+  const checkSearch = (key: ApiKeyPrincipal, entityType: string) => {
+    const config = entityConfig[entityType];
+    const fields = config?.search
+      ? config.search.fields.map(({ field }) => field)
+      : (config?.searchableFields ?? []);
+    return checkFields(
       key,
       key.access.entity(entityType).read,
-      (entityConfig[entityType]?.searchableFields ?? []).map(String),
+      fields.map(String),
       `search on '${entityType}', which matches these fields it cannot read`,
     );
+  };
 
   // A 200 vs 404 answers whether some entity has that value.
   const checkUniqueLookup = (

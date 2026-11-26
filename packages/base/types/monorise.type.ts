@@ -9,6 +9,44 @@ export interface EntitySchemaMap {
 }
 
 /**
+ * @description How a field's value is matched. `words`: split on spaces and
+ * symbols, and each word is matched from its start ("jo" finds "John").
+ */
+export type SearchMatch = 'words';
+
+/**
+ * @description Search settings shared by an entity's `search` config and the
+ * `search` key of `monorise.config.ts`. An entity's value replaces the
+ * global one.
+ */
+export interface SearchSettings {
+  /**
+   * @description Most words indexed per entity, counted across `fields` in
+   * order after duplicates and `ignoreWords` are dropped. Words past it can't
+   * be searched. Each word is a copy of the entity that every update of the
+   * entity rewrites. Defaults to `DEFAULT_MAX_WORDS` (8).
+   */
+  maxWords?: number;
+  /**
+   * @description Words that are never indexed and are skipped in queries
+   * (also known as stop words). Replaces the default list: spread
+   * `DEFAULT_IGNORE_WORDS` to extend it, or pass `[]` to ignore nothing.
+   */
+  ignoreWords?: readonly string[];
+}
+
+// Generic over the field names rather than the schema shape, so a config for
+// one entity stays assignable to the general config type.
+export interface SearchConfig<K extends PropertyKey = string>
+  extends SearchSettings {
+  /**
+   * @description Fields to index, most-searched first: earlier fields fill
+   * `maxWords` first.
+   */
+  fields: { field: K; match?: SearchMatch }[];
+}
+
+/**
  * @description Configuration for a mutual relationship between two entities.
  * Defines the schema for mutualData validation. Define once, reference from both entity configs.
  *
@@ -191,7 +229,28 @@ export interface MonoriseEntityConfig<
    * @description Minimal schema required to create an entity
    */
   createSchema?: CO;
+  /**
+   * @description (Optional) Fields `?query=` matches against, by scanning every
+   * entity of this type. Use `search` instead to look matches up by word
+   * without the scan. Can't be combined with `search`.
+   */
   searchableFields?: (keyof B)[];
+  /**
+   * @description (Optional) Index these fields by word, so `?query=` reads
+   * only the entities that contain the words searched for. Can't be combined
+   * with `searchableFields`.
+   *
+   * `maxWords` and `ignoreWords` fall back to the `search` settings in
+   * `monorise.config.ts`, then to the built-in defaults.
+   *
+   * @example
+   * ```ts
+   * search: {
+   *   fields: [{ field: 'displayName' }, { field: 'email' }],
+   * },
+   * ```
+   */
+  search?: SearchConfig<keyof B>;
   uniqueFields?: (keyof B)[];
 
   /**

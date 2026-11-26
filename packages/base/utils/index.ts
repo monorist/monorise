@@ -4,7 +4,11 @@ import type {
   MonoriseEntityConfig,
   MutualConfig,
   MutualConfigInput,
+  // Named here so the declaration emitted for createEntityConfig's return
+  // type can refer to it.
+  SearchConfig,
 } from '../types/monorise.type';
+import { validateSearchSettings } from './search';
 
 /**
  * @description Merges `mutualSchema` and `createMutualSchema` into the schema
@@ -81,6 +85,25 @@ const createEntityConfig = <
 >(
   config: MonoriseEntityConfig<T, B, C, M, CO, MO, CMO>,
 ) => {
+  if (config.search) {
+    if (config.searchableFields) {
+      throw new Error(
+        `${config.name}: 'search' and 'searchableFields' can't both be set. 'searchableFields' scans every entity on each search; 'search' looks matches up by word. Keep one.`,
+      );
+    }
+    if (!config.search.fields?.length) {
+      throw new Error(`${config.name}: 'search.fields' needs at least one field.`);
+    }
+    for (const { field, match } of config.search.fields) {
+      if (match !== undefined && match !== 'words') {
+        throw new Error(
+          `${config.name}: 'search.fields' entry '${String(field)}' has an unknown match '${match}'. Supported: 'words'.`,
+        );
+      }
+    }
+    validateSearchSettings(config.search, String(config.name));
+  }
+
   // Computed once here (config-definition time, not per-request/per-item)
   // and reused by every create-path call site (afterCreateEntityHook,
   // TransactionService.collectCreateEvents, UpsertEntityController) instead

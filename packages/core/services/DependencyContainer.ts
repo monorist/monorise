@@ -2,6 +2,7 @@ import { DynamoDB } from '@aws-sdk/client-dynamodb';
 import type {
   ApiKeyPolicies,
   Entity,
+  SearchSettings,
   createEntityConfig,
 } from '@monorise/base';
 import { CORE_TABLE } from '../configs/service.config';
@@ -12,6 +13,7 @@ import { DbUtils } from '../data/DbUtils';
 import { EntityRepository } from '../data/Entity';
 import { EventUtils } from '../data/EventUtils';
 import { MutualRepository } from '../data/Mutual';
+import { SearchRepository } from '../data/Search';
 import { TagRepository } from '../data/Tag';
 import { WebSocketRepository } from '../data/WebSocket';
 
@@ -49,6 +51,8 @@ export class DependencyContainer {
       EmailAuthEnabledEntities: Entity[];
       /** Policies from the file `apiKeys` points to in monorise.config.ts. */
       ApiKeyPolicies?: ApiKeyPolicies;
+      // The `search` settings of monorise.config.ts.
+      SearchDefaults?: SearchSettings;
       tableName?: string;
     },
   ) {
@@ -110,6 +114,17 @@ export class DependencyContainer {
       this.coreTable,
       this.dynamodbClient,
       this.config.EmailAuthEnabledEntities,
+    );
+  }
+
+  get searchRepository(): SearchRepository {
+    return this.createCachedInstance(
+      SearchRepository,
+      this.config.EntityConfig,
+      this.coreTable,
+      this.dynamodbClient,
+      this.entityRepository,
+      this.config.SearchDefaults,
     );
   }
 
@@ -188,6 +203,7 @@ export class DependencyContainer {
     return this.createCachedInstance(
       ListEntitiesController,
       this.entityRepository,
+      this.searchRepository,
     );
   }
 
