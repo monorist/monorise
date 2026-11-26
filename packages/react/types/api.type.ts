@@ -6,6 +6,19 @@ export type ApplicationRequestError = {
   message: string;
 };
 
+/**
+ * The error a failed request resolves with. When the server answered,
+ * `status`, `code` and `data` come from its response, e.g. `409` and
+ * `'UNIQUE_VALUE_EXISTS'`, so callers don't need to read the HTTP client's
+ * error.
+ */
+export type RequestError = Error & {
+  originalError?: unknown;
+  status?: number;
+  code?: string;
+  data?: unknown;
+};
+
 type ExtractModalProps<T> = T extends React.ComponentType<infer P> ? P : void;
 
 // Dynamically generate ModalProps

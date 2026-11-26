@@ -274,3 +274,4 @@ export type {
   TransactionResult,
   TransactionResultEntry,
 } from './helpers/transactional';
+export type { RequestError } from './types/api.type';
