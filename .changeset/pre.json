@@ -13,6 +13,9 @@
   },
   "changesets": [
     "proxy-handler",
+    "proxy-review-feedback",
+    "redefinable-default-policy",
+    "retire-account-id",
     "scoped-api-keys"
   ]
 }
