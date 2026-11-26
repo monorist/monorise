@@ -1,5 +1,11 @@
 # @monorise/react
 
+## 9.0.0-dev.1
+
+### Patch Changes
+
+- The dev pre-releases now include everything released from main up to base 4.8.0 and core 4.11.0: indexed search, warnings instead of failures for removed analytics fields, mutual traces behind `MONORISE_DEBUG`, and the CloudWatch dashboard off by default. API key search checks now cover an entity's indexed `search` fields, not only `searchableFields`. Base, cli and sst stay a minor above main's releases, since dev adds API key policies, the proxy template and the `default` policy placeholder on top of them.
+
 ## 9.0.0-dev.0
 
 ### Major Changes
@@ -17,6 +23,7 @@
   - The auth module is gone: `requestLogin`, `useProfile`, `getProfile`, `useIsUnauthorized`, `setIsUnauthorized`, `logout`, `authService`, the `authBaseUrl` option, and the store's `auth` state.
   - The axios instance no longer flags 401s as unauthorized; a 401 is in the error store like any other error.
   - Use your own auth library for sign-in, sessions and profiles.
+
 ## 8.5.0
 
 ### Minor Changes
