@@ -1,5 +1,24 @@
 # monorise
 
+## 2.0.0-dev.3
+
+### Major Changes
+
+- 50a993d: Conflicts answer 409 everywhere.
+
+  - **Breaking:** a taken unique value (`UNIQUE_VALUE_EXISTS`) on create, update or upsert answers `409`, as it already did in transactions. It was `400` on create and update, and an unhandled `500` on upsert.
+  - When DynamoDB cancels a write because another request wrote the same items at the same time, such as two creates claiming one unique value, Core answers `409 TRANSACTION_CONFLICT` instead of a `500`. Retrying is safe. This covers entity creates and updates, and relationship writes.
+
+### Minor Changes
+
+- 71b967c: - Mutation actions and hooks' `mutate` resolve `{ error }` with a `RequestError`: the same `Error`, now with the server's `status`, `code` and `data` when it answered, so detecting e.g. `409 UNIQUE_VALUE_EXISTS` needs no cast. `RequestError` is exported.
+  - `useTaggedEntities` waits while any value in `params` is `undefined`, such as a group that comes from data not loaded yet, instead of fetching without it. It also no longer throws when called without `params`.
+
+### Patch Changes
+
+- 638323c: `monorise init` points the `#/monorise` alias at `.monorise/config.ts` instead of `.monorise/index.ts`. With Vite 8 (Rolldown), importing `index.ts` named a shared client chunk `.monorise-<hash>.js`, which static servers that skip dot-files answered with 404. Existing projects can make the same one-line change; see the FAQ.
+- a4e7abf: A transactional `createMutual` can link to an entity created by a `createEntity` in the same transaction. It used to read both entities from the table before the commit, so it couldn't find the new one.
+
 ## 2.0.0-dev.2
 
 ### Patch Changes
