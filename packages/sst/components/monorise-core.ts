@@ -60,6 +60,11 @@ function loadSearchManifest(
 export class MonoriseCore {
   public readonly id: string;
   public readonly api: sst.aws.ApiGatewayV2;
+  public readonly devtool: sst.Linkable<{
+    kind: string;
+    coreId: string;
+    apiUrl: $util.Output<string>;
+  }>;
   public readonly bus: sst.aws.Bus;
   public readonly table: SingleTable;
   public readonly alarmTopic: sst.aws.SnsTopic;
@@ -95,6 +100,13 @@ export class MonoriseCore {
           'Authorization',
         ],
         allowOrigins: args?.allowOrigins,
+      },
+    });
+    this.devtool = new sst.Linkable(`${id}-monorise-devtool`, {
+      properties: {
+        kind: 'monorise-devtool',
+        coreId: id,
+        apiUrl: this.api.url,
       },
     });
 
