@@ -22,7 +22,7 @@
   "author": "",
   "license": "ISC",
   "devDependencies": {
-    "@monorise/base": "^4.8.0-dev.1",
+    "@monorise/base": "^4.9.0-dev.0",
     "vitest": "^3.1.1"
   }
 }

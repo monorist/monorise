@@ -12,6 +12,7 @@
     "@monorise/www": "0.0.1"
   },
   "changesets": [
+    "dev-includes-main-releases",
     "proxy-handler",
     "proxy-review-feedback",
     "redefinable-default-policy",

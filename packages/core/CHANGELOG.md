@@ -1,5 +1,11 @@
 # @monorise/core
 
+## 5.0.0-dev.5
+
+### Patch Changes
+
+- The dev pre-releases now include everything released from main up to base 4.8.0 and core 4.11.0: indexed search, warnings instead of failures for removed analytics fields, mutual traces behind `MONORISE_DEBUG`, and the CloudWatch dashboard off by default. API key search checks now cover an entity's indexed `search` fields, not only `searchableFields`. Base, cli and sst stay a minor above main's releases, since dev adds API key policies, the proxy template and the `default` policy placeholder on top of them.
+
 ## 5.0.0-dev.1
 
 ### Major Changes
@@ -121,6 +127,7 @@
   - **Unique-lookup fix.** Unique-field lookups matched entity types by prefix, so `GET /entity/user/unique/email/…` could return a `user-profile` entity, and creating a `user` was rejected when a `user-profile` already used the value. Both now match the type exactly.
   - **Dead check removed.** A check meant to let `/core/public/*` through without a key never matched: every route already required a key, and still does.
   - **`monorise init` template.** The Next.js proxy now reads its key from `MONORISE_API_KEY`, set from the `X_API_KEY` secret in `sst.config.ts`, so each additional app can pass its own key without editing the proxy.
+
 ## 4.11.0
 
 ### Minor Changes
