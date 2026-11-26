@@ -3,4 +3,4 @@
 "monorise": patch
 ---
 
-Core's `[MONORISE_DEBUG]` traces of mutual reads and writes, some of which printed mutual payloads, now log only when the `MONORISE_DEBUG` environment variable is set. Internal server errors are still always logged.
+Core's `[MONORISE_DEBUG]` traces of mutual reads and writes, some of which printed mutual payloads, now log only when the `MONORISE_DEBUG` environment variable is set. Internal server errors are still always logged. The create-entity error log no longer prints request headers, which included the caller's `x-api-key`.

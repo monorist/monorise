@@ -10,7 +10,7 @@ describe('debugLog', () => {
   it('logs nothing unless MONORISE_DEBUG is set', () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
 
-    for (const value of [undefined, '', '0', 'false']) {
+    for (const value of [undefined, '', '0', 'false', 'FALSE', ' Off ', 'no']) {
       if (value === undefined) vi.stubEnv('MONORISE_DEBUG', undefined as never);
       else vi.stubEnv('MONORISE_DEBUG', value);
       debugLog('[MONORISE_DEBUG] trace', { payload: 'secret' });
