@@ -27,6 +27,7 @@ export type MonoriseCoreArgs = {
   configRoot?: string;
   link?: any[];
   cloudwatchLogRetention?: CloudWatchLogRetention;
+  /** Disabled by default. */
   cloudwatchDashboard?: {
     enabled?: boolean;
   };
@@ -294,7 +295,7 @@ export class MonoriseCore {
     /**
      * CloudWatch Dashboard
      */
-    if (args?.cloudwatchDashboard?.enabled !== false) {
+    if (args?.cloudwatchDashboard?.enabled) {
       new aws.cloudwatch.Dashboard(`${id}-monorise-dashboard`, {
         dashboardName: `${$app.stage}-${$app.name}-${id}-monorise`,
         dashboardBody: $resolve([

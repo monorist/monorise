@@ -303,7 +303,7 @@ Analytics is opt-in. It creates Athena-queryable current-state and history table
 | Tree processor | SQS + Lambda for computed relationship sync |
 | Replication processor | DynamoDB stream + Lambda for denormalized data sync |
 | Analytics delivery (when enabled) | DynamoDB stream capture, Firehose-to-S3 history, and daily Athena materialization |
-| CloudWatch dashboard | Pre-built dashboard with Lambda metrics, DLQ depth, and table stats |
+| CloudWatch dashboard (when enabled) | Pre-built dashboard with Lambda metrics, DLQ depth, and table stats |
 
 ### Configuration options
 
