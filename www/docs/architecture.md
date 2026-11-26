@@ -114,8 +114,10 @@ Response behavior for `PATCH`:
 
 - `200 OK`: update applied
 - `409 CONFLICT`: condition failed (`CONDITIONAL_CHECK_FAILED`); a static condition on a missing entity also lands here
+- `409 CONFLICT`: a unique field's value is taken (`UNIQUE_VALUE_EXISTS`), as on create and in transactions
+- `409 CONFLICT`: another request wrote the same data at the same time (`TRANSACTION_CONFLICT`); retrying is safe
 - `404 NOT_FOUND`: entity missing without a condition or while resolving a function condition
-- `400 BAD_REQUEST`: validation errors, unique-value conflicts, or an unknown/undefined condition name
+- `400 BAD_REQUEST`: validation errors, or an unknown/undefined condition name
 
 ::: warning Legacy `$where`
 Raw `$where` conditions are deprecated and disabled by default. Enable `allowLegacyWhere` only for trusted compatibility callers; new clients must use named conditions. A compatibility request places the raw clauses under `$where`, for example `{ "status": "confirmed", "$where": { "status": { "$eq": "pending" } } }`.

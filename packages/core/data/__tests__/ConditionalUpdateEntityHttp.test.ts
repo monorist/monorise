@@ -372,7 +372,7 @@ describe('HTTP — conditional updateEntity ($where body key)', () => {
       expect(data.code).toBe('CONDITIONAL_CHECK_FAILED');
     });
 
-    it('6.3 — unique field conflict + where condition matches → 400 UNIQUE_VALUE_EXISTS', async () => {
+    it('6.3 — unique field conflict + where condition matches → 409 UNIQUE_VALUE_EXISTS', async () => {
       const ts = Date.now();
       const username1 = `taken-http-${ts}`;
       const username2 = `other-http-${ts}`;
@@ -384,7 +384,7 @@ describe('HTTP — conditional updateEntity ($where body key)', () => {
         username: username1,
         $where: { name: { $eq: 'User Two' } },
       });
-      expect(status).toBe(400);
+      expect(status).toBe(409);
       expect(data.code).toBe('UNIQUE_VALUE_EXISTS');
       const stored = await entityRepository.getEntity(USER, entity2.entityId as string);
       expect(stored.data.username).toBe(username2);
