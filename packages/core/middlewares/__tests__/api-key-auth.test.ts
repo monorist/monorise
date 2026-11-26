@@ -45,6 +45,12 @@ describe('parseApiKeys', () => {
     expect(keys.get(fingerprintApiKey('c'))).toBe('reporting');
   });
 
+  it('accepts keys under the built-in default policy', () => {
+    const keys = parseApiKeys('{"default": ["a"]}');
+
+    expect(keys.get(fingerprintApiKey('a'))).toBe('default');
+  });
+
   it('accepts pre-hashed sha256: entries, case-insensitively', () => {
     const hash = fingerprintApiKey('hashed-key');
 

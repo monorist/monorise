@@ -40,6 +40,7 @@ import {
 } from './utils';
 
 import {
+  DEFAULT_API_KEY_POLICY,
   FULL_API_KEY_POLICY,
   compileApiKeyPolicy,
   defineApiKeyPolicies,
@@ -65,6 +66,7 @@ export {
   createEntityConfig,
   createMutualConfig,
   resolveEffectiveMutualSchema,
+  DEFAULT_API_KEY_POLICY,
   FULL_API_KEY_POLICY,
   compileApiKeyPolicy,
   defineApiKeyPolicies,

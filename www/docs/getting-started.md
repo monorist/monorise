@@ -49,7 +49,8 @@ my-app/
 │   └── team.ts            # Starter Team entity — mutual with User
 ├── monorise/mutuals/      # Shared mutual relationship configs
 │   └── team-membership.ts # createMutualConfig — referenced by both sides
-├── monorise.config.ts     # Points to configs dir + custom routes
+├── monorise/api-keys.ts   # API key policies — narrow the default key here
+├── monorise.config.ts     # Points to configs dir, custom routes, API key policies
 ├── sst.config.ts          # SST v4 + Monorise module configured
 ├── tsconfig.json          # Path aliases (#/monorise, #/monorise/*, #/*)
 └── .monorise/             # Generated types + handlers (do not edit)

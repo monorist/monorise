@@ -504,11 +504,15 @@ async function runInitCommand(rootPath?: string) {
     process.exit(1);
   }
 
-  // Step 7: Create monorise.config.ts
+  // Step 7: Create monorise.config.ts, and the API key policies it points to
   console.log('⚙️  Creating monorise.config.ts...');
   fs.writeFileSync(
     path.join(projectRoot, 'monorise.config.ts'),
     readTemplate('monorise.config.ts'),
+  );
+  fs.writeFileSync(
+    path.join(projectRoot, 'monorise', 'api-keys.ts'),
+    readTemplate('api-keys.ts'),
   );
 
   // Step 8: Create shared mutual config (referenced by both User and Team)
