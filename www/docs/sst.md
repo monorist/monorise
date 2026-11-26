@@ -180,20 +180,21 @@ Under the hood, `MonoriseCore` creates:
 
 ### Resource names
 
-Core's table, queues and functions share one prefix, `<stage>-<app>-<id>`, so they sort together in the AWS console. For the `core` module of app `shop` on stage `prod`:
+Core's table, queues and functions share one prefix, `<app>-<stage>-<id>`, so a stage's resources sort together in the AWS console, next to the names SST generates. For the `core` module of app `shop` on stage `prod`:
 
 | Resource | Name |
 |----------|------|
-| Table | `prod-shop-core-table` |
-| Mutual, tag and tree queues | `prod-shop-core-mutual-queue`, … |
-| Their dead-letter queues | `prod-shop-core-mutual-dlq`, … |
-| Replication dead-letter queue | `prod-shop-core-replicator-dlq` |
-| Functions | `prod-shop-core-app-handler`, `prod-shop-core-mutual-processor`, … |
+| Table | `shop-prod-core-table` |
+| Mutual, tag and tree queues | `shop-prod-core-mutual-queue`, … |
+| Their dead-letter queues | `shop-prod-core-mutual-dlq`, … |
+| Replication dead-letter queue | `shop-prod-core-replicator-dlq` |
+| Functions | `shop-prod-core-app-handler`, `shop-prod-core-mutual-processor`, … |
 
-Stages deployed before Monorise 2.0 had generated names such as `shop-prod-corecoretableTable-abcdefgh`. On their next deploy:
+Stages deployed before Monorise 2.0 had generated names for the table and queues, such as `shop-prod-corecoretableTable-abcdefgh`, and functions named `prod-shop-core-…`. On their next deploy:
 
 - **The table keeps its name.** AWS can't rename a table, and a new name would replace it with an empty one. To get the new name, move the data to a new stage.
 - **The queues are replaced with new ones under the new names.** Messages still in the old queues are deleted with them, so redrive or clear the dead-letter queues first, and deploy while the app is quiet.
+- **The functions are replaced with new ones under the new names.** They keep logging to their existing log groups, `/aws/lambda/prod-shop-core-…`. If an entity uses `search`, the search index is rebuilt once.
 
 ### DynamoDB table structure
 

@@ -115,7 +115,10 @@ export class MonoriseCore {
       '{"default": ["secret1", "secret2"]}',
     );
 
-    const appHandlerName = `${$app.stage}-${$app.name}-${id}-app-handler`;
+    // App first, then stage, as in SST's generated names, so a stage's
+    // resources sort together in the AWS console.
+    const namePrefix = `${$app.name}-${$app.stage}-${id}`;
+    const appHandlerName = `${namePrefix}-app-handler`;
     const appHandlerEnvironment: Record<string, any> = {
       API_KEYS: secretApiKeys.value,
       CORE_TABLE: this.table.table.name,
@@ -157,7 +160,6 @@ export class MonoriseCore {
     /**
      * Event Processors
      */
-    const namePrefix = `${$app.stage}-${$app.name}-${id}`;
     const mutualProcessorName = `${namePrefix}-mutual-processor`;
     const tagProcessorName = `${namePrefix}-tag-processor`;
     const treeProcessorName = `${namePrefix}-tree-processor`;
@@ -244,7 +246,7 @@ export class MonoriseCore {
      */
     const searchManifest = loadSearchManifest(args?.configRoot);
     if (searchManifest && Object.keys(searchManifest.entities).length) {
-      const searchReindexName = `${$app.stage}-${$app.name}-${id}-search-reindex`;
+      const searchReindexName = `${namePrefix}-search-reindex`;
       const searchReindex = new sst.aws.Function(`${id}-search-reindex`, {
         name: searchReindexName,
         handler: `${dotMonorisePath}/handle.searchReindexHandler`,
@@ -349,7 +351,7 @@ export class MonoriseCore {
       this.table.table.subscribe(
         `${id}-ws-broadcast`,
         {
-          name: `${$app.stage}-${$app.name}-${id}-ws-broadcast`,
+          name: `${namePrefix}-ws-broadcast`,
           handler: `${dotMonorisePath}/handle.wsBroadcast`,
           runtime,
           memory: args.webSocket.handler?.memory ?? '1024 MB',
@@ -388,7 +390,7 @@ export class MonoriseCore {
      */
     if (args?.cloudwatchDashboard?.enabled) {
       new aws.cloudwatch.Dashboard(`${id}-monorise-dashboard`, {
-        dashboardName: `${$app.stage}-${$app.name}-${id}-monorise`,
+        dashboardName: `${namePrefix}-monorise`,
         dashboardBody: $resolve([
           aws.getRegionOutput().name,
           this.table.table.name,
