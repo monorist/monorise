@@ -27,6 +27,20 @@ export class DbUtils {
             { params },
           );
         }
+
+        // Another transaction wrote one of the same items at the same time.
+        if (
+          err.CancellationReasons?.some(
+            (reason) => reason.Code === 'TransactionConflict',
+          )
+        ) {
+          throw new StandardError(
+            StandardErrorCode.TRANSACTION_CONFLICT,
+            'Another request wrote the same data at the same time; retry',
+            err,
+            { params },
+          );
+        }
       }
 
       throw new StandardError(

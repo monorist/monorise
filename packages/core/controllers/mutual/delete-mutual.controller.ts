@@ -36,6 +36,16 @@ export class DeleteMutualController {
         });
       }
 
+      if (
+        err instanceof StandardError &&
+        err.code === StandardErrorCode.TRANSACTION_CONFLICT
+      ) {
+        c.status(httpStatus.CONFLICT);
+        return c.json({
+          ...err.toJSON(),
+        });
+      }
+
       throw err;
     }
   });

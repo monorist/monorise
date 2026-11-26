@@ -22,6 +22,19 @@ import type { ProjectionExpressionValues } from './ProjectionExpression';
 import { Item } from './abstract/Item.base';
 import { Repository } from './abstract/Repository.base';
 
+// DynamoDB cancels one of two transactions that write the same item at the
+// same time, such as two creates claiming one unique value. Retrying is safe.
+const transactionConflict = (err: TransactionCanceledException) =>
+  err.CancellationReasons?.some(
+    (reason) => reason.Code === 'TransactionConflict',
+  )
+    ? new StandardError(
+        StandardErrorCode.TRANSACTION_CONFLICT,
+        'Another request wrote the same data at the same time; retry',
+        err,
+      )
+    : undefined;
+
 export class Entity<T extends EntityType> extends Item {
   public fullId: string;
 
@@ -549,6 +562,8 @@ export class EntityRepository extends Repository {
             );
           }
         }
+        const conflict = transactionConflict(err);
+        if (conflict) throw conflict;
       }
 
       throw err;
@@ -864,6 +879,8 @@ export class EntityRepository extends Repository {
                   );
                 }
               }
+              const conflict = transactionConflict(err);
+              if (conflict) throw conflict;
             }
 
             throw err;

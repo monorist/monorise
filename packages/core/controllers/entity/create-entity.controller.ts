@@ -53,9 +53,10 @@ export class CreateEntityController {
 
       if (
         err instanceof StandardError &&
-        err.code === StandardErrorCode.UNIQUE_VALUE_EXISTS
+        (err.code === StandardErrorCode.UNIQUE_VALUE_EXISTS ||
+          err.code === StandardErrorCode.TRANSACTION_CONFLICT)
       ) {
-        c.status(httpStatus.BAD_REQUEST);
+        c.status(httpStatus.CONFLICT);
         return c.json({
           ...err.toJSON(),
         });
