@@ -28,8 +28,11 @@ export class SingleTable {
 
   constructor(id: string, args?: SingleTableArgs) {
     this.id = id;
-    this.replicatorFunctionName = `${$app.stage}-${$app.name}-${id}-core-replicator`;
-    this.dlq = new sst.aws.Queue(`${id}-core-replicator-dlq`);
+    const namePrefix = `${$app.stage}-${$app.name}-${id}`;
+    this.replicatorFunctionName = `${namePrefix}-core-replicator`;
+    this.dlq = new sst.aws.Queue(`${id}-core-replicator-dlq`, {
+      transform: { queue: { name: `${namePrefix}-replicator-dlq` } },
+    });
     this.table = args?.fromTableName
       ? sst.aws.Dynamo.get(`${id}-core-table`, args.fromTableName)
       : new sst.aws.Dynamo(`${id}-core-table`, {
@@ -74,9 +77,20 @@ export class SingleTable {
           // that attribute name. A previous release removed the `ttl`/`tableTtl`
           // args for exactly this reason -- see www/docs/sst.md.
           ttl: 'expiresAt',
-          ...(args?.pointInTimeRecoveryEnabled
-            ? { transform: { table: { pointInTimeRecovery: { enabled: true } } } }
-            : {}),
+          transform: {
+            table: (tableArgs, opts) => {
+              // New stages get a readable name. ignoreChanges keeps an
+              // existing stage's table, as SST does for the names it
+              // generates: AWS can't rename a table, so a new name would
+              // replace it, deleting the old table and its data unless the
+              // stage retains removed resources.
+              tableArgs.name = `${namePrefix}-table`;
+              opts.ignoreChanges = [...(opts.ignoreChanges ?? []), 'name'];
+              if (args?.pointInTimeRecoveryEnabled) {
+                tableArgs.pointInTimeRecovery = { enabled: true };
+              }
+            },
+          },
         });
 
     const environment = {
