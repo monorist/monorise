@@ -12,11 +12,15 @@
     "@monorise/www": "0.0.1"
   },
   "changesets": [
+    "conflicts-answer-409",
     "dev-includes-main-releases",
+    "monorise-alias-config",
     "proxy-handler",
     "proxy-review-feedback",
+    "react-request-errors-tag-params",
     "redefinable-default-policy",
     "retire-account-id",
-    "scoped-api-keys"
+    "scoped-api-keys",
+    "transaction-mutual-created-entities"
   ]
 }

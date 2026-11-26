@@ -1,5 +1,18 @@
 # @monorise/core
 
+## 5.0.0-dev.6
+
+### Major Changes
+
+- 50a993d: Conflicts answer 409 everywhere.
+
+  - **Breaking:** a taken unique value (`UNIQUE_VALUE_EXISTS`) on create, update or upsert answers `409`, as it already did in transactions. It was `400` on create and update, and an unhandled `500` on upsert.
+  - When DynamoDB cancels a write because another request wrote the same items at the same time, such as two creates claiming one unique value, Core answers `409 TRANSACTION_CONFLICT` instead of a `500`. Retrying is safe. This covers entity creates and updates, and relationship writes.
+
+### Patch Changes
+
+- a4e7abf: A transactional `createMutual` can link to an entity created by a `createEntity` in the same transaction. It used to read both entities from the table before the commit, so it couldn't find the new one.
+
 ## 5.0.0-dev.5
 
 ### Patch Changes
