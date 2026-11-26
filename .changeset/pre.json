@@ -12,6 +12,7 @@
     "@monorise/www": "0.0.1"
   },
   "changesets": [
+    "clean-resource-names",
     "conflicts-answer-409",
     "dev-includes-main-releases",
     "monorise-alias-config",
