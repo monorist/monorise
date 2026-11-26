@@ -238,7 +238,7 @@ const {
 
 ### `useTaggedEntities`
 
-Fetch entities by tag using a group, exact sort-value query, or sort range filter. Supply at least one filter in `params`; `refetch` and `listMore` currently require `params.group`.
+Fetch entities by tag using a group, exact sort-value query, or sort range filter. Supply at least one filter in `params`; `refetch` and `listMore` currently require `params.group`. While any value in `params` is `undefined`, such as a group from data that hasn't loaded yet, the hook waits instead of fetching.
 
 ```ts
 const {
@@ -285,7 +285,7 @@ Every mutation hook returns:
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `mutate` | `(...args) => Promise<{ data } \| { error }>` | Runs the corresponding mutation action. |
+| `mutate` | `(...args) => Promise<{ data } \| { error }>` | Runs the corresponding mutation action. `error` is a `RequestError`: an `Error` with the server's `status`, `code` and `data` when it answered, e.g. `409` and `'UNIQUE_VALUE_EXISTS'`. |
 | `isLoading` | `boolean` | Whether a matching mutation is in flight. |
 | `error` | `ApplicationRequestError \| undefined` | Normalized error from the last matching mutation. A later success clears it. |
 | `clearError` | `() => void` | Explicitly clears the stored error. It does not cancel a request or change cached data. |

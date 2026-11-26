@@ -42,7 +42,10 @@ import type {
   ListEntitiesByTagParams,
 } from '../services/core.service';
 import type { MonoriseStore } from '../store/monorise.store';
-import type { ApplicationRequestError } from '../types/api.type';
+import type {
+  ApplicationRequestError,
+  RequestError,
+} from '../types/api.type';
 import type { CommonStore } from '../types/monorise.type';
 import type { Mutual, MutualData } from '../types/mutual.type';
 import type { AppActions } from './app.action';
@@ -57,6 +60,24 @@ import type { AppActions } from './app.action';
 // Hooks hand it out as `entitiesMap` / `mutualsMap`, so it must never be
 // mutated: anything set on it would show in every hook without a slice.
 const EMPTY_MAP = new Map<never, never>();
+
+// The original error, with the server's status, error code and body copied
+// onto it when the server answered.
+const toRequestError = (err: unknown): RequestError => {
+  const error: RequestError =
+    err instanceof Error ? err : new Error('Unknown error occurred');
+  const response = (
+    err as { response?: { status?: unknown; data?: unknown } } | undefined
+  )?.response;
+  if (response) {
+    if (typeof response.status === 'number') error.status = response.status;
+    error.data = response.data;
+    const code = (response.data as { code?: unknown } | null | undefined)
+      ?.code;
+    if (typeof code === 'string') error.code = code;
+  }
+  return error;
+};
 
 const defaultOnError = (error: ApplicationRequestError | Error) => {
   if (!(error instanceof Error) && error.status >= 500) {
@@ -147,8 +168,7 @@ const initCoreActions = (
         `mr/entity/list/${entityType}`,
       );
     } catch (err) {
-      const error: Error & { originalError?: unknown } =
-        err instanceof Error ? err : new Error('Unknown error occurred');
+      const error = toRequestError(err);
 
       return { error };
     }
@@ -199,8 +219,7 @@ const initCoreActions = (
         `mr/entity/list-more/${entityType}`,
       );
     } catch (err) {
-      const error: Error & { originalError?: unknown } =
-        err instanceof Error ? err : new Error('Unknown error occurred');
+      const error = toRequestError(err);
 
       return { error };
     }
@@ -239,8 +258,7 @@ const initCoreActions = (
         }),
       );
     } catch (err) {
-      const error: Error & { originalError?: unknown } =
-        err instanceof Error ? err : new Error('Unknown error occurred');
+      const error = toRequestError(err);
 
       return { error };
     }
@@ -321,8 +339,7 @@ const initCoreActions = (
 
       return { data };
     } catch (err) {
-      const error: Error & { originalError?: unknown } =
-        err instanceof Error ? err : new Error('Unknown error occurred');
+      const error = toRequestError(err);
 
       return { error };
     }
@@ -334,7 +351,7 @@ const initCoreActions = (
     opts: CommonOptions = {},
   ): Promise<{
     data?: CreatedEntity<T>;
-    error?: ApplicationRequestError | (Error & { originalError?: unknown });
+    error?: ApplicationRequestError | RequestError;
   }> => {
     const store = monoriseStore.getState();
     const entityState = store.entity[entityType];
@@ -378,8 +395,7 @@ const initCoreActions = (
 
       return { data: entity };
     } catch (err) {
-      const error: Error & { originalError?: unknown } =
-        err instanceof Error ? err : new Error('Unknown error occurred');
+      const error = toRequestError(err);
 
       return { error };
     }
@@ -436,8 +452,7 @@ const initCoreActions = (
 
       return { data: entity };
     } catch (err) {
-      const error: Error & { originalError?: unknown } =
-        err instanceof Error ? err : new Error('Unknown error occurred');
+      const error = toRequestError(err);
 
       return { error };
     }
@@ -582,8 +597,7 @@ const initCoreActions = (
 
       return { data };
     } catch (err) {
-      const error: Error & { originalError?: unknown } =
-        err instanceof Error ? err : new Error('Unknown error occurred');
+      const error = toRequestError(err);
 
       onError?.(error);
 
@@ -617,8 +631,7 @@ const initCoreActions = (
       );
       return { data };
     } catch (err) {
-      const error: Error & { originalError?: unknown } =
-        err instanceof Error ? err : new Error('Unknown error occurred');
+      const error = toRequestError(err);
       onError(error);
       return { error };
     }
@@ -805,8 +818,7 @@ const initCoreActions = (
       );
       return { data };
     } catch (err) {
-      const error: Error & { originalError?: unknown } =
-        err instanceof Error ? err : new Error('Unknown error occurred');
+      const error = toRequestError(err);
       onError(error);
       return { error };
     }
@@ -857,8 +869,7 @@ const initCoreActions = (
         await getEntity(entityType, id, { forceFetch: true });
       }
 
-      const error: Error & { originalError?: unknown } =
-        err instanceof Error ? err : new Error('Unknown error occurred');
+      const error = toRequestError(err);
       onError(error);
       return { error };
     }
@@ -885,8 +896,7 @@ const initCoreActions = (
       );
       return { data: { entityId: id } }; // Indicate success with the deleted ID
     } catch (err) {
-      const error: Error & { originalError?: unknown } =
-        err instanceof Error ? err : new Error('Unknown error occurred');
+      const error = toRequestError(err);
       onError(error);
       return { error };
     }
@@ -1131,8 +1141,7 @@ const initCoreActions = (
         }
       }
 
-      const error: Error & { originalError?: unknown } =
-        err instanceof Error ? err : new Error('Unknown error occurred');
+      const error = toRequestError(err);
       onError(error);
       return { error };
     }
@@ -1231,8 +1240,7 @@ const initCoreActions = (
 
       return { data };
     } catch (err) {
-      const error: Error & { originalError?: unknown } =
-        err instanceof Error ? err : new Error('Unknown error occurred');
+      const error = toRequestError(err);
 
       return { error };
     }
@@ -1298,8 +1306,7 @@ const initCoreActions = (
       ));
     } catch (err) {
       if (!opts.defaultMutualData) {
-        const error: Error & { originalError?: unknown } =
-          err instanceof Error ? err : new Error('Unknown error occurred');
+        const error = toRequestError(err);
         return { error };
       }
 
@@ -1404,8 +1411,7 @@ const initCoreActions = (
       );
       return { data: mutual };
     } catch (err) {
-      const error: Error & { originalError?: unknown } =
-        err instanceof Error ? err : new Error('Unknown error occurred');
+      const error = toRequestError(err);
       onError(error);
       return { error };
     }
@@ -1591,8 +1597,7 @@ const initCoreActions = (
       );
       return { data: mutual };
     } catch (err) {
-      const error: Error & { originalError?: unknown } =
-        err instanceof Error ? err : new Error('Unknown error occurred');
+      const error = toRequestError(err);
       onError(error);
       return { error };
     }
@@ -1634,8 +1639,7 @@ const initCoreActions = (
       );
       return { data };
     } catch (err) {
-      const error: Error & { originalError?: unknown } =
-        err instanceof Error ? err : new Error('Unknown error occurred');
+      const error = toRequestError(err);
       onError(error);
       return { error };
     }
@@ -2477,11 +2481,18 @@ const initCoreActions = (
     const isLoading = useLoadStore(requestKey);
     const error = useErrorStore(requestKey);
 
+    // Wait while a param is still undefined, such as a group that comes from
+    // data not loaded yet, as useEntity waits for its ID.
+    const paramsReady =
+      !!params &&
+      Object.keys(params).length > 0 &&
+      Object.values(params).every((value) => value !== undefined);
+
     useEffect(() => {
-      if (entityType && tagName && Object.keys(params).length > 0) {
+      if (entityType && tagName && paramsReady) {
         listEntitiesByTag(entityType, tagName, opts);
       }
-    }, [entityType, opts, tagName, params, opts?.forceFetch]);
+    }, [entityType, opts, tagName, paramsReady, opts?.forceFetch]);
 
     return {
       entities,
