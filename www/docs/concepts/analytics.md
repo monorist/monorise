@@ -212,9 +212,10 @@ Disabling analytics stops capture. Re-enabling it runs another point-in-time `SN
 The generator compares each new analytics manifest with the one from your last local build:
 
 - **Adding a field** is additive: the next deployment adds an Athena column.
-- **Removing or renaming a field** prints a warning. The old column keeps the history it has, new records leave it empty, and a renamed field starts a new column.
+- **Removing or renaming a field** prints a warning. Its column stays: new history records leave it empty, and in the current table existing rows keep their last value. A renamed field starts a new column.
 - **Removing an entity or named mutual** prints a warning. If analytics is deployed, the next deploy drops its raw table; its S3 data and curated tables are kept.
-- **Changing a field to an incompatible type** fails the build, because analytics columns can't change type in place. Add a field with a new name instead.
+- **Changing a field to an incompatible type** fails the build, because analytics columns can't change type in place. Add a field with a name the dataset has never used instead.
+- **Bringing back a removed field or dataset with a different type** fails the build too, since its old column still exists with its old type. The manifest remembers removed columns for this check.
 
 The previous manifest lives in `.monorise/`, which is gitignored, so a fresh clone or a CI build has nothing to compare against.
 

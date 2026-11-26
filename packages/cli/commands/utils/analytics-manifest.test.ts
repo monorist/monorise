@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import test from 'node:test';
 import { z } from 'zod';
 import {
   createAnalyticsManifest,
   validateSchemaEvolution,
+  writeAnalyticsManifest,
 } from './analytics-manifest';
 
 const entity = (name: string, shape: z.ZodRawShape) => ({
@@ -187,17 +191,20 @@ test('permits additive fields and rejects a changed column type', () => {
   const additive = createAnalyticsManifest([
     entity('item', { title: z.string(), count: z.number() }),
   ]);
-  assert.deepEqual(validateSchemaEvolution(previous, additive), []);
+  assert.deepEqual(validateSchemaEvolution(previous, additive), {
+    warnings: [],
+    removedColumns: {},
+  });
   const changed = createAnalyticsManifest([
     entity('item', { title: z.number() }),
   ]);
   assert.throws(
     () => validateSchemaEvolution(previous, changed),
-    /can't change type in place: add a field with a new name instead/,
+    /can't change type in place: add a field with a name this dataset has never used/,
   );
 });
 
-test('warns, rather than fails, when a field or dataset is removed', () => {
+test('warns, rather than fails, when a field or dataset is removed, and remembers it', () => {
   const previous = createAnalyticsManifest([
     entity('item', { title: z.string(), count: z.number() }),
     entity('note', { body: z.string() }),
@@ -206,9 +213,109 @@ test('warns, rather than fails, when a field or dataset is removed', () => {
     entity('item', { title: z.string() }),
   ]);
 
-  const warnings = validateSchemaEvolution(previous, next);
+  const { warnings, removedColumns } = validateSchemaEvolution(previous, next);
 
   assert.equal(warnings.length, 2);
   assert.match(warnings[0], /item\.count was removed or renamed/);
+  assert.match(warnings[0], /in the current table existing rows keep their last value/);
   assert.match(warnings[1], /dataset note was removed/);
+  assert.deepEqual(
+    Object.fromEntries(
+      Object.entries(removedColumns).map(([id, columns]) => [
+        id,
+        columns.map((column) => `${column.name}:${column.type}`),
+      ]),
+    ),
+    { item: ['count:double'], note: ['body:string'] },
+  );
+});
+
+test('rejects a removed field that comes back with another type, in a later build', () => {
+  const first = createAnalyticsManifest([
+    entity('item', { title: z.string(), count: z.number() }),
+  ]);
+  const withoutCount = createAnalyticsManifest([
+    entity('item', { title: z.string() }),
+  ]);
+  // What writeAnalyticsManifest writes after the removal.
+  const second = {
+    ...withoutCount,
+    removedColumns: validateSchemaEvolution(first, withoutCount).removedColumns,
+  };
+
+  assert.throws(
+    () =>
+      validateSchemaEvolution(
+        second,
+        createAnalyticsManifest([
+          entity('item', { title: z.string(), count: z.string() }),
+        ]),
+      ),
+    /item\.count was removed earlier as double.*can't come back as string/,
+  );
+  // The same type is fine, and the column is live again.
+  assert.deepEqual(
+    validateSchemaEvolution(second, first).removedColumns,
+    {},
+  );
+});
+
+test('rejects a removed dataset that comes back with another column type', () => {
+  const first = createAnalyticsManifest([
+    entity('item', { title: z.string() }),
+    entity('note', { body: z.string() }),
+  ]);
+  const withoutNote = createAnalyticsManifest([
+    entity('item', { title: z.string() }),
+  ]);
+  const second = {
+    ...withoutNote,
+    removedColumns: validateSchemaEvolution(first, withoutNote).removedColumns,
+  };
+
+  assert.throws(
+    () =>
+      validateSchemaEvolution(
+        second,
+        createAnalyticsManifest([
+          entity('item', { title: z.string() }),
+          entity('note', { body: z.number() }),
+        ]),
+      ),
+    /note\.body was removed earlier as string/,
+  );
+});
+
+test('writeAnalyticsManifest carries removed columns forward between builds', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'analytics-manifest-'));
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    const read = () =>
+      JSON.parse(
+        fs.readFileSync(path.join(dir, 'analytics-manifest.json'), 'utf8'),
+      );
+    writeAnalyticsManifest(dir, [
+      entity('item', { title: z.string(), count: z.number() }),
+    ]);
+    writeAnalyticsManifest(dir, [entity('item', { title: z.string() })]);
+    assert.deepEqual(
+      read().removedColumns.item.map((column: { name: string }) => column.name),
+      ['count'],
+    );
+    // An unrelated build in between keeps it.
+    writeAnalyticsManifest(dir, [
+      entity('item', { title: z.string(), note: z.string() }),
+    ]);
+    assert.throws(
+      () =>
+        writeAnalyticsManifest(dir, [
+          entity('item', { title: z.string(), count: z.boolean() }),
+        ]),
+      /item\.count was removed earlier as double/,
+    );
+  } finally {
+    console.warn = warn;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 });

@@ -45,6 +45,13 @@ export type AnalyticsManifest = {
   datasets: AnalyticsDataset[];
   unnamedMutuals: string[];
   schemaFingerprint: string;
+  /**
+   * Columns removed from the schema in earlier builds, by dataset identifier,
+   * including every column of a removed dataset. The curated tables keep them
+   * with their types, so a field that comes back is checked against them.
+   * Deployment and materialization read only `datasets`.
+   */
+  removedColumns?: Record<string, AnalyticsColumn[]>;
 };
 
 export type AnalyticsConfig = {
@@ -195,16 +202,36 @@ function fingerprint(datasets: AnalyticsDataset[]): string {
   return createHash('sha256').update(JSON.stringify(datasets)).digest('hex');
 }
 
+const typeChangeAdvice =
+  "Analytics columns can't change type in place: add a field with a name this dataset has never used. If this project has never deployed analytics, delete .monorise/analytics-manifest.json and run the generator again.";
+
 /**
  * Compares a manifest with the one this machine generated last. Removing a
  * dataset or field leaves the data already written in place, so it returns a
- * warning. A column can't change type in place, so that throws.
+ * warning and remembers the removed columns. A column can't change type in
+ * place, so that throws, including for a removed field that comes back.
  */
 export function validateSchemaEvolution(
   previous: AnalyticsManifest,
   next: AnalyticsManifest,
-): string[] {
+): { warnings: string[]; removedColumns: Record<string, AnalyticsColumn[]> } {
   const warnings: string[] = [];
+  const removedColumns: Record<string, AnalyticsColumn[]> = {};
+  for (const [identifier, columns] of Object.entries(
+    previous.removedColumns ?? {},
+  )) {
+    removedColumns[identifier] = [...columns];
+  }
+  const remember = (identifier: string, columns: AnalyticsColumn[]) => {
+    const known = removedColumns[identifier] ?? [];
+    removedColumns[identifier] = [
+      ...known,
+      ...columns.filter(
+        (column) => !known.some((existing) => existing.name === column.name),
+      ),
+    ];
+  };
+
   const nextDatasets = new Map(
     next.datasets.map((dataset) => [dataset.identifier, dataset]),
   );
@@ -214,6 +241,7 @@ export function validateSchemaEvolution(
       warnings.push(
         `Analytics dataset ${previousDataset.name} was removed. If analytics is deployed, the next deploy drops its raw table; its S3 data and curated tables are kept.`,
       );
+      remember(previousDataset.identifier, previousDataset.columns);
       continue;
     }
     const nextColumns = new Map(
@@ -223,18 +251,39 @@ export function validateSchemaEvolution(
       const nextColumn = nextColumns.get(previousColumn.name);
       if (!nextColumn) {
         warnings.push(
-          `Analytics field ${previousDataset.name}.${previousColumn.sourceName} was removed or renamed. Its column keeps the history it has, new records leave it empty, and a renamed field starts a new column.`,
+          `Analytics field ${previousDataset.name}.${previousColumn.sourceName} was removed or renamed. Its column stays: new history records leave it empty, and in the current table existing rows keep their last value. A renamed field starts a new column.`,
         );
+        remember(previousDataset.identifier, [previousColumn]);
         continue;
       }
       if (nextColumn.type !== previousColumn.type) {
         throw new Error(
-          `Analytics field ${previousDataset.name}.${previousColumn.sourceName} changed from ${previousColumn.type} to ${nextColumn.type}. Analytics columns can't change type in place: add a field with a new name instead. If this project has never deployed analytics, delete .monorise/analytics-manifest.json and run the generator again.`,
+          `Analytics field ${previousDataset.name}.${previousColumn.sourceName} changed from ${previousColumn.type} to ${nextColumn.type}. ${typeChangeAdvice}`,
         );
       }
     }
   }
-  return warnings;
+
+  // A removed field or dataset that comes back must keep its old types.
+  for (const nextDataset of next.datasets) {
+    const removed = removedColumns[nextDataset.identifier];
+    if (!removed) continue;
+    for (const column of nextDataset.columns) {
+      const old = removed.find((candidate) => candidate.name === column.name);
+      if (!old) continue;
+      if (old.type !== column.type) {
+        throw new Error(
+          `Analytics field ${nextDataset.name}.${column.sourceName} was removed earlier as ${old.type}, and its column still has that type, so it can't come back as ${column.type}. ${typeChangeAdvice}`,
+        );
+      }
+    }
+    const stillRemoved = removed.filter(
+      (old) => !nextDataset.columns.some((column) => column.name === old.name),
+    );
+    if (stillRemoved.length) removedColumns[nextDataset.identifier] = stillRemoved;
+    else delete removedColumns[nextDataset.identifier];
+  }
+  return { warnings, removedColumns };
 }
 
 export function writeAnalyticsManifest(
@@ -250,14 +299,19 @@ export function writeAnalyticsManifest(
   }
   // The previous manifest is this machine's last build: .monorise/ is
   // gitignored, so a fresh clone or a CI build has nothing to compare.
+  let removedColumns: Record<string, AnalyticsColumn[]> = {};
   if (fs.existsSync(analyticsManifestPath)) {
-    const warnings = validateSchemaEvolution(
+    const evolution = validateSchemaEvolution(
       JSON.parse(fs.readFileSync(analyticsManifestPath, 'utf8')) as AnalyticsManifest,
       manifest,
     );
-    for (const warning of warnings) console.warn(warning);
+    for (const warning of evolution.warnings) console.warn(warning);
+    removedColumns = evolution.removedColumns;
   }
-  fs.writeFileSync(analyticsManifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  const written: AnalyticsManifest = Object.keys(removedColumns).length
+    ? { ...manifest, removedColumns }
+    : manifest;
+  fs.writeFileSync(analyticsManifestPath, `${JSON.stringify(written, null, 2)}\n`);
 }
 
 export function createAnalyticsManifest(
