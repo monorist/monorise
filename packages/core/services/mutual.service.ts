@@ -63,8 +63,17 @@ type CreateMutualParams<
     ConditionExpression?: string;
     ExpressionAttributeNames?: Record<string, string>;
     ExpressionAttributeValues?: Record<string, AttributeValue>;
+    // Entities a transaction creates alongside this mutual, keyed by
+    // `entityInTransactionKey`. They aren't in the table until it commits, so
+    // their data comes from here instead of a read.
+    entitiesInTransaction?: ReadonlyMap<string, Record<string, unknown>>;
   };
 };
+
+export const entityInTransactionKey = (
+  entityType: EntityType | string,
+  entityId: string,
+) => `${entityType}#${entityId}`;
 
 export class MutualService {
   constructor(
@@ -152,6 +161,7 @@ export class MutualService {
       ConditionExpression,
       ExpressionAttributeNames,
       ExpressionAttributeValues,
+      entitiesInTransaction,
     } = options;
 
     // Config-level `asEntity` (declared once via `createMutualConfig({ asEntity })`) is the
@@ -210,9 +220,13 @@ export class MutualService {
     debugLog('[MONORISE_DEBUG] createMutual payload parsed:', parsedMutualPayload);
 
     debugLog('[MONORISE_DEBUG] createMutual fetching entities...');
+    const readEntity = async (type: EntityType, id: string) => {
+      const data = entitiesInTransaction?.get(entityInTransactionKey(type, id));
+      return data ? { data } : this.entityRepository.getEntity(type, id);
+    };
     const [{ data: byEntityData }, { data: entityData }] = await Promise.all([
-      this.entityRepository.getEntity(byEntityType, byEntityId),
-      this.entityRepository.getEntity(entityType, entityId),
+      readEntity(byEntityType, byEntityId),
+      readEntity(entityType, entityId),
     ]);
     debugLog('[MONORISE_DEBUG] createMutual entities fetched:', {
       hasByEntityData: !!byEntityData,

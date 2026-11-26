@@ -32,7 +32,7 @@ import type {
   TransactionUpdateMutual,
 } from '../types/transaction';
 import type { EntityServiceLifeCycle } from './entity-service-lifecycle';
-import type { MutualService } from './mutual.service';
+import { type MutualService, entityInTransactionKey } from './mutual.service';
 import {
   resolveAdjustmentCondition,
   resolveUpdateCondition,
@@ -89,9 +89,35 @@ export class TransactionService {
 
     // Phase 1: Validate and build TransactWriteItems for each operation.
     // Operations are independent (each scoped to its own entity/condition read),
-    // so build them concurrently rather than one round-trip at a time.
-    const processed = await Promise.all(
-      operations.map((op) => this.processOperation(op)),
+    // so build them concurrently rather than one round-trip at a time. Creates
+    // go first: a createMutual can link to an entity this transaction creates,
+    // which isn't in the table yet, so it takes that entity's data from here.
+    const processed: ProcessedOperation[] = new Array(operations.length);
+    const isCreate = (op: TransactionOperation) =>
+      op.operation === 'createEntity';
+    await Promise.all(
+      operations.map(async (op, index) => {
+        if (isCreate(op)) processed[index] = await this.processOperation(op);
+      }),
+    );
+    const entitiesInTransaction = new Map<string, Record<string, unknown>>();
+    for (const { resultEntry } of processed.filter(Boolean)) {
+      if (resultEntry.operation === 'createEntity' && resultEntry.data) {
+        entitiesInTransaction.set(
+          entityInTransactionKey(resultEntry.entityType, resultEntry.entityId),
+          resultEntry.data,
+        );
+      }
+    }
+    await Promise.all(
+      operations.map(async (op, index) => {
+        if (!isCreate(op)) {
+          processed[index] = await this.processOperation(
+            op,
+            entitiesInTransaction,
+          );
+        }
+      }),
     );
     const afterCommits: (() => Promise<unknown>)[] = [];
     for (const { items, events, afterCommit, resultEntry } of processed) {
@@ -250,6 +276,7 @@ export class TransactionService {
 
   private async processOperation(
     op: TransactionOperation,
+    entitiesInTransaction?: ReadonlyMap<string, Record<string, unknown>>,
   ): Promise<ProcessedOperation> {
     switch (op.operation) {
       case 'createEntity': {
@@ -323,7 +350,7 @@ export class TransactionService {
         };
       }
       case 'createMutual':
-        return this.processCreateMutual(op);
+        return this.processCreateMutual(op, entitiesInTransaction);
       case 'updateMutual':
         return this.processUpdateMutual(op);
       case 'deleteMutual':
@@ -342,6 +369,7 @@ export class TransactionService {
   // projection is written in the same transaction.
   private async processCreateMutual(
     op: TransactionCreateMutual,
+    entitiesInTransaction?: ReadonlyMap<string, Record<string, unknown>>,
   ): Promise<ProcessedOperation> {
     this.assertMutualOperation(op);
     const mutualPayload = op.payload ?? {};
@@ -352,6 +380,7 @@ export class TransactionService {
         entityType: op.entityType,
         entityId: op.entityId,
         mutualPayload,
+        options: { entitiesInTransaction },
       });
 
     return {

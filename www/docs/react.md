@@ -568,7 +568,7 @@ For reactive transaction state, use [`useExecuteTransaction`](#mutation-hooks). 
 
 **DynamoDB limits**: Maximum 100 items per transaction. Each `createEntity` uses 2+ items (main record + list index + unique fields). `createMutual`, `updateMutual` and `deleteMutual` use 3 items each (plus the projection's items for an `asEntity` mutual). Other operations use 1 item each. A transaction can't touch the same record twice, so one link can only be created, updated or deleted once per transaction. A `createMutual` reads both entities before the commit, so it can't link to an entity created in the same transaction.
 
-**Atomicity**: If any operation fails (condition violation, duplicate unique field, missing entity for delete), the entire transaction is rolled back — no partial writes. A `createMutual` for an already-linked pair fails with `409 MUTUAL_EXISTS`, and an `updateMutual` or `deleteMutual` for an unlinked pair with `404 MUTUAL_NOT_FOUND`.
+**Atomicity**: If any operation fails (condition violation, duplicate unique field, missing entity for delete), the entire transaction is rolled back — no partial writes. A `createMutual` for an already-linked pair fails with `409 MUTUAL_EXISTS`, and an `updateMutual` or `deleteMutual` for an unlinked pair with `404 MUTUAL_NOT_FOUND`. A `createMutual` can link to an entity that a `createEntity` in the same transaction creates, as long as that operation sets the `entityId`.
 
 **Events**: Events (`ENTITY_CREATED`, `ENTITY_UPDATED`, `ENTITY_DELETED`, and the same mutual events the standalone `createMutual`/`editMutual`/`deleteMutual` publish) are published only after the transaction commits successfully. Replication, tag, and mutual processors work normally.
 
