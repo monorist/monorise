@@ -744,8 +744,10 @@ async function runInitCommand(rootPath?: string) {
       webTsconfig.compilerOptions.paths['#/shared/*'] = ['../../shared/*'];
       webTsconfig.compilerOptions.paths['#/monorise/*'] = ['../../.monorise/*'];
       // Exact-match alias so `import { Entity } from '#/monorise'` resolves to
-      // the generated index.ts (re-exports config.ts, kept for backward compat).
-      webTsconfig.compilerOptions.paths['#/monorise'] = ['../../.monorise/index'];
+      // the generated config.ts. Not index.ts: Vite 8 (Rolldown) names a chunk
+      // whose module is index.ts after its folder, emitting `.monorise-*.js`,
+      // which static servers that skip dot-files answer with 404.
+      webTsconfig.compilerOptions.paths['#/monorise'] = ['../../.monorise/config'];
       const hasSrcDir = fs.existsSync(path.join(projectRoot, 'apps', 'web', 'src'));
       webTsconfig.compilerOptions.paths['#/*'] = [hasSrcDir ? './src/*' : './*'];
 

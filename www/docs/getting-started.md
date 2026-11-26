@@ -54,8 +54,8 @@ my-app/
 ├── sst.config.ts          # SST v4 + Monorise module configured
 ├── tsconfig.json          # Path aliases (#/monorise, #/monorise/*, #/*)
 └── .monorise/             # Generated types + handlers (do not edit)
-    ├── config.ts          # Entity enum, types, EntityConfig
-    ├── index.ts           # Re-exports config.ts — import from '#/monorise'
+    ├── config.ts          # Entity enum, types, EntityConfig — import from '#/monorise'
+    ├── index.ts           # Re-exports config.ts, for older aliases
     └── handle.ts
 ```
 
