@@ -65,10 +65,8 @@ export class CreateEntityController {
 
       console.log('===create-entity error:', {
         err,
-        errorContext: JSON.stringify({
-          body,
-          headers: c.req.header(),
-        }),
+        // Not the headers: they include the caller's x-api-key.
+        errorContext: JSON.stringify({ body }),
       });
 
       throw err;

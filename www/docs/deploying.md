@@ -78,3 +78,17 @@ npx sst deploy --stage production # production environment
 ```
 
 Each stage has its own `API_KEYS` allow-list and `X_API_KEY` proxy secret, so keys are not shared across environments.
+
+## Debug logging
+
+Core can trace mutual reads and writes in detail, including their payloads. Those traces are off by default, so they stay out of your logs. To turn them on for a stage, set `MONORISE_DEBUG` on its functions, for example with SST's `$transform` at the top of `run()`:
+
+```ts
+if ($app.stage !== 'production') {
+  $transform(sst.aws.Function, (args) => {
+    args.environment = { ...args.environment, MONORISE_DEBUG: 'true' };
+  });
+}
+```
+
+Internal server errors are always logged, with or without the flag.
