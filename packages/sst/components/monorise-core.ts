@@ -157,12 +157,15 @@ export class MonoriseCore {
     /**
      * Event Processors
      */
-    const mutualProcessorName = `${$app.stage}-${$app.name}-${id}-mutual-processor`;
-    const tagProcessorName = `${$app.stage}-${$app.name}-${id}-tag-processor`;
-    const treeProcessorName = `${$app.stage}-${$app.name}-${id}-tree-processor`;
+    const namePrefix = `${$app.stage}-${$app.name}-${id}`;
+    const mutualProcessorName = `${namePrefix}-mutual-processor`;
+    const tagProcessorName = `${namePrefix}-tag-processor`;
+    const treeProcessorName = `${namePrefix}-tree-processor`;
 
     const mutualProcessor = new QFunction('mutual', {
       name: mutualProcessorName,
+      queueName: `${namePrefix}-mutual-queue`,
+      dlqName: `${namePrefix}-mutual-dlq`,
       handler: `${dotMonorisePath}/handle.mutualHandler`,
       memory: '512 MB',
       timeout: '30 seconds',
@@ -176,6 +179,8 @@ export class MonoriseCore {
 
     const tagProcessor = new QFunction('tag', {
       name: tagProcessorName,
+      queueName: `${namePrefix}-tag-queue`,
+      dlqName: `${namePrefix}-tag-dlq`,
       handler: `${dotMonorisePath}/handle.tagHandler`,
       memory: '512 MB',
       timeout: '30 seconds',
@@ -189,6 +194,8 @@ export class MonoriseCore {
 
     const treeProcessor = new QFunction('tree', {
       name: treeProcessorName,
+      queueName: `${namePrefix}-tree-queue`,
+      dlqName: `${namePrefix}-tree-dlq`,
       handler: `${dotMonorisePath}/handle.treeHandler`,
       memory: '512 MB',
       timeout: '30 seconds',

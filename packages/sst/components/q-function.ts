@@ -9,6 +9,10 @@ interface QFunctionArgs extends sst.aws.FunctionArgs {
   maxBatchingWindow?: DurationMinutes;
   batchSize?: number;
   alarmTopic?: sst.aws.SnsTopic;
+  /** The SQS queue's name. Without it, SST generates one. */
+  queueName?: string;
+  /** The dead-letter queue's name. Without it, SST generates one. */
+  dlqName?: string;
 }
 
 export class QFunction {
@@ -25,15 +29,20 @@ export class QFunction {
       maxBatchingWindow,
       batchSize,
       alarmTopic,
+      queueName,
+      dlqName,
       link,
       ...functionArgs
     } = args;
 
-    this.dlq = new sst.aws.Queue(`${id}-queue-dlq`);
+    this.dlq = new sst.aws.Queue(`${id}-queue-dlq`, {
+      ...(dlqName ? { transform: { queue: { name: dlqName } } } : {}),
+    });
 
     this.queue = new sst.aws.Queue(`${id}-queue`, {
       visibilityTimeout,
       dlq: this.dlq.arn,
+      ...(queueName ? { transform: { queue: { name: queueName } } } : {}),
     });
 
     this.function = new sst.aws.Function(`${id}-processor`, {
