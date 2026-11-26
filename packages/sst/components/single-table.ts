@@ -28,7 +28,7 @@ export class SingleTable {
 
   constructor(id: string, args?: SingleTableArgs) {
     this.id = id;
-    const namePrefix = `${$app.stage}-${$app.name}-${id}`;
+    const namePrefix = `${$app.name}-${$app.stage}-${id}`;
     this.replicatorFunctionName = `${namePrefix}-core-replicator`;
     this.dlq = new sst.aws.Queue(`${id}-core-replicator-dlq`, {
       transform: { queue: { name: `${namePrefix}-replicator-dlq` } },
