@@ -158,6 +158,7 @@ bus.subscribe('custom-handler', {
 | Property | Type | Description |
 |----------|------|-------------|
 | `api` | `sst.aws.ApiGatewayV2` | API Gateway with CORS, routes to Hono Lambda |
+| `devtool` | `sst.Linkable` | Non-secret Core API discovery metadata used by the [Devtool](/devtool); raw API keys are not included |
 | `bus` | `sst.aws.Bus` | EventBridge bus for entity lifecycle events |
 | `table` | `SingleTable` | DynamoDB single table with GSIs and replication |
 | `table.table` | `sst.aws.Dynamo` | The underlying DynamoDB table resource |
@@ -177,6 +178,7 @@ Under the hood, `MonoriseCore` creates:
 - **Analytics delivery** (when enabled) — a second DynamoDB Stream subscriber, Firehose delivery to S3, and daily Athena/Glue materialization
 - **CloudWatch dashboard** with metrics for all Lambda functions, DLQ depths, and a link to DynamoDB table monitoring (when enabled via `cloudwatchDashboard`)
 - **SST DevCommand** — automatically runs `monorise dev` in watch mode during `sst dev`
+- **Devtool discovery link** — exposes the Core ID and API URL so `monorise devtool` can connect to deployed stages without a manually configured URL
 
 ### Resource names
 
