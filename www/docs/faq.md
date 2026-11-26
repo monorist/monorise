@@ -82,3 +82,9 @@ Currently, monorise doesn't have built-in migration tooling (it's on the [roadma
 ## Is monorise production-ready?
 
 Monorise is actively used in production applications. However, it's still evolving — expect breaking changes between minor versions until 1.0. Pin your versions and use changesets for upgrades.
+
+## My client build has a `.monorise-*.js` file that returns 404
+
+Vite 8 bundles with Rolldown, which can name a chunk after the folder of an `index.ts` module. If `#/monorise` points at `.monorise/index.ts`, the chunk becomes `.monorise-<hash>.js`, and static servers that skip dot-files, such as `react-router-serve`, answer 404 for it, so the app doesn't hydrate.
+
+Point `#/monorise` at `.monorise/config.ts` instead, in `tsconfig.json` `paths` and in any Vite `resolve.alias`. `index.ts` only re-exports `config.ts`, so imports don't change. Projects created with `monorise init` use `config.ts` already.

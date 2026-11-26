@@ -76,6 +76,34 @@ export const proxy = createProxyHandler({
 });
 ```
 
+### Renewed session cookies
+
+Some auth libraries renew a session while reading it and hand back `Set-Cookie` headers. `authenticate` returns only the session, so keep the cookies for the request and add them to the proxy's response:
+
+```ts
+const renewed = new WeakMap<Request, string[]>();
+
+export const proxy = createProxyHandler({
+  config,
+  authenticate: async (request) => {
+    const { session, setCookies } = await readSession(request); // your auth library
+    if (setCookies.length) renewed.set(request, setCookies);
+    return session;
+  },
+  // caller, callers…
+});
+
+export const handle = async (request: Request) => {
+  const response = await proxy.handle(request);
+  for (const cookie of renewed.get(request) ?? []) {
+    response.headers.append('set-cookie', cookie);
+  }
+  return response;
+};
+```
+
+Use this `handle` for your route exports: `GET`, `loader` or `app.all(...)`. A `WeakMap` keyed by the request keeps nothing once the request is done.
+
 ## Rules
 
 A rule decides whether this user may perform one operation. Rules are strict: **an operation without a matching rule is refused** with 403.
