@@ -98,7 +98,7 @@ const { entityRepository, mutualRepository, mutualService } = container;
 const post = async (operations: object[]) => {
   const res = await app.request('/transaction', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'account-id': 'acc-1' },
+    headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ operations }),
   });
   return {
@@ -433,7 +433,6 @@ describe('POST /transaction — createMutual / updateMutual / deleteMutual', () 
       byEntityId: guardianId,
       entityId: playerId,
       parsedMutualPayload: { role: 'SELF' },
-      updatedByAccountId: 'acc-1',
     });
   });
 

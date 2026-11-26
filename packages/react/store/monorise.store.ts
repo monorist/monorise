@@ -52,15 +52,6 @@ const initMonoriseStore = () => {
         entity: Record<Entity, CommonStore<CreatedEntity<Entity>>>;
         mutual: Record<string, CommonStore<Mutual>>;
         tag: Record<string, CommonStore<CreatedEntity<Entity>>>;
-        auth: {
-          isUnauthorized: boolean;
-          profile: {
-            displayName: string;
-            email: string;
-            accountId: string;
-          };
-          isLoading: boolean;
-        };
       } => ({
         app: {
           ongoingRequests: new Map(),
@@ -76,15 +67,6 @@ const initMonoriseStore = () => {
         entity: {},
         mutual: {},
         tag: {},
-        auth: {
-          isUnauthorized: false,
-          profile: {
-            displayName: '',
-            email: '',
-            accountId: '',
-          },
-          isLoading: true,
-        },
       }),
       configureDevtools('monorise'),
     ),

@@ -4,7 +4,6 @@ import request, {
   type AxiosResponse,
 } from 'axios';
 import type { AppActions } from '../actions/app.action';
-import type { AuthActions } from '../actions/auth.action';
 import type { MonoriseStore } from '../store/monorise.store';
 import type { ApplicationRequestError } from '../types/api.type';
 
@@ -113,13 +112,11 @@ type ConfigOptions = {
 
 const injectAxiosInterceptor = (
   appActions: AppActions,
-  authActions: AuthActions,
   axios: ReturnType<typeof initAxiosInterceptor>,
   opts?: ConfigOptions,
 ) => {
   let options: ConfigOptions = opts || {};
   const { endLoading, setError, clearError } = appActions;
-  const { setIsUnauthorized } = authActions;
 
   const unknownError: ApplicationRequestError = {
     status: 500,
@@ -189,9 +186,6 @@ const injectAxiosInterceptor = (
         : unknownError;
       for (const errorKey of getErrorKeys(config)) {
         setError({ requestKey: errorKey, error: appError });
-      }
-      if (error.response?.status === 401) {
-        setIsUnauthorized(true);
       }
       return Promise.reject(error);
     },

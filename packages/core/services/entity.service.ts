@@ -45,13 +45,11 @@ export class EntityService {
     entityType,
     entityId,
     entityPayload,
-    accountId,
     options,
   }: {
     entityType: T;
     entityPayload: EntitySchemaMap[T] | Record<string, any>;
     entityId?: string;
-    accountId?: string | string[];
     options?: {
       createAndUpdateDatetime?: string;
       mutualId?: string;
@@ -101,7 +99,6 @@ export class EntityService {
     await this.entityServiceLifeCycle.afterCreateEntityHook(
       entity,
       entityPayload,
-      accountId,
     );
 
     return entity;
@@ -111,13 +108,11 @@ export class EntityService {
     entityType,
     entityId,
     adjustments,
-    accountId,
     condition,
   }: {
     entityType: T;
     entityId: string;
     adjustments: Record<string, number>;
-    accountId?: string;
     condition?: string;
   }) => {
     const entityConfig = this.EntityConfig[entityType];
@@ -197,7 +192,6 @@ export class EntityService {
         entityType,
         entityId,
         data: entity.data,
-        updatedByAccountId: accountId,
         publishedAt: entity.updatedAt || new Date().toISOString(),
       },
     });
@@ -209,14 +203,12 @@ export class EntityService {
     entityType,
     entityId,
     entityPayload,
-    accountId,
     condition,
     where,
   }: {
     entityType: T;
     entityId: string;
     entityPayload: Partial<EntitySchemaMap[T]>;
-    accountId?: string | string[];
     condition?: string;
     /** @deprecated Use `condition` (named condition) instead of raw `where`. */
     where?: WhereConditions;
@@ -385,7 +377,6 @@ export class EntityService {
           entityType,
           entityId,
           data: entity.data,
-          updatedByAccountId: accountId,
           publishedAt: entity.updatedAt || new Date().toISOString(),
         },
       });
@@ -439,11 +430,9 @@ export class EntityService {
   deleteEntity = async <T extends EntityType>({
     entityType,
     entityId,
-    accountId,
   }: {
     entityType: T;
     entityId: string;
-    accountId?: string | string[];
   }) => {
     await this.entityRepository.deleteEntity(entityType, entityId);
 
@@ -452,7 +441,6 @@ export class EntityService {
       payload: {
         entityType,
         entityId,
-        deletedByAccountId: accountId,
       },
     });
   };

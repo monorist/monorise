@@ -246,7 +246,7 @@ const config = createEntityConfig({
   hooks: {
     beforeCreate: async (draft, context) => {
       // Validate, transform, or reject
-      return { ...draft, createdBy: context.accountId };
+      return { ...draft, slug: slugify(draft.name) };
     },
     afterCreate: async (entity, context) => {
       // Side effects: notifications, analytics
@@ -330,7 +330,6 @@ app.post('/custom-action', typedRoute({
     const order = await container.entityService.createEntity({
       entityType: Entity.ORDER,
       entityPayload: body,
-      accountId: c.req.header('account-id'),
     });
     return order;
   },

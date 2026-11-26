@@ -1,7 +1,6 @@
 import type { Entity, MonoriseEntityConfig } from '@monorise/base';
 import type { AxiosResponse } from 'axios';
 import { initAppActions } from './actions/app.action';
-import { initAuthActions } from './actions/auth.action';
 import { initConfigActions } from './actions/config.action';
 import { initCoreActions } from './actions/core.action';
 import {
@@ -22,7 +21,6 @@ import {
   getTagRequestKey,
   getUniqueFieldRequestKey,
 } from './lib/utils';
-import initAuthService from './services/auth.service';
 import initCoreService from './services/core.service';
 import initFilestoreService from './services/filestore.service';
 import { initMonoriseStore } from './store/monorise.store';
@@ -34,7 +32,6 @@ import {
 } from './types/mutual.type';
 
 type Options<T extends Record<string, React.ComponentType<any>>> = {
-  authBaseUrl?: string;
   filestoreBaseUrl?: string;
   entityBaseUrl?: string;
   mutualBaseUrl?: string;
@@ -57,11 +54,9 @@ const initMonorise = () => {
   const configActions = initConfigActions(store);
   const axios = initAxiosInterceptor(store, appActions);
 
-  const authService = initAuthService(axios);
   const filestoreService = initFilestoreService(axios);
   const coreService = initCoreService(store, axios);
 
-  const authActions = initAuthActions(store, authService);
   const coreActions = initCoreActions(store, appActions, coreService);
   // The socket hooks need an HTTP read path, not just the socket: they fetch
   // the initial page on mount and re-fetch on reconnect to recover whatever
@@ -97,11 +92,7 @@ const initMonorise = () => {
     },
   });
 
-  const axiosInterceptor = injectAxiosInterceptor(
-    appActions,
-    authActions,
-    axios,
-  );
+  const axiosInterceptor = injectAxiosInterceptor(appActions, axios);
 
   const config = <T extends Record<string, React.ComponentType<any>>>(
     opts: Options<T>,
@@ -110,9 +101,6 @@ const initMonorise = () => {
       modals: opts.modals,
     });
     configActions.setConfig(opts.entityConfig);
-    authService.setOptions({
-      apiBaseUrl: opts.authBaseUrl,
-    });
     filestoreService.setOptions({
       apiBaseUrl: opts.filestoreBaseUrl,
     });
@@ -130,12 +118,10 @@ const initMonorise = () => {
     config,
     store,
     axios,
-    authService,
     filestoreService,
     coreService,
     ...configActions,
     ...appActions,
-    ...authActions,
     ...coreActions,
     ...websocketActions,
   };
@@ -146,7 +132,6 @@ const Monorise = initMonorise();
 const {
   store,
   axios,
-  authService,
   filestoreService,
   coreService,
   setConfig,
@@ -163,12 +148,6 @@ const {
   useInterruptiveLoadStore,
   useErrorStore,
   useModalStore,
-  requestLogin,
-  useProfile,
-  getProfile,
-  useIsUnauthorized,
-  setIsUnauthorized,
-  logout,
   listMoreEntities,
   createEntity,
   upsertEntity,
@@ -212,7 +191,6 @@ const {
 export {
   store,
   axios,
-  authService,
   filestoreService,
   coreService,
   setConfig,
@@ -229,12 +207,6 @@ export {
   useInterruptiveLoadStore,
   useErrorStore,
   useModalStore,
-  requestLogin,
-  useProfile,
-  getProfile,
-  useIsUnauthorized,
-  setIsUnauthorized,
-  logout,
   listMoreEntities,
   createEntity,
   upsertEntity,

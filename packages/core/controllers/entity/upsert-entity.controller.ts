@@ -15,7 +15,6 @@ export class UpsertEntityController {
   ) {}
 
   controller = createMiddleware(async (c) => {
-    const accountId = c.req.header('account-id');
     const { entityType, entityId } = c.req.param() as {
       entityType: Entity;
       entityId: string;
@@ -120,7 +119,6 @@ export class UpsertEntityController {
           entityType,
           entityId: entity.entityId,
           payload: body,
-          createdByAccountId: accountId,
         },
       });
 

@@ -14,7 +14,6 @@ export class EntityServiceLifeCycle {
   async afterCreateEntityHook<T extends EntityType>(
     entity: Entity<T>,
     entityPayload?: Record<string, unknown>,
-    accountId?: string | string[],
   ) {
     // effectiveMutualSchema is precomputed once by createEntityConfig — see
     // resolveEffectiveMutualSchema (packages/base/utils) for why it's a
@@ -41,7 +40,6 @@ export class EntityServiceLifeCycle {
         entityType: entity.entityType,
         entityId: entity.entityId,
         data: entity.data,
-        createdByAccountId: accountId,
         publishedAt: entity.updatedAt || new Date().toISOString(),
       },
     });

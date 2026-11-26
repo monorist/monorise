@@ -8,7 +8,6 @@ export class DeleteEntityController {
   constructor(private readonly entityService: EntityService) {}
 
   controller = createMiddleware(async (c) => {
-    const accountId = c.req.header('account-id');
     const { entityType, entityId } = c.req.param() as {
       entityType: Entity;
       entityId: string;
@@ -18,7 +17,6 @@ export class DeleteEntityController {
       await this.entityService.deleteEntity({
         entityType,
         entityId,
-        accountId,
       });
 
       return c.json({ message: 'entity deleted' });

@@ -75,13 +75,13 @@ describe('publishEvent', () => {
     await runWithApiKey(apiKey, () =>
       publishEvent({
         event,
-        payload: { entityId: '1', updatedByAccountId: 'u' },
+        payload: { entityId: '1', entityType: 'order' },
       }),
     );
 
     expect(sentDetail()).toEqual({
       entityId: '1',
-      updatedByAccountId: 'u',
+      entityType: 'order',
       apiKey,
     });
   });

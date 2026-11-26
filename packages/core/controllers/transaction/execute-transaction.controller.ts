@@ -9,8 +9,6 @@ export class ExecuteTransactionController {
 
   // biome-ignore lint/suspicious/noExplicitAny: Hono createMiddleware requires consistent return types
   controller = createMiddleware(async (c): Promise<any> => {
-    const accountId = c.req.header('account-id') || '';
-
     try {
       const body = await c.req.json();
 
@@ -24,7 +22,6 @@ export class ExecuteTransactionController {
 
       const result = await this.transactionService.executeTransaction(
         body.operations,
-        accountId,
       );
 
       c.status(httpStatus.OK);

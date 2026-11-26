@@ -44,7 +44,7 @@ import type { AppActions } from './app.action';
 // ===== Important tips ======
 // Should we use store.getState() or store()?
 // USE store.getState() WHEN using within an action such as getEntity, getProfile
-// USE store() WHEN using within a react hook so that it gets the benefit of reactivity, such as useProfile, useEntity
+// USE store() WHEN using within a react hook so that it gets the benefit of reactivity, such as useEntity
 
 // The map a hook reads before the store has a slice for it: one shared
 // instance, so the arrays built from it keep their identity across renders.

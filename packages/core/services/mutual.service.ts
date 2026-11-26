@@ -47,7 +47,6 @@ type CreateMutualParams<
   entityType: T;
   entityId: string;
   mutualPayload?: Record<string, unknown>;
-  accountId?: string | string[];
   options?: {
     // When set (here, or once on the mutual's own `createMutualConfig`), the mutual is also
     // materialized as a real Entity. That entity is always written SYNCHRONOUSLY, in the same
@@ -314,7 +313,6 @@ export class MutualService {
       entityType,
       entityId,
       mutualPayload,
-      accountId,
     } = params;
     const { mutual, entity, transactItems, parsedMutualPayload } =
       await this.prepareCreateMutual(params);
@@ -336,7 +334,6 @@ export class MutualService {
       await this.entityServiceLifeCycle.afterCreateEntityHook(
         entity,
         mutualPayload,
-        accountId,
       );
     }
 
@@ -346,7 +343,6 @@ export class MutualService {
       entityType,
       entityId,
       parsedMutualPayload,
-      accountId,
       publishedAt: new Date().toISOString(),
     };
 
@@ -472,7 +468,6 @@ export class MutualService {
     entityType,
     entityId,
     mutualPayload,
-    accountId,
     options,
   }: {
     byEntityType: B;
@@ -480,7 +475,6 @@ export class MutualService {
     entityType: T;
     entityId: string;
     mutualPayload: M;
-    accountId?: string | string[];
     options?: {
       maxObjectUpdateLevel?: number;
       returnUpdatedValue?: boolean;
@@ -523,7 +517,6 @@ export class MutualService {
         entityType,
         entityId,
         parsedMutualPayload,
-        updatedByAccountId: accountId,
       },
     });
     console.log('[MONORISE_DEBUG] updateMutual service complete');
@@ -575,13 +568,11 @@ export class MutualService {
     byEntityId,
     entityType,
     entityId,
-    accountId,
   }: {
     byEntityType: EntityType;
     byEntityId: string;
     entityType: EntityType;
     entityId: string;
-    accountId?: string | string[];
   }) => {
     const mutual = await this.mutualRepository.deleteMutual(
       byEntityType,
@@ -597,7 +588,6 @@ export class MutualService {
         byEntityId,
         entityType,
         entityId,
-        deletedByAccountId: accountId,
       },
     });
 
