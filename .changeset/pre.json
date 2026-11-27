@@ -15,6 +15,7 @@
     "clean-resource-names",
     "conflicts-answer-409",
     "dev-includes-main-releases",
+    "local-entity-devtool",
     "monorise-alias-config",
     "proxy-handler",
     "proxy-review-feedback",
