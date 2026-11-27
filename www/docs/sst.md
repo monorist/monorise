@@ -182,21 +182,30 @@ Under the hood, `MonoriseCore` creates:
 
 ### Resource names
 
-Core's table, queues and functions share one prefix, `<app>-<stage>-<id>`, so a stage's resources sort together in the AWS console, next to the names SST generates. For the `core` module of app `shop` on stage `prod`:
+Core's resources share one prefix, `<app>-<stage>-<id>`, so a stage's resources sort together in the AWS console, next to the names SST generates. For the `core` module of app `shop` on stage `prod`:
 
 | Resource | Name |
 |----------|------|
 | Table | `shop-prod-core-table` |
+| API | `shop-prod-core-api` |
+| Event bus | `shop-prod-core-bus` |
+| Its rules | `shop-prod-core-mutual-rule`, … |
 | Mutual, tag and tree queues | `shop-prod-core-mutual-queue`, … |
 | Their dead-letter queues | `shop-prod-core-mutual-dlq`, … |
 | Replication dead-letter queue | `shop-prod-core-replicator-dlq` |
 | Functions | `shop-prod-core-app-handler`, `shop-prod-core-mutual-processor`, … |
+| Alarm topic | `shop-prod-core-alarms` |
+| WebSocket API, when enabled | `shop-prod-core-websocket` |
 
-Stages deployed before Monorise 2.0 had generated names for the table and queues, such as `shop-prod-corecoretableTable-abcdefgh`, and functions named `prod-shop-core-…`. On their next deploy:
+Analytics resources keep their own names.
 
-- **The table keeps its name.** AWS can't rename a table, and a new name would replace it with an empty one. To get the new name, move the data to a new stage.
-- **The queues are replaced with new ones under the new names.** Messages still in the old queues are deleted with them, so redrive or clear the dead-letter queues first, and deploy while the app is quiet.
-- **The functions are replaced with new ones under the new names.** They keep logging to their existing log groups, `/aws/lambda/prod-shop-core-…`. If an entity uses `search`, the search index is rebuilt once.
+Stages deployed before Monorise 2.0 had generated names, such as `shop-prod-corecoretableTable-abcdefgh`, and functions named `prod-shop-core-…`. On their next deploy:
+
+- **The table and the alarm topic keep their names.** AWS can't rename either. A new table would start empty, and a new topic would drop the subscriptions you added to receive alarms. To get the table's new name, move the data to a new stage.
+- **The APIs are renamed in place.** Their URLs don't change.
+- **The bus and its rules are replaced** under the new names. Rules you added to the bus outside your SST config aren't recreated.
+- **The queues are replaced** under the new names. Messages still in the old queues are deleted with them, so redrive or clear the dead-letter queues first, and deploy while the app is quiet.
+- **The functions are replaced** under the new names. They keep logging to their existing log groups, `/aws/lambda/prod-shop-core-…`. If an entity uses `search`, the search index is rebuilt once.
 
 ### DynamoDB table structure
 

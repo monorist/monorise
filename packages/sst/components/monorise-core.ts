@@ -89,8 +89,13 @@ export class MonoriseCore {
     });
 
     this.id = id;
+    // App first, then stage, as in SST's generated names, so a stage's
+    // resources sort together in the AWS console.
+    const namePrefix = `${$app.name}-${$app.stage}-${id}`;
 
+    // AWS renames an API in place: its ID and URL don't change.
     this.api = new sst.aws.ApiGatewayV2(`${id}-monorise-api`, {
+      transform: { api: { name: `${namePrefix}-api` } },
       cors: {
         allowMethods: ['*'],
         allowCredentials: true,
@@ -110,7 +115,11 @@ export class MonoriseCore {
       },
     });
 
-    this.bus = new sst.aws.Bus(`${id}-monorise-bus`);
+    // EventBridge can't rename a bus, so an existing stage's bus is
+    // replaced; the rules below are recreated on the new one.
+    this.bus = new sst.aws.Bus(`${id}-monorise-bus`, {
+      transform: { bus: { name: `${namePrefix}-bus` } },
+    });
     const analyticsEnabled = Boolean(args?.analytics && args.analytics.enabled !== false);
     this.table = new SingleTable(id, {
       runtime,
@@ -127,9 +136,6 @@ export class MonoriseCore {
       '{"default": ["secret1", "secret2"]}',
     );
 
-    // App first, then stage, as in SST's generated names, so a stage's
-    // resources sort together in the AWS console.
-    const namePrefix = `${$app.name}-${$app.stage}-${id}`;
     const appHandlerName = `${namePrefix}-app-handler`;
     const appHandlerEnvironment: Record<string, any> = {
       API_KEYS: secretApiKeys.value,
@@ -143,7 +149,17 @@ export class MonoriseCore {
       ...(args?.link ?? []),
     ];
 
-    this.alarmTopic = new sst.aws.SnsTopic(`${id}-monorise-dlq-alarm-topic`);
+    this.alarmTopic = new sst.aws.SnsTopic(`${id}-monorise-dlq-alarm-topic`, {
+      transform: {
+        topic: (topicArgs, opts) => {
+          // New stages get a readable name. ignoreChanges keeps an existing
+          // stage's topic: SNS can't rename a topic, and a new one would
+          // drop the subscriptions people added to receive alarms.
+          topicArgs.name = `${namePrefix}-alarms`;
+          opts.ignoreChanges = [...(opts.ignoreChanges ?? []), 'name'];
+        },
+      },
+    });
 
     if (analyticsEnabled && args?.analytics) {
       if (
@@ -222,6 +238,7 @@ export class MonoriseCore {
     });
 
     this.bus.subscribeQueue(`${id}-mutual-queue-rule`, mutualProcessor.queue, {
+      transform: { rule: { name: `${namePrefix}-mutual-rule` } },
       pattern: {
         source: [SOURCE.CORE],
         detailType: [
@@ -232,6 +249,7 @@ export class MonoriseCore {
     });
 
     this.bus.subscribeQueue(`${id}-tag-queue-rule`, tagProcessor.queue, {
+      transform: { rule: { name: `${namePrefix}-tag-rule` } },
       pattern: {
         source: [SOURCE.CORE],
         detailType: [
@@ -242,6 +260,7 @@ export class MonoriseCore {
     });
 
     this.bus.subscribeQueue(`${id}-tree-queue-rule`, treeProcessor.queue, {
+      transform: { rule: { name: `${namePrefix}-tree-rule` } },
       pattern: {
         source: [SOURCE.CORE],
         detailType: [
@@ -317,7 +336,9 @@ export class MonoriseCore {
       const timeout = args.webSocket.handler?.timeout ?? '30 seconds';
 
       // WebSocket API Gateway
-      this.websocket = new sst.aws.ApiGatewayWebSocket(`${id}-websocket`, {});
+      this.websocket = new sst.aws.ApiGatewayWebSocket(`${id}-websocket`, {
+        transform: { api: { name: `${namePrefix}-websocket` } },
+      });
 
       const wsEnvironment = {
         CORE_TABLE: this.table.table.name,
@@ -326,6 +347,7 @@ export class MonoriseCore {
 
       // $connect handler
       const connectHandler = new sst.aws.Function(`${id}-ws-connect`, {
+        name: `${namePrefix}-ws-connect`,
         handler: `${dotMonorisePath}/handle.wsConnect`,
         runtime,
         memory,
@@ -336,6 +358,7 @@ export class MonoriseCore {
 
       // $disconnect handler
       const disconnectHandler = new sst.aws.Function(`${id}-ws-disconnect`, {
+        name: `${namePrefix}-ws-disconnect`,
         handler: `${dotMonorisePath}/handle.wsDisconnect`,
         runtime,
         memory,
@@ -346,6 +369,7 @@ export class MonoriseCore {
 
       // $default handler
       const defaultHandler = new sst.aws.Function(`${id}-ws-default`, {
+        name: `${namePrefix}-ws-default`,
         handler: `${dotMonorisePath}/handle.wsDefault`,
         runtime,
         memory,
