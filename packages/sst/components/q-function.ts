@@ -82,7 +82,10 @@ export class QFunction {
       const dlqMessageAlarm = new aws.cloudwatch.MetricAlarm(
         `${id}-dlq-message-alarm`,
         {
-          name: `${$app.name}-${$app.stage}-${id}-dlq-alarm`,
+          // Named after its queue, so it sorts next to it.
+          name: dlqName
+            ? `${dlqName}-alarm`
+            : `${$app.name}-${$app.stage}-${id}-dlq-alarm`,
           comparisonOperator: 'GreaterThanOrEqualToThreshold',
           evaluationPeriods: 1,
           metricName: 'ApproximateNumberOfMessagesVisible',
