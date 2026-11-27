@@ -1,5 +1,13 @@
 # @monorise/cli
 
+## 4.6.0-dev.5
+
+### Patch Changes
+
+- 2412f02: Restore the devtool schema reference's original field-name styling while
+  keeping fields clickable, improve suggested values for common person and
+  organisation fields, and clarify that manual connections accept any API key.
+
 ## 4.6.0-dev.4
 
 ### Minor Changes

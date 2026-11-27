@@ -1,5 +1,13 @@
 # monorise
 
+## 2.0.0-dev.11
+
+### Patch Changes
+
+- 2412f02: Restore the devtool schema reference's original field-name styling while
+  keeping fields clickable, improve suggested values for common person and
+  organisation fields, and clarify that manual connections accept any API key.
+
 ## 2.0.0-dev.10
 
 ### Minor Changes
