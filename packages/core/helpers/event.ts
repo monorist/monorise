@@ -52,39 +52,3 @@ export async function publishEvent<T extends Record<string, any>>({
 
   await eventBridge.send(new PutEventsCommand(params));
 }
-
-type PublishErrorEventPayload = {
-  id: string;
-  serviceName: string;
-  method: string;
-  path: string;
-  body?: Record<string, any>;
-  error: Error;
-};
-
-export async function publishErrorEvent({
-  id,
-  serviceName,
-  method,
-  path,
-  body,
-  error,
-}: PublishErrorEventPayload) {
-  await publishEvent({
-    event: EVENT.GENERAL.ENDPOINT_ERROR,
-    payload: {
-      id,
-      serviceName,
-      method,
-      path,
-      ...(body ? { requestBody: body } : {}),
-      error: {
-        name: error.name,
-        message: error.message,
-        // @ts-ignore
-        cause: error.cause,
-        stack: error.stack,
-      },
-    },
-  });
-}

@@ -59,6 +59,15 @@ Failed messages can be redriven from the DLQ once the issue is resolved.
 
 The default Hono API exposes the following routes under `/core`. All entity routes are validated by `entityTypeCheck` middleware, and mutual routes by `mutualTypeCheck` middleware. Every route also checks the request's API key against its policy; see [API Keys](/api-keys).
 
+### Errors
+
+Every error answers JSON with a `code`, so a client can branch on it:
+
+- `401 UNAUTHORIZED`: the `x-api-key` header is missing or the key is unknown
+- `403 FORBIDDEN`: the key's policy doesn't grant the request (see [API keys](/api-keys))
+- `404 NOT_FOUND`: no route matches the path, or the entity or entity type doesn't exist
+- `500 INTERNAL_SERVER_EXCEPTION`: an unexpected error. The response's `id` is logged with the error, so it can be found in the app handler's logs
+
 ### Entity endpoints
 
 | Method | Route | Description |

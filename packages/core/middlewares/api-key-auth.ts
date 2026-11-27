@@ -211,8 +211,8 @@ export const createApiKeyAuth = (
     if (!fingerprint || !policy) {
       c.status(httpStatus.UNAUTHORIZED);
       return c.json({
-        status: httpStatus.UNAUTHORIZED,
-        message: httpStatus['401_MESSAGE'],
+        code: 'UNAUTHORIZED',
+        message: 'Missing or unknown API key',
       });
     }
 

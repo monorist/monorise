@@ -70,7 +70,7 @@ export const analyticsQueryHandler = () => {
   app.use('*', async (c, next) => {
     const key = c.req.header('x-api-key');
     if (!key || !apiKeys().includes(key)) {
-      return c.json({ status: httpStatus.UNAUTHORIZED, message: httpStatus['401_MESSAGE'] }, httpStatus.UNAUTHORIZED);
+      return c.json({ code: 'UNAUTHORIZED', message: 'Missing or unknown API key' }, httpStatus.UNAUTHORIZED);
     }
     return next();
   });

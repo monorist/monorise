@@ -1,10 +1,9 @@
 import { nanoid } from 'nanoid';
-import { publishErrorEvent, publishEvent } from './event';
+import { publishEvent } from './event';
 
 export const getDependencies = () => {
   return {
     nanoid,
     publishEvent,
-    publishErrorEvent,
   };
 };

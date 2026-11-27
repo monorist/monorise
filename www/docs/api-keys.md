@@ -170,7 +170,7 @@ Creating a relationship whose mutual config uses `asEntity` also needs create on
 
 | Response | When |
 |---|---|
-| 401 | Missing or unknown key |
+| 401 `UNAUTHORIZED` | Missing or unknown key |
 | 404 `NOT_FOUND` | The entity type isn't in the key's policy |
 | 403 `FORBIDDEN` | The type is listed, but the action, direction, tag or route isn't granted |
 | 403 `FORBIDDEN_FIELDS` | A write sets, or a request matches on, fields outside the key's lists. `fields` names them |
