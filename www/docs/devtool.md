@@ -60,7 +60,19 @@ one manually.
 
 ### Manual connection
 
-Pass a Core base URL and optional API key when SST discovery is unavailable:
+Engineers do not need AWS or SST access when they have a Core URL and a shared
+read-only API key. In the dashboard:
+
+1. Open the **Stage** picker.
+2. Select **Manual connection…**.
+3. Enter the Monorise Core URL and paste the shared key.
+4. Select **Connect**.
+
+The password field is cleared immediately after submission. The key is held
+only in the local Node.js process, represented in the dashboard by a
+fingerprint, and is never returned to or stored by the browser.
+
+You can alternatively pass the connection when starting the CLI:
 
 ```bash
 npx monorise devtool \
@@ -216,6 +228,8 @@ The devtool is intended for local development:
 - the browser can proxy only configured entity, tag, and mutual routes
 - raw API keys are never returned by metadata endpoints
 - raw API keys are not written to browser storage
+- manually entered keys are cleared from the password field immediately after
+  submission and retained only in the local Node.js process
 - Core API-key policies continue to authorize every request
 
 Treat the terminal process as sensitive while it holds a raw API key, and stop
@@ -228,7 +242,8 @@ it with <kbd>Ctrl</kbd>+<kbd>C</kbd> when you are finished.
 Confirm that you are in the SST project root, your AWS credentials can read the
 deployment, and the stage has been deployed. Automatic API discovery also
 requires the stage to be redeployed with a Monorise version that exposes the
-devtool discovery link.
+devtool discovery link. If you do not have AWS access, select **Manual
+connection…** and use a shared Core URL and read-only key instead.
 
 ### A stage has no usable API keys
 

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import {
   type IncomingMessage,
   type ServerResponse,
@@ -31,6 +32,57 @@ export type DevtoolServerOptions = {
 };
 
 const MAX_BODY_BYTES = 1024 * 1024;
+const MANUAL_STAGE: DevtoolStageSummary = {
+  id: 'manual',
+  label: 'Manual connection',
+  source: 'local',
+};
+
+function resolveManualConnection(payload: {
+  apiUrl?: unknown;
+  apiKey?: unknown;
+}): ResolvedDevtoolStage {
+  if (typeof payload.apiUrl !== 'string' || !payload.apiUrl.trim()) {
+    throw new Error('Core API URL is required');
+  }
+  if (payload.apiKey !== undefined && typeof payload.apiKey !== 'string') {
+    throw new Error('API key must be a string');
+  }
+
+  let apiUrl: URL;
+  try {
+    apiUrl = new URL(payload.apiUrl.trim());
+  } catch {
+    throw new Error('Enter a valid Core API URL');
+  }
+  if (!['http:', 'https:'].includes(apiUrl.protocol)) {
+    throw new Error('The Core API URL must use http or https');
+  }
+  if (apiUrl.username || apiUrl.password) {
+    throw new Error('The Core API URL cannot contain credentials');
+  }
+  if (apiUrl.search || apiUrl.hash) {
+    throw new Error('The Core API URL cannot contain a query or fragment');
+  }
+
+  const value = payload.apiKey ?? '';
+  const fingerprint = value
+    ? createHash('sha256').update(value).digest('hex')
+    : '';
+  const keys: DevtoolApiKey[] = value
+    ? [
+        {
+          id: `manual:${fingerprint}`,
+          label: `Manual · ${fingerprint.slice(0, 8)}`,
+          value,
+        },
+      ]
+    : [];
+  return {
+    apiUrl: apiUrl.toString().replace(/\/+$/, ''),
+    keys,
+  };
+}
 
 function send(
   response: ServerResponse,
@@ -249,6 +301,37 @@ export function createDevtoolServer(options: DevtoolServerOptions) {
         return sendJson(response, 200, publicConnection());
       } catch {
         return sendJson(response, 400, { message: 'Invalid request body' });
+      }
+    }
+    if (
+      request.method === 'POST' &&
+      requestUrl.pathname === '/api/connection/manual'
+    ) {
+      try {
+        const body = await requestBody(request);
+        const payload = JSON.parse(body?.toString('utf8') || '{}') as {
+          apiUrl?: unknown;
+          apiKey?: unknown;
+        };
+        const connection = resolveManualConnection(payload);
+        active = {
+          stage: MANUAL_STAGE,
+          connection,
+          keyId: connection.keys[0]?.id,
+        };
+        return sendJson(response, 200, publicConnection());
+      } catch (error) {
+        if ((error as Error).message === 'REQUEST_TOO_LARGE') {
+          return sendJson(response, 413, {
+            message: 'Request body exceeds the 1 MB limit',
+          });
+        }
+        return sendJson(response, 400, {
+          message:
+            error instanceof Error
+              ? error.message
+              : 'Invalid manual connection',
+        });
       }
     }
 
