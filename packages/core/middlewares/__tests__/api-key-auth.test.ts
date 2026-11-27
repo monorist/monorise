@@ -1,5 +1,4 @@
 import { Hono } from 'hono';
-import httpStatus from 'http-status';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { FULL_API_KEY_POLICY as FULL_POLICY } from '../../../base';
 import {
@@ -139,13 +138,13 @@ describe('parseApiKeys', () => {
 describe('apiKeyAuth middleware', () => {
   afterEach(() => vi.restoreAllMocks());
 
-  it('rejects a request without x-api-key with the same 401 body as before', async () => {
+  it('rejects a request without x-api-key with a 401 and a code', async () => {
     const res = await request(appWith('["secret1"]'));
 
     expect(res.status).toBe(401);
     expect(await res.json()).toEqual({
-      status: 401,
-      message: httpStatus['401_MESSAGE'],
+      code: 'UNAUTHORIZED',
+      message: 'Missing or unknown API key',
     });
   });
 

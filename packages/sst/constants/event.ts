@@ -2,7 +2,6 @@ import type { Entity as EntityType } from '@monorise/base';
 
 const SOURCE = {
   CORE: 'core-service',
-  GENERAL: 'general',
 };
 
 export type EventDetail = {
@@ -72,13 +71,6 @@ const EVENT = {
     PREJOIN_RELATIONSHIP_SYNC: {
       Source: SOURCE.CORE,
       DetailType: 'prejoin-relationship-sync',
-    },
-  },
-
-  GENERAL: {
-    ENDPOINT_ERROR: {
-      Source: SOURCE.GENERAL,
-      DetailType: 'endpoint-error',
     },
   },
 };

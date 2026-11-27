@@ -1,54 +1,38 @@
-import { createFactory } from 'hono/factory';
+import type { ErrorHandler } from 'hono';
+import { HTTPException } from 'hono/http-exception';
 import { getDependencies } from '../helpers/dependencies';
 
-const factory = createFactory();
+/**
+ * Hono's error handler: answers an error no controller handled. It logs the
+ * error with an ID and answers 500 with that ID, so a client can quote it
+ * and the log line can be found.
+ */
+const generalErrorHandler =
+  (dependencies = getDependencies()): ErrorHandler =>
+  (err, c) => {
+    // Hono's own errors, such as malformed JSON, carry their response.
+    if (err instanceof HTTPException) return err.getResponse();
 
-const generalErrorHandler = (dependencies = getDependencies()) =>
-  factory.createMiddleware(async (c) => {
-    if (c.error) {
-      const { nanoid, publishErrorEvent } = dependencies;
+    const errorId = dependencies.nanoid();
+    // biome-ignore lint/suspicious/noExplicitAny: reads optional fields some errors carry
+    const error = err as any;
+    console.warn('[MONORISE_DEBUG] INTERNAL_SERVER_EXCEPTION:', {
+      errorId,
+      method: c.req.method,
+      path: c.req.path,
+      apiKeyPolicy: c.get('apiKey')?.policy,
+      errorName: error?.name,
+      errorMessage: error?.message,
+      errorCode: error?.code,
+      errorStack: error?.stack,
+      errorConstructor: error?.constructor?.name,
+      hasLastError: !!error?.lastError,
+      lastErrorName: error?.lastError?.constructor?.name,
+      lastErrorMessage: error?.lastError?.message,
+      context: error?.context,
+    });
 
-      const errorId = nanoid();
-
-      const body = await c.req.json();
-
-      await publishErrorEvent({
-        serviceName: 'monorise-core',
-        method: c.req.method,
-        path: c.req.path,
-        id: errorId,
-        body,
-        error: c.error,
-      });
-
-      const error = c.error as any;
-      console.warn('[MONORISE_DEBUG] INTERNAL_SERVER_EXCEPTION:', {
-        errorId,
-        method: c.req.method,
-        path: c.req.path,
-        apiKeyPolicy: c.get('apiKey')?.policy,
-        errorName: error?.name,
-        errorMessage: error?.message,
-        errorCode: error?.code,
-        errorStack: error?.stack,
-        errorConstructor: error?.constructor?.name,
-        hasLastError: !!error?.lastError,
-        lastErrorName: error?.lastError?.constructor?.name,
-        lastErrorMessage: error?.lastError?.message,
-        context: error?.context,
-      });
-
-      c.status(500);
-      c.json({
-        code: 'INTERNAL_SERVER_EXCEPTION',
-        id: errorId,
-      });
-
-      // so lambda monitor able to track error rate
-      throw new Error(
-        `INTERNAL_SERVER_EXCEPTION: ${errorId}: ${c.req.method} ${c.req.path}: ${c.error}`,
-      );
-    }
-  });
+    return c.json({ code: 'INTERNAL_SERVER_EXCEPTION', id: errorId }, 500);
+  };
 
 export default generalErrorHandler;
