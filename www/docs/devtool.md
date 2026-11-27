@@ -60,12 +60,15 @@ one manually.
 
 ### Manual connection
 
-Engineers do not need AWS or SST access when they have a Core URL and a shared
-read-only API key. In the dashboard:
+Engineers do not need AWS or SST access when they have a Core URL and an API
+key. The devtool accepts any valid Core API key, and that key's policy
+determines which read and write operations are available. For production
+troubleshooting, prefer a least-privileged key with only the permissions
+needed for the task.
 
 1. Open the **Stage** picker.
 2. Select **Manual connection…**.
-3. Enter the Monorise Core URL and paste the shared key.
+3. Enter the Monorise Core URL and paste the API key.
 4. Select **Connect**.
 
 The password field is cleared immediately after submission. The key is held
@@ -125,8 +128,10 @@ shows:
 The create dialog starts with a JSON template generated from the required
 schema fields. Updates start with the selected entity's current data. Select a
 field name in the schema reference to add a missing field with a suggested
-value, including optional fields. Timestamp fields also provide an **ISO now**
-action that inserts or refreshes the value with the current ISO 8601 timestamp.
+value, including optional fields. Common names such as `firstName`,
+`organisationName`, email, and phone fields receive useful example values.
+Timestamp fields also provide an **ISO now** action that inserts or refreshes
+the value with the current ISO 8601 timestamp.
 
 All writes are still validated by the Core API. The selected API key must grant
 the relevant entity `create`, `update`, or `delete` permission.
@@ -247,7 +252,7 @@ Confirm that you are in the SST project root, your AWS credentials can read the
 deployment, and the stage has been deployed. Automatic API discovery also
 requires the stage to be redeployed with a Monorise version that exposes the
 devtool discovery link. If you do not have AWS access, select **Manual
-connection…** and use a shared Core URL and read-only key instead.
+connection…** and use a Core URL and valid API key instead.
 
 ### A stage has no usable API keys
 

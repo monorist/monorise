@@ -116,11 +116,12 @@ local Node process. Stages deployed with an older Monorise version need to be
 redeployed once before automatic API discovery is available.
 
 The local app proxy at `http://localhost:3000/api` remains available in the
-stage picker. Choose **Manual connection…** to enter a Core URL and shared
-read-only key without AWS access. The password field is cleared immediately;
-the key is held only in the local Node process and is never returned to or
-stored by the browser. You can also use `--api-url` and `--api-key` (or the
-environment variables above).
+stage picker. Choose **Manual connection…** to enter a Core URL and any valid
+API key without AWS access. The key's policy determines which operations are
+available; prefer a least-privileged key when troubleshooting production. The
+password field is cleared immediately, and the key is held only in the local
+Node process. You can also use `--api-url` and `--api-key` (or the environment
+variables above).
 
 The local dashboard reads entity definitions from `monorise.config.ts` and
 supports:

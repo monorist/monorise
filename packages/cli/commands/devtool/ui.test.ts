@@ -10,6 +10,8 @@ test('devtool embeds valid entity, mutual, and manual connection controls', () =
   assert.match(INDEX_HTML, /id="mutual-editor-dialog"/);
   assert.match(INDEX_HTML, /id="manual-connection-dialog"/);
   assert.match(INDEX_HTML, /id="manual-api-key"[\s\S]*type="password"/);
+  assert.match(INDEX_HTML, />API key <span>\(optional\)<\/span>/);
+  assert.doesNotMatch(INDEX_HTML, /Read-only API key/);
   assert.match(APP_JS, /\/api\/tags\//);
   assert.match(APP_JS, /\/api\/mutuals\//);
   assert.match(APP_JS, /data-mutual-action="edit"/);
@@ -17,6 +19,7 @@ test('devtool embeds valid entity, mutual, and manual connection controls', () =
   assert.match(APP_JS, /badge unique/);
   assert.match(APP_JS, /data-field-action="insert"/);
   assert.match(APP_JS, /data-field-action="timestamp"/);
+  assert.doesNotMatch(APP_JS, /field-insert-icon/);
   assert.match(APP_JS, /new Date\(\)\.toISOString\(\)/);
   assert.match(APP_JS, /\/api\/connection\/manual/);
   assert.doesNotMatch(APP_JS, /localStorage|sessionStorage/);
