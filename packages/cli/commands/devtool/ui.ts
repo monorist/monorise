@@ -271,6 +271,46 @@ export const INDEX_HTML = `<!doctype html>
       </form>
     </dialog>
 
+    <dialog id="manual-connection-dialog" class="manual-connection-dialog">
+      <form id="manual-connection-form">
+        <div class="dialog-header">
+          <div>
+            <div class="eyebrow">Connection</div>
+            <h2>Manual Core connection</h2>
+          </div>
+          <button id="manual-connection-close" class="icon-button" aria-label="Close manual connection" type="button">×</button>
+        </div>
+        <div class="manual-connection-body">
+          <label for="manual-api-url">Monorise Core URL</label>
+          <input
+            id="manual-api-url"
+            class="dialog-input"
+            type="url"
+            autocomplete="off"
+            placeholder="https://example.execute-api.us-east-1.amazonaws.com"
+            required
+          />
+          <label for="manual-api-key">Read-only API key <span>(optional)</span></label>
+          <input
+            id="manual-api-key"
+            class="dialog-input"
+            type="password"
+            autocomplete="new-password"
+            placeholder="Paste the shared key"
+          />
+          <p class="connection-note">
+            The key is sent only to this local devtool process, held in memory,
+            and never returned to or stored by the browser.
+          </p>
+          <div id="manual-connection-error" class="editor-error" hidden></div>
+        </div>
+        <div class="dialog-footer">
+          <button id="manual-connection-cancel" class="button button-secondary" type="button">Cancel</button>
+          <button id="manual-connection-save" class="button button-primary" type="submit">Connect</button>
+        </div>
+      </form>
+    </dialog>
+
     <div id="toast" class="toast" role="status" aria-live="polite"></div>
     <script src="/app.js" type="module"></script>
   </body>
@@ -1158,6 +1198,37 @@ dialog::backdrop {
   opacity: 0.55;
 }
 
+.manual-connection-dialog {
+  width: min(560px, calc(100vw - 32px));
+}
+
+.manual-connection-body {
+  display: grid;
+  padding: 22px 20px;
+}
+
+.manual-connection-body label {
+  margin-bottom: 7px;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.manual-connection-body label span {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.manual-connection-body .dialog-input {
+  margin-bottom: 18px;
+}
+
+.connection-note {
+  margin: -2px 0 0;
+  color: var(--muted);
+  font-size: 11px;
+  line-height: 1.55;
+}
+
 .field {
   padding: 10px;
   border: 1px solid #22282d;
@@ -1389,6 +1460,8 @@ dialog::backdrop {
 `;
 
 export const APP_JS = `
+const MANUAL_STAGE_ID = 'manual';
+
 const state = {
   meta: null,
   entity: null,
@@ -1483,6 +1556,14 @@ const elements = {
   mutualEditorError: document.querySelector('#mutual-editor-error'),
   mutualFieldList: document.querySelector('#mutual-field-list'),
   mutualSave: document.querySelector('#mutual-save'),
+  manualDialog: document.querySelector('#manual-connection-dialog'),
+  manualForm: document.querySelector('#manual-connection-form'),
+  manualClose: document.querySelector('#manual-connection-close'),
+  manualCancel: document.querySelector('#manual-connection-cancel'),
+  manualApiUrl: document.querySelector('#manual-api-url'),
+  manualApiKey: document.querySelector('#manual-api-key'),
+  manualError: document.querySelector('#manual-connection-error'),
+  manualSave: document.querySelector('#manual-connection-save'),
   toast: document.querySelector('#toast'),
 };
 
@@ -1558,7 +1639,10 @@ function renderConnection() {
         escapeHtml(stage.label) +
         '</option>',
     )
-    .join('');
+    .join('') +
+    '<option value="' +
+    MANUAL_STAGE_ID +
+    '">Manual connection…</option>';
   elements.stage.value = connection.stageId;
   elements.key.innerHTML = connection.keys.length
     ? connection.keys
@@ -1934,6 +2018,53 @@ async function switchStage(stageId) {
   } finally {
     setConnectionBusy(false);
     renderConnection();
+  }
+}
+
+function openManualConnection() {
+  elements.manualApiUrl.value = '';
+  elements.manualApiKey.value = '';
+  elements.manualError.textContent = '';
+  elements.manualError.hidden = true;
+  elements.manualDialog.showModal();
+  window.setTimeout(() => elements.manualApiUrl.focus(), 0);
+}
+
+async function connectManual() {
+  if (!elements.manualApiUrl.reportValidity()) return;
+  const apiUrl = elements.manualApiUrl.value.trim();
+  const apiKey = elements.manualApiKey.value;
+  elements.manualApiKey.value = '';
+  elements.manualError.textContent = '';
+  elements.manualError.hidden = true;
+  elements.manualSave.disabled = true;
+  elements.manualSave.textContent = 'Connecting…';
+  elements.manualApiUrl.disabled = true;
+  setConnectionBusy(true);
+  try {
+    const connection = await api('/api/connection/manual', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ apiUrl, apiKey }),
+    });
+    state.meta.connection = connection;
+    state.meta.apiUrl = connection.apiUrl;
+    state.connectionVersion += 1;
+    resetListing();
+    if (elements.mutualDialog.open) elements.mutualDialog.close();
+    elements.manualDialog.close();
+    renderConnection();
+    await loadEntities();
+    showToast('Connected to the manual Core URL.');
+  } catch (error) {
+    elements.manualError.textContent = error.message;
+    elements.manualError.hidden = false;
+    elements.stage.value = state.meta.connection.stageId;
+  } finally {
+    elements.manualSave.disabled = false;
+    elements.manualSave.textContent = 'Connect';
+    elements.manualApiUrl.disabled = false;
+    setConnectionBusy(false);
   }
 }
 
@@ -2366,8 +2497,31 @@ elements.entityNav.addEventListener('click', (event) => {
 });
 
 elements.refresh.addEventListener('click', () => loadEntities());
-elements.stage.addEventListener('change', () => switchStage(elements.stage.value));
+elements.stage.addEventListener('change', () => {
+  if (elements.stage.value === MANUAL_STAGE_ID) {
+    openManualConnection();
+  } else {
+    switchStage(elements.stage.value);
+  }
+});
 elements.key.addEventListener('change', () => switchKey(elements.key.value));
+elements.manualForm.addEventListener('submit', (event) => {
+  event.preventDefault();
+  connectManual();
+});
+elements.manualClose.addEventListener('click', () =>
+  elements.manualDialog.close(),
+);
+elements.manualCancel.addEventListener('click', () =>
+  elements.manualDialog.close(),
+);
+elements.manualDialog.addEventListener('close', () => {
+  elements.manualApiUrl.value = '';
+  elements.manualApiKey.value = '';
+  elements.manualError.textContent = '';
+  elements.manualError.hidden = true;
+  elements.stage.value = state.meta.connection.stageId;
+});
 elements.listingMode.addEventListener('change', () =>
   changeListingMode(elements.listingMode.value),
 );

@@ -244,7 +244,7 @@ test('devtool rejects unknown entity types before reaching the API', async (t) =
   assert.deepEqual(await response.json(), { message: 'Unknown entity type' });
 });
 
-test('devtool switches stages and scoped keys without exposing key values', async (t) => {
+test('devtool switches discovered and manual connections without exposing key values', async (t) => {
   const requests: string[] = [];
   const upstream = createServer((request, response) => {
     requests.push(String(request.headers['x-api-key'] ?? ''));
@@ -354,5 +354,44 @@ test('devtool switches stages and scoped keys without exposing key values', asyn
   );
   await fetch(`${address.url}/api/entities/user`);
 
-  assert.deepEqual(requests, ['reader-secret', 'writer-secret']);
+  const invalidManualResponse = await fetch(
+    `${address.url}/api/connection/manual`,
+    {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        apiUrl: 'file:///private/core',
+        apiKey: 'manual-production-secret',
+      }),
+    },
+  );
+  assert.equal(invalidManualResponse.status, 400);
+  assert.doesNotMatch(
+    await invalidManualResponse.text(),
+    /manual-production-secret/,
+  );
+
+  const manualResponse = await fetch(`${address.url}/api/connection/manual`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      apiUrl: `${apiUrl}/`,
+      apiKey: 'manual-production-secret',
+    }),
+  });
+  assert.equal(manualResponse.status, 200);
+  const manualBody = await manualResponse.text();
+  assert.match(manualBody, /Manual · [a-f0-9]{8}/);
+  assert.match(manualBody, /"stageId":"manual"/);
+  assert.doesNotMatch(manualBody, /manual-production-secret/);
+  await fetch(`${address.url}/api/entities/user`);
+
+  const manualMetadata = await (await fetch(`${address.url}/api/meta`)).text();
+  assert.doesNotMatch(manualMetadata, /manual-production-secret/);
+
+  assert.deepEqual(requests, [
+    'reader-secret',
+    'writer-secret',
+    'manual-production-secret',
+  ]);
 });

@@ -116,13 +116,16 @@ local Node process. Stages deployed with an older Monorise version need to be
 redeployed once before automatic API discovery is available.
 
 The local app proxy at `http://localhost:3000/api` remains available in the
-stage picker. Use `--api-url` and `--api-key` (or the environment variables
-above) when SST discovery is unavailable.
+stage picker. Choose **Manual connection…** to enter a Core URL and shared
+read-only key without AWS access. The password field is cleared immediately;
+the key is held only in the local Node process and is never returned to or
+stored by the browser. You can also use `--api-url` and `--api-key` (or the
+environment variables above).
 
 The local dashboard reads entity definitions from `monorise.config.ts` and
 supports:
 
-- Switching between discovered SST stages and scoped API keys
+- Switching between discovered SST stages, manual Core URLs, and scoped API keys
 - Browsing every configured entity type
 - Listing and paginating records
 - Search for entities with `search` or `searchableFields`
