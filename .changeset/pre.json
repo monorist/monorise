@@ -14,6 +14,7 @@
   "changesets": [
     "clean-resource-names",
     "conflicts-answer-409",
+    "core-not-found-and-401-code",
     "dev-includes-main-releases",
     "local-entity-devtool",
     "monorise-alias-config",
@@ -25,6 +26,7 @@
     "redefinable-default-policy",
     "retire-account-id",
     "scoped-api-keys",
+    "sst-alarms-option-and-names",
     "transaction-mutual-created-entities"
   ]
 }
