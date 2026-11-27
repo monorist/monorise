@@ -27,8 +27,12 @@ jobs:
           cache: 'npm'
           registry-url: 'https://registry.npmjs.org'
 
+      # npm 11: OIDC Trusted Publishing needs >= 11.5.1, and npm 12 prints
+      # `npm info --json` as an array, which @changesets/cli 2.x reads as
+      # "never published", so every release run tried to republish every
+      # package and failed with E403 on the unchanged ones.
       - name: Upgrade npm for OIDC Trusted Publishing (needs >= 11.5.1)
-        run: npm install -g npm@latest
+        run: npm install -g npm@11
 
       - name: Install dependencies
         run: |
