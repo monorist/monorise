@@ -17,6 +17,7 @@
     "dev-includes-main-releases",
     "local-entity-devtool",
     "monorise-alias-config",
+    "name-bus-and-apis",
     "proxy-handler",
     "proxy-review-feedback",
     "qfunction-default-names",
