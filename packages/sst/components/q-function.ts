@@ -4,14 +4,30 @@ type DurationMinutes =
   | `${number} minute`
   | `${number} minutes`;
 
+// AWS's limits on a queue's and a function's name.
+const QUEUE_NAME_MAX = 80;
+const FUNCTION_NAME_MAX = 64;
+
+/**
+ * `<app>-<stage>-<id>-<suffix>`, as Core names its resources. Undefined when
+ * AWS wouldn't accept it, too long or with other characters, so SST
+ * generates the name instead.
+ */
+const defaultName = (id: string, suffix: string, max: number) => {
+  const name = `${$app.name}-${$app.stage}-${id}-${suffix}`;
+  return name.length <= max && /^[A-Za-z0-9_-]+$/.test(name)
+    ? name
+    : undefined;
+};
+
 interface QFunctionArgs extends sst.aws.FunctionArgs {
   visibilityTimeout?: sst.aws.QueueArgs['visibilityTimeout'];
   maxBatchingWindow?: DurationMinutes;
   batchSize?: number;
   alarmTopic?: sst.aws.SnsTopic;
-  /** The SQS queue's name. Without it, SST generates one. */
+  /** The SQS queue's name. Defaults to `<app>-<stage>-<id>-queue`. */
   queueName?: string;
-  /** The dead-letter queue's name. Without it, SST generates one. */
+  /** The dead-letter queue's name. Defaults to `<app>-<stage>-<id>-dlq`. */
   dlqName?: string;
 }
 
@@ -29,8 +45,8 @@ export class QFunction {
       maxBatchingWindow,
       batchSize,
       alarmTopic,
-      queueName,
-      dlqName,
+      queueName = defaultName(id, 'queue', QUEUE_NAME_MAX),
+      dlqName = defaultName(id, 'dlq', QUEUE_NAME_MAX),
       link,
       ...functionArgs
     } = args;
@@ -47,6 +63,8 @@ export class QFunction {
 
     this.function = new sst.aws.Function(`${id}-processor`, {
       ...functionArgs,
+      name:
+        functionArgs.name ?? defaultName(id, 'processor', FUNCTION_NAME_MAX),
       link: (link as any[])?.length
         ? [this.queue, ...(link as any[])]
         : [this.queue],
