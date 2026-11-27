@@ -17,6 +17,7 @@
     "core-not-found-and-401-code",
     "dev-includes-main-releases",
     "local-entity-devtool",
+    "manual-devtool-connection",
     "monorise-alias-config",
     "name-bus-and-apis",
     "proxy-handler",
