@@ -31,6 +31,7 @@ export default defineConfig({
         text: 'Getting Started',
         items: [
           { text: 'Introduction', link: '/getting-started' },
+          { text: 'Devtool', link: '/devtool' },
           { text: 'Deploying', link: '/deploying' },
         ],
       },

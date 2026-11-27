@@ -91,6 +91,50 @@ npx sst dev
 npx sst deploy --stage prod
 ```
 
+## Development dashboard
+
+Run the devtool from the Monorise project root:
+
+```bash
+# Opens http://127.0.0.1:6767
+npx monorise devtool
+
+# Optionally select a discovered SST stage at startup
+npx monorise devtool --stage production
+
+# Or configure a Core connection manually
+MONORISE_API_URL=https://example.execute-api.us-east-1.amazonaws.com \
+MONORISE_API_KEY=secret1 \
+npx monorise devtool
+```
+
+The stage picker discovers deployments available to the current SST/AWS
+credentials. Selecting a stage automatically connects to its Monorise API
+Gateway and loads every usable key from that stage's `API_KEYS` secret. The key
+picker shows only policy names and key fingerprints; raw values remain in the
+local Node process. Stages deployed with an older Monorise version need to be
+redeployed once before automatic API discovery is available.
+
+The local app proxy at `http://localhost:3000/api` remains available in the
+stage picker. Use `--api-url` and `--api-key` (or the environment variables
+above) when SST discovery is unavailable.
+
+The local dashboard reads entity definitions from `monorise.config.ts` and
+supports:
+
+- Switching between discovered SST stages and scoped API keys
+- Browsing every configured entity type
+- Listing and paginating records
+- Search for entities with `search` or `searchableFields`
+- Listing records through configured tags with group, prefix, and range filters
+- Creating, inspecting, updating, and deleting configured mutual relationships
+  in either direction
+- Schema-aware JSON templates for creating records
+- Editing and deleting records
+
+The devtool listens only on `127.0.0.1`. API key values are never returned by
+its metadata endpoints or written to browser storage.
+
 `monorise init` scaffolds a production-ready monorepo:
 
 ```

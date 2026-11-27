@@ -79,6 +79,17 @@ npx sst dev
 
 That's it! Open `http://localhost:3000` to see the example app.
 
+To inspect and manage the configured data in a local dashboard, run this in
+another terminal:
+
+```bash
+npx monorise devtool
+```
+
+The dashboard opens at `http://127.0.0.1:6767`. It can use the local application
+proxy or connect to a deployed SST stage. See the [Devtool guide](/devtool) for
+entity CRUD, tag queries, mutual CRUD, stage discovery, and API-key selection.
+
 ## Understanding the structure
 
 ### Entity config (`monorise/configs/user.ts`)

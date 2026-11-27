@@ -23,6 +23,7 @@ import {
   searchDefaultsDeclaration,
   writeSearchManifest,
 } from './commands/utils/search-manifest';
+import { runDevtoolCommand } from './commands/devtool';
 import { ROOT_TSCONFIG_TEMPLATE } from './templates/root-tsconfig';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -874,11 +875,31 @@ async function main() {
     rootPath = args[rootFlagIndex + 1];
   }
 
+  const option = (name: string) => {
+    const index = args.indexOf(name);
+    if (index < 0) return undefined;
+    const value = args[index + 1];
+    if (!value || value.startsWith('--')) {
+      throw new Error(`${name} requires a value.`);
+    }
+    return value;
+  };
+
   try {
     if (command === 'dev') {
       await runDevCommand(await generateFiles(rootPath), rootPath);
     } else if (command === 'build') {
       await runBuildCommand(rootPath);
+    } else if (command === 'devtool') {
+      const portValue = option('--port');
+      await runDevtoolCommand({
+        rootPath,
+        apiUrl: option('--api-url'),
+        apiKey: option('--api-key'),
+        stage: option('--stage'),
+        port: portValue === undefined ? undefined : Number(portValue),
+        open: !args.includes('--no-open'),
+      });
     } else if (command === 'init') {
       // init is greenfield-only — it always creates a fresh directory named via
       // --name, never an existing path. --config-root doesn't apply here.
@@ -888,6 +909,7 @@ async function main() {
         'Unknown command. Usage:\n' +
           '  monorise dev [--config-root <path>]\n' +
           '  monorise build [--config-root <path>]\n' +
+          '  monorise devtool [--stage <stage>] [--api-url <url>] [--api-key <key>] [--port <port>] [--no-open] [--config-root <path>]\n' +
           '  monorise init [--name <project-name>]',
       );
       process.exit(1);
