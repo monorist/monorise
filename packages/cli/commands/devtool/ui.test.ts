@@ -15,6 +15,9 @@ test('devtool embeds valid entity, mutual, and manual connection controls', () =
   assert.match(APP_JS, /data-mutual-action="edit"/);
   assert.match(APP_JS, /data-mutual-action="delete"/);
   assert.match(APP_JS, /badge unique/);
+  assert.match(APP_JS, /data-field-action="insert"/);
+  assert.match(APP_JS, /data-field-action="timestamp"/);
+  assert.match(APP_JS, /new Date\(\)\.toISOString\(\)/);
   assert.match(APP_JS, /\/api\/connection\/manual/);
   assert.doesNotMatch(APP_JS, /localStorage|sessionStorage/);
 });
