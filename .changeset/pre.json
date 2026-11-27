@@ -13,6 +13,7 @@
   },
   "changesets": [
     "clean-resource-names",
+    "clickable-devtool-fields",
     "conflicts-answer-409",
     "core-not-found-and-401-code",
     "dev-includes-main-releases",

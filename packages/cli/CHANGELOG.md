@@ -1,5 +1,13 @@
 # @monorise/cli
 
+## 4.6.0-dev.4
+
+### Minor Changes
+
+- 0123161: Make entity and mutual schema field names clickable so missing fields can be
+  added to the JSON editor with suggested values, and add an ISO timestamp
+  shortcut for timestamp fields.
+
 ## 4.6.0-dev.3
 
 ### Minor Changes
