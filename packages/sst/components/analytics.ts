@@ -171,7 +171,8 @@ export class Analytics {
     id: string,
     args: AnalyticsArgs,
     table: sst.aws.Dynamo,
-    alarmTopic: sst.aws.SnsTopic,
+    /** Without it, no alarms are created. */
+    alarmTopic: sst.aws.SnsTopic | undefined,
     configRoot?: string,
     logging?: sst.aws.FunctionArgs['logging'],
   ) {
@@ -335,14 +336,14 @@ export class Analytics {
       transform: { eventSourceMapping: { startingPosition: 'LATEST', bisectBatchOnFunctionError: true, maximumRetryAttempts: 1, destinationConfig: { onFailure: { destinationArn: this.dlq.arn } } } },
     });
 
-    new aws.cloudwatch.MetricAlarm(`${id}-analytics-dlq-alarm`, {
-      name: `${id}-analytics-dlq`, namespace: 'AWS/SQS', metricName: 'ApproximateNumberOfMessagesVisible', statistic: 'Maximum', period: 300, evaluationPeriods: 1, threshold: 1, comparisonOperator: 'GreaterThanOrEqualToThreshold', alarmActions: [alarmTopic.arn], dimensions: { QueueName: this.dlq.nodes.queue.name },
+    if (alarmTopic) new aws.cloudwatch.MetricAlarm(`${id}-analytics-dlq-alarm`, {
+      name: `${$app.name}-${$app.stage}-${id}-analytics-dlq`, namespace: 'AWS/SQS', metricName: 'ApproximateNumberOfMessagesVisible', statistic: 'Maximum', period: 300, evaluationPeriods: 1, threshold: 1, comparisonOperator: 'GreaterThanOrEqualToThreshold', alarmActions: [alarmTopic.arn], dimensions: { QueueName: this.dlq.nodes.queue.name },
     });
-    new aws.cloudwatch.MetricAlarm(`${id}-analytics-iterator-age`, {
-      name: `${id}-analytics-iterator-age`, namespace: 'AWS/Lambda', metricName: 'IteratorAge', statistic: 'Maximum', period: 300, evaluationPeriods: 1, threshold: 300000, comparisonOperator: 'GreaterThanThreshold', alarmActions: [alarmTopic.arn], dimensions: { FunctionName: this.processorFunctionName },
+    if (alarmTopic) new aws.cloudwatch.MetricAlarm(`${id}-analytics-iterator-age`, {
+      name: `${$app.name}-${$app.stage}-${id}-analytics-iterator-age`, namespace: 'AWS/Lambda', metricName: 'IteratorAge', statistic: 'Maximum', period: 300, evaluationPeriods: 1, threshold: 300000, comparisonOperator: 'GreaterThanThreshold', alarmActions: [alarmTopic.arn], dimensions: { FunctionName: this.processorFunctionName },
     });
-    new aws.cloudwatch.MetricAlarm(`${id}-analytics-firehose-failures`, {
-      name: `${id}-analytics-firehose-failures`, namespace: 'AWS/Firehose', metricName: 'DeliveryToS3.DataFreshness', statistic: 'Maximum', period: 300, evaluationPeriods: 1, threshold: 900, comparisonOperator: 'GreaterThanThreshold', alarmActions: [alarmTopic.arn], dimensions: { DeliveryStreamName: this.deliveryStream.name },
+    if (alarmTopic) new aws.cloudwatch.MetricAlarm(`${id}-analytics-firehose-failures`, {
+      name: `${$app.name}-${$app.stage}-${id}-analytics-firehose-failures`, namespace: 'AWS/Firehose', metricName: 'DeliveryToS3.DataFreshness', statistic: 'Maximum', period: 300, evaluationPeriods: 1, threshold: 900, comparisonOperator: 'GreaterThanThreshold', alarmActions: [alarmTopic.arn], dimensions: { DeliveryStreamName: this.deliveryStream.name },
     });
 
     if (args.resources?.bucket && !args.resources.bucket.notificationsManaged) {
@@ -413,8 +414,8 @@ export class Analytics {
       // current state when delivery is enabled again.
       input: JSON.stringify({ action: 'reconcile' }),
     }, { dependsOn: [backfillNotification] });
-    new aws.cloudwatch.MetricAlarm(`${id}-analytics-backfill-errors`, {
-      name: `${id}-analytics-backfill-errors`, namespace: 'AWS/Lambda', metricName: 'Errors', statistic: 'Sum', period: 300, evaluationPeriods: 1, threshold: 1, comparisonOperator: 'GreaterThanOrEqualToThreshold', alarmActions: [alarmTopic.arn], dimensions: { FunctionName: this.backfillFunctionName },
+    if (alarmTopic) new aws.cloudwatch.MetricAlarm(`${id}-analytics-backfill-errors`, {
+      name: `${$app.name}-${$app.stage}-${id}-analytics-backfill-errors`, namespace: 'AWS/Lambda', metricName: 'Errors', statistic: 'Sum', period: 300, evaluationPeriods: 1, threshold: 1, comparisonOperator: 'GreaterThanOrEqualToThreshold', alarmActions: [alarmTopic.arn], dimensions: { FunctionName: this.backfillFunctionName },
     });
 
     const rawTables: aws.glue.CatalogTable[] = [];

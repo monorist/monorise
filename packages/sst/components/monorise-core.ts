@@ -34,6 +34,13 @@ export type MonoriseCoreArgs = {
   };
   /** Disabled by default. Requires `.monorise/analytics-manifest.json`. */
   analytics?: AnalyticsArgs;
+  /**
+   * CloudWatch alarms on the dead-letter queues, search reindex errors and
+   * analytics delivery, sent to `alarmTopic`. On by default. AWS bills each
+   * alarm, so stages that don't need them can turn them off:
+   * `alarms: $app.stage === 'production'`.
+   */
+  alarms?: boolean;
   webSocket?: WebSocketConfig;
 };
 
@@ -95,7 +102,11 @@ export class MonoriseCore {
 
     // AWS renames an API in place: its ID and URL don't change.
     this.api = new sst.aws.ApiGatewayV2(`${id}-monorise-api`, {
-      transform: { api: { name: `${namePrefix}-api` } },
+      transform: {
+        api: { name: `${namePrefix}-api` },
+        // SST keeps an existing stage's log group, so this names new ones.
+        logGroup: { name: `/aws/vendedlogs/apis/${namePrefix}-api` },
+      },
       cors: {
         allowMethods: ['*'],
         allowCredentials: true,
@@ -149,6 +160,7 @@ export class MonoriseCore {
       ...(args?.link ?? []),
     ];
 
+    const alarms = args?.alarms !== false;
     this.alarmTopic = new sst.aws.SnsTopic(`${id}-monorise-dlq-alarm-topic`, {
       transform: {
         topic: (topicArgs, opts) => {
@@ -174,7 +186,7 @@ export class MonoriseCore {
         id,
         args.analytics,
         this.table.table,
-        this.alarmTopic,
+        alarms ? this.alarmTopic : undefined,
         args.configRoot,
         logging,
       );
@@ -200,7 +212,7 @@ export class MonoriseCore {
       memory: '512 MB',
       timeout: '30 seconds',
       visibilityTimeout: '30 seconds',
-      alarmTopic: this.alarmTopic,
+      alarmTopic: alarms ? this.alarmTopic : undefined,
       runtime,
       environment,
       link: [this.table.table, this.bus],
@@ -215,7 +227,7 @@ export class MonoriseCore {
       memory: '512 MB',
       timeout: '30 seconds',
       visibilityTimeout: '30 seconds',
-      alarmTopic: this.alarmTopic,
+      alarmTopic: alarms ? this.alarmTopic : undefined,
       runtime,
       environment,
       link: [this.table.table],
@@ -230,7 +242,7 @@ export class MonoriseCore {
       memory: '512 MB',
       timeout: '30 seconds',
       visibilityTimeout: '30 seconds',
-      alarmTopic: this.alarmTopic,
+      alarmTopic: alarms ? this.alarmTopic : undefined,
       runtime,
       environment,
       link: [this.table.table],
@@ -302,7 +314,7 @@ export class MonoriseCore {
         { functionName: searchReindex.name, maximumRetryAttempts: 0 },
       );
       // A reindex that gives up leaves search scanning with no other sign.
-      new aws.cloudwatch.MetricAlarm(`${id}-search-reindex-errors`, {
+      if (alarms) new aws.cloudwatch.MetricAlarm(`${id}-search-reindex-errors`, {
         name: `${searchReindexName}-errors`,
         namespace: 'AWS/Lambda',
         metricName: 'Errors',
@@ -337,7 +349,11 @@ export class MonoriseCore {
 
       // WebSocket API Gateway
       this.websocket = new sst.aws.ApiGatewayWebSocket(`${id}-websocket`, {
-        transform: { api: { name: `${namePrefix}-websocket` } },
+        transform: {
+          api: { name: `${namePrefix}-websocket` },
+          // SST keeps an existing stage's log group, so this names new ones.
+          accessLog: { name: `/aws/vendedlogs/apis/${namePrefix}-websocket` },
+        },
       });
 
       const wsEnvironment = {

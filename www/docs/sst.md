@@ -48,6 +48,7 @@ new MonoriseCore(id: string, args?: MonoriseCoreArgs)
 | `configRoot` | `string` | — | Custom root path for monorise config |
 | `cloudwatchLogRetention` | `sst.aws.FunctionArgs['logging']['retention']` | `'1 month'` | CloudWatch log retention period for Monorise-owned Lambda functions |
 | `cloudwatchDashboard` | `{ enabled?: boolean }` | Disabled | Built-in CloudWatch dashboard. Enable to create it |
+| `alarms` | `boolean` | `true` | CloudWatch alarms on the dead-letter queues, search reindex errors and analytics delivery, sent to `alarmTopic` |
 | `analytics` | `AnalyticsArgs` | Disabled | Opt-in Athena analytics for canonical entity and named mutual data — see [Analytics](#analytics) |
 | `webSocket` | `{ enabled: true, handler?: { memory?, timeout? } }` | Disabled | Enable WebSocket support for real-time updates. See [WebSocket](/websocket) |
 
@@ -62,6 +63,16 @@ const { bus, api, table, alarmTopic } = new monorise.module.Core('core', {
 ```
 
 Disabling it, or leaving it unset, on a stage where the dashboard already exists will destroy the dashboard on the next deploy.
+
+`alarms` controls Core's CloudWatch alarms: one per dead-letter queue, one for search reindex errors, and four for analytics delivery when analytics is on. They're on by default. AWS bills each alarm, so stages that nobody watches can turn them off:
+
+```ts
+new monorise.module.Core('core', {
+  alarms: $app.stage === 'production',
+});
+```
+
+The alarm topic is created either way, so processors of your own can still use it.
 
 ### Analytics
 
@@ -193,19 +204,22 @@ Core's resources share one prefix, `<app>-<stage>-<id>`, so a stage's resources 
 | Mutual, tag and tree queues | `shop-prod-core-mutual-queue`, … |
 | Their dead-letter queues | `shop-prod-core-mutual-dlq`, … |
 | Replication dead-letter queue | `shop-prod-core-replicator-dlq` |
-| Functions | `shop-prod-core-app-handler`, `shop-prod-core-mutual-processor`, … |
+| Functions | `shop-prod-core-app-handler`, `shop-prod-core-mutual-processor`, `shop-prod-core-replicator`, … |
 | Alarm topic | `shop-prod-core-alarms` |
+| Alarms | `shop-prod-core-mutual-dlq-alarm`, … |
+| API access logs | `/aws/vendedlogs/apis/shop-prod-core-api` |
 | WebSocket API, when enabled | `shop-prod-core-websocket` |
 
 Analytics resources keep their own names.
 
 Stages deployed before Monorise 2.0 had generated names, such as `shop-prod-corecoretableTable-abcdefgh`, and functions named `prod-shop-core-…`. On their next deploy:
 
-- **The table and the alarm topic keep their names.** AWS can't rename either. A new table would start empty, and a new topic would drop the subscriptions you added to receive alarms. To get the table's new name, move the data to a new stage.
+- **The table, the alarm topic and the API access-log groups keep their names.** AWS can't rename them. A new table would start empty, a new topic would drop the subscriptions you added to receive alarms, and a new log group would start without the old logs. To get the table's new name, move the data to a new stage.
 - **The APIs are renamed in place.** Their URLs don't change.
 - **The bus and its rules are replaced** under the new names. Rules you added to the bus outside your SST config aren't recreated.
 - **The queues are replaced** under the new names. Messages still in the old queues are deleted with them, so redrive or clear the dead-letter queues first, and deploy while the app is quiet.
 - **The functions are replaced** under the new names. They keep logging to their existing log groups, `/aws/lambda/prod-shop-core-…`. If an entity uses `search`, the search index is rebuilt once.
+- **The alarms are replaced** under the new names.
 
 ### DynamoDB table structure
 
@@ -295,7 +309,7 @@ processor.id     // string — the construct ID
 | Queue | `shop-prod-send-email-queue` |
 | Dead-letter queue | `shop-prod-send-email-dlq` |
 | Function | `shop-prod-send-email-processor` |
-| DLQ alarm | `shop-prod-send-email-dlq-alarm` |
+| DLQ alarm, with `alarmTopic` | `shop-prod-send-email-dlq-alarm`, the dead-letter queue's name plus `-alarm` |
 
 Pass `name`, `queueName` or `dlqName` to choose your own. If a default name would be longer than AWS allows (64 characters for a function, 80 for a queue), SST generates that one instead. That can happen with long stage names, such as ones made from branch names.
 
