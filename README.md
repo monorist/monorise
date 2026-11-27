@@ -132,7 +132,7 @@ supports:
 - Listing records through configured tags with group, prefix, and range filters
 - Creating, inspecting, updating, and deleting configured mutual relationships
   in either direction
-- Schema-aware JSON templates for creating records
+- Schema-aware JSON templates with clickable fields and ISO timestamp helpers
 - Editing and deleting records
 
 The devtool listens only on `127.0.0.1`. API key values are never returned by

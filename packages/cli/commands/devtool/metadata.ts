@@ -62,6 +62,8 @@ export type DevtoolField = {
   required: boolean;
   relationship: boolean;
   unique: boolean;
+  example: unknown;
+  timestamp: boolean;
   description?: string;
   values?: unknown[];
 };
@@ -166,6 +168,37 @@ function enumValues(schema: ZodLike): unknown[] | undefined {
   return undefined;
 }
 
+function checkKinds(schema: ZodLike): string[] {
+  return (definition(unwrap(schema)).checks ?? []).flatMap((check) => {
+    const value = check as {
+      kind?: string;
+      format?: string;
+      _zod?: { def?: { check?: string; format?: string } };
+    };
+    return [
+      value.kind,
+      value.format,
+      value._zod?.def?.check,
+      value._zod?.def?.format,
+    ].filter((kind): kind is string => typeof kind === 'string');
+  });
+}
+
+function hasTimestampName(fieldName: string): boolean {
+  return (
+    /(?:At|_at|-at)$/.test(fieldName) ||
+    fieldName.toLowerCase().includes('timestamp')
+  );
+}
+
+function isTimestamp(fieldName: string, schema: ZodLike): boolean {
+  return (
+    typeName(unwrap(schema)) === 'date' ||
+    checkKinds(schema).some((kind) => kind.includes('datetime')) ||
+    hasTimestampName(fieldName)
+  );
+}
+
 function describeType(schema: ZodLike): string {
   const unwrapped = unwrap(schema);
   const name = typeName(unwrapped);
@@ -206,27 +239,24 @@ function describeType(schema: ZodLike): string {
 
 function stringExample(fieldName: string, schema: ZodLike): string {
   const lowerName = fieldName.toLowerCase();
-  const checks = definition(unwrap(schema)).checks ?? [];
-  const checkKinds = checks.map((check) => {
-    const value = check as {
-      kind?: string;
-      format?: string;
-      _zod?: { def?: { check?: string } };
-    };
-    return value.kind ?? value._zod?.def?.check ?? value.format;
-  });
+  const kinds = checkKinds(schema);
 
-  if (checkKinds.some((kind: string) => String(kind).includes('email'))) {
+  if (kinds.some((kind) => kind.includes('email'))) {
     return 'example@example.com';
   }
   if (
-    checkKinds.some((kind: string) => String(kind).includes('datetime')) ||
-    lowerName.endsWith('at') ||
-    lowerName.includes('date')
+    kinds.some((kind) => kind.includes('datetime')) ||
+    hasTimestampName(fieldName)
   ) {
     return new Date().toISOString();
   }
-  if (checkKinds.some((kind: string) => String(kind).includes('url'))) {
+  if (
+    kinds.some((kind) => kind === 'date') ||
+    /(?:Date|_date|-date)$/.test(fieldName)
+  ) {
+    return new Date().toISOString().slice(0, 10);
+  }
+  if (kinds.some((kind) => kind.includes('url'))) {
     return 'https://example.com';
   }
   if (lowerName.includes('email')) return 'example@example.com';
@@ -297,6 +327,8 @@ function fieldsMetadata(
     required: !isOptional(schema),
     relationship: relationshipFields.has(name),
     unique: uniqueFields.has(name),
+    example: exampleValue(name, schema),
+    timestamp: isTimestamp(name, schema),
     ...(schema.description ? { description: schema.description } : {}),
     ...(enumValues(schema) ? { values: enumValues(schema) } : {}),
   }));

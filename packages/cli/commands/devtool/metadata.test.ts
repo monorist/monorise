@@ -56,6 +56,8 @@ test('entityMetadata describes searchable fields and builds a required create te
           required: true,
           relationship: false,
           unique: false,
+          example: 'owner',
+          timestamp: false,
           values: ['owner', 'member'],
         },
         {
@@ -64,6 +66,8 @@ test('entityMetadata describes searchable fields and builds a required create te
           required: false,
           relationship: false,
           unique: false,
+          example: 'Example invitedBy',
+          timestamp: false,
         },
       ],
       createTemplate: { role: 'owner' },
@@ -74,6 +78,18 @@ test('entityMetadata describes searchable fields and builds a required create te
     email: 'example@example.com',
     teamIds: [],
   });
+  assert.deepEqual(
+    metadata.fields.find(({ name }) => name === 'nickname'),
+    {
+      name: 'nickname',
+      type: 'string',
+      required: false,
+      relationship: false,
+      unique: false,
+      example: 'Example name',
+      timestamp: false,
+    },
+  );
   assert.deepEqual(
     metadata.fields.map(({ name, required, relationship, unique }) => ({
       name,
@@ -105,6 +121,9 @@ test('entityMetadata supports indexed search and enum values', () => {
     name: 'order',
     baseSchema: z.object({
       status: z.enum(['draft', 'paid']),
+      publishedAt: z.string().datetime().optional(),
+      dueDate: z.string().date().optional(),
+      format: z.string().optional(),
     }),
     search: {
       fields: [{ field: 'status' }],
@@ -118,4 +137,24 @@ test('entityMetadata supports indexed search and enum values', () => {
   assert.deepEqual(metadata.fields[0].values, ['draft', 'paid']);
   assert.equal(metadata.fields[0].type, '"draft" | "paid"');
   assert.deepEqual(metadata.createTemplate, { status: 'draft' });
+  assert.equal(
+    metadata.fields.find(({ name }) => name === 'publishedAt')?.timestamp,
+    true,
+  );
+  assert.match(
+    String(metadata.fields.find(({ name }) => name === 'publishedAt')?.example),
+    /^\d{4}-\d{2}-\d{2}T/,
+  );
+  assert.equal(
+    metadata.fields.find(({ name }) => name === 'dueDate')?.timestamp,
+    false,
+  );
+  assert.match(
+    String(metadata.fields.find(({ name }) => name === 'dueDate')?.example),
+    /^\d{4}-\d{2}-\d{2}$/,
+  );
+  assert.equal(
+    metadata.fields.find(({ name }) => name === 'format')?.timestamp,
+    false,
+  );
 });

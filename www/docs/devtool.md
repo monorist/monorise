@@ -11,7 +11,7 @@ The dashboard supports:
 - entity listing, search, pagination, create, update, and delete
 - configured tag queries with group, sort-prefix, and sort-range filters
 - mutual relationship listing, create, update, and delete in either direction
-- schema-aware JSON templates and field references
+- schema-aware JSON templates with clickable field references
 - switching between deployed SST stages and scoped API keys
 
 ## Start the devtool
@@ -123,7 +123,10 @@ shows:
 - fields declared in `uniqueFields`
 
 The create dialog starts with a JSON template generated from the required
-schema fields. Updates start with the selected entity's current data.
+schema fields. Updates start with the selected entity's current data. Select a
+field name in the schema reference to add a missing field with a suggested
+value, including optional fields. Timestamp fields also provide an **ISO now**
+action that inserts or refreshes the value with the current ISO 8601 timestamp.
 
 All writes are still validated by the Core API. The selected API key must grant
 the relevant entity `create`, `update`, or `delete` permission.
@@ -180,7 +183,8 @@ Use the related-entity picker to:
 - delete a mutual
 
 The mutual editor builds its JSON template and schema reference from the
-relationship's `mutualDataSchema`. For example:
+relationship's `mutualDataSchema`. Its field names and **ISO now** actions work
+the same way as the entity editor. For example:
 
 ```ts
 const membership = createMutualConfig({

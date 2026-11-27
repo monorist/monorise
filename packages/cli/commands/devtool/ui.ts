@@ -176,6 +176,9 @@ export const INDEX_HTML = `<!doctype html>
           </div>
           <aside class="field-reference">
             <div class="field-reference-title">Schema reference</div>
+            <p class="field-reference-help">
+              Select a field name to add it to the JSON.
+            </p>
             <div id="field-list"></div>
           </aside>
         </div>
@@ -261,6 +264,9 @@ export const INDEX_HTML = `<!doctype html>
           </div>
           <aside class="field-reference">
             <div class="field-reference-title">Mutual data schema</div>
+            <p class="field-reference-help">
+              Select a field name to add it to the JSON.
+            </p>
             <div id="mutual-field-list" class="field-list"></div>
           </aside>
         </div>
@@ -1126,6 +1132,13 @@ dialog::backdrop {
   font-weight: 750;
 }
 
+.field-reference-help {
+  margin: -3px 0 12px;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.45;
+}
+
 #json-editor,
 .json-editor {
   flex: 1;
@@ -1243,6 +1256,38 @@ dialog::backdrop {
   gap: 8px;
 }
 
+.field-insert {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 5px;
+  padding: 0;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+}
+
+.field-insert-icon {
+  color: var(--accent);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.field-insert:hover code,
+.field-insert:focus-visible code {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.field-controls {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+}
+
 .field code {
   overflow: hidden;
   color: #e1e6e9;
@@ -1256,6 +1301,24 @@ dialog::backdrop {
   font-family: var(--mono);
   font-size: 9px;
   text-align: right;
+}
+
+.timestamp-button {
+  padding: 3px 6px;
+  border: 1px solid #38402a;
+  border-radius: 5px;
+  color: #bdd86d;
+  background: #182014;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 8px;
+}
+
+.timestamp-button:hover,
+.timestamp-button:focus-visible {
+  border-color: #66763a;
+  color: var(--accent);
+  background: #202a19;
 }
 
 .field-meta {
@@ -2097,12 +2160,24 @@ function fieldReferenceHtml(fields, emptyMessage) {
   return fields.length
     ? fields
         .map(
-          (field) =>
-            '<div class="field"><div class="field-main"><code>' +
+          (field, index) =>
+            '<div class="field"><div class="field-main"><button class="field-insert" type="button" data-field-action="insert" data-field-index="' +
+            index +
+            '" title="Add ' +
             escapeHtml(field.name) +
-            '</code><span class="field-type">' +
+            ' to the JSON"><span class="field-insert-icon" aria-hidden="true">＋</span><code>' +
+            escapeHtml(field.name) +
+            '</code></button><div class="field-controls"><span class="field-type">' +
             escapeHtml(field.type) +
-            '</span></div><div class="field-meta">' +
+            '</span>' +
+            (field.timestamp
+              ? '<button class="timestamp-button" type="button" data-field-action="timestamp" data-field-index="' +
+                index +
+                '" title="Set ' +
+                escapeHtml(field.name) +
+                ' to the current ISO timestamp">ISO now</button>'
+              : '') +
+            '</div></div><div class="field-meta">' +
             (field.required
               ? '<span class="badge required">Required</span>'
               : '<span class="badge">Optional</span>') +
@@ -2120,6 +2195,91 @@ function fieldReferenceHtml(fields, emptyMessage) {
         )
         .join('')
     : '<p class="field-description">' + escapeHtml(emptyMessage) + '</p>';
+}
+
+function suggestedFieldValue(field) {
+  if (field.timestamp) return new Date().toISOString();
+  if (field.example !== undefined) {
+    return JSON.parse(JSON.stringify(field.example));
+  }
+  if (Array.isArray(field.values) && field.values.length) {
+    return field.values[0];
+  }
+  if (field.type === 'boolean') return false;
+  if (field.type === 'number' || field.type === 'bigint') return 0;
+  if (field.type.endsWith('[]')) return [];
+  if (field.type === 'object') return {};
+  if (field.type === 'null') return null;
+  return '';
+}
+
+function focusEditorField(editor, fieldName) {
+  const marker = '\\n  ' + JSON.stringify(fieldName) + ': ';
+  const markerStart = editor.value.lastIndexOf(marker);
+  editor.focus();
+  if (markerStart < 0) return;
+  const valueStart = markerStart + marker.length;
+  const lineEnd = editor.value.indexOf('\\n', valueStart);
+  let valueEnd = lineEnd < 0 ? editor.value.length : lineEnd;
+  if (editor.value[valueEnd - 1] === ',') valueEnd -= 1;
+  const firstValueCharacter = editor.value[valueStart];
+  if (
+    (firstValueCharacter === '{' || firstValueCharacter === '[') &&
+    valueEnd === valueStart + 1
+  ) {
+    valueEnd = valueStart;
+  }
+  editor.setSelectionRange(valueStart, valueEnd);
+}
+
+function insertEditorField(editor, errorElement, field, useCurrentTimestamp) {
+  let payload;
+  try {
+    payload = JSON.parse(editor.value);
+    if (!payload || Array.isArray(payload) || typeof payload !== 'object') {
+      throw new Error('The editor must contain a JSON object.');
+    }
+  } catch (error) {
+    errorElement.textContent =
+      error instanceof SyntaxError
+        ? 'Fix the JSON before adding a field: ' + error.message
+        : error.message;
+    errorElement.hidden = false;
+    return;
+  }
+
+  const exists = Object.prototype.hasOwnProperty.call(payload, field.name);
+  if (exists && !useCurrentTimestamp) {
+    focusEditorField(editor, field.name);
+    showToast(field.name + ' is already in the JSON.');
+    return;
+  }
+
+  payload[field.name] = useCurrentTimestamp
+    ? new Date().toISOString()
+    : suggestedFieldValue(field);
+  editor.value = JSON.stringify(payload, null, 2);
+  errorElement.textContent = '';
+  errorElement.hidden = true;
+  focusEditorField(editor, field.name);
+  showToast(
+    useCurrentTimestamp
+      ? 'Set ' + field.name + ' to the current ISO timestamp.'
+      : 'Added ' + field.name + ' to the JSON.',
+  );
+}
+
+function handleFieldReferenceClick(event, editor, errorElement, fields) {
+  const button = event.target.closest('[data-field-action]');
+  if (!button) return;
+  const field = fields[Number(button.dataset.fieldIndex)];
+  if (!field) return;
+  insertEditorField(
+    editor,
+    errorElement,
+    field,
+    button.dataset.fieldAction === 'timestamp',
+  );
 }
 
 function fieldReference(entity) {
@@ -2527,6 +2687,14 @@ elements.listingMode.addEventListener('change', () =>
 );
 elements.create.addEventListener('click', () => openEditor('create'));
 elements.save.addEventListener('click', saveEntity);
+elements.fieldList.addEventListener('click', (event) => {
+  handleFieldReferenceClick(
+    event,
+    elements.jsonEditor,
+    elements.editorError,
+    selectedEntity().fields,
+  );
+});
 
 elements.tagFilterForm.addEventListener('submit', (event) => {
   event.preventDefault();
@@ -2613,6 +2781,15 @@ elements.mutualTableBody.addEventListener('click', (event) => {
   if (button.dataset.mutualAction === 'delete') deleteMutual(mutual);
 });
 elements.mutualSave.addEventListener('click', saveMutual);
+elements.mutualFieldList.addEventListener('click', (event) => {
+  const descriptor = mutualDescriptor(selectedEntity(), state.mutualTarget);
+  handleFieldReferenceClick(
+    event,
+    elements.mutualJsonEditor,
+    elements.mutualEditorError,
+    descriptor.dataFields || [],
+  );
+});
 
 elements.jsonEditor.addEventListener('keydown', (event) => {
   if (event.key === 'Tab') {
