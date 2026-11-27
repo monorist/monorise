@@ -74,7 +74,7 @@ test('entityMetadata describes searchable fields and builds a required create te
     },
   ]);
   assert.deepEqual(metadata.createTemplate, {
-    displayName: 'Example name',
+    displayName: 'Alex Morgan',
     email: 'example@example.com',
     teamIds: [],
   });
@@ -124,6 +124,10 @@ test('entityMetadata supports indexed search and enum values', () => {
       publishedAt: z.string().datetime().optional(),
       dueDate: z.string().date().optional(),
       format: z.string().optional(),
+      organisationName: z.string().optional(),
+      firstName: z.string().optional(),
+      playerName: z.string().optional(),
+      contactPhone: z.string().optional(),
     }),
     search: {
       fields: [{ field: 'status' }],
@@ -156,5 +160,21 @@ test('entityMetadata supports indexed search and enum values', () => {
   assert.equal(
     metadata.fields.find(({ name }) => name === 'format')?.timestamp,
     false,
+  );
+  assert.equal(
+    metadata.fields.find(({ name }) => name === 'organisationName')?.example,
+    'Example Organisation',
+  );
+  assert.equal(
+    metadata.fields.find(({ name }) => name === 'firstName')?.example,
+    'Alex',
+  );
+  assert.equal(
+    metadata.fields.find(({ name }) => name === 'playerName')?.example,
+    'Alex Morgan',
+  );
+  assert.equal(
+    metadata.fields.find(({ name }) => name === 'contactPhone')?.example,
+    '+1 202-555-0147',
   );
 });

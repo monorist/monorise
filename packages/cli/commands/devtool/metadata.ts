@@ -239,6 +239,7 @@ function describeType(schema: ZodLike): string {
 
 function stringExample(fieldName: string, schema: ZodLike): string {
   const lowerName = fieldName.toLowerCase();
+  const compactName = lowerName.replaceAll(/[-_]/g, '');
   const kinds = checkKinds(schema);
 
   if (kinds.some((kind) => kind.includes('email'))) {
@@ -261,6 +262,43 @@ function stringExample(fieldName: string, schema: ZodLike): string {
   }
   if (lowerName.includes('email')) return 'example@example.com';
   if (lowerName.endsWith('id')) return 'example-id';
+  if (
+    compactName.includes('organisationname') ||
+    compactName.includes('organizationname') ||
+    compactName.includes('companyname') ||
+    compactName.includes('businessname')
+  ) {
+    return 'Example Organisation';
+  }
+  if (compactName.includes('firstname') || compactName.includes('givenname')) {
+    return 'Alex';
+  }
+  if (
+    compactName.includes('lastname') ||
+    compactName.includes('familyname') ||
+    compactName.includes('surname')
+  ) {
+    return 'Morgan';
+  }
+  if (
+    compactName.includes('displayname') ||
+    compactName.includes('fullname') ||
+    compactName.includes('personname') ||
+    compactName.includes('contactname') ||
+    compactName.includes('playername') ||
+    compactName.includes('participantname') ||
+    compactName.includes('membername') ||
+    compactName.includes('guardianname')
+  ) {
+    return 'Alex Morgan';
+  }
+  if (
+    compactName.includes('phone') ||
+    compactName.includes('telephone') ||
+    compactName.includes('mobile')
+  ) {
+    return '+1 202-555-0147';
+  }
   if (lowerName.includes('name')) return 'Example name';
   return `Example ${fieldName}`;
 }

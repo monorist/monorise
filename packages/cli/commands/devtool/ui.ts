@@ -296,13 +296,13 @@ export const INDEX_HTML = `<!doctype html>
             placeholder="https://example.execute-api.us-east-1.amazonaws.com"
             required
           />
-          <label for="manual-api-key">Read-only API key <span>(optional)</span></label>
+          <label for="manual-api-key">API key <span>(optional)</span></label>
           <input
             id="manual-api-key"
             class="dialog-input"
             type="password"
             autocomplete="new-password"
-            placeholder="Paste the shared key"
+            placeholder="Paste an API key"
           />
           <p class="connection-note">
             The key is sent only to this local devtool process, held in memory,
@@ -1260,25 +1260,24 @@ dialog::backdrop {
   display: flex;
   min-width: 0;
   align-items: center;
-  gap: 5px;
   padding: 0;
+  border: 0;
+  border-radius: 2px;
+  outline: 0;
   color: inherit;
   background: transparent;
   cursor: pointer;
+  font: inherit;
   text-align: left;
-}
-
-.field-insert-icon {
-  color: var(--accent);
-  font-size: 13px;
-  line-height: 1;
 }
 
 .field-insert:hover code,
 .field-insert:focus-visible code {
   color: var(--accent);
-  text-decoration: underline;
-  text-underline-offset: 3px;
+}
+
+.field-insert:focus-visible {
+  box-shadow: 0 0 0 2px rgba(213, 255, 71, 0.28);
 }
 
 .field-controls {
@@ -1304,11 +1303,10 @@ dialog::backdrop {
 }
 
 .timestamp-button {
-  padding: 3px 6px;
-  border: 1px solid #38402a;
-  border-radius: 5px;
-  color: #bdd86d;
-  background: #182014;
+  padding: 0;
+  border: 0;
+  color: #7f8a92;
+  background: transparent;
   cursor: pointer;
   font-family: var(--mono);
   font-size: 8px;
@@ -1316,9 +1314,7 @@ dialog::backdrop {
 
 .timestamp-button:hover,
 .timestamp-button:focus-visible {
-  border-color: #66763a;
   color: var(--accent);
-  background: #202a19;
 }
 
 .field-meta {
@@ -2165,7 +2161,7 @@ function fieldReferenceHtml(fields, emptyMessage) {
             index +
             '" title="Add ' +
             escapeHtml(field.name) +
-            ' to the JSON"><span class="field-insert-icon" aria-hidden="true">＋</span><code>' +
+            ' to the JSON"><code>' +
             escapeHtml(field.name) +
             '</code></button><div class="field-controls"><span class="field-type">' +
             escapeHtml(field.type) +
